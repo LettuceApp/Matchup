@@ -1,0 +1,55 @@
+version: '3'
+services:
+  app:
+    container_name: Matchup_app
+    build:
+      context: .
+      dockerfile: ./Dockerfile.dev
+    ports: 
+      - 8888:8888 
+    restart: on-failure
+    volumes:              
+      - .:/usr/src/app
+    depends_on:
+      - Matchup-postgres
+    networks:
+      - matchup
+
+  Matchup-postgres:
+    image: postgres:latest
+    container_name: Matchup_db_postgres
+    environment:
+      - POSTGRES_USER=${DB_USER}  
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+      - DATABASE_HOST=${DB_HOST} 
+    ports:
+      - '5432:5432'
+    volumes:
+      - database_postgres:/var/lib/postgresql/data
+    networks:
+      - matchup
+    
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin_container
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    depends_on:
+      - Matchup-postgres
+    ports:
+      - "5050:80"
+    networks:
+      - matchup
+    restart: unless-stopped
+
+
+volumes:
+  api:
+  database_postgres:
+
+# Networks to be created to facilitate communication between containers
+networks:
+  matchup:
+    driver: bridge
