@@ -1,0 +1,27 @@
+# Dockerfile.dev
+FROM golang:alpine as builder
+
+# Install git
+RUN apk update && apk add --no-cache git
+
+# Set the working directory inside the container
+WORKDIR /usr/src/app
+
+# Copy go.mod and go.sum from the project root into the container
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy the source from the cmd directory to the working directory inside the container
+COPY ./cmd .
+
+# Build CompileDaemon from source
+RUN go get github.com/githubnemo/CompileDaemon
+RUN go install -mod=mod github.com/githubnemo/CompileDaemon
+
+# Expose port
+EXPOSE 8888
+
+# The ENTRYPOINT defines the command that will be run when the container starts up
+ENTRYPOINT CompileDaemon -log-prefix=false -build="go build ." -command="./Matchup"

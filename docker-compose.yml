@@ -4,7 +4,7 @@ services:
     container_name: Matchup_app
     build:
       context: .
-      dockerfile: ./Dockerfile.dev
+      dockerfile: ./cmd/Dockerfile.dev
     ports: 
       - 8888:8888 
     restart: on-failure

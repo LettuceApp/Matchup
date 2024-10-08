@@ -42,7 +42,7 @@ func (server *Server) CreateComment(c *gin.Context) {
 	// Clear previous error if any
 	errList := map[string]string{}
 
-	matchupID := c.Param("matchup_id")
+	matchupID := c.Param("id")
 	mid, err := uuid.Parse(matchupID)
 	if err != nil {
 		errList["Invalid_request"] = "Invalid Request"

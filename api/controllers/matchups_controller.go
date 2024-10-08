@@ -21,7 +21,6 @@ type MatchupResponse struct {
 	Content   string                `json:"content"`
 	AuthorID  uuid.UUID             `json:"author_id"`
 	Items     []MatchupItemResponse `json:"items"`
-	Comments  []CommentResponse     `json:"comments"`
 	CreatedAt time.Time             `json:"created_at"`
 	UpdatedAt time.Time             `json:"updated_at"`
 }
@@ -32,7 +31,7 @@ type MatchupItemResponse struct {
 	Votes int       `json:"votes"`
 }
 
-func toMatchupResponse(matchup *models.Matchup, comments []models.Comment) *MatchupResponse {
+func toMatchupResponse(matchup *models.Matchup) *MatchupResponse {
 	itemResponses := make([]MatchupItemResponse, len(matchup.Items))
 	for i, item := range matchup.Items {
 		itemResponses[i] = MatchupItemResponse{
@@ -42,25 +41,12 @@ func toMatchupResponse(matchup *models.Matchup, comments []models.Comment) *Matc
 		}
 	}
 
-	commentResponses := make([]CommentResponse, len(comments))
-	for i, comment := range comments {
-		commentResponses[i] = CommentResponse{
-			ID:        comment.ID,
-			UserID:    comment.UserID,
-			Username:  comment.User.Username, // Assuming you have a User struct with Username field in the Comment model.
-			Body:      comment.Body,
-			CreatedAt: comment.CreatedAt,
-			UpdatedAt: comment.UpdatedAt,
-		}
-	}
-
 	return &MatchupResponse{
 		ID:        matchup.ID,
 		Title:     matchup.Title,
 		Content:   matchup.Content,
 		AuthorID:  matchup.AuthorID,
 		Items:     itemResponses,
-		Comments:  commentResponses,
 		CreatedAt: matchup.CreatedAt,
 		UpdatedAt: matchup.UpdatedAt,
 	}
@@ -140,21 +126,9 @@ func (server *Server) CreateMatchup(c *gin.Context) {
 	}
 	tx.Commit()
 
-	// Retrieve the comments for the created matchup
-	comment := models.Comment{}
-	comments, err := comment.GetComments(server.DB, matchupCreated.ID)
-	if err != nil {
-		errList["No_comments"] = "No Comments Found"
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  errList,
-		})
-		return
-	}
-
 	c.JSON(http.StatusCreated, gin.H{
 		"status":   http.StatusCreated,
-		"response": toMatchupResponse(matchupCreated, *comments),
+		"response": toMatchupResponse(matchupCreated),
 	})
 }
 
@@ -174,18 +148,7 @@ func (server *Server) GetMatchups(c *gin.Context) {
 	// Map the Matchup objects to MatchupResponse objects
 	response := make([]MatchupResponse, len(matchups))
 	for i, m := range matchups {
-		// Retrieve the comments for each matchup
-		comment := models.Comment{}
-		comments, err := comment.GetComments(server.DB, m.ID)
-		if err != nil {
-			errList["No_comments"] = "No Comments Found"
-			c.JSON(http.StatusNotFound, gin.H{
-				"status": http.StatusNotFound,
-				"error":  errList,
-			})
-			return
-		}
-		response[i] = *toMatchupResponse(&m, *comments)
+		response[i] = *toMatchupResponse(&m)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -217,20 +180,8 @@ func (server *Server) GetMatchup(c *gin.Context) {
 		return
 	}
 
-	// Retrieve the comments for the matchup
-	comment := models.Comment{}
-	comments, err := comment.GetComments(server.DB, mid)
-	if err != nil {
-		errList["No_comments"] = "No Comments Found"
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  errList,
-		})
-		return
-	}
-
 	// Add the comments to the matchup response
-	matchupResponse := toMatchupResponse(matchupReceived, *comments)
+	matchupResponse := toMatchupResponse(matchupReceived)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":   http.StatusOK,
@@ -328,21 +279,9 @@ func (server *Server) UpdateMatchup(c *gin.Context) {
 		return
 	}
 
-	// Retrieve the comments for the updated matchup
-	comment := models.Comment{}
-	comments, err := comment.GetComments(server.DB, matchupUpdated.ID)
-	if err != nil {
-		errList["No_comments"] = "No Comments Found"
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  errList,
-		})
-		return
-	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"status":   http.StatusOK,
-		"response": toMatchupResponse(matchupUpdated, *comments), // Pass the comments slice here
+		"response": toMatchupResponse(matchupUpdated), // Pass the comments slice here
 	})
 }
 
@@ -457,18 +396,7 @@ func (server *Server) GetUserMatchups(c *gin.Context) {
 	// Map the Matchup objects to MatchupResponse objects
 	response := make([]MatchupResponse, len(*matchups))
 	for i, m := range *matchups {
-		// Retrieve the comments for each matchup
-		comment := models.Comment{}
-		comments, err := comment.GetComments(server.DB, m.ID)
-		if err != nil {
-			errList["No_comments"] = "No Comments Found"
-			c.JSON(http.StatusNotFound, gin.H{
-				"status": http.StatusNotFound,
-				"error":  errList,
-			})
-			return
-		}
-		response[i] = *toMatchupResponse(&m, *comments)
+		response[i] = *toMatchupResponse(&m)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

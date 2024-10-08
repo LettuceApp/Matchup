@@ -17,7 +17,6 @@ type Matchup struct {
 	Author    User          `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 	AuthorID  uuid.UUID     `gorm:"type:uuid;not null" json:"author_id"`
 	Items     []MatchupItem `gorm:"foreignKey:MatchupID" json:"items"`
-	Comments  []Comment     `gorm:"foreignKey:MatchupID" json:"comments"`
 	CreatedAt time.Time     `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
 	UpdatedAt time.Time     `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
 }
@@ -172,13 +171,4 @@ func (mi *MatchupItem) IncrementVotes(db *gorm.DB) (*MatchupItem, error) {
 		return &MatchupItem{}, err
 	}
 	return mi, nil
-}
-
-func (m *Matchup) GetComments(db *gorm.DB) (*[]Comment, error) {
-	comments := []Comment{}
-	err := db.Debug().Model(&Comment{}).Where("matchup_id = ?", m.ID).Order("created_at desc").Find(&comments).Error
-	if err != nil {
-		return &[]Comment{}, err
-	}
-	return &comments, nil
 }

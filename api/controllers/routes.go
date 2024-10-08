@@ -36,13 +36,13 @@ func (s *Server) initializeRoutes() {
 		v1.POST("/matchups/:matchup_id/items", s.AddItemToMatchup)
 
 		//Like route
-		v1.GET("/likes/matchups/:id", s.GetLikes)
+		v1.GET("/likes/:id", s.GetLikes)
 		v1.POST("/likes/:id", middlewares.TokenAuthMiddleware(), s.LikeMatchup)
 		v1.DELETE("/likes/:id", middlewares.TokenAuthMiddleware(), s.UnLikeMatchup)
 
 		//Comment routes
-		v1.POST("/comments/:matchup_id/comments", middlewares.TokenAuthMiddleware(), s.CreateComment)
-		v1.GET("/comments/:matchup_id/comments", s.GetComments)
+		v1.POST("/comments/:id", middlewares.TokenAuthMiddleware(), s.CreateComment)
+		v1.GET("/comments/:id", s.GetComments)
 		v1.PUT("/comments/:id", middlewares.TokenAuthMiddleware(), s.UpdateComment)
 		v1.DELETE("/comments/:id", middlewares.TokenAuthMiddleware(), s.DeleteComment)
 
