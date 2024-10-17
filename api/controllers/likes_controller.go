@@ -10,13 +10,12 @@ import (
 	"Matchup/api/utils/formaterror"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 func (server *Server) LikeMatchup(c *gin.Context) {
 
-	//clear previous error if any
-	errList = map[string]string{}
+	// Clear previous error if any
+	errList := map[string]string{}
 
 	matchupID := c.Param("id")
 	mid, err := strconv.ParseUint(matchupID, 10, 64)
@@ -37,7 +36,7 @@ func (server *Server) LikeMatchup(c *gin.Context) {
 		})
 		return
 	}
-	// check if the user exist:
+	// Check if the user exists:
 	user := models.User{}
 	err = server.DB.Model(models.User{}).Where("id = ?", uid).Take(&user).Error
 	if err != nil {
@@ -48,7 +47,7 @@ func (server *Server) LikeMatchup(c *gin.Context) {
 		})
 		return
 	}
-	// check if the matchup exist:
+	// Check if the matchup exists:
 	matchup := models.Matchup{}
 	err = server.DB.Model(models.Matchup{}).Where("id = ?", mid).Take(&matchup).Error
 	if err != nil {
@@ -82,13 +81,13 @@ func (server *Server) LikeMatchup(c *gin.Context) {
 
 func (server *Server) GetLikes(c *gin.Context) {
 
-	//clear previous error if any
-	errList = map[string]string{}
+	// Clear previous error if any
+	errList := map[string]string{}
 
 	matchupID := c.Param("id")
 
 	// Is a valid matchup id given to us?
-	mid, err := uuid.Parse(matchupID)
+	mid, err := strconv.ParseUint(matchupID, 10, 64)
 	if err != nil {
 		fmt.Println("this is the error: ", err)
 		errList["Invalid_request"] = "Invalid Request"
@@ -99,11 +98,11 @@ func (server *Server) GetLikes(c *gin.Context) {
 		return
 	}
 
-	// Check if the matchup exist:
+	// Check if the matchup exists:
 	matchup := models.Matchup{}
 	err = server.DB.Model(models.Matchup{}).Where("id = ?", mid).Take(&matchup).Error
 	if err != nil {
-		errList["No_mactchup"] = "No Matchup Found"
+		errList["No_matchup"] = "No Matchup Found"
 		c.JSON(http.StatusNotFound, gin.H{
 			"status": http.StatusNotFound,
 			"error":  errList,
@@ -113,7 +112,7 @@ func (server *Server) GetLikes(c *gin.Context) {
 
 	like := models.Like{}
 
-	likes, err := like.GetLikesInfo(server.DB, mid)
+	likes, err := like.GetLikesInfo(server.DB, uint(mid))
 	if err != nil {
 		errList["No_likes"] = "No Likes found"
 		c.JSON(http.StatusNotFound, gin.H{
@@ -151,7 +150,7 @@ func (server *Server) UnLikeMatchup(c *gin.Context) {
 		})
 		return
 	}
-	// Check if the matchup exist
+	// Check if the like exists
 	like := models.Like{}
 	err = server.DB.Model(models.Like{}).Where("id = ?", lid).Take(&like).Error
 	if err != nil {
@@ -162,7 +161,7 @@ func (server *Server) UnLikeMatchup(c *gin.Context) {
 		})
 		return
 	}
-	// Is the authenticated user, the owner of this matchup?
+	// Is the authenticated user the owner of this like?
 	if uid != like.UserID {
 		errList["Unauthorized"] = "Unauthorized"
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -172,7 +171,7 @@ func (server *Server) UnLikeMatchup(c *gin.Context) {
 		return
 	}
 
-	// If all the conditions are met, delete the matchup
+	// If all the conditions are met, delete the like
 	_, err = like.DeleteLike(server.DB)
 	if err != nil {
 		errList["Other_error"] = "Please try again later"

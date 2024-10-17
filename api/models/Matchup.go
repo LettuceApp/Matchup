@@ -6,16 +6,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type Matchup struct {
-	ID        uuid.UUID     `gorm:"primary_key;type:uuid;default:gen_random_uuid()" json:"id"`
+	ID        uint          `gorm:"primary_key;autoIncrement" json:"id"`
 	Title     string        `gorm:"size:255;not null;unique" json:"title"`
 	Content   string        `gorm:"text;not null;" json:"content"`
 	Author    User          `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
-	AuthorID  uuid.UUID     `gorm:"type:uuid;not null" json:"author_id"`
+	AuthorID  uint          `gorm:"not null" json:"author_id"`
 	Items     []MatchupItem `gorm:"foreignKey:MatchupID" json:"items"`
 	Comments  []Comment     `gorm:"foreignKey:MatchupID" json:"comments"`
 	CreatedAt time.Time     `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
@@ -23,11 +22,11 @@ type Matchup struct {
 }
 
 type MatchupItem struct {
-	ID        uuid.UUID `gorm:"primary_key;type:uuid;default:gen_random_uuid()" json:"id"`
-	Matchup   Matchup   `json:"-"`
-	MatchupID uuid.UUID `gorm:"type:uuid;not null;index" json:"matchup_id"`
-	Item      string    `json:"item"`
-	Votes     int       `json:"votes"`
+	ID        uint    `gorm:"primary_key;autoIncrement" json:"id"`
+	Matchup   Matchup `json:"-"`
+	MatchupID uint    `gorm:"not null;index" json:"matchup_id"`
+	Item      string  `json:"item"`
+	Votes     int     `json:"votes"`
 }
 
 func (m *Matchup) Prepare() {
@@ -50,7 +49,7 @@ func (m *Matchup) Validate() map[string]string {
 		err = errors.New("required content")
 		errorMessages["Required_content"] = err.Error()
 	}
-	if m.AuthorID.String() == "" {
+	if m.AuthorID == 0 {
 		err = errors.New("required author")
 		errorMessages["Required_author"] = err.Error()
 	}
@@ -66,8 +65,7 @@ func (m *Matchup) SaveMatchup(db *gorm.DB) (*Matchup, error) {
 	// Save the MatchupItems
 	for i, item := range m.Items {
 		// If the item's ID is empty, set the MatchupID and create the item
-		if item.ID == uuid.Nil {
-			m.Items[i].ID = uuid.New()  // Generate a new UUID
+		if item.ID == 0 {
 			m.Items[i].MatchupID = m.ID // Set the MatchupID to the ID of the Matchup instance
 			if err := db.Create(&m.Items[i]).Error; err != nil {
 				return nil, err
@@ -97,10 +95,10 @@ func (m *Matchup) FindAllMatchups(db *gorm.DB) ([]Matchup, error) {
 	return matchups, nil
 }
 
-func (m *Matchup) FindMatchupByID(db *gorm.DB, id uuid.UUID) (*Matchup, error) {
-	result := db.Preload("Author").Preload("Items").First(m, id)
-	if result.Error != nil {
-		return nil, result.Error
+func (m *Matchup) FindMatchupByID(db *gorm.DB, id uint) (*Matchup, error) {
+	err := db.Preload("Author").Where("id = ?", id).First(&m).Error
+	if err != nil {
+		return nil, err
 	}
 	return m, nil
 }
@@ -120,7 +118,7 @@ func (m *Matchup) UpdateMatchup(db *gorm.DB) (*Matchup, error) {
 		m.Items[i] = item
 	}
 
-	if m.ID != uuid.Nil {
+	if m.ID != 0 {
 		err = db.Model(&User{}).Where("id = ?", m.AuthorID).Take(&m.Author).Error
 		if err != nil {
 			return &Matchup{}, err
@@ -129,21 +127,14 @@ func (m *Matchup) UpdateMatchup(db *gorm.DB) (*Matchup, error) {
 	return m, nil
 }
 
-func (m *Matchup) DeleteMatchup(db *gorm.DB) (int64, error) {
-	// Delete associated matchup items
-	if err := db.Where("matchup_id = ?", m.ID).Delete(&MatchupItem{}).Error; err != nil {
-		return 0, err
-	}
-
-	// Delete the matchup
-	result := db.Delete(m, "id = ?", m.ID)
+func (m *Matchup) DeleteMatchup(db *gorm.DB, id uint) (int64, error) {
+	result := db.Delete(&Matchup{}, id)
 	if result.Error != nil {
 		return 0, result.Error
 	}
 	return result.RowsAffected, nil
 }
-
-func (m *Matchup) FindUserMatchups(db *gorm.DB, uid uuid.UUID) (*[]Matchup, error) {
+func (m *Matchup) FindUserMatchups(db *gorm.DB, uid uint) (*[]Matchup, error) {
 	var matchups []Matchup
 	result := db.Preload("Author").Preload("Items").Where("author_id = ?", uid).Limit(100).Order("created_at desc").Find(&matchups)
 	if result.Error != nil {
@@ -153,7 +144,7 @@ func (m *Matchup) FindUserMatchups(db *gorm.DB, uid uuid.UUID) (*[]Matchup, erro
 }
 
 // When a user is deleted, we also delete the matchups that the user had
-func (m *Matchup) DeleteUserMatchups(db *gorm.DB, uid uuid.UUID) (int64, error) {
+func (m *Matchup) DeleteUserMatchups(db *gorm.DB, uid uint) (int64, error) {
 	result := db.Where("author_id = ?", uid).Delete(&Matchup{})
 	if result.Error != nil {
 		return 0, result.Error

@@ -6,13 +6,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/google/uuid"
 )
 
-func CreateToken(id uuid.UUID) (string, error) {
+func CreateToken(id uint) (string, error) {
 	claims := jwt.MapClaims{}
 	claims["authorized"] = true
 	claims["id"] = id
@@ -50,8 +50,7 @@ func ExtractToken(r *http.Request) string {
 	return ""
 }
 
-func ExtractTokenID(r *http.Request) (uuid.UUID, error) {
-
+func ExtractTokenID(r *http.Request) (uint, error) {
 	tokenString := ExtractToken(r)
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -60,17 +59,20 @@ func ExtractTokenID(r *http.Request) (uuid.UUID, error) {
 		return []byte(os.Getenv("API_SECRET")), nil
 	})
 	if err != nil {
-		return uuid.Nil, err
+		return 0, err
 	}
+
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if ok && token.Valid {
-		uid, err := uuid.Parse(fmt.Sprintf("%v", claims["id"]))
+		// Convert the `id` claim from string to uint
+		uidStr := fmt.Sprintf("%v", claims["id"])
+		uid, err := strconv.ParseUint(uidStr, 10, 32)
 		if err != nil {
-			return uuid.Nil, err
+			return 0, err
 		}
-		return uid, nil
+		return uint(uid), nil
 	}
-	return uuid.Nil, nil
+	return 0, fmt.Errorf("Invalid token")
 }
 
 // Pretty display the claims licely in the terminal

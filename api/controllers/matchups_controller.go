@@ -2,74 +2,60 @@ package controllers
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
-	"time"
+	"strconv"
 
 	"Matchup/api/auth"
 	"Matchup/api/models"
 	"Matchup/api/utils/formaterror"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
-type MatchupResponse struct {
-	ID        uuid.UUID             `json:"id"`
-	Title     string                `json:"title"`
-	Content   string                `json:"content"`
-	AuthorID  uuid.UUID             `json:"author_id"`
-	Items     []MatchupItemResponse `json:"items"`
-	Comments  []CommentResponse     `json:"comments"`
-	CreatedAt time.Time             `json:"created_at"`
-	UpdatedAt time.Time             `json:"updated_at"`
-}
-
-type MatchupItemResponse struct {
-	ID    uuid.UUID `json:"id"`
-	Item  string    `json:"item"`
-	Votes int       `json:"votes"`
-}
-
-func toMatchupResponse(matchup *models.Matchup, comments []models.Comment) *MatchupResponse {
-	itemResponses := make([]MatchupItemResponse, len(matchup.Items))
+// toMatchupResponse converts a Matchup model to a response-friendly structure
+func toMatchupResponse(matchup *models.Matchup, comments []models.Comment) map[string]interface{} {
+	// Create the items response structure
+	itemResponses := make([]map[string]interface{}, len(matchup.Items))
 	for i, item := range matchup.Items {
-		itemResponses[i] = MatchupItemResponse{
-			ID:    item.ID,
-			Item:  item.Item,
-			Votes: item.Votes,
+		itemResponses[i] = map[string]interface{}{
+			"id":    item.ID,
+			"item":  item.Item,
+			"votes": item.Votes,
 		}
 	}
 
-	commentResponses := make([]CommentResponse, len(comments))
+	// Create the comments response structure
+	commentResponses := make([]map[string]interface{}, len(comments))
 	for i, comment := range comments {
-		commentResponses[i] = CommentResponse{
-			ID:        comment.ID,
-			UserID:    comment.UserID,
-			Username:  comment.User.Username, // Assuming you have a User struct with Username field in the Comment model.
-			Body:      comment.Body,
-			CreatedAt: comment.CreatedAt,
-			UpdatedAt: comment.UpdatedAt,
+		commentResponses[i] = map[string]interface{}{
+			"id":         comment.ID,
+			"user_id":    comment.UserID,
+			"username":   comment.User.Username,
+			"body":       comment.Body,
+			"created_at": comment.CreatedAt,
+			"updated_at": comment.UpdatedAt,
 		}
 	}
 
-	return &MatchupResponse{
-		ID:        matchup.ID,
-		Title:     matchup.Title,
-		Content:   matchup.Content,
-		AuthorID:  matchup.AuthorID,
-		Items:     itemResponses,
-		Comments:  commentResponses,
-		CreatedAt: matchup.CreatedAt,
-		UpdatedAt: matchup.UpdatedAt,
+	// Return a formatted matchup response without exposing sensitive information
+	return map[string]interface{}{
+		"id":         matchup.ID,
+		"title":      matchup.Title,
+		"content":    matchup.Content,
+		"author_id":  matchup.AuthorID,
+		"items":      itemResponses,
+		"comments":   commentResponses,
+		"created_at": matchup.CreatedAt,
+		"updated_at": matchup.UpdatedAt,
 	}
 }
 
+// CreateMatchup allows authenticated users to create a new matchup
 func (server *Server) CreateMatchup(c *gin.Context) {
-
-	// clear previous error if any
-	errList = map[string]string{}
+	// Clear previous error if any
+	errList := map[string]string{}
 
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -101,7 +87,7 @@ func (server *Server) CreateMatchup(c *gin.Context) {
 		return
 	}
 
-	// check if the user exist:
+	// Check if the user exists
 	user := models.User{}
 	err = server.DB.Model(models.User{}).Where("id = ?", uid).Take(&user).Error
 	if err != nil {
@@ -113,7 +99,7 @@ func (server *Server) CreateMatchup(c *gin.Context) {
 		return
 	}
 
-	matchup.AuthorID = uid //the authenticated user is the one creating the matchup
+	matchup.AuthorID = uid // the authenticated user is the one creating the matchup
 
 	matchup.Prepare()
 	errorMessages := matchup.Validate()
@@ -126,11 +112,10 @@ func (server *Server) CreateMatchup(c *gin.Context) {
 		return
 	}
 
-	// create the matchup
+	// Create the matchup
 	tx := server.DB.Begin()
 	matchupCreated, err := matchup.SaveMatchup(tx)
 	if err != nil {
-		//tx.Rollback()
 		errList := formaterror.FormatError(err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status": http.StatusInternalServerError,
@@ -152,466 +137,316 @@ func (server *Server) CreateMatchup(c *gin.Context) {
 		return
 	}
 
+	// Prepare response without exposing unnecessary fields (like password)
+	matchupResponse := toMatchupResponse(matchupCreated, *comments)
+
 	c.JSON(http.StatusCreated, gin.H{
 		"status":   http.StatusCreated,
-		"response": toMatchupResponse(matchupCreated, *comments),
-	})
-}
-
-func (server *Server) GetMatchups(c *gin.Context) {
-	matchup := models.Matchup{}
-
-	matchups, err := matchup.FindAllMatchups(server.DB)
-	if err != nil {
-		errList["No_matchup"] = "No Matchup Found"
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  errList,
-		})
-		return
-	}
-
-	// Map the Matchup objects to MatchupResponse objects
-	response := make([]MatchupResponse, len(matchups))
-	for i, m := range matchups {
-		// Retrieve the comments for each matchup
-		comment := models.Comment{}
-		comments, err := comment.GetComments(server.DB, m.ID)
-		if err != nil {
-			errList["No_comments"] = "No Comments Found"
-			c.JSON(http.StatusNotFound, gin.H{
-				"status": http.StatusNotFound,
-				"error":  errList,
-			})
-			return
-		}
-		response[i] = *toMatchupResponse(&m, *comments)
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"status":   http.StatusOK,
-		"response": response,
-	})
-}
-
-func (server *Server) GetMatchup(c *gin.Context) {
-	matchupID := c.Param("id")
-	mid, err := uuid.Parse(matchupID)
-	if err != nil {
-		errList["Invalid_request"] = "Invalid Request"
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status": http.StatusBadRequest,
-			"error":  errList,
-		})
-		return
-	}
-
-	matchup := models.Matchup{}
-	matchupReceived, err := matchup.FindMatchupByID(server.DB, mid)
-	if err != nil {
-		errList["No_matchup"] = "No Matchup Found"
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  errList,
-		})
-		return
-	}
-
-	// Retrieve the comments for the matchup
-	comment := models.Comment{}
-	comments, err := comment.GetComments(server.DB, mid)
-	if err != nil {
-		errList["No_comments"] = "No Comments Found"
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  errList,
-		})
-		return
-	}
-
-	// Add the comments to the matchup response
-	matchupResponse := toMatchupResponse(matchupReceived, *comments)
-
-	c.JSON(http.StatusOK, gin.H{
-		"status":   http.StatusOK,
 		"response": matchupResponse,
 	})
 }
 
+// GetMatchups retrieves all matchups along with their items and comments
+func (server *Server) GetMatchups(c *gin.Context) {
+	var matchups []models.Matchup
+
+	// Use Preload to avoid N+1 query problem
+	err := server.DB.Preload("Author").
+		Preload("Items").
+		Preload("Comments").
+		Find(&matchups).Error
+	if err != nil && err != gorm.ErrRecordNotFound {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve matchups"})
+		return
+	}
+
+	c.JSON(http.StatusOK, matchups)
+}
+
+// GetMatchup retrieves a specific matchup by ID
+func (server *Server) GetMatchup(c *gin.Context) {
+	matchupID := c.Param("id")
+	mid, err := strconv.ParseUint(matchupID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid matchup ID"})
+		return
+	}
+
+	var matchup models.Matchup
+	err = server.DB.Preload("Author").
+		Preload("Items").
+		Preload("Comments").
+		First(&matchup, uint(mid)).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Matchup not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving matchup"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, matchup)
+}
+
+// UpdateMatchup allows the author to update their matchup
 func (server *Server) UpdateMatchup(c *gin.Context) {
-
-	//clear previous error if any
-	errList = map[string]string{}
-
 	matchupID := c.Param("id")
-	// Check if the matchup id is valid
-	mid, err := uuid.Parse(matchupID)
+	mid, err := strconv.ParseUint(matchupID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid matchup ID"})
+		return
+	}
 
-	if err != nil {
-		errList["Invalid_request"] = "Invalid Request"
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status": http.StatusBadRequest,
-			"error":  errList,
-		})
+	// Get the authenticated user's ID
+	tokenID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	//CHeck if the auth token is valid and  get the user id from it
-	uid, err := auth.ExtractTokenID(c.Request)
-	if err != nil {
-		errList["Unauthorized"] = "Unauthorized"
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status": http.StatusUnauthorized,
-			"error":  errList,
-		})
-		return
-	}
-	//Check if the matchup exist
-	origMatchup := models.Matchup{}
-	err = server.DB.Model(models.Matchup{}).Where("id = ?", mid.String()).Take(&origMatchup).Error
-	if err != nil {
-		errList["No_matchup"] = "No matchup Found"
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  errList,
-		})
-		return
-	}
-	if uid != origMatchup.AuthorID {
-		errList["Unauthorized"] = "Unauthorized"
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status": http.StatusUnauthorized,
-			"error":  errList,
-		})
-		return
-	}
-	// Read the data posted
-	body, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		errList["Invalid_body"] = "Unable to get request"
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"status": http.StatusUnprocessableEntity,
-			"error":  errList,
-		})
-		return
-	}
-	// Start processing the request data
-	matchup := models.Matchup{}
-	err = json.Unmarshal(body, &matchup)
-	if err != nil {
-		errList["Unmarshal_error"] = "Cannot unmarshal body"
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"status": http.StatusUnprocessableEntity,
-			"error":  errList,
-		})
-		return
-	}
-	matchup.ID = origMatchup.ID //this is important to tell the model the matchup id to update, the other update field are set above
-	matchup.AuthorID = origMatchup.AuthorID
+	uid := tokenID.(uint)
 
-	matchup.Prepare()
-	errorMessages := matchup.Validate()
+	// Check if the matchup exists and belongs to the user
+	var existingMatchup models.Matchup
+	err = server.DB.First(&existingMatchup, uint(mid)).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Matchup not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving matchup"})
+		}
+		return
+	}
+	if existingMatchup.AuthorID != uid {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You are not authorized to update this matchup"})
+		return
+	}
+
+	// Parse JSON input
+	var matchup models.Matchup
+	if err := c.ShouldBindJSON(&matchup); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Update fields
+	existingMatchup.Title = matchup.Title
+	existingMatchup.Content = matchup.Content
+	existingMatchup.UpdatedAt = matchup.UpdatedAt
+
+	// Validate the updated matchup
+	existingMatchup.Prepare()
+	errorMessages := existingMatchup.Validate()
 	if len(errorMessages) > 0 {
-		errList = errorMessages
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"status": http.StatusUnprocessableEntity,
-			"error":  errList,
-		})
-		return
-	}
-	matchupUpdated, err := matchup.UpdateMatchup(server.DB)
-	if err != nil {
-		errList := formaterror.FormatError(err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status": http.StatusInternalServerError,
-			"error":  errList,
-		})
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"errors": errorMessages})
 		return
 	}
 
-	// Retrieve the comments for the updated matchup
-	comment := models.Comment{}
-	comments, err := comment.GetComments(server.DB, matchupUpdated.ID)
+	// Save the updated matchup
+	updatedMatchup, err := existingMatchup.UpdateMatchup(server.DB)
 	if err != nil {
-		errList["No_comments"] = "No Comments Found"
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  errList,
-		})
+		formattedError := formaterror.FormatError(err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"errors": formattedError})
 		return
 	}
 
+	// Return response with the "response" field
 	c.JSON(http.StatusOK, gin.H{
 		"status":   http.StatusOK,
-		"response": toMatchupResponse(matchupUpdated, *comments), // Pass the comments slice here
+		"response": updatedMatchup,
 	})
 }
 
+// DeleteMatchup allows the author to delete their matchup
 func (server *Server) DeleteMatchup(c *gin.Context) {
-
 	matchupID := c.Param("id")
-	// Is a valid matchup id given to us?
-	mid, err := uuid.Parse(matchupID)
+	mid, err := strconv.ParseUint(matchupID, 10, 32)
 	if err != nil {
-		errList["Invalid_request"] = "Invalid Request"
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status": http.StatusBadRequest,
-			"error":  errList,
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid matchup ID"})
 		return
 	}
 
-	fmt.Println("this is delete matchup sir")
+	// Get the authenticated user's ID
+	tokenID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	uid := tokenID.(uint)
 
-	// Is this user authenticated?
-	uid, err := auth.ExtractTokenID(c.Request)
+	// Check if the matchup exists and belongs to the user
+	var matchup models.Matchup
+	err = server.DB.First(&matchup, uint(mid)).Error
 	if err != nil {
-		errList["Unauthorized"] = "Unauthorized"
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status": http.StatusUnauthorized,
-			"error":  errList,
-		})
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Matchup not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving matchup"})
+		}
 		return
 	}
-	// Check if the matchup exist
-	matchup := models.Matchup{}
-	err = server.DB.Model(models.Matchup{}).Where("id = ?", mid).Take(&matchup).Error
-	if err != nil {
-		errList["No_matchup"] = "No Matchup Found"
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  errList,
-		})
-		return
-	}
-	// Is the authenticated user, the owner of this matchup?
-	if uid != matchup.AuthorID {
-		errList["Unauthorized"] = "Unauthorized"
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status": http.StatusUnauthorized,
-			"error":  errList,
-		})
-		return
-	}
-	// If all the conditions are met, delete the matchup
-	_, err = matchup.DeleteMatchup(server.DB)
-	if err != nil {
-		errList["Other_error"] = "Please try again later"
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status": http.StatusInternalServerError,
-			"error":  errList,
-		})
-		return
-	}
-	comment := models.Comment{}
-	like := models.Like{}
-
-	// Also delete the likes and the comments that this matchup have:
-	_, err = comment.DeleteMatchupComments(server.DB, mid)
-	if err != nil {
-		errList["Other_error"] = "Please try again later"
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status": http.StatusInternalServerError,
-			"error":  errList,
-		})
-		return
-	}
-	_, err = like.DeleteMatchupLikes(server.DB, mid)
-	if err != nil {
-		errList["Other_error"] = "Please try again later"
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status": http.StatusInternalServerError,
-			"error":  errList,
-		})
+	if matchup.AuthorID != uid {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You are not authorized to delete this matchup"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"status":   http.StatusOK,
-		"response": "Matchup deleted",
-	})
+	// Delete the matchup (associated data is deleted via ON DELETE CASCADE)
+	if _, err := matchup.DeleteMatchup(server.DB, uint(mid)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting matchup"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Matchup deleted"})
 }
 
+// GetUserMatchups retrieves all matchups created by a specific user
 func (server *Server) GetUserMatchups(c *gin.Context) {
 	userID := c.Param("id")
-	uid, err := uuid.Parse(userID)
+	uid, err := strconv.ParseUint(userID, 10, 32)
 	if err != nil {
-		errList["Invalid_request"] = "Invalid Request"
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status": http.StatusBadRequest,
-			"error":  errList,
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
-	matchup := models.Matchup{}
-	matchups, err := matchup.FindUserMatchups(server.DB, uid)
-	if err != nil {
-		errList["No_matchup"] = "No Matchup Found"
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  errList,
-		})
+	var matchups []models.Matchup
+	err = server.DB.Preload("Author").
+		Preload("Items").
+		Preload("Comments").
+		Where("author_id = ?", uint(uid)).
+		Find(&matchups).Error
+	if err != nil && err != gorm.ErrRecordNotFound {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve matchups"})
 		return
 	}
 
-	// Map the Matchup objects to MatchupResponse objects
-	response := make([]MatchupResponse, len(*matchups))
-	for i, m := range *matchups {
-		// Retrieve the comments for each matchup
-		comment := models.Comment{}
-		comments, err := comment.GetComments(server.DB, m.ID)
-		if err != nil {
-			errList["No_comments"] = "No Comments Found"
-			c.JSON(http.StatusNotFound, gin.H{
-				"status": http.StatusNotFound,
-				"error":  errList,
-			})
-			return
-		}
-		response[i] = *toMatchupResponse(&m, *comments)
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"status":   http.StatusOK,
-		"response": response,
-	})
+	c.JSON(http.StatusOK, matchups)
 }
 
+// IncrementMatchupItemVotes increments the vote count for a specific matchup item
 func (server *Server) IncrementMatchupItemVotes(c *gin.Context) {
 	itemID := c.Param("id")
-
-	// Convert itemID to uuid
-	id, err := uuid.Parse(itemID)
+	iid, err := strconv.ParseUint(itemID, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status": http.StatusBadRequest,
-			"error":  "Invalid item ID",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid item ID"})
 		return
 	}
 
-	// Fetch the existing item
-	var item models.MatchupItem
-	err = server.DB.Model(&models.MatchupItem{}).Where("id = ?", id).Take(&item).Error
+	// Use atomic increment to avoid race conditions
+	err = server.DB.Model(&models.MatchupItem{}).
+		Where("id = ?", uint(iid)).
+		UpdateColumn("votes", gorm.Expr("votes + ?", 1)).Error
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  "MatchupItem not found",
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating votes"})
 		return
 	}
 
-	// Increment the votes field
-	item.Votes++
-
-	// Update the item in the database
-	err = server.DB.Model(&models.MatchupItem{}).Where("id = ?", id).Updates(models.MatchupItem{Votes: item.Votes}).Error
+	// Retrieve the updated item
+	var updatedItem models.MatchupItem
+	err = server.DB.First(&updatedItem, uint(iid)).Error
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status": http.StatusInternalServerError,
-			"error":  "Error updating votes",
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving updated item"})
 		return
 	}
 
-	// Return the updated item
+	// Return response with the "response" field
 	c.JSON(http.StatusOK, gin.H{
 		"status":   http.StatusOK,
-		"response": item,
+		"response": updatedItem,
 	})
 }
 
+// DeleteMatchupItem deletes a specific item from a matchup
 func (server *Server) DeleteMatchupItem(c *gin.Context) {
 	itemID := c.Param("id")
-
-	// Convert itemID to uuid
-	id, err := uuid.Parse(itemID)
+	iid, err := strconv.ParseUint(itemID, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status": http.StatusBadRequest,
-			"error":  "Invalid item ID",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid item ID"})
 		return
 	}
 
-	// Fetch the existing item
+	// Get the authenticated user's ID
+	tokenID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	uid := tokenID.(uint)
+
+	// Fetch the item and its parent matchup
 	var item models.MatchupItem
-	err = server.DB.Model(&models.MatchupItem{}).Where("id = ?", id).Take(&item).Error
+	err = server.DB.Preload("Matchup").First(&item, uint(iid)).Error
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  "MatchupItem not found",
-		})
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Matchup item not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving item"})
+		}
 		return
 	}
 
-	// Delete the item from the database
-	err = server.DB.Delete(&models.MatchupItem{}, "id = ?", id).Error
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status": http.StatusInternalServerError,
-			"error":  "Error deleting item",
-		})
+	// Check if the authenticated user is the author of the matchup
+	if item.Matchup.AuthorID != uid {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You are not authorized to delete this item"})
 		return
 	}
 
-	// Return a success message
-	c.JSON(http.StatusOK, gin.H{
-		"status":   http.StatusOK,
-		"response": "MatchupItem deleted successfully",
-	})
+	// Delete the item
+	if err := server.DB.Delete(&item).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting item"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Item deleted"})
 }
 
+// AddItemToMatchup adds a new item to an existing matchup
 func (server *Server) AddItemToMatchup(c *gin.Context) {
 	matchupID := c.Param("matchup_id")
-
-	// Convert matchupID to uuid
-	id, err := uuid.Parse(matchupID)
+	mid, err := strconv.ParseUint(matchupID, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status": http.StatusBadRequest,
-			"error":  "Invalid matchup ID",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid matchup ID"})
 		return
 	}
 
-	// Check if the matchup exists
+	// Get the authenticated user's ID
+	tokenID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	uid := tokenID.(uint)
+
+	// Check if the matchup exists and belongs to the user
 	var matchup models.Matchup
-	err = server.DB.Model(&models.Matchup{}).Where("id = ?", id).Take(&matchup).Error
+	err = server.DB.First(&matchup, uint(mid)).Error
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  "Matchup not found",
-		})
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Matchup not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving matchup"})
+		}
+		return
+	}
+	if matchup.AuthorID != uid {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You are not authorized to add items to this matchup"})
 		return
 	}
 
-	// Read the new item from the request body
+	// Parse JSON input for the new item
 	var item models.MatchupItem
 	if err := c.ShouldBindJSON(&item); err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"status": http.StatusUnprocessableEntity,
-			"error":  "Invalid JSON",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Set the foreign key relationship (matchup_id)
-	item.MatchupID = id
+	// Set the foreign key relationship
+	item.MatchupID = uint(mid)
 
-	// Save the new item in the database
-	err = server.DB.Create(&item).Error
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status": http.StatusInternalServerError,
-			"error":  "Error saving the new item",
-		})
+	// Save the new item
+	if err := server.DB.Create(&item).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error saving the new item"})
 		return
 	}
 
-	// Return the created item
-	c.JSON(http.StatusCreated, gin.H{
-		"status":   http.StatusCreated,
-		"response": item,
-	})
+	c.JSON(http.StatusCreated, item)
 }
