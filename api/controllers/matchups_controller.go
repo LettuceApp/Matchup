@@ -15,6 +15,15 @@ import (
 	"github.com/google/uuid"
 )
 
+<<<<<<< Updated upstream
+=======
+<<<<<<< HEAD
+// toMatchupResponse converts a Matchup model to a response-friendly structure
+func toMatchupResponse(matchup *models.Matchup, comments []models.Comment) map[string]interface{} {
+	// Create the items response structure
+	itemResponses := make([]map[string]interface{}, len(matchup.Items))
+=======
+>>>>>>> Stashed changes
 type MatchupResponse struct {
 	ID        uuid.UUID             `json:"id"`
 	Title     string                `json:"title"`
@@ -33,6 +42,10 @@ type MatchupItemResponse struct {
 
 func toMatchupResponse(matchup *models.Matchup) *MatchupResponse {
 	itemResponses := make([]MatchupItemResponse, len(matchup.Items))
+<<<<<<< Updated upstream
+=======
+>>>>>>> golang-version
+>>>>>>> Stashed changes
 	for i, item := range matchup.Items {
 		itemResponses[i] = MatchupItemResponse{
 			ID:    item.ID,
@@ -41,6 +54,34 @@ func toMatchupResponse(matchup *models.Matchup) *MatchupResponse {
 		}
 	}
 
+<<<<<<< Updated upstream
+=======
+<<<<<<< HEAD
+	// Create the comments response structure
+	commentResponses := make([]map[string]interface{}, len(comments))
+	for i, comment := range comments {
+		commentResponses[i] = map[string]interface{}{
+			"id":         comment.ID,
+			"user_id":    comment.UserID,
+			"username":   comment.User.Username,
+			"body":       comment.Body,
+			"created_at": comment.CreatedAt,
+			"updated_at": comment.UpdatedAt,
+		}
+	}
+
+	// Return a formatted matchup response without exposing sensitive information
+	return map[string]interface{}{
+		"id":         matchup.ID,
+		"title":      matchup.Title,
+		"content":    matchup.Content,
+		"author_id":  matchup.AuthorID,
+		"items":      itemResponses,
+		"comments":   commentResponses,
+		"created_at": matchup.CreatedAt,
+		"updated_at": matchup.UpdatedAt,
+=======
+>>>>>>> Stashed changes
 	return &MatchupResponse{
 		ID:        matchup.ID,
 		Title:     matchup.Title,
@@ -49,6 +90,10 @@ func toMatchupResponse(matchup *models.Matchup) *MatchupResponse {
 		Items:     itemResponses,
 		CreatedAt: matchup.CreatedAt,
 		UpdatedAt: matchup.UpdatedAt,
+<<<<<<< Updated upstream
+=======
+>>>>>>> golang-version
+>>>>>>> Stashed changes
 	}
 }
 
@@ -126,6 +171,43 @@ func (server *Server) CreateMatchup(c *gin.Context) {
 	}
 	tx.Commit()
 
+<<<<<<< Updated upstream
+	c.JSON(http.StatusCreated, gin.H{
+		"status":   http.StatusCreated,
+		"response": toMatchupResponse(matchupCreated),
+	})
+}
+
+func (server *Server) GetMatchups(c *gin.Context) {
+	matchup := models.Matchup{}
+
+	matchups, err := matchup.FindAllMatchups(server.DB)
+=======
+<<<<<<< HEAD
+	// Retrieve the comments for the created matchup
+	comment := models.Comment{}
+	comments, err := comment.GetComments(server.DB, matchupCreated.ID)
+>>>>>>> Stashed changes
+	if err != nil {
+		errList["No_matchup"] = "No Matchup Found"
+		c.JSON(http.StatusNotFound, gin.H{
+			"status": http.StatusNotFound,
+			"error":  errList,
+		})
+		return
+	}
+
+	// Map the Matchup objects to MatchupResponse objects
+	response := make([]MatchupResponse, len(matchups))
+	for i, m := range matchups {
+		response[i] = *toMatchupResponse(&m)
+	}
+
+<<<<<<< Updated upstream
+=======
+	c.JSON(http.StatusCreated, gin.H{
+		"status":   http.StatusCreated,
+=======
 	c.JSON(http.StatusCreated, gin.H{
 		"status":   http.StatusCreated,
 		"response": toMatchupResponse(matchupCreated),
@@ -151,6 +233,7 @@ func (server *Server) GetMatchups(c *gin.Context) {
 		response[i] = *toMatchupResponse(&m)
 	}
 
+>>>>>>> Stashed changes
 	c.JSON(http.StatusOK, gin.H{
 		"status":   http.StatusOK,
 		"response": response,
@@ -185,6 +268,10 @@ func (server *Server) GetMatchup(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":   http.StatusOK,
+<<<<<<< Updated upstream
+=======
+>>>>>>> golang-version
+>>>>>>> Stashed changes
 		"response": matchupResponse,
 	})
 }
@@ -269,7 +356,14 @@ func (server *Server) UpdateMatchup(c *gin.Context) {
 		})
 		return
 	}
+<<<<<<< Updated upstream
 	matchupUpdated, err := matchup.UpdateMatchup(server.DB)
+=======
+
+<<<<<<< HEAD
+	// Save the updated matchup
+	updatedMatchup, err := existingMatchup.UpdateMatchup(server.DB)
+>>>>>>> Stashed changes
 	if err != nil {
 		errList := formaterror.FormatError(err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -281,7 +375,16 @@ func (server *Server) UpdateMatchup(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":   http.StatusOK,
+<<<<<<< Updated upstream
 		"response": toMatchupResponse(matchupUpdated), // Pass the comments slice here
+=======
+		"response": updatedMatchup,
+=======
+	c.JSON(http.StatusOK, gin.H{
+		"status":   http.StatusOK,
+		"response": toMatchupResponse(matchupUpdated), // Pass the comments slice here
+>>>>>>> golang-version
+>>>>>>> Stashed changes
 	})
 }
 
@@ -382,8 +485,42 @@ func (server *Server) GetUserMatchups(c *gin.Context) {
 		return
 	}
 
+<<<<<<< Updated upstream
 	matchup := models.Matchup{}
 	matchups, err := matchup.FindUserMatchups(server.DB, uid)
+=======
+	var matchups []models.Matchup
+	err = server.DB.Preload("Author").
+		Preload("Items").
+		Preload("Comments").
+		Where("author_id = ?", uint(uid)).
+		Find(&matchups).Error
+	if err != nil && err != gorm.ErrRecordNotFound {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve matchups"})
+		return
+	}
+
+<<<<<<< HEAD
+	c.JSON(http.StatusOK, matchups)
+=======
+	// Map the Matchup objects to MatchupResponse objects
+	response := make([]MatchupResponse, len(*matchups))
+	for i, m := range *matchups {
+		response[i] = *toMatchupResponse(&m)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":   http.StatusOK,
+		"response": response,
+	})
+>>>>>>> golang-version
+}
+
+// IncrementMatchupItemVotes increments the vote count for a specific matchup item
+func (server *Server) IncrementMatchupItemVotes(c *gin.Context) {
+	itemID := c.Param("id")
+	iid, err := strconv.ParseUint(itemID, 10, 32)
+>>>>>>> Stashed changes
 	if err != nil {
 		errList["No_matchup"] = "No Matchup Found"
 		c.JSON(http.StatusNotFound, gin.H{

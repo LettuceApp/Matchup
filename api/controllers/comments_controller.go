@@ -42,8 +42,18 @@ func (server *Server) CreateComment(c *gin.Context) {
 	// Clear previous error if any
 	errList := map[string]string{}
 
+<<<<<<< Updated upstream
 	matchupID := c.Param("id")
 	mid, err := uuid.Parse(matchupID)
+=======
+<<<<<<< HEAD
+	matchupID := c.Param("matchup_id")
+	mid, err := strconv.ParseUint(matchupID, 10, 32)
+=======
+	matchupID := c.Param("id")
+	mid, err := uuid.Parse(matchupID)
+>>>>>>> golang-version
+>>>>>>> Stashed changes
 	if err != nil {
 		errList["Invalid_request"] = "Invalid Request"
 		c.JSON(http.StatusBadRequest, gin.H{

@@ -40,9 +40,21 @@ func (s *Server) initializeRoutes() {
 		v1.POST("/likes/:id", middlewares.TokenAuthMiddleware(), s.LikeMatchup)
 		v1.DELETE("/likes/:id", middlewares.TokenAuthMiddleware(), s.UnLikeMatchup)
 
+<<<<<<< Updated upstream
 		//Comment routes
 		v1.POST("/comments/:id", middlewares.TokenAuthMiddleware(), s.CreateComment)
 		v1.GET("/comments/:id", s.GetComments)
+=======
+<<<<<<< HEAD
+		// Comment routes
+		v1.POST("/matchups/:matchup_id/comments", middlewares.TokenAuthMiddleware(), s.CreateComment)
+		v1.GET("/matchups/:matchup_id/comments", s.GetComments)
+=======
+		//Comment routes
+		v1.POST("/comments/:id", middlewares.TokenAuthMiddleware(), s.CreateComment)
+		v1.GET("/comments/:id", s.GetComments)
+>>>>>>> golang-version
+>>>>>>> Stashed changes
 		v1.PUT("/comments/:id", middlewares.TokenAuthMiddleware(), s.UpdateComment)
 		v1.DELETE("/comments/:id", middlewares.TokenAuthMiddleware(), s.DeleteComment)
 
