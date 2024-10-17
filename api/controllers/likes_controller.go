@@ -96,3 +96,21 @@ func (server *Server) GetLikes(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK, "response": likes})
 }
+
+func (server *Server) GetMatchupLikes(c *gin.Context) {
+	matchupID := c.Param("matchup_id")
+	mid, err := strconv.ParseUint(matchupID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid matchup ID"})
+		return
+	}
+
+	likes := []models.Like{}
+	err = server.DB.Where("matchup_id = ?", uint(mid)).Find(&likes).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving likes"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"response": likes})
+}

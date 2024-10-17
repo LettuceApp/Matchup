@@ -39,6 +39,7 @@ func (s *Server) initializeRoutes() {
 		v1.GET("/likes/matchups/:id", s.GetLikes)
 		v1.POST("/likes/:id", middlewares.TokenAuthMiddleware(), s.LikeMatchup)
 		v1.DELETE("/likes/:id", middlewares.TokenAuthMiddleware(), s.UnLikeMatchup)
+		v1.GET("/matchups/:matchup_id/likes", s.GetMatchupLikes)
 
 		// Comment routes
 		v1.POST("/matchups/:matchup_id/comments", middlewares.TokenAuthMiddleware(), s.CreateComment)
