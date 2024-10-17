@@ -11,16 +11,16 @@ import (
 
 type Matchup struct {
 	ID        uint          `gorm:"primary_key;autoIncrement" json:"id"`
-	Title     string        `gorm:"size:255;not null;unique" json:"title"`
-	Content   string        `gorm:"text;not null;" json:"content"`
-	Author    User          `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
+	Title     string        `gorm:"size:255;not null;" json:"title"`
+	Content   string        `gorm:"type:text;not null;" json:"content"`
 	AuthorID  uint          `gorm:"not null" json:"author_id"`
-	Items     []MatchupItem `gorm:"foreignKey:MatchupID" json:"items"`
-	Comments  []Comment     `gorm:"foreignKey:MatchupID" json:"comments"`
-	CreatedAt time.Time     `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
-	UpdatedAt time.Time     `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
+	Author    User          `gorm:"foreignKey:AuthorID" json:"author"`
+	Items     []MatchupItem `gorm:"foreignKey:MatchupID" json:"items,omitempty"`
+	Comments  []Comment     `gorm:"foreignKey:MatchupID" json:"comments,omitempty"`
+	Likes     []Like        `gorm:"foreignKey:MatchupID" json:"likes,omitempty"`
+	CreatedAt time.Time     `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt time.Time     `gorm:"autoUpdateTime" json:"updated_at"`
 }
-
 type MatchupItem struct {
 	ID        uint    `gorm:"primary_key;autoIncrement" json:"id"`
 	Matchup   Matchup `json:"-"`

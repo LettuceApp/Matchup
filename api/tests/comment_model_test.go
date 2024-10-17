@@ -31,7 +31,7 @@ func TestCreateComment(t *testing.T) {
 		t.Fatalf("Failed to connect to in-memory database: %v", err)
 	}
 	server.DB = db
-	server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.MatchupItem{}, &models.Comment{})
+	server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.Like{}, &models.MatchupItem{}, &models.Comment{})
 
 	// Apply routes directly to the main router
 	r.POST("/api/v1/users", server.CreateUser)
@@ -125,7 +125,7 @@ func TestGetComments(t *testing.T) {
 		t.Fatalf("Failed to connect to in-memory database: %v", err)
 	}
 	server.DB = db
-	server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.MatchupItem{}, &models.Comment{})
+	server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.Like{}, &models.MatchupItem{}, &models.Comment{})
 
 	// Apply routes directly to the main router
 	r.POST("/api/v1/users", server.CreateUser)
@@ -246,7 +246,7 @@ func TestUpdateComment(t *testing.T) {
 		t.Fatalf("Failed to connect to in-memory database: %v", err)
 	}
 	server.DB = db
-	server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.MatchupItem{}, &models.Comment{})
+	server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.Like{}, &models.MatchupItem{}, &models.Comment{})
 
 	// Apply routes directly to the main router
 	r.POST("/api/v1/users", server.CreateUser)
@@ -373,7 +373,7 @@ func TestDeleteComment(t *testing.T) {
 		t.Fatalf("Failed to connect to in-memory database: %v", err)
 	}
 	server.DB = db
-	server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.MatchupItem{}, &models.Comment{})
+	server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.Like{}, &models.MatchupItem{}, &models.Comment{})
 
 	// Apply authentication middleware for comment routes
 	authenticatedRouter := r.Group("/api/v1")

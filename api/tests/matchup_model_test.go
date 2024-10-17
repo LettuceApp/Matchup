@@ -41,7 +41,8 @@ func TestCreateMatchup(t *testing.T) {
 	server.DB = db
 
 	// Ensure the schema is available for related tables (including comments)
-	err = server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.MatchupItem{}, &models.Comment{})
+	err = server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.Like{}, &models.MatchupItem{}, &models.Comment{})
+
 	if err != nil {
 		t.Fatalf("Failed to migrate tables: %v", err)
 	}
@@ -182,7 +183,8 @@ func TestGetMatchupByID(t *testing.T) {
 	server.DB = db
 
 	// Ensure the schema is available for related tables (including comments)
-	err = server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.MatchupItem{}, &models.Comment{})
+	err = server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.Like{}, &models.MatchupItem{}, &models.Comment{})
+
 	if err != nil {
 		t.Fatalf("Failed to migrate tables: %v", err)
 	}
@@ -315,7 +317,8 @@ func TestGetAllMatchups(t *testing.T) {
 	server.DB = db
 
 	// Ensure the schema is available for related tables (including comments)
-	err = server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.MatchupItem{}, &models.Comment{})
+	err = server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.Like{}, &models.MatchupItem{}, &models.Comment{})
+
 	if err != nil {
 		t.Fatalf("Failed to migrate tables: %v", err)
 	}
@@ -444,7 +447,8 @@ func TestGetUserMatchups(t *testing.T) {
 	server.DB = db
 
 	// Ensure the schema is available for related tables (including comments)
-	err = server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.MatchupItem{}, &models.Comment{})
+	err = server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.Like{}, &models.MatchupItem{}, &models.Comment{})
+
 	if err != nil {
 		t.Fatalf("Failed to migrate tables: %v", err)
 	}
@@ -573,7 +577,7 @@ func TestUpdateMatchup(t *testing.T) {
 		t.Fatalf("Failed to connect to in-memory database: %v", err)
 	}
 	server.DB = db
-	server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.MatchupItem{}, &models.Comment{})
+	server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.Like{}, &models.MatchupItem{}, &models.Comment{})
 
 	r.POST("/api/v1/users", server.CreateUser)
 	r.POST("/api/v1/login", server.Login)
@@ -676,7 +680,7 @@ func TestIncrementMatchupItemVotes(t *testing.T) {
 		t.Fatalf("Failed to connect to in-memory database: %v", err)
 	}
 	server.DB = db
-	server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.MatchupItem{}, &models.Comment{})
+	server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.Like{}, &models.MatchupItem{}, &models.Comment{})
 
 	r.POST("/api/v1/users", server.CreateUser)
 	r.POST("/api/v1/login", server.Login)
@@ -762,7 +766,8 @@ func TestAddItemToMatchup(t *testing.T) {
 	server.DB = db
 
 	// Ensure the schema is available for related tables (including comments)
-	err = server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.MatchupItem{}, &models.Comment{})
+	err = server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.Like{}, &models.MatchupItem{}, &models.Comment{})
+
 	if err != nil {
 		t.Fatalf("Failed to migrate tables: %v", err)
 	}
@@ -936,7 +941,7 @@ func TestDeleteMatchupWithItems(t *testing.T) {
 		t.Fatalf("Failed to connect to in-memory database: %v", err)
 	}
 	server.DB = db
-	server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.MatchupItem{}, &models.Comment{})
+	server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.Like{}, &models.MatchupItem{}, &models.Comment{})
 
 	// Define routes
 	r.POST("/api/v1/users", server.CreateUser)
