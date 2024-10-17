@@ -21,4 +21,8 @@ bin/
 # Go workspace file
 go.work
 
+# Ignore environment files
 .env
+config.yml
+
+
