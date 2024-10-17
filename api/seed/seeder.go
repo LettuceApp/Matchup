@@ -48,12 +48,12 @@ func Load(db *gorm.DB) {
 		log.Fatalf("attaching foreign key error: %v", err)
 	}
 
-	for i, _ := range users {
+	for i := range users {
 		err = db.Debug().Model(&models.User{}).Create(&users[i]).Error
 		if err != nil {
 			log.Fatalf("cannot seed users table: %v", err)
 		}
-		matchups[i].AuthorID = users[i].ID
+		matchups[i].Author.ID = users[i].ID
 
 		err = db.Debug().Model(&models.Matchup{}).Create(&matchups[i]).Error
 		if err != nil {

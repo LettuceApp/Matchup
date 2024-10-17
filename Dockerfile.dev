@@ -15,7 +15,7 @@ COPY . .
 
 # Build CompileDaemon from source
 RUN go get github.com/githubnemo/CompileDaemon
-RUN go install -mod=mod github.com/githubnemo/CompileDaemon
+RUN go install github.com/githubnemo/CompileDaemon@latest
 
 EXPOSE 8888
 
