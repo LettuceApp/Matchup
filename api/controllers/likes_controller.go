@@ -1,188 +1,133 @@
 package controllers
 
 import (
-	"fmt"
+	"Matchup/api/models"
 	"net/http"
 	"strconv"
 
-	"Matchup/api/auth"
-	"Matchup/api/models"
-	"Matchup/api/utils/formaterror"
-
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
+// LikeMatchup allows a user to like a specific matchup
 func (server *Server) LikeMatchup(c *gin.Context) {
-
-	// Clear previous error if any
-	errList := map[string]string{}
+	// Get the authenticated user's ID
+	tokenID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	uid := tokenID.(uint)
 
 	matchupID := c.Param("id")
-	mid, err := strconv.ParseUint(matchupID, 10, 64)
+	mid, err := strconv.ParseUint(matchupID, 10, 32)
 	if err != nil {
-		errList["Invalid_request"] = "Invalid Request"
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status": http.StatusBadRequest,
-			"error":  errList,
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid matchup ID"})
 		return
 	}
-	uid, err := auth.ExtractTokenID(c.Request)
-	if err != nil {
-		errList["Unauthorized"] = "Unauthorized"
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status": http.StatusUnauthorized,
-			"error":  errList,
-		})
-		return
-	}
-	// Check if the user exists:
-	user := models.User{}
-	err = server.DB.Model(models.User{}).Where("id = ?", uid).Take(&user).Error
-	if err != nil {
-		errList["Unauthorized"] = "Unauthorized"
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status": http.StatusUnauthorized,
-			"error":  errList,
-		})
-		return
-	}
-	// Check if the matchup exists:
+
+	// Check if the matchup exists
 	matchup := models.Matchup{}
-	err = server.DB.Model(models.Matchup{}).Where("id = ?", mid).Take(&matchup).Error
+	err = server.DB.Model(models.Matchup{}).Where("id = ?", uint(mid)).Take(&matchup).Error
 	if err != nil {
-		errList["Unauthorized"] = "Unauthorized"
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status": http.StatusUnauthorized,
-			"error":  errList,
-		})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Matchup not found"})
 		return
 	}
 
-	like := models.Like{}
-	like.UserID = user.ID
-	like.MatchupID = matchup.ID
-
-	likeCreated, err := like.SaveLike(server.DB)
-	if err != nil {
-		formattedError := formaterror.FormatError(err.Error())
-		errList = formattedError
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status": http.StatusInternalServerError,
-			"error":  errList,
-		})
+	// Check if the user has already liked the matchup
+	existingLike := models.Like{}
+	err = server.DB.Where("user_id = ? AND matchup_id = ?", uid, uint(mid)).First(&existingLike).Error
+	if err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "You have already liked this matchup"})
+		return
+	} else if err != gorm.ErrRecordNotFound {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error checking existing like"})
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{
-		"status":   http.StatusCreated,
-		"response": likeCreated,
-	})
+
+	// Create the like
+	like := models.Like{
+		UserID:    uid,
+		MatchupID: uint(mid),
+	}
+	if err := server.DB.Create(&like).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error liking matchup"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"status": http.StatusCreated, "response": "Matchup liked successfully"})
+}
+
+// UnLikeMatchup allows a user to remove their like from a specific matchup
+func (server *Server) UnLikeMatchup(c *gin.Context) {
+	// Get the authenticated user's ID
+	tokenID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	uid := tokenID.(uint)
+
+	matchupID := c.Param("id")
+	mid, err := strconv.ParseUint(matchupID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid matchup ID"})
+		return
+	}
+
+	// Find the like by the user on the specific matchup
+	existingLike := models.Like{}
+	err = server.DB.Where("user_id = ? AND matchup_id = ?", uid, uint(mid)).First(&existingLike).Error
+	if err == gorm.ErrRecordNotFound {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Like not found"})
+		return
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error finding like"})
+		return
+	}
+
+	// Delete the like
+	if err := server.DB.Delete(&existingLike).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error unliking matchup"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK, "response": "Matchup unliked successfully"})
 }
 
 func (server *Server) GetLikes(c *gin.Context) {
-
-	// Clear previous error if any
-	errList := map[string]string{}
-
 	matchupID := c.Param("id")
-
-	// Is a valid matchup id given to us?
-	mid, err := strconv.ParseUint(matchupID, 10, 64)
+	mid, err := strconv.ParseUint(matchupID, 10, 32)
 	if err != nil {
-		fmt.Println("this is the error: ", err)
-		errList["Invalid_request"] = "Invalid Request"
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status": http.StatusBadRequest,
-			"error":  errList,
-		})
-		return
-	}
-
-	// Check if the matchup exists:
-	matchup := models.Matchup{}
-	err = server.DB.Model(models.Matchup{}).Where("id = ?", mid).Take(&matchup).Error
-	if err != nil {
-		errList["No_matchup"] = "No Matchup Found"
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  errList,
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid matchup ID"})
 		return
 	}
 
 	like := models.Like{}
-
 	likes, err := like.GetLikesInfo(server.DB, uint(mid))
 	if err != nil {
-		errList["No_likes"] = "No Likes found"
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  errList,
-		})
+		c.JSON(http.StatusNotFound, gin.H{"error": "No likes found"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"status":   http.StatusOK,
-		"response": likes,
-	})
+
+	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK, "response": likes})
 }
 
-func (server *Server) UnLikeMatchup(c *gin.Context) {
-
-	likeID := c.Param("id")
-	// Is a valid like id given to us?
-	lid, err := strconv.ParseUint(likeID, 10, 64)
+// GetUserLikes retrieves all likes made by a specific user
+func (server *Server) GetUserLikes(c *gin.Context) {
+	userID := c.Param("id")
+	uid, err := strconv.ParseUint(userID, 10, 32)
 	if err != nil {
-		errList["Invalid_request"] = "Invalid Request"
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status": http.StatusBadRequest,
-			"error":  errList,
-		})
-		return
-	}
-	// Is this user authenticated?
-	uid, err := auth.ExtractTokenID(c.Request)
-	if err != nil {
-		errList["Unauthorized"] = "Unauthorized"
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status": http.StatusUnauthorized,
-			"error":  errList,
-		})
-		return
-	}
-	// Check if the like exists
-	like := models.Like{}
-	err = server.DB.Model(models.Like{}).Where("id = ?", lid).Take(&like).Error
-	if err != nil {
-		errList["No_like"] = "No Like Found"
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  errList,
-		})
-		return
-	}
-	// Is the authenticated user the owner of this like?
-	if uid != like.UserID {
-		errList["Unauthorized"] = "Unauthorized"
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status": http.StatusUnauthorized,
-			"error":  errList,
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
-	// If all the conditions are met, delete the like
-	_, err = like.DeleteLike(server.DB)
+	likes := []models.Like{}
+	err = server.DB.Where("user_id = ?", uint(uid)).Find(&likes).Error
 	if err != nil {
-		errList["Other_error"] = "Please try again later"
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  errList,
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving user likes"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"status":   http.StatusOK,
-		"response": "Like deleted",
-	})
+
+	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK, "response": likes})
 }

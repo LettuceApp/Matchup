@@ -39,6 +39,7 @@ func ExtractUserIDsFromComments(comments []CommentResponse) []uint {
 func (server *Server) CreateComment(c *gin.Context) {
 	errList := map[string]string{}
 
+	// Parse matchup ID from the URL
 	matchupID := c.Param("matchup_id")
 	mid, err := strconv.ParseUint(matchupID, 10, 32)
 	if err != nil {
@@ -50,6 +51,7 @@ func (server *Server) CreateComment(c *gin.Context) {
 		return
 	}
 
+	// Extract the user ID from the token
 	uid, err := auth.ExtractTokenID(c.Request)
 	if err != nil {
 		errList["Unauthorized"] = "Unauthorized"
@@ -60,13 +62,95 @@ func (server *Server) CreateComment(c *gin.Context) {
 		return
 	}
 
-	// Check if the user exists
+	// Verify the user exists
 	user := models.User{}
-	err = server.DB.Model(models.User{}).Where("id = ?", uid).Take(&user).Error
+	err = server.DB.Where("id = ?", uid).Take(&user).Error
 	if err != nil {
-		errList["Unauthorized"] = "Unauthorized"
+		errList["Unauthorized"] = "User not found"
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"status": http.StatusUnauthorized,
+			"error":  errList,
+		})
+		return
+	}
+
+	// Verify the matchup exists
+	matchup := models.Matchup{}
+	err = server.DB.Where("id = ?", uint(mid)).Take(&matchup).Error
+	if err != nil {
+		errList["No_matchup"] = "No matchup found"
+		c.JSON(http.StatusNotFound, gin.H{
+			"status": http.StatusNotFound,
+			"error":  errList,
+		})
+		return
+	}
+
+	// Bind JSON to comment struct
+	var comment models.Comment
+	if err := c.ShouldBindJSON(&comment); err != nil {
+		errList["Invalid_body"] = "Invalid request body"
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"status": http.StatusUnprocessableEntity,
+			"error":  errList,
+		})
+		return
+	}
+
+	// Set the user ID and matchup ID
+	comment.UserID = uid
+	comment.MatchupID = uint(mid)
+
+	// Prepare and validate the comment
+	comment.Prepare()
+	errorMessages := comment.Validate("")
+	if len(errorMessages) > 0 {
+		errList = errorMessages
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"status": http.StatusUnprocessableEntity,
+			"error":  errList,
+		})
+		return
+	}
+
+	// Save the comment
+	commentCreated, err := comment.SaveComment(server.DB)
+	if err != nil {
+		formattedError := formaterror.FormatError(err.Error())
+		errList = formattedError
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status": http.StatusInternalServerError,
+			"error":  errList,
+		})
+		return
+	}
+
+	// Prepare the response with the username
+	commentResponse := CommentResponse{
+		ID:        commentCreated.ID,
+		UserID:    commentCreated.UserID,
+		Username:  user.Username, // Use the username of the authenticated user
+		Body:      commentCreated.Body,
+		CreatedAt: commentCreated.CreatedAt,
+	}
+
+	// Send the response
+	c.JSON(http.StatusCreated, gin.H{
+		"status":   http.StatusCreated,
+		"response": commentResponse,
+	})
+}
+
+func (server *Server) GetComments(c *gin.Context) {
+	errList := map[string]string{}
+
+	// Parse the matchup ID from the URL parameters
+	matchupID := c.Param("matchup_id")
+	mid, err := strconv.ParseUint(matchupID, 10, 32)
+	if err != nil {
+		errList["Invalid_request"] = "Invalid Request"
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status": http.StatusBadRequest,
 			"error":  errList,
 		})
 		return
@@ -84,86 +168,9 @@ func (server *Server) CreateComment(c *gin.Context) {
 		return
 	}
 
-	var comment models.Comment
-	if err := c.ShouldBindJSON(&comment); err != nil {
-		errList["Invalid_body"] = "Invalid request body"
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"status": http.StatusUnprocessableEntity,
-			"error":  errList,
-		})
-		return
-	}
-
-	comment.UserID = uid
-	comment.MatchupID = uint(mid)
-
-	comment.Prepare()
-	errorMessages := comment.Validate("")
-	if len(errorMessages) > 0 {
-		errList = errorMessages
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"status": http.StatusUnprocessableEntity,
-			"error":  errList,
-		})
-		return
-	}
-
-	commentCreated, err := comment.SaveComment(server.DB)
-	if err != nil {
-		formattedError := formaterror.FormatError(err.Error())
-		errList = formattedError
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  errList,
-		})
-		return
-	}
-
-	commentResponse := CommentResponse{
-		ID:        commentCreated.ID,
-		UserID:    commentCreated.UserID,
-		Username:  user.Username,
-		Body:      commentCreated.Body,
-		CreatedAt: commentCreated.CreatedAt,
-	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"status":   http.StatusCreated,
-		"response": commentResponse,
-	})
-}
-
-func (server *Server) GetComments(c *gin.Context) {
-	errList := map[string]string{}
-
-	matchupID := c.Param("id")
-	mid, err := strconv.ParseUint(matchupID, 10, 32)
-	if err != nil {
-		errList["Invalid_request"] = "Invalid Request"
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status": http.StatusBadRequest,
-			"error":  errList,
-		})
-		return
-	}
-
-	matchup := models.Matchup{}
-	err = server.DB.Model(models.Matchup{}).Where("id = ?", uint(mid)).Take(&matchup).Error
-	if err != nil {
-		errList["No_matchup"] = "No matchup found"
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  errList,
-		})
-		return
-	}
-
-	comments := []CommentResponse{}
-	err = server.DB.Model(models.Comment{}).
-		Select("id, user_id, body, created_at, updated_at").
-		Where("matchup_id = ?", uint(mid)).
-		Find(&comments).
-		Error
+	// Load comments with the associated author's username using Preload
+	comments := []models.Comment{}
+	err = server.DB.Preload("Author").Where("matchup_id = ?", uint(mid)).Order("created_at desc").Find(&comments).Error
 	if err != nil {
 		errList["No_comments"] = "No comments found"
 		c.JSON(http.StatusNotFound, gin.H{
@@ -173,33 +180,23 @@ func (server *Server) GetComments(c *gin.Context) {
 		return
 	}
 
-	users := []CommentUser{}
-	err = server.DB.Model(models.User{}).
-		Select("id, username").
-		Where("id IN ?", ExtractUserIDsFromComments(comments)).
-		Find(&users).
-		Error
-	if err != nil {
-		errList["No_users"] = "No users found"
-		c.JSON(http.StatusNotFound, gin.H{
-			"status": http.StatusNotFound,
-			"error":  errList,
+	// Prepare response data with comments including usernames
+	commentResponses := []map[string]interface{}{}
+	for _, comment := range comments {
+		commentResponses = append(commentResponses, map[string]interface{}{
+			"id":         comment.ID,
+			"user_id":    comment.UserID,
+			"username":   comment.Author.Username, // Use the Author's username
+			"body":       comment.Body,
+			"created_at": comment.CreatedAt,
+			"updated_at": comment.UpdatedAt,
 		})
-		return
 	}
 
-	userMap := make(map[uint]CommentUser)
-	for _, user := range users {
-		userMap[user.ID] = user
-	}
-
-	for i, comment := range comments {
-		comments[i].Username = userMap[comment.UserID].Username
-	}
-
+	// Send the response back to the client
 	c.JSON(http.StatusOK, gin.H{
 		"status":   http.StatusOK,
-		"response": comments,
+		"response": commentResponses,
 	})
 }
 
