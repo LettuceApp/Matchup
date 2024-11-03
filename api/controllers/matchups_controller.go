@@ -3,8 +3,10 @@ package controllers
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"Matchup/api/auth"
 	"Matchup/api/models"
@@ -15,8 +17,7 @@ import (
 )
 
 // toMatchupResponse converts a Matchup model to a response-friendly structure
-func toMatchupResponse(matchup *models.Matchup, comments []models.Comment) map[string]interface{} {
-	// Create the items response structure
+func toMatchupResponse(matchup *models.Matchup, comments []models.Comment, likesCount int64) map[string]interface{} {
 	itemResponses := make([]map[string]interface{}, len(matchup.Items))
 	for i, item := range matchup.Items {
 		itemResponses[i] = map[string]interface{}{
@@ -26,29 +27,28 @@ func toMatchupResponse(matchup *models.Matchup, comments []models.Comment) map[s
 		}
 	}
 
-	// Create the comments response structure
 	commentResponses := make([]map[string]interface{}, len(comments))
 	for i, comment := range comments {
 		commentResponses[i] = map[string]interface{}{
 			"id":         comment.ID,
 			"user_id":    comment.UserID,
-			"username":   comment.User.Username,
+			"username":   comment.Author.Username, // Access the username through Author
 			"body":       comment.Body,
 			"created_at": comment.CreatedAt,
 			"updated_at": comment.UpdatedAt,
 		}
 	}
 
-	// Return a formatted matchup response without exposing sensitive information
 	return map[string]interface{}{
-		"id":         matchup.ID,
-		"title":      matchup.Title,
-		"content":    matchup.Content,
-		"author_id":  matchup.AuthorID,
-		"items":      itemResponses,
-		"comments":   commentResponses,
-		"created_at": matchup.CreatedAt,
-		"updated_at": matchup.UpdatedAt,
+		"id":          matchup.ID,
+		"title":       matchup.Title,
+		"content":     matchup.Content,
+		"author_id":   matchup.AuthorID,
+		"items":       itemResponses,
+		"comments":    commentResponses,
+		"likes_count": likesCount,
+		"created_at":  matchup.CreatedAt,
+		"updated_at":  matchup.UpdatedAt,
 	}
 }
 
@@ -137,8 +137,12 @@ func (server *Server) CreateMatchup(c *gin.Context) {
 		return
 	}
 
+	// Retrieve likes count for the created matchup (initially zero)
+	var likesCount int64
+	server.DB.Model(&models.Like{}).Where("matchup_id = ?", matchupCreated.ID).Count(&likesCount)
+
 	// Prepare response without exposing unnecessary fields (like password)
-	matchupResponse := toMatchupResponse(matchupCreated, *comments)
+	matchupResponse := toMatchupResponse(matchupCreated, *comments, likesCount)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"status":   http.StatusCreated,
@@ -151,8 +155,7 @@ func (server *Server) GetMatchups(c *gin.Context) {
 	var matchups []models.Matchup
 
 	// Use Preload to avoid N+1 query problem
-	err := server.DB.Preload("Author").
-		Preload("Items").
+	err := server.DB.Preload("Items").
 		Preload("Comments").
 		Find(&matchups).Error
 	if err != nil && err != gorm.ErrRecordNotFound {
@@ -160,7 +163,28 @@ func (server *Server) GetMatchups(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, matchups)
+	// Convert each matchup to response format
+	var response []map[string]interface{}
+	for _, matchup := range matchups {
+		// Retrieve likes count for each matchup
+		var likesCount int64
+		server.DB.Model(&models.Like{}).Where("matchup_id = ?", matchup.ID).Count(&likesCount)
+
+		// Retrieve comments for each matchup
+		comment := models.Comment{}
+		comments, err := comment.GetComments(server.DB, matchup.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving comments"})
+			return
+		}
+
+		response = append(response, toMatchupResponse(&matchup, *comments, likesCount))
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":   http.StatusOK,
+		"response": response,
+	})
 }
 
 // GetMatchup retrieves a specific matchup by ID
@@ -173,8 +197,7 @@ func (server *Server) GetMatchup(c *gin.Context) {
 	}
 
 	var matchup models.Matchup
-	err = server.DB.Preload("Author").
-		Preload("Items").
+	err = server.DB.Preload("Items").
 		Preload("Comments").
 		First(&matchup, uint(mid)).Error
 	if err != nil {
@@ -186,10 +209,27 @@ func (server *Server) GetMatchup(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, matchup)
+	// Retrieve likes count for the matchup
+	var likesCount int64
+	server.DB.Model(&models.Like{}).Where("matchup_id = ?", matchup.ID).Count(&likesCount)
+
+	// Retrieve comments for the matchup
+	comment := models.Comment{}
+	comments, err := comment.GetComments(server.DB, matchup.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving comments"})
+		return
+	}
+
+	// Prepare response
+	matchupResponse := toMatchupResponse(&matchup, *comments, likesCount)
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":   http.StatusOK,
+		"response": matchupResponse,
+	})
 }
 
-// UpdateMatchup allows the author to update their matchup
 func (server *Server) UpdateMatchup(c *gin.Context) {
 	matchupID := c.Param("id")
 	mid, err := strconv.ParseUint(matchupID, 10, 32)
@@ -222,17 +262,24 @@ func (server *Server) UpdateMatchup(c *gin.Context) {
 		return
 	}
 
-	// Parse JSON input
-	var matchup models.Matchup
-	if err := c.ShouldBindJSON(&matchup); err != nil {
+	// Parse JSON input into a map
+	var inputData map[string]interface{}
+	if err := c.ShouldBindJSON(&inputData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Update fields
-	existingMatchup.Title = matchup.Title
-	existingMatchup.Content = matchup.Content
-	existingMatchup.UpdatedAt = matchup.UpdatedAt
+	// Update fields based on input
+	if title, ok := inputData["title"].(string); ok {
+		existingMatchup.Title = title
+	}
+
+	if content, ok := inputData["content"].(string); ok {
+		existingMatchup.Content = content
+	}
+
+	// Update the UpdatedAt timestamp
+	existingMatchup.UpdatedAt = time.Now()
 
 	// Validate the updated matchup
 	existingMatchup.Prepare()
@@ -243,17 +290,39 @@ func (server *Server) UpdateMatchup(c *gin.Context) {
 	}
 
 	// Save the updated matchup
-	updatedMatchup, err := existingMatchup.UpdateMatchup(server.DB)
-	if err != nil {
-		formattedError := formaterror.FormatError(err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"errors": formattedError})
+	if err := server.DB.Save(&existingMatchup).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"errors": err.Error()})
 		return
 	}
 
-	// Return response with the "response" field
+	// Retrieve updated matchup with items and comments
+	var updatedMatchup models.Matchup
+	err = server.DB.Preload("Items").Preload("Comments").
+		First(&updatedMatchup, existingMatchup.ID).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving updated matchup"})
+		return
+	}
+
+	// Retrieve the comments for the updated matchup
+	comment := models.Comment{}
+	comments, err := comment.GetComments(server.DB, updatedMatchup.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving comments"})
+		return
+	}
+
+	// Retrieve likes count for the updated matchup
+	var likesCount int64
+	server.DB.Model(&models.Like{}).Where("matchup_id = ?", updatedMatchup.ID).Count(&likesCount)
+
+	// Prepare response with likes count
+	matchupResponse := toMatchupResponse(&updatedMatchup, *comments, likesCount)
+
+	// Return response
 	c.JSON(http.StatusOK, gin.H{
 		"status":   http.StatusOK,
-		"response": updatedMatchup,
+		"response": matchupResponse,
 	})
 }
 
@@ -301,7 +370,7 @@ func (server *Server) DeleteMatchup(c *gin.Context) {
 
 // GetUserMatchups retrieves all matchups created by a specific user
 func (server *Server) GetUserMatchups(c *gin.Context) {
-	userID := c.Param("id")
+	userID := c.Param("id") // Accept user ID as a path parameter
 	uid, err := strconv.ParseUint(userID, 10, 32)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
@@ -319,7 +388,84 @@ func (server *Server) GetUserMatchups(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, matchups)
+	// Convert matchups to response format
+	var response []map[string]interface{}
+	for _, matchup := range matchups {
+		// Retrieve comments for each matchup
+		comment := models.Comment{}
+		comments, err := comment.GetComments(server.DB, matchup.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving comments"})
+			return
+		}
+
+		// Retrieve likes count for each matchup
+		var likesCount int64
+		server.DB.Model(&models.Like{}).Where("matchup_id = ?", matchup.ID).Count(&likesCount)
+
+		// Convert matchup to response format with likes count
+		response = append(response, toMatchupResponse(&matchup, *comments, likesCount))
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":   http.StatusOK,
+		"response": response,
+	})
+}
+
+// GetUserMatchup retrieves a specific matchup created by a specific user
+func (server *Server) GetUserMatchup(c *gin.Context) {
+	userID := c.Param("id")           // Accept user ID as a path parameter
+	matchupID := c.Param("matchupid") // Accept matchup ID as a path parameter
+
+	// Parse user ID and matchup ID
+	uid, err := strconv.ParseUint(userID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+	mid, err := strconv.ParseUint(matchupID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid matchup ID"})
+		return
+	}
+
+	// Find the specific matchup for the given user
+	var matchup models.Matchup
+	err = server.DB.Preload("Author").
+		Preload("Items").
+		Preload("Comments").
+		Where("author_id = ? AND id = ?", uint(uid), uint(mid)).
+		First(&matchup).Error
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Matchup not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve matchup"})
+		}
+		return
+	}
+
+	// Retrieve comments for the matchup
+	comment := models.Comment{}
+	comments, err := comment.GetComments(server.DB, matchup.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving comments"})
+		return
+	}
+
+	// Retrieve likes count for the matchup
+	var likesCount int64
+	server.DB.Model(&models.Like{}).Where("matchup_id = ?", matchup.ID).Count(&likesCount)
+
+	// Convert matchup to response format with likes count
+	response := toMatchupResponse(&matchup, *comments, likesCount)
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":   http.StatusOK,
+		"response": response,
+	})
 }
 
 // IncrementMatchupItemVotes increments the vote count for a specific matchup item
@@ -331,19 +477,16 @@ func (server *Server) IncrementMatchupItemVotes(c *gin.Context) {
 		return
 	}
 
-	// Use atomic increment to avoid race conditions
-	err = server.DB.Model(&models.MatchupItem{}).
-		Where("id = ?", uint(iid)).
-		UpdateColumn("votes", gorm.Expr("votes + ?", 1)).Error
-	if err != nil {
+	// Perform the increment using the model method
+	item := models.MatchupItem{ID: uint(iid)}
+	if err := item.IncrementVotes(server.DB); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating votes"})
 		return
 	}
 
-	// Retrieve the updated item
+	// Retrieve the updated item to include in the response
 	var updatedItem models.MatchupItem
-	err = server.DB.First(&updatedItem, uint(iid)).Error
-	if err != nil {
+	if err := server.DB.First(&updatedItem, uint(iid)).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving updated item"})
 		return
 	}
@@ -449,4 +592,74 @@ func (server *Server) AddItemToMatchup(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, item)
+}
+
+// UpdateMatchupItem updates the name of an item in a specific matchup
+func (server *Server) UpdateMatchupItem(c *gin.Context) {
+	itemID := c.Param("id") // Get item ID from path parameter
+
+	// Parse the item ID to uint
+	id, err := strconv.ParseUint(itemID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid item ID"})
+		return
+	}
+
+	// Get the authenticated user's ID
+	tokenID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	uid := tokenID.(uint)
+
+	// Find the matchup item by ID
+	var item models.MatchupItem
+	if err := server.DB.Preload("Matchup").First(&item, uint(id)).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Matchup item not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve matchup item"})
+		}
+		return
+	}
+
+	// Ensure the authenticated user is the owner of the matchup
+	if item.Matchup.AuthorID != uid {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "You are not authorized to update this item"})
+		return
+	}
+
+	// Read the request body
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Unable to read request body"})
+		return
+	}
+
+	// Log the request body for debugging
+	log.Printf("Request Body: %s", string(body))
+
+	// Parse the new name from the request body
+	var updatedData struct {
+		Item string `json:"item"`
+	}
+	if err := json.Unmarshal(body, &updatedData); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// Log the parsed data for debugging
+	log.Printf("Parsed Data: %+v", updatedData)
+
+	// Update only the item (name) field
+	item.Item = updatedData.Item
+
+	// Save the updated item to the database
+	if err := server.DB.Save(&item).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to update matchup item"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK, "response": item})
 }

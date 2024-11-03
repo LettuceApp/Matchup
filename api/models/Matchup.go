@@ -152,17 +152,9 @@ func (m *Matchup) DeleteUserMatchups(db *gorm.DB, uid uint) (int64, error) {
 	return result.RowsAffected, nil
 }
 
-func (mi *MatchupItem) IncrementVotes(db *gorm.DB) (*MatchupItem, error) {
-	var err error
-	err = db.Model(&MatchupItem{}).Where("id = ?", mi.ID).UpdateColumn("votes", gorm.Expr("votes + ?", 1)).Error
-	if err != nil {
-		return &MatchupItem{}, err
-	}
-	err = db.Model(&MatchupItem{}).Where("id = ?", mi.ID).Take(&mi).Error
-	if err != nil {
-		return &MatchupItem{}, err
-	}
-	return mi, nil
+func (m *MatchupItem) IncrementVotes(db *gorm.DB) error {
+	// Increment votes directly and return error if any
+	return db.Model(&MatchupItem{}).Where("id = ?", m.ID).UpdateColumn("votes", gorm.Expr("votes + ?", 1)).Error
 }
 
 func (m *Matchup) GetComments(db *gorm.DB) (*[]Comment, error) {
