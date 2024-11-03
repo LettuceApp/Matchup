@@ -1,0 +1,30 @@
+.matchup-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding: 5px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+  }
+  
+  .matchup-text {
+    cursor: pointer;
+    flex: 1;
+    margin-right: 15px;
+  }
+  
+  .matchup-input {
+    flex: 1;
+    margin-right: 15px;
+  }
+  
+  .matchup-votes {
+    margin: 0 15px;
+  }
+  
+  .matchup-button {
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+  
