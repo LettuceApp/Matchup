@@ -1,6 +1,6 @@
 # Matchup
 
-Matchup is a full stack web project consisting of a Go backend API and a React frontend. The backend exposes REST endpoints while the frontend provides the user interface.
+Matchup is a full stack web project consisting of a Go backend API and a React frontend. The backend exposes REST endpoints while the frontend provides the user interface. It is a polling app with some social media features. Users can creae matchups and items in the matchups to vote on. Users can create accounts, vote on matchups, like matchups and more.
 
 ## Prerequisites
 
