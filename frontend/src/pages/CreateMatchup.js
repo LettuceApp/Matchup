@@ -1,158 +1,119 @@
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import NavigationBar from '../components/NavigationBar';
-import MatchupItem from '../components/MatchupItem';
-import PostedComment from '../components/PostedComment'; // Import PostedComment component
 import Button from '../components/Button';
-import { getUserMatchup, likeMatchup, unlikeMatchup, getUserLikes, updateMatchupItem, createComment, getComments } from '../services/api';
+import { createMatchup } from '../services/api';
 
-const MatchupPage = () => {
-  const { uid, id } = useParams(); // Use uid and id from the URL parameters
-  const userId = localStorage.getItem('userId');
-  const [matchup, setMatchup] = useState(null);
-  const [likesCount, setLikesCount] = useState(0);
-  const [isLiked, setIsLiked] = useState(false);
-  const [comments, setComments] = useState([]);
-  const [newComment, setNewComment] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedItem, setEditedItem] = useState({});
+const CreateMatchup = () => {
+  // Extract the user id from the route params (the route is set as /users/:id/create-matchup)
+  const { userId } = useParams();
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchMatchup = async () => {
-      try {
-        const response = await getUserMatchup(uid, id); // Use uid to fetch the matchup for the correct owner
-        setMatchup(response.data.response);
+  // State for the form fields
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [items, setItems] = useState([{ item: '' }]);
 
-        const userLikesResponse = await getUserLikes(userId);
-        const likedMatchup = userLikesResponse.data.response.some(like => like.matchup_id === parseInt(id));
-        setIsLiked(likedMatchup);
-        setLikesCount(response.data.response.likes_count);
+  // Handle changes for the title and content fields
+  const handleTitleChange = (e) => setTitle(e.target.value);
+  const handleContentChange = (e) => setContent(e.target.value);
 
-        const commentsResponse = await getComments(id);
-        setComments(commentsResponse.data.response);
-      } catch (err) {
-        console.error('Failed to fetch matchup:', err);
-      }
+  // Handle changes in each item input field
+  const handleItemChange = (index, value) => {
+    const newItems = [...items];
+    newItems[index].item = value;
+    setItems(newItems);
+  };
+
+  // Add a new empty item field
+  const addItem = () => {
+    setItems([...items, { item: '' }]);
+  };
+
+  // Remove an item field (if more than one exists)
+  const removeItem = (index) => {
+    if (items.length > 1) {
+      const newItems = items.filter((_, i) => i !== index);
+      setItems(newItems);
+    }
+  };
+
+  // Handle the form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    // Create the JSON data object
+    const matchupData = {
+      title,
+      content,
+      items,
     };
 
-    fetchMatchup();
-  }, [uid, id, userId]);
-
-  const handleLikeToggle = async () => {
     try {
-      if (isLiked) {
-        await unlikeMatchup(id);
-        setLikesCount(likesCount - 1);
-      } else {
-        await likeMatchup(id);
-        setLikesCount(likesCount + 1);
-      }
-      setIsLiked(!isLiked);
-    } catch (err) {
-      console.error('Failed to toggle like on matchup:', err);
+      // Call the API function, which will post to /users/:id/create-matchup
+      const response = await createMatchup(userId, matchupData);
+      console.log('Matchup created:', response.data);
+
+      // Retrieve the newly created matchup's id from the response.
+      // (Assuming your backend sends it as response.data.response.id)
+      const newMatchupId = response.data.response.id;
+      
+      
+      // Redirect to the matchup detail page using the new id
+      navigate(`/users/${userId}/matchup/${newMatchupId}`);
+    } catch (error) {
+      console.error('Error creating matchup:', error);
     }
   };
-
-  const refreshItems = async () => {
-    try {
-      const response = await getUserMatchup(uid, id); // Refresh the matchup using the correct uid
-      setMatchup(response.data.response);
-
-      const commentsResponse = await getComments(id);
-      setComments(commentsResponse.data.response);
-    } catch (err) {
-      console.error('Failed to refresh items:', err);
-    }
-  };
-
-  const handleSave = async () => {
-    try {
-      console.log('Request Body:', JSON.stringify({ item: editedItem.item }));
-      await updateMatchupItem(editedItem.id, { item: editedItem.item });
-      setIsEditing(false);
-      refreshItems();
-    } catch (err) {
-      console.error('Failed to save item:', err);
-    }
-  };
-
-  const handleCancel = () => {
-    setIsEditing(false);
-    refreshItems();
-  };
-
-  const handleEdit = (item) => {
-    setEditedItem(item);
-    setIsEditing(true);
-  };
-
-  const handleCommentSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      await createComment(id, { Body: newComment });
-      setNewComment('');
-      refreshItems();
-    } catch (err) {
-      console.error('Failed to add comment:', err);
-    }
-  };
-
-  if (!matchup) return <p>Loading matchup...</p>;
-
-  const isOwner = matchup.author_id === parseInt(userId);
 
   return (
     <div>
       <NavigationBar />
-      <h1>{matchup.title}</h1>
-      <p><strong>Description:</strong> {matchup.content}</p>
-      <p>Likes: {likesCount}</p>
-      <button onClick={handleLikeToggle}>{isLiked ? 'Unlike' : 'Like'}</button>
-      <div>
-        <h2>Items and Scores</h2>
-        {matchup.items.map((item) => (
-          <MatchupItem
-            key={item.id}
-            item={item}
-            isOwner={isOwner}
-            refreshItems={refreshItems}
-            isEditing={isEditing}
-            setIsEditing={setIsEditing}
-            handleEdit={handleEdit}
-          />
-        ))}
-        {isOwner && isEditing && (
-          <div>
-            <Button onClick={handleSave}>Save</Button>
-            <Button onClick={handleCancel}>Cancel</Button>
-          </div>
-        )}
-      </div>
-      <div>
-        <h2>Comments</h2>
-        
-        {/* Display PostedComment for each comment */}
-        {comments.length > 0 ? (
-          comments.map((comment) => (
-            <PostedComment key={comment.id} comment={comment} />
-          ))
-        ) : (
-          <p>No comments available.</p>
-        )}
-        
-        {/* Comment Input Form */}
-        <form onSubmit={handleCommentSubmit}>
-          <textarea
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            placeholder="Add a comment"
+      <h1>Create a New Matchup</h1>
+      <form onSubmit={handleSubmit}>
+        <div>
+          <label>Title:</label>
+          <input 
+            type="text" 
+            value={title} 
+            onChange={handleTitleChange}
             required
           />
-          <Button type="submit" onClick={() => {}}>Submit</Button>
-        </form>
-      </div>
+        </div>
+        <div>
+          <label>Content:</label>
+          <textarea 
+            value={content} 
+            onChange={handleContentChange}
+            required
+          />
+        </div>
+        <div>
+          <label>Items:</label>
+          {items.map((itm, index) => (
+            <div key={index}>
+              <input 
+                type="text" 
+                value={itm.item} 
+                onChange={(e) => handleItemChange(index, e.target.value)}
+                placeholder={`Item ${index + 1}`}
+                required
+              />
+              {items.length > 1 && (
+                <Button type="button" onClick={() => removeItem(index)}>
+                  Remove
+                </Button>
+              )}
+            </div>
+          ))}
+          <Button type="button" onClick={addItem}>
+            Add Item
+          </Button>
+        </div>
+        <Button type="submit">Create Matchup</Button>
+      </form>
     </div>
   );
 };
 
-export default MatchupPage;
+export default CreateMatchup;

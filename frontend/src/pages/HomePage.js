@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { getUserMatchups } from '../services/api';
-import NavigationBar from '../components/NavigationBar'; // Import NavigationBar component
-import Button from '../components/Button'; // Import Button component
+import NavigationBar from '../components/NavigationBar';
+import Button from '../components/Button';
+import ProfilePic from '../components/ProfilePic';      // ← import your component
 
 const HomePage = () => {
   const [matchups, setMatchups] = useState([]);
@@ -10,64 +11,75 @@ const HomePage = () => {
 
   useEffect(() => {
     const fetchMatchups = async () => {
-      // Check if token is available in localStorage
       const token = localStorage.getItem('token');
       if (!token) {
-        console.error('Token not found, redirecting to login page...');
-        navigate('/login');
+        return navigate('/login');
+      }
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        console.error('User ID not found');
         return;
       }
 
       try {
-        // Get user ID from localStorage
-        const userId = localStorage.getItem('userId');
-        if (!userId) {
-          console.error('User ID not found');
-          return;
-        }
-
-        // Fetch user-specific matchups
         const response = await getUserMatchups(userId);
-        console.log('API Response:', response.data); // Log the entire response to see its structure
-
-        // Set matchups state depending on the response structure
         const matchupsData = response.data.response || response.data;
-        console.log('Matchups Data:', matchupsData); // Log matchups data before setting state
         setMatchups(matchupsData);
       } catch (err) {
         console.error('Failed to fetch user matchups:', err);
       }
     };
+
     fetchMatchups();
   }, [navigate]);
 
-  // Navigate to the CreateMatchup page
   const navigateToCreateMatchup = () => {
-    navigate('/create-matchup');
+    const userId = localStorage.getItem('userId');
+    navigate(`/users/${userId}/create-matchup`);
   };
 
+  const userId = localStorage.getItem('userId');
+
   return (
-    <div>
-      <NavigationBar /> {/* Include NavigationBar at the top */}
+    <div style={{ position: 'relative', paddingTop: '1rem' }}>
+      <NavigationBar />
+
+      {/* ← ProfilePic in top-right, wrapped in a Link to the profile */}
+      {userId && (
+        <Link
+          to={`/users/${userId}/profile`}
+          style={{
+            position: 'fixed',
+            top: '1rem',
+            right: '1rem',
+            width: 40,
+            height: 40,
+            borderRadius: '50%',
+            overflow: 'hidden',
+            display: 'block',
+            cursor: 'pointer'
+          }}
+        >
+          <ProfilePic userId={userId} size={40} />
+        </Link>
+      )}
 
       <h1>Your Matchups</h1>
       {matchups.length > 0 ? (
-        matchups.map((matchup) => {
-          const userId = localStorage.getItem('userId'); // Get user ID from localStorage
-          return (
-            <div key={matchup.id}>
-              <h2>
-                <Link to={`/users/${userId}/matchup/${matchup.id}`}>{matchup.title}</Link> {/* Make title clickable */}
-              </h2>
-              <p>{matchup.description}</p>
-            </div>
-          );
-        })
+        matchups.map((matchup) => (
+          <div key={matchup.id}>
+            <h2>
+              <Link to={`/users/${userId}/matchup/${matchup.id}`}>
+                {matchup.title}
+              </Link>
+            </h2>
+            <p>{matchup.description}</p>
+          </div>
+        ))
       ) : (
         <p>No matchups available.</p>
       )}
       
-      {/* Create a Matchup Button */}
       <Button onClick={navigateToCreateMatchup}>Create a Matchup</Button>
     </div>
   );

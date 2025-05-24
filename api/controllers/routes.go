@@ -15,11 +15,11 @@ func (s *Server) initializeRoutes() {
 		v1.GET("/users", s.GetUsers)
 		v1.GET("/users/:id", s.GetUser)
 		v1.PUT("/users/:id", middlewares.TokenAuthMiddleware(), s.UpdateUser)
-		v1.PUT("/avatar/users/:id", middlewares.TokenAuthMiddleware(), s.UpdateAvatar)
+		v1.PUT("/users/:id/avatar", middlewares.TokenAuthMiddleware(), s.UpdateAvatar)
 		v1.DELETE("/users/:id", middlewares.TokenAuthMiddleware(), s.DeleteUser)
 
 		// Matchup routes (using 'matchup' for single entity operations)
-		v1.POST("/matchups", middlewares.TokenAuthMiddleware(), s.CreateMatchup)
+		v1.POST("users/:id/create-matchup", middlewares.TokenAuthMiddleware(), s.CreateMatchup)
 		v1.GET("/matchups", s.GetMatchups)
 		v1.GET("/matchup/:id", s.GetMatchup) // Singular form to avoid conflict
 		v1.PUT("/matchup/:id", middlewares.TokenAuthMiddleware(), s.UpdateMatchup)

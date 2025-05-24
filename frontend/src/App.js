@@ -14,7 +14,7 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="users/:uid/matchup/:id" element={<MatchupPage />} />
-        <Route path="/create-matchup" element={<CreateMatchup />} />
+        <Route path="/users/:userId/create-matchup" element={<CreateMatchup />} />
         <Route path="/users/:userId/profile" element={<UserProfile />} />
       </Routes>
     </Router>

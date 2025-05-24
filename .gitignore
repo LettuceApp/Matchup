@@ -25,4 +25,4 @@ go.work
 .env
 config.yml
 node_modules/
-
+frontend/.env

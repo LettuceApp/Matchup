@@ -15,7 +15,7 @@ type Matchup struct {
 	Content   string        `gorm:"text;not null;" json:"content"`
 	Author    User          `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 	AuthorID  uint          `gorm:"not null" json:"author_id"`
-	Items     []MatchupItem `gorm:"foreignKey:MatchupID" json:"items"`
+	Items     []MatchupItem `gorm:"foreignKey:MatchupID;constraint:OnDelete:CASCADE" json:"items"`
 	Comments  []Comment     `gorm:"foreignKey:MatchupID" json:"comments"`
 	CreatedAt time.Time     `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
 	UpdatedAt time.Time     `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`

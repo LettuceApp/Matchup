@@ -1,13 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import NavigationBar from '../components/NavigationBar';
 import MatchupItem from '../components/MatchupItem';
 import Comment from '../components/Comment';
 import Button from '../components/Button';
-import { getUserMatchup, likeMatchup, unlikeMatchup, getUserLikes, updateMatchupItem, createComment, getComments } from '../services/api';
+import { 
+  getUserMatchup, 
+  likeMatchup, 
+  unlikeMatchup, 
+  getUserLikes, 
+  updateMatchupItem, 
+  createComment, 
+  getComments, 
+  deleteMatchup 
+} from '../services/api';
 
 const MatchupPage = () => {
   const { uid, id } = useParams();
+  const navigate = useNavigate();
   const userId = localStorage.getItem('userId');
   const [matchup, setMatchup] = useState(null);
   const [likesCount, setLikesCount] = useState(0);
@@ -22,20 +32,21 @@ const MatchupPage = () => {
       try {
         const response = await getUserMatchup(uid, id);
         setMatchup(response.data.response);
-  
+
         const userLikesResponse = await getUserLikes(userId);
-        const likedMatchup = userLikesResponse.data.response.some(like => like.matchup_id === parseInt(id));
+        const likedMatchup = userLikesResponse.data.response.some(
+          like => like.matchup_id === parseInt(id)
+        );
         setIsLiked(likedMatchup);
         setLikesCount(response.data.response.likes_count);
-  
+
         const commentsResponse = await getComments(id);
-        console.log("Fetched Comments:", commentsResponse.data.response); // Log the comments response
         setComments(commentsResponse.data.response);
       } catch (err) {
         console.error('Failed to fetch matchup:', err);
       }
     };
-  
+
     fetchMatchup();
   }, [uid, id, userId]);
 
@@ -68,7 +79,6 @@ const MatchupPage = () => {
 
   const handleSave = async () => {
     try {
-      console.log('Request Body:', JSON.stringify({ item: editedItem.item }));
       await updateMatchupItem(editedItem.id, { item: editedItem.item });
       setIsEditing(false);
       refreshItems();
@@ -98,8 +108,20 @@ const MatchupPage = () => {
     }
   };
 
+  // New function to handle deletion of the matchup
+  const handleDelete = async () => {
+    try {
+      await deleteMatchup(id);
+      // Redirect back to the homepage once deleted
+      navigate('/');
+    } catch (err) {
+      console.error('Failed to delete matchup:', err);
+    }
+  };
+
   if (!matchup) return <p>Loading matchup...</p>;
 
+  // Only allow deletion if the logged-in user is the owner of the matchup
   const isOwner = matchup.author_id === parseInt(userId);
 
   return (
@@ -108,7 +130,17 @@ const MatchupPage = () => {
       <h1>{matchup.title}</h1>
       <p><strong>Description:</strong> {matchup.content}</p>
       <p>Likes: {likesCount}</p>
-      <button onClick={handleLikeToggle}>{isLiked ? 'Unlike' : 'Like'}</button>
+      <button onClick={handleLikeToggle}>
+        {isLiked ? 'Unlike' : 'Like'}
+      </button>
+      
+      {/* Render Delete button only for the owner */}
+      {isOwner && (
+        <Button onClick={handleDelete}>
+          Delete Matchup
+        </Button>
+      )}
+      
       <div>
         <h2>Items and Scores</h2>
         {matchup.items.map((item) => (
@@ -131,24 +163,26 @@ const MatchupPage = () => {
       </div>
       <div>
         <h2>Comments</h2>
-        {/* Display each comment using the updated Comment component */}
         {comments.length > 0 ? (
           comments.map((comment) => (
-            <Comment key={comment.id} comment={comment} />
+            <Comment key={comment.id} comment={comment} refreshComments={refreshItems} />
           ))
         ) : (
           <p>No comments available.</p>
         )}
-
-        {/* Comment Input Form */}
         <form onSubmit={handleCommentSubmit}>
-          <textarea
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            placeholder="Add a comment"
-            required
-          />
-          <Button type="submit" onClick={() => {}}>Submit</Button>
+          <div>
+            <textarea
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="Add a comment"
+              required
+              style={{ width: '50%', height: '50px', display: 'block' }}
+            />
+          </div>
+          <div style={{ marginTop: '10px' }}>
+            <Button type="submit">Submit</Button>
+          </div>
         </form>
       </div>
     </div>

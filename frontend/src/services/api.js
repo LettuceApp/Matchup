@@ -25,13 +25,13 @@ export const createUser = (data) => API.post('/users', data);
 export const getUsers = () => API.get('/users');
 export const getUser = (id) => API.get(`/users/${id}`);
 export const updateUser = (id, data) => API.put(`/users/${id}`, data);
-export const updateUserAvatar = (id, data) => API.put(`/avatar/users/${id}`, data);
+export const updateUserAvatar = (userId, formData) => API.put(`/users/${userId}/avatar`, formData);
 export const deleteUser = (id) => API.delete(`/users/${id}`);
 export const getUserMatchups = (userId) => API.get(`/users/${userId}/matchups`);
 export const getUserMatchup = (userId, matchupId) => API.get(`/users/${userId}/matchups/${matchupId}`);
 
 // Matchup Management
-export const createMatchup = (data) => API.post('/matchups', data);
+export const createMatchup = (userId, data) => API.post(`users/${userId}/create-matchup`, data);
 export const getMatchups = () => API.get('/matchups');
 export const getMatchup = (id) => API.get(`/matchup/${id}`);
 export const updateMatchup = (id, data) => API.put(`/matchup/${id}`, data);

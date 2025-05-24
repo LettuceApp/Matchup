@@ -1,24 +1,54 @@
-// PostedComment.js
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { deleteComment } from '../services/api';
 
-const PostedComment = ({ comment }) => {
-  const { commenterName, commenterId, body, createdAt } = comment;
+const PostedComment = ({ comment, refreshComments }) => {
+  const { user_id, username, body, created_at, id } = comment;
+  const loggedInUserId = parseInt(localStorage.getItem('userId'), 10);
+  const isOwner = loggedInUserId === user_id;
+
+  const handleDelete = async () => {
+    try {
+      await deleteComment(id);
+      if (refreshComments) refreshComments();
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      alert('Error deleting comment.');
+    }
+  };
 
   return (
-    <div style={{ marginBottom: '10px', padding: '10px', borderBottom: '1px solid #ddd' }}>
-      {/* Commenter's Name with Link to Profile */}
+    <div style={{ marginBottom: '10px', padding: '10px', borderBottom: '1px solid #ddd', position: 'relative' }}>
+      {/* Username and Timestamp */}
       <div>
-        <Link to={`/users/${commenterId}/profile`} style={{ fontWeight: 'bold', textDecoration: 'none', color: '#3b5998' }}>
-          {commenterName}
+        <Link 
+          to={`/users/${user_id}/profile`} 
+          style={{ fontSize: '18px', fontWeight: 'bold', textDecoration: 'none', color: '#3b5998' }}
+        >
+          {username}
         </Link>
         <span style={{ marginLeft: '10px', color: '#555', fontSize: '12px' }}>
-          {new Date(createdAt).toLocaleString()}
+          {new Date(created_at).toLocaleString()}
         </span>
+        {isOwner && (
+          <button 
+            onClick={handleDelete} 
+            style={{
+              position: 'absolute',
+              right: '10px',
+              top: '10px',
+              background: 'transparent',
+              border: 'none',
+              color: 'red',
+              cursor: 'pointer'
+            }}
+          >
+            Delete
+          </button>
+        )}
       </div>
-
       {/* Comment Body */}
-      <div style={{ marginTop: '5px', color: '#333' }}>
+      <div style={{ marginTop: '5px', fontSize: '14px', color: '#333' }}>
         {body}
       </div>
     </div>

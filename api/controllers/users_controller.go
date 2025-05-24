@@ -2,6 +2,9 @@ package controllers
 
 import (
 	"bytes"
+	"context"
+	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -12,12 +15,15 @@ import (
 	"Matchup/api/utils/fileformat"
 	"Matchup/api/utils/formaterror"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	aws2 "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gin-gonic/gin"
 )
+
+type BucketBasics struct {
+	S3Client *s3.Client
+}
 
 // CreateUser handles user registration
 func (server *Server) CreateUser(c *gin.Context) {
@@ -124,27 +130,25 @@ func (server *Server) GetUser(c *gin.Context) {
 
 // UpdateAvatar allows a user to update their avatar image
 func (server *Server) UpdateAvatar(c *gin.Context) {
+	// Parse and validate user ID
 	userID := c.Param("id")
-
 	uid, err := strconv.ParseUint(userID, 10, 32)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
-
-	// Get user ID from context (set by authentication middleware)
 	tokenID, exists := c.Get("userID")
 	if !exists || tokenID != uint(uid) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
+	// Pull and validate the uploaded file
 	file, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file"})
 		return
 	}
-
 	f, err := file.Open()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot open file"})
@@ -153,64 +157,88 @@ func (server *Server) UpdateAvatar(c *gin.Context) {
 	defer f.Close()
 
 	size := file.Size
-	maxSize := int64(512000) // 500KB
-	if size > maxSize {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "File too large. Please upload a file less than 500KB"})
+	if size > 512_000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File too large (<500KB)"})
 		return
 	}
 
-	buffer := make([]byte, size)
-	f.Read(buffer)
-	fileBytes := bytes.NewReader(buffer)
-	fileType := http.DetectContentType(buffer)
-	if !strings.HasPrefix(fileType, "image") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Please upload a valid image"})
+	buf := make([]byte, size)
+	if _, err := f.Read(buf); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Could not read file"})
+		return
+	}
+	fileType := http.DetectContentType(buf)
+	if !strings.HasPrefix(fileType, "image/") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Not an image"})
 		return
 	}
 
+	// Generate S3 key under UserProfilePics prefix
 	filePath := fileformat.UniqueFormat(file.Filename)
-	path := "/profile-photos/" + filePath
+	key := "UserProfilePics/" + filePath
 
-	// Initialize AWS S3 client
-	s3Config := &aws.Config{
-		Credentials: credentials.NewStaticCredentials(
-			os.Getenv("DO_SPACES_KEY"), os.Getenv("DO_SPACES_SECRET"), os.Getenv("DO_SPACES_TOKEN")),
-		Endpoint: aws.String(os.Getenv("DO_SPACES_ENDPOINT")),
-		Region:   aws.String(os.Getenv("DO_SPACES_REGION")),
-	}
-	newSession, err := session.NewSession(s3Config)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create AWS session"})
+	// Determine bucket name, stripping any accidental path suffix
+	rawBucket := os.Getenv("S3_BUCKET")
+	bucketName := strings.SplitN(rawBucket, "/", 2)[0]
+	if bucketName == "" {
+		log.Printf("S3_BUCKET env var is empty or invalid: '%s'", rawBucket)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Server configuration error"})
 		return
 	}
-	s3Client := s3.New(newSession)
 
-	// Upload file to S3
-	params := &s3.PutObjectInput{
-		Bucket:        aws.String("chodapi"),
-		Key:           aws.String(path),
-		Body:          fileBytes,
-		ContentLength: aws.Int64(size),
-		ContentType:   aws.String(fileType),
-		ACL:           aws.String("public-read"),
+	// Load AWS config (uses default credential chain + region)
+	region := os.Getenv("AWS_REGION")
+	if region == "" {
+		region = "us-east-2"
+	}
+	cfg, err := config.LoadDefaultConfig(
+		context.TODO(),
+		config.WithRegion(region),
+	)
+	if err != nil {
+		log.Printf("AWS config load error: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "AWS configuration error"})
+		return
 	}
 
-	_, err = s3Client.PutObject(params)
+	// Instantiate S3 client using path-style addressing
+	s3Client := s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.UsePathStyle = true
+	})
+
+	// Upload to S3
+	_, err = s3Client.PutObject(context.TODO(), &s3.PutObjectInput{
+		Bucket:        aws2.String(bucketName),
+		Key:           aws2.String(key),
+		Body:          bytes.NewReader(buf),
+		ContentLength: aws2.Int64(size),
+		ContentType:   aws2.String(fileType),
+	})
 	if err != nil {
+		log.Printf("S3 upload failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload image"})
 		return
 	}
 
-	// Update user's avatar path
-	user := models.User{}
-	user.AvatarPath = filePath
+	// Save avatar path in DB
+	user := models.User{AvatarPath: filePath}
 	updatedUser, err := user.UpdateAUserAvatar(server.DB, uint(uid))
 	if err != nil {
+		log.Printf("DB update failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Cannot save image, please try again later"})
 		return
 	}
+	// 7) Build a public S3 URL (virtual-host style)
+	fullURL := fmt.Sprintf(
+		"https://%s.s3.%s.amazonaws.com/%s",
+		bucketName,
+		region,
+		key,
+	)
+	updatedUser.AvatarPath = fullURL
+	log.Printf(updatedUser.AvatarPath)
 
-	// Prepare response without the password
+	// Build response
 	userResponse := map[string]interface{}{
 		"id":          updatedUser.ID,
 		"username":    updatedUser.Username,
@@ -220,10 +248,8 @@ func (server *Server) UpdateAvatar(c *gin.Context) {
 		"updated_at":  updatedUser.UpdatedAt,
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"status":   http.StatusOK,
-		"response": userResponse,
-	})
+	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK, "response": userResponse})
+	log.Printf("Avatar updated successfully for user %d", updatedUser.ID)
 }
 
 // UpdateUser allows a user to update their email and password
