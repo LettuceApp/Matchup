@@ -14,7 +14,7 @@ const S3_BASE_URL =
  * Props:
  * - userId: ID of the user whose avatar to display
  * - editable: boolean, if true clicking the avatar opens file picker & uploads
- * - size: number, width/height of the avatar in pixels (defaults to 80)
+ * - size: number, width/height of the avatar in pixels (defaults to 80) test
  */
 const ProfilePic = ({ userId, editable = false, size = 80 }) => {
   const [avatarKey, setAvatarKey] = useState(null);  // change name to key
