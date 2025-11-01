@@ -51,7 +51,9 @@ func (c *Comment) SaveComment(db *gorm.DB) (*Comment, error) {
 
 func (c *Comment) GetComments(db *gorm.DB, mid uint) (*[]Comment, error) {
 	comments := []Comment{}
-	err := db.Where("matchup_id = ?", mid).Order("created_at desc").Find(&comments).Error
+	// Preload the comment author's information so the username is available
+	err := db.Preload("Author").Where("matchup_id = ?", mid).
+		Order("created_at desc").Find(&comments).Error
 	if err != nil {
 		return nil, err
 	}

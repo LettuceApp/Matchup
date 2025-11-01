@@ -3,7 +3,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { getUserMatchups } from '../services/api';
 import NavigationBar from '../components/NavigationBar';
 import Button from '../components/Button';
-import ProfilePic from '../components/ProfilePic';
 import './HomePage.css';
 
 const HomePage = () => {
@@ -50,12 +49,6 @@ const HomePage = () => {
   return (
     <div className="home-page">
       <NavigationBar />
-
-      {userId && (
-        <Link to={`/users/${userId}/profile`} className="home-profile-link" aria-label="View profile">
-          <ProfilePic userId={userId} size={44} />
-        </Link>
-      )}
 
       <main className="home-content">
         <section className="home-hero">
@@ -113,26 +106,19 @@ const HomePage = () => {
 
           {!isLoading && !error && matchups.length > 0 && (
             <div className="home-matchups-grid">
-              {matchups.map((matchup) => {
-                const description = matchup.description && matchup.description.trim().length > 0
-                  ? matchup.description
-                  : 'No description yet.';
-
-                return (
-                  <article key={matchup.id} className="home-matchup-card">
-                    <div className="home-matchup-card-body">
-                      <h3>{matchup.title}</h3>
-                      <p>{description}</p>
-                    </div>
-                    <Link to={`/users/${userId}/matchup/${matchup.id}`} className="home-matchup-link">
-                      View matchup
-                      <span className="home-matchup-link-arrow" aria-hidden="true">
-                        &gt;
-                      </span>
-                    </Link>
-                  </article>
-                );
-              })}
+              {matchups.map((matchup) => (
+                <article key={matchup.id} className="home-matchup-card">
+                  <div className="home-matchup-card-body">
+                    <h3>{matchup.title}</h3>
+                  </div>
+                  <Link to={`/users/${userId}/matchup/${matchup.id}`} className="home-matchup-link">
+                    View matchup
+                    <span className="home-matchup-link-arrow" aria-hidden="true">
+                      &gt;
+                    </span>
+                  </Link>
+                </article>
+              ))}
             </div>
           )}
         </section>

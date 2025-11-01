@@ -1,0 +1,65 @@
+.comment-card {
+  background: rgba(15, 23, 42, 0.7);
+  border-radius: 20px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  padding: 1.2rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.45);
+}
+
+.comment-card__header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.comment-card__author {
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: #c7d2fe;
+  text-decoration: none;
+  transition: color 200ms ease;
+}
+
+.comment-card__author:hover,
+.comment-card__author:focus-visible {
+  color: #facc15;
+}
+
+.comment-card__timestamp {
+  font-size: 0.85rem;
+  color: rgba(148, 163, 255, 0.78);
+}
+
+.comment-card__body {
+  margin: 0;
+  color: rgba(226, 232, 240, 0.86);
+  line-height: 1.5;
+}
+
+.comment-card__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.comment-card__delete {
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  background: rgba(248, 113, 113, 0.18);
+  color: #fee2e2;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 200ms ease, background-color 200ms ease, border-color 200ms ease;
+}
+
+.comment-card__delete:hover,
+.comment-card__delete:focus-visible {
+  transform: translateY(-2px);
+  background: rgba(248, 113, 113, 0.32);
+  border-color: rgba(248, 113, 113, 0.65);
+}

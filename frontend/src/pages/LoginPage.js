@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { login } from '../services/api';
+import './LoginPage.css';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // If a token exists in localStorage, redirect to the home page
     const token = localStorage.getItem('token');
     if (token) {
       navigate('/');
@@ -17,46 +19,84 @@ const LoginPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null);
+
     try {
+      setIsSubmitting(true);
       const response = await login({ email, password });
-      const { token, id: userId } = response.data.response;
+      const payload = response.data.response || response.data;
+      const token = payload?.token;
+      const userId = payload?.id;
       if (token && userId) {
         localStorage.setItem('token', token);
         localStorage.setItem('userId', userId);
         navigate('/');
       } else {
         console.error('Token or User ID is missing in response');
-        alert('Login failed. Please try again.');
+        setError('Login failed. Please try again.');
       }
     } catch (err) {
       console.error('Login error:', err.response ? err.response.data : err.message);
-      alert('Login failed. Please try again.');
+      setError('Login failed. Please check your credentials and try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div>
-      <h1>Login</h1>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <button type="submit">Login</button>
-      </form>
-      <div style={{ marginTop: '20px' }}>
-        <p>Don't have an account?</p>
-        <button onClick={() => navigate('/register')}>Register</button>
+    <div className="login-page">
+      <div className="login-card">
+        <div className="login-card__header">
+          <h1 className="login-card__title">Welcome back</h1>
+          <p className="login-card__subtitle">
+            Sign in to continue creating, voting, and sharing your matchups.
+          </p>
+        </div>
+
+        {error && <p className="login-error">{error}</p>}
+
+        <form onSubmit={handleSubmit} className="login-form">
+          <div className="login-field">
+            <label htmlFor="login-email">Email</label>
+            <input
+              id="login-email"
+              type="email"
+              className="login-input"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              required
+            />
+          </div>
+          <div className="login-field">
+            <label htmlFor="login-password">Password</label>
+            <input
+              id="login-password"
+              type="password"
+              className="login-input"
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            className="login-primary-button"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? 'Signing in…' : 'Login'}
+          </button>
+        </form>
+
+        <div className="login-footer">
+          <span>Don't have an account?</span>
+          <button type="button" onClick={() => navigate('/register')}>
+            Register
+          </button>
+        </div>
       </div>
     </div>
   );

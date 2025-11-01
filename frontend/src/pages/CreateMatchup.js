@@ -1,36 +1,33 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import NavigationBar from '../components/NavigationBar';
 import Button from '../components/Button';
 import { createMatchup } from '../services/api';
+import './CreateMatchup.css';
 
 const CreateMatchup = () => {
-  // Extract the user id from the route params (the route is set as /users/:id/create-matchup)
   const { userId } = useParams();
   const navigate = useNavigate();
 
-  // State for the form fields
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [items, setItems] = useState([{ item: '' }]);
+  const [items, setItems] = useState([{ item: '' }, { item: '' }]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Handle changes for the title and content fields
   const handleTitleChange = (e) => setTitle(e.target.value);
   const handleContentChange = (e) => setContent(e.target.value);
 
-  // Handle changes in each item input field
   const handleItemChange = (index, value) => {
     const newItems = [...items];
     newItems[index].item = value;
     setItems(newItems);
   };
 
-  // Add a new empty item field
   const addItem = () => {
     setItems([...items, { item: '' }]);
   };
 
-  // Remove an item field (if more than one exists)
   const removeItem = (index) => {
     if (items.length > 1) {
       const newItems = items.filter((_, i) => i !== index);
@@ -38,80 +35,184 @@ const CreateMatchup = () => {
     }
   };
 
-  // Handle the form submission
+  const goBack = () => navigate(-1);
+
+  const sanitizedItems = useMemo(
+    () => items.map(({ item }) => ({ item: item.trim() })),
+    [items]
+  );
+
+  const filledItems = useMemo(
+    () => sanitizedItems.filter(({ item }) => item.length > 0),
+    [sanitizedItems]
+  );
+
+  const hasRequiredContenders = filledItems.length >= 2;
+
+  const isCreateDisabled =
+    isSubmitting ||
+    title.trim().length === 0 ||
+    content.trim().length === 0 ||
+    filledItems.length !== items.length ||
+    !hasRequiredContenders;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isCreateDisabled) {
+      return;
+    }
 
-    // Create the JSON data object
     const matchupData = {
-      title,
-      content,
-      items,
+      title: title.trim(),
+      content: content.trim(),
+      items: sanitizedItems,
     };
 
     try {
-      // Call the API function, which will post to /users/:id/create-matchup
+      setIsSubmitting(true);
+      setError(null);
       const response = await createMatchup(userId, matchupData);
       console.log('Matchup created:', response.data);
 
-      // Retrieve the newly created matchup's id from the response.
-      // (Assuming your backend sends it as response.data.response.id)
       const newMatchupId = response.data.response.id;
-      
-      
-      // Redirect to the matchup detail page using the new id
+
       navigate(`/users/${userId}/matchup/${newMatchupId}`);
     } catch (error) {
       console.error('Error creating matchup:', error);
+      setError('We could not create that matchup. Please review your entries and try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div>
+    <div className="create-matchup-page">
       <NavigationBar />
-      <h1>Create a New Matchup</h1>
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label>Title:</label>
-          <input 
-            type="text" 
-            value={title} 
-            onChange={handleTitleChange}
-            required
-          />
-        </div>
-        <div>
-          <label>Content:</label>
-          <textarea 
-            value={content} 
-            onChange={handleContentChange}
-            required
-          />
-        </div>
-        <div>
-          <label>Items:</label>
-          {items.map((itm, index) => (
-            <div key={index}>
-              <input 
-                type="text" 
-                value={itm.item} 
-                onChange={(e) => handleItemChange(index, e.target.value)}
-                placeholder={`Item ${index + 1}`}
+      <main className="create-matchup-content">
+        <section className="create-matchup-hero">
+          <p className="create-overline">New Matchup</p>
+          <h1>Bring a fresh head-to-head to the community.</h1>
+          <p className="create-subtitle">
+            Set the stage with a captivating title, tell everyone what the clash is about, and add contenders to get the debate started.
+          </p>
+          <div className="create-hero-actions">
+            <Button onClick={() => navigate('/')} className="create-secondary-button">
+              Back to dashboard
+            </Button>
+            <Button onClick={goBack} className="create-tertiary-button">
+              Go back
+            </Button>
+          </div>
+        </section>
+
+        <section className="create-layout">
+          <form onSubmit={handleSubmit} className="create-form">
+            <div className="create-form-group">
+              <label htmlFor="matchup-title">
+                Matchup title <span aria-hidden="true">*</span>
+              </label>
+              <input
+                id="matchup-title"
+                type="text"
+                value={title}
+                onChange={handleTitleChange}
+                placeholder="e.g. Lakers vs Warriors: Who takes the series?"
+                className="create-input"
                 required
               />
-              {items.length > 1 && (
-                <Button type="button" onClick={() => removeItem(index)}>
-                  Remove
-                </Button>
+            </div>
+
+            <div className="create-form-group">
+              <label htmlFor="matchup-content">
+                Description <span aria-hidden="true">*</span>
+              </label>
+              <textarea
+                id="matchup-content"
+                value={content}
+                onChange={handleContentChange}
+                placeholder="Give everyone the context and criteria for your matchup."
+                className="create-textarea"
+                rows={6}
+                required
+              />
+            </div>
+
+            <div className="create-form-group">
+              <div className="create-form-group-header">
+                <label>Contenders</label>
+                <span className="create-form-hint">Add at least two contenders to keep things interesting.</span>
+              </div>
+
+              <div className="create-items">
+                {items.map((itm, index) => (
+                  <div key={index} className="create-item-row">
+                    <input
+                      type="text"
+                      value={itm.item}
+                      onChange={(e) => handleItemChange(index, e.target.value)}
+                      placeholder={`Contender ${index + 1}`}
+                      className="create-input"
+                      required
+                    />
+                    {items.length > 1 && (
+                      <Button
+                        type="button"
+                        onClick={() => removeItem(index)}
+                        className="create-remove-button"
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <Button type="button" onClick={addItem} className="create-add-button">
+                + Add another contender
+              </Button>
+              {!hasRequiredContenders && (
+                <p className="create-inline-hint" role="alert">
+                  You need at least two contenders to create a matchup.
+                </p>
               )}
             </div>
-          ))}
-          <Button type="button" onClick={addItem}>
-            Add Item
-          </Button>
-        </div>
-        <Button type="submit">Create Matchup</Button>
-      </form>
+
+            {error && <p className="create-error">{error}</p>}
+
+            <div className="create-form-actions">
+              <Button
+                type="submit"
+                className="create-primary-button"
+                disabled={isCreateDisabled}
+              >
+                {isSubmitting ? 'Creating...' : 'Create matchup'}
+              </Button>
+              <Button type="button" onClick={goBack} className="create-tertiary-button">
+                Cancel
+              </Button>
+            </div>
+          </form>
+
+          <aside className="create-preview-card">
+            <div className="create-preview-header">
+              <span className="create-preview-label">Live Preview</span>
+              <span className="create-preview-count">{filledItems.length} contenders</span>
+            </div>
+            <div className="create-preview-body">
+              <h2>{title.trim() || 'Your matchup title will appear here'}</h2>
+              <p>{content.trim() || 'Use the description field to explain what makes this matchup exciting.'}</p>
+              <ul className="create-preview-list">
+                {(filledItems.length > 0 ? filledItems : sanitizedItems).map(({ item }, index) => (
+                  <li key={index}>
+                    <span className="create-preview-bullet" aria-hidden="true" />
+                    <span>{item.length > 0 ? item : `Contender ${index + 1}`}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </aside>
+        </section>
+      </main>
     </div>
   );
 };

@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import NavigationBar from '../components/NavigationBar';
 import MatchupItem from '../components/MatchupItem';
 import Comment from '../components/Comment';
 import Button from '../components/Button';
-import { 
-  getUserMatchup, 
-  likeMatchup, 
-  unlikeMatchup, 
-  getUserLikes, 
-  updateMatchupItem, 
-  createComment, 
-  getComments, 
-  deleteMatchup 
+import {
+  getUserMatchup,
+  likeMatchup,
+  unlikeMatchup,
+  getUserLikes,
+  createComment,
+  getComments,
+  deleteMatchup
 } from '../services/api';
+import './MatchupPage.css';
 
 const MatchupPage = () => {
   const { uid, id } = useParams();
@@ -24,167 +24,291 @@ const MatchupPage = () => {
   const [isLiked, setIsLiked] = useState(false);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
-  const [editedItem, setEditedItem] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [commentError, setCommentError] = useState(null);
+  const [commentPending, setCommentPending] = useState(false);
+  const [likePending, setLikePending] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  useEffect(() => {
-    const fetchMatchup = async () => {
+  const loadMatchup = useCallback(
+    async (withSpinner = false) => {
+      if (withSpinner) {
+        setIsLoading(true);
+      }
+
       try {
         const response = await getUserMatchup(uid, id);
-        setMatchup(response.data.response);
+        const matchupData = response.data.response ?? response.data;
+        setMatchup(matchupData);
+        setLikesCount(matchupData?.likes_count ?? 0);
 
-        const userLikesResponse = await getUserLikes(userId);
-        const likedMatchup = userLikesResponse.data.response.some(
-          like => like.matchup_id === parseInt(id)
-        );
-        setIsLiked(likedMatchup);
-        setLikesCount(response.data.response.likes_count);
+        if (userId) {
+          const userLikesResponse = await getUserLikes(userId);
+          const userLikes = userLikesResponse.data.response ?? userLikesResponse.data;
+          const likedMatchup = (userLikes || []).some(
+            (like) => like.matchup_id === parseInt(id, 10)
+          );
+          setIsLiked(likedMatchup);
+        } else {
+          setIsLiked(false);
+        }
 
         const commentsResponse = await getComments(id);
-        setComments(commentsResponse.data.response);
+        const commentsData = commentsResponse.data.response ?? commentsResponse.data;
+        setComments(Array.isArray(commentsData) ? commentsData : []);
+        setError(null);
       } catch (err) {
         console.error('Failed to fetch matchup:', err);
+        setError('We had trouble loading this matchup. Please try again.');
+      } finally {
+        if (withSpinner) {
+          setIsLoading(false);
+        }
       }
-    };
+    },
+    [uid, id, userId]
+  );
 
-    fetchMatchup();
-  }, [uid, id, userId]);
+  useEffect(() => {
+    loadMatchup(true);
+  }, [loadMatchup]);
+
+  const refreshMatchup = useCallback(() => {
+    loadMatchup(false);
+  }, [loadMatchup]);
 
   const handleLikeToggle = async () => {
+    if (likePending) {
+      return;
+    }
+
     try {
+      setLikePending(true);
       if (isLiked) {
         await unlikeMatchup(id);
-        setLikesCount(likesCount - 1);
+        setLikesCount((prev) => Math.max(0, prev - 1));
       } else {
         await likeMatchup(id);
-        setLikesCount(likesCount + 1);
+        setLikesCount((prev) => prev + 1);
       }
-      setIsLiked(!isLiked);
+      setIsLiked((prev) => !prev);
     } catch (err) {
       console.error('Failed to toggle like on matchup:', err);
+      setError('We could not update your like just now. Please try again.');
+    } finally {
+      setLikePending(false);
     }
-  };
-
-  const refreshItems = async () => {
-    try {
-      const response = await getUserMatchup(uid, id);
-      setMatchup(response.data.response);
-
-      const commentsResponse = await getComments(id);
-      setComments(commentsResponse.data.response);
-    } catch (err) {
-      console.error('Failed to refresh items:', err);
-    }
-  };
-
-  const handleSave = async () => {
-    try {
-      await updateMatchupItem(editedItem.id, { item: editedItem.item });
-      setIsEditing(false);
-      refreshItems();
-    } catch (err) {
-      console.error('Failed to save item:', err);
-    }
-  };
-
-  const handleCancel = () => {
-    setIsEditing(false);
-    refreshItems();
-  };
-
-  const handleEdit = (item) => {
-    setEditedItem(item);
-    setIsEditing(true);
   };
 
   const handleCommentSubmit = async (e) => {
     e.preventDefault();
+    const trimmedComment = newComment.trim();
+    if (!trimmedComment) {
+      return;
+    }
+
     try {
-      await createComment(id, { Body: newComment });
+      setCommentPending(true);
+      setCommentError(null);
+      await createComment(id, { Body: trimmedComment });
       setNewComment('');
-      refreshItems();
+      refreshMatchup();
     } catch (err) {
       console.error('Failed to add comment:', err);
+      setCommentError('We could not post that comment. Please try again.');
+    } finally {
+      setCommentPending(false);
     }
   };
 
-  // New function to handle deletion of the matchup
   const handleDelete = async () => {
+    if (isDeleting) {
+      return;
+    }
+
     try {
+      setIsDeleting(true);
       await deleteMatchup(id);
-      // Redirect back to the homepage once deleted
       navigate('/');
     } catch (err) {
       console.error('Failed to delete matchup:', err);
+      setError('We could not delete this matchup. Please try again.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
-  if (!matchup) return <p>Loading matchup...</p>;
+  if (!matchup && isLoading) {
+    return (
+      <div className="matchup-page">
+        <NavigationBar />
+        <main className="matchup-content matchup-content--center">
+          <div className="matchup-status-card">Loading matchup...</div>
+        </main>
+      </div>
+    );
+  }
 
-  // Only allow deletion if the logged-in user is the owner of the matchup
-  const isOwner = matchup.author_id === parseInt(userId);
+  if (!matchup && error) {
+    return (
+      <div className="matchup-page">
+        <NavigationBar />
+        <main className="matchup-content matchup-content--center">
+          <div className="matchup-status-card matchup-status-card--error">{error}</div>
+          <Button onClick={() => loadMatchup(true)} className="matchup-secondary-button">
+            Try again
+          </Button>
+        </main>
+      </div>
+    );
+  }
+
+  if (!matchup) {
+    return null;
+  }
+
+  const isOwner = userId ? matchup.author_id === parseInt(userId, 10) : false;
+
+  const authorName =
+    matchup?.author?.username ||
+    matchup?.author?.name ||
+    matchup?.author_username ||
+    matchup?.author_name ||
+    matchup?.Author?.username ||
+    matchup?.Author?.name ||
+    null;
+
+  const formattedCreatedAt = matchup?.created_at
+    ? new Date(matchup.created_at).toLocaleString()
+    : null;
 
   return (
-    <div>
+    <div className="matchup-page">
       <NavigationBar />
-      <h1>{matchup.title}</h1>
-      <p><strong>Description:</strong> {matchup.content}</p>
-      <p>Likes: {likesCount}</p>
-      <button onClick={handleLikeToggle}>
-        {isLiked ? 'Unlike' : 'Like'}
-      </button>
-      
-      {/* Render Delete button only for the owner */}
-      {isOwner && (
-        <Button onClick={handleDelete}>
-          Delete Matchup
-        </Button>
-      )}
-      
-      <div>
-        <h2>Items and Scores</h2>
-        {matchup.items.map((item) => (
-          <MatchupItem
-            key={item.id}
-            item={item}
-            isOwner={isOwner}
-            refreshItems={refreshItems}
-            isEditing={isEditing}
-            setIsEditing={setIsEditing}
-            handleEdit={handleEdit}
-          />
-        ))}
-        {isOwner && isEditing && (
-          <div>
-            <Button onClick={handleSave}>Save</Button>
-            <Button onClick={handleCancel}>Cancel</Button>
+      <main className="matchup-content">
+        {error && (
+          <div className="matchup-status-card matchup-status-card--warning">
+            {error}
           </div>
         )}
-      </div>
-      <div>
-        <h2>Comments</h2>
-        {comments.length > 0 ? (
-          comments.map((comment) => (
-            <Comment key={comment.id} comment={comment} refreshComments={refreshItems} />
-          ))
-        ) : (
-          <p>No comments available.</p>
-        )}
-        <form onSubmit={handleCommentSubmit}>
-          <div>
+
+        <section className="matchup-hero">
+          <div className="matchup-hero-text">
+            <p className="matchup-overline">Matchup Detail</p>
+            <h1>{matchup.title}</h1>
+            <p className="matchup-description">{matchup.content}</p>
+            <div className="matchup-meta">
+              {authorName && <span>Created by {authorName}</span>}
+              {formattedCreatedAt && <span>Published {formattedCreatedAt}</span>}
+            </div>
+            <div className="matchup-actions">
+              <Button
+                onClick={handleLikeToggle}
+                className={`matchup-like-button${isLiked ? ' is-liked' : ''}`}
+                disabled={likePending}
+              >
+                {isLiked ? 'Unlike matchup' : 'Like matchup'}
+              </Button>
+              <div className="matchup-like-indicator">
+                <span className="matchup-like-count">{likesCount}</span>
+                <span>cheers</span>
+              </div>
+              {isOwner && (
+                <Button
+                  onClick={handleDelete}
+                  className="matchup-danger-button"
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete matchup'}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="matchup-hero-stats" aria-hidden="true">
+            <div className="matchup-stat-card">
+              <span className="matchup-stat-label">Contenders</span>
+              <span className="matchup-stat-value">{matchup.items?.length ?? 0}</span>
+            </div>
+            <div className="matchup-stat-card">
+              <span className="matchup-stat-label">Likes</span>
+              <span className="matchup-stat-value">{likesCount}</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="matchup-section">
+          <header className="matchup-section-header">
+            <div>
+              <h2>Contenders & Votes</h2>
+              <p>Tap a contender to edit its name if you own this matchup.</p>
+            </div>
+          </header>
+          <div className="matchup-items">
+            {matchup.items?.length ? (
+              matchup.items.map((item) => (
+                <MatchupItem
+                  key={item.id}
+                  item={item}
+                  isOwner={isOwner}
+                  refreshItems={refreshMatchup}
+                />
+              ))
+            ) : (
+              <div className="matchup-status-card matchup-status-card--muted">
+                No contenders yet.
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="matchup-section">
+          <header className="matchup-section-header">
+            <div>
+              <h2>Comments</h2>
+              <p>Join the conversation and share your perspective.</p>
+            </div>
+          </header>
+
+          {comments.length > 0 ? (
+            <div className="matchup-comments-list">
+              {comments.map((comment) => (
+                <Comment key={comment.id} comment={comment} refreshComments={refreshMatchup} />
+              ))}
+            </div>
+          ) : (
+            <div className="matchup-status-card matchup-status-card--muted">
+              Be the first to comment on this matchup.
+            </div>
+          )}
+
+          <form onSubmit={handleCommentSubmit} className="matchup-comment-form">
+            <label htmlFor="comment-body" className="matchup-form-label">
+              Add a comment
+            </label>
             <textarea
+              id="comment-body"
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Add a comment"
+              placeholder="Share your take..."
+              className="matchup-textarea"
+              rows={4}
               required
-              style={{ width: '50%', height: '50px', display: 'block' }}
             />
-          </div>
-          <div style={{ marginTop: '10px' }}>
-            <Button type="submit">Submit</Button>
-          </div>
-        </form>
-      </div>
+            {commentError && <p className="matchup-inline-error">{commentError}</p>}
+            <div className="matchup-form-actions">
+              <Button
+                type="submit"
+                className="matchup-primary-button"
+                disabled={commentPending}
+              >
+                {commentPending ? 'Posting...' : 'Post comment'}
+              </Button>
+            </div>
+          </form>
+        </section>
+      </main>
     </div>
   );
 };
