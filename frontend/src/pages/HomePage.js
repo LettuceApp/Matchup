@@ -3,10 +3,13 @@ import { useNavigate, Link } from 'react-router-dom';
 import { getUserMatchups } from '../services/api';
 import NavigationBar from '../components/NavigationBar';
 import Button from '../components/Button';
-import ProfilePic from '../components/ProfilePic';      // ← import your component
+import ProfilePic from '../components/ProfilePic';
+import './HomePage.css';
 
 const HomePage = () => {
   const [matchups, setMatchups] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -24,9 +27,13 @@ const HomePage = () => {
       try {
         const response = await getUserMatchups(userId);
         const matchupsData = response.data.response || response.data;
+        setError(null);
         setMatchups(matchupsData);
       } catch (err) {
         console.error('Failed to fetch user matchups:', err);
+        setError('We could not load your matchups. Please try again in a moment.');
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -41,46 +48,95 @@ const HomePage = () => {
   const userId = localStorage.getItem('userId');
 
   return (
-    <div style={{ position: 'relative', paddingTop: '1rem' }}>
+    <div className="home-page">
       <NavigationBar />
 
-      {/* ← ProfilePic in top-right, wrapped in a Link to the profile */}
       {userId && (
-        <Link
-          to={`/users/${userId}/profile`}
-          style={{
-            position: 'fixed',
-            top: '1rem',
-            right: '1rem',
-            width: 40,
-            height: 40,
-            borderRadius: '50%',
-            overflow: 'hidden',
-            display: 'block',
-            cursor: 'pointer'
-          }}
-        >
-          <ProfilePic userId={userId} size={40} />
+        <Link to={`/users/${userId}/profile`} className="home-profile-link" aria-label="View profile">
+          <ProfilePic userId={userId} size={44} />
         </Link>
       )}
 
-      <h1>Your Matchups</h1>
-      {matchups.length > 0 ? (
-        matchups.map((matchup) => (
-          <div key={matchup.id}>
-            <h2>
-              <Link to={`/users/${userId}/matchup/${matchup.id}`}>
-                {matchup.title}
-              </Link>
-            </h2>
-            <p>{matchup.description}</p>
+      <main className="home-content">
+        <section className="home-hero">
+          <div className="home-hero-text">
+            <p className="home-overline">Matchup Hub</p>
+            <h1>Discover how your matchups stack up.</h1>
+            <p className="home-subtitle">
+              Track community sentiment, share your thoughts, and keep every matchup in one vibrant dashboard.
+            </p>
+            <Button onClick={navigateToCreateMatchup} className="home-create-button">
+              Create a Matchup
+            </Button>
           </div>
-        ))
-      ) : (
-        <p>No matchups available.</p>
-      )}
-      
-      <Button onClick={navigateToCreateMatchup}>Create a Matchup</Button>
+          <div className="home-hero-card" aria-hidden="true">
+            <div className="home-hero-card-ring" />
+            <div className="home-hero-card-inner">
+              <span className="home-hero-card-label">Total Matchups</span>
+              <span className="home-hero-card-count">{matchups.length}</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="home-matchups-section">
+          <header className="home-section-header">
+            <div>
+              <h2>Your Matchups</h2>
+              <p>Jump back into the conversations that matter most to you.</p>
+            </div>
+            <Button onClick={navigateToCreateMatchup} className="home-secondary-button">
+              New Matchup
+            </Button>
+          </header>
+
+          {isLoading && (
+            <div className="home-status-card">
+              <p>Loading your matchups...</p>
+            </div>
+          )}
+
+          {error && !isLoading && (
+            <div className="home-status-card home-status-error">
+              <p>{error}</p>
+            </div>
+          )}
+
+          {!isLoading && !error && matchups.length === 0 && (
+            <div className="home-empty-state">
+              <h3>You have not created any matchups yet.</h3>
+              <p>Start a new matchup to spark the conversation.</p>
+              <Button onClick={navigateToCreateMatchup} className="home-create-button home-create-button--ghost">
+                Create your first matchup
+              </Button>
+            </div>
+          )}
+
+          {!isLoading && !error && matchups.length > 0 && (
+            <div className="home-matchups-grid">
+              {matchups.map((matchup) => {
+                const description = matchup.description && matchup.description.trim().length > 0
+                  ? matchup.description
+                  : 'No description yet.';
+
+                return (
+                  <article key={matchup.id} className="home-matchup-card">
+                    <div className="home-matchup-card-body">
+                      <h3>{matchup.title}</h3>
+                      <p>{description}</p>
+                    </div>
+                    <Link to={`/users/${userId}/matchup/${matchup.id}`} className="home-matchup-link">
+                      View matchup
+                      <span className="home-matchup-link-arrow" aria-hidden="true">
+                        &gt;
+                      </span>
+                    </Link>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </main>
     </div>
   );
 };
