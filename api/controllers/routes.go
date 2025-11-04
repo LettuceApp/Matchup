@@ -2,13 +2,23 @@ package controllers
 
 import (
 	"Matchup/api/middlewares"
+
+	"github.com/gin-gonic/gin"
 )
 
 func (s *Server) initializeRoutes() {
+	// Root + health, so opening the app URL or pinging health doesn't 404
+	s.Router.GET("/", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok", "service": "matchup-api"})
+	})
+	s.Router.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "healthy"})
+	})
+
 	v1 := s.Router.Group("/api/v1")
 	{
 		// Users routes
-		v1.POST("/login", s.Login)
+		v1.POST("/login", s.Login) // POST (GET will 404)
 		v1.POST("/password/forgot", s.ForgotPassword)
 		v1.POST("/password/reset", s.ResetPassword)
 		v1.POST("/users", s.CreateUser)
@@ -18,10 +28,11 @@ func (s *Server) initializeRoutes() {
 		v1.PUT("/users/:id/avatar", middlewares.TokenAuthMiddleware(), s.UpdateAvatar)
 		v1.DELETE("/users/:id", middlewares.TokenAuthMiddleware(), s.DeleteUser)
 
-		// Matchup routes (using 'matchup' for single entity operations)
-		v1.POST("users/:id/create-matchup", middlewares.TokenAuthMiddleware(), s.CreateMatchup)
+		// Matchup routes
+		// FIX: add leading slash so the route becomes /api/v1/users/:id/create-matchup
+		v1.POST("/users/:id/create-matchup", middlewares.TokenAuthMiddleware(), s.CreateMatchup)
 		v1.GET("/matchups", s.GetMatchups)
-		v1.GET("/matchup/:id", s.GetMatchup) // Singular form to avoid conflict
+		v1.GET("/matchup/:id", s.GetMatchup) // singular form
 		v1.PUT("/matchup/:id", middlewares.TokenAuthMiddleware(), s.UpdateMatchup)
 		v1.DELETE("/matchup/:id", middlewares.TokenAuthMiddleware(), s.DeleteMatchup)
 
@@ -47,4 +58,13 @@ func (s *Server) initializeRoutes() {
 		v1.PUT("/comments/:id", middlewares.TokenAuthMiddleware(), s.UpdateComment)
 		v1.DELETE("/comments/:id", middlewares.TokenAuthMiddleware(), s.DeleteComment)
 	}
+
+	// Optional: JSON 404 so you see exactly what method/path missed
+	s.Router.NoRoute(func(c *gin.Context) {
+		c.JSON(404, gin.H{
+			"error":  "route not found",
+			"method": c.Request.Method,
+			"path":   c.Request.URL.Path,
+		})
+	})
 }
