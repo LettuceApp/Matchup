@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"Matchup/api/middlewares"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,10 +16,21 @@ func (s *Server) initializeRoutes() {
 		c.JSON(200, gin.H{"status": "healthy"})
 	})
 
+	s.Router.GET("/", func(c *gin.Context) {
+		// e.g., FRONTEND_BASE_URL = https://your-frontend.example.com
+		base := os.Getenv("FRONTEND_BASE_URL")
+		if base == "" {
+			// safety: if not set, at least don’t 404
+			c.JSON(200, gin.H{"status": "ok", "service": "matchup-api"})
+			return
+		}
+		c.Redirect(302, base) // send browser to the SPA
+	})
+
 	v1 := s.Router.Group("/api/v1")
 	{
 		// Users routes
-		v1.POST("/login", s.Login) // POST (GET will 404)
+		v1.POST("/login", s.Login)
 		v1.POST("/password/forgot", s.ForgotPassword)
 		v1.POST("/password/reset", s.ResetPassword)
 		v1.POST("/users", s.CreateUser)
