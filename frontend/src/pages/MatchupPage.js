@@ -13,7 +13,7 @@ import {
   getComments,
   deleteMatchup
 } from '../services/api';
-import './MatchupPage.css';
+import '../styles/MatchupPage.css';
 
 const MatchupPage = () => {
   const { uid, id } = useParams();

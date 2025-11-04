@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { getUserMatchups } from '../services/api';
 import NavigationBar from '../components/NavigationBar';
 import Button from '../components/Button';
-import './HomePage.css';
+import '../styles/HomePage.css';
 
 const HomePage = () => {
   const [matchups, setMatchups] = useState([]);

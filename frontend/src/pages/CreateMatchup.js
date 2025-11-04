@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import NavigationBar from '../components/NavigationBar';
 import Button from '../components/Button';
 import { createMatchup } from '../services/api';
-import './CreateMatchup.css';
+import '../styles/CreateMatchup.css';
 
 const CreateMatchup = () => {
   const { userId } = useParams();

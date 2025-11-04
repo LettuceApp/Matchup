@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 
 	"Matchup/api/middlewares"
 	"Matchup/api/models"
@@ -21,31 +23,48 @@ type Server struct {
 var errList = make(map[string]string)
 
 func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName string) {
+	var dsn string
 
-	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", DbHost, DbPort, DbUser, DbPassword, DbName)
-	var err error
-	server.DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		log.Fatalf("Error connecting to database: %v", err)
+	// Use Heroku Postgres in production; local DB otherwise
+	if strings.EqualFold(os.Getenv("APP_ENV"), "production") {
+		dsn = os.Getenv("DATABASE_URL")
+		// Heroku Postgres expects SSL
+		if dsn != "" && !strings.Contains(dsn, "sslmode=") {
+			if strings.Contains(dsn, "?") {
+				dsn += "&sslmode=require"
+			} else {
+				dsn += "?sslmode=require"
+			}
+		}
+	} else {
+		// Your original local DSN
+		dsn = fmt.Sprintf(
+			"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
+			DbHost, DbUser, DbPassword, DbName, DbPort,
+		)
 	}
 
-	err = server.DB.AutoMigrate(
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		log.Fatalf("Cannot connect to Postgres: %v", err)
+	}
+	server.DB = db
+
+	// Keep your existing migrations exactly as before (uncomment/adjust to match your models)
+	if err := server.DB.AutoMigrate(
 		&models.User{},
 		&models.Matchup{},
 		&models.ResetPassword{},
 		&models.Like{},
 		&models.Comment{},
 		&models.MatchupItem{},
-	)
-	if err != nil {
+	); err != nil {
 		log.Fatalf("Error migrating database: %v", err)
 	}
 
 	server.Router = gin.Default()
 	server.Router.Use(middlewares.CORSMiddleware())
-
 	server.initializeRoutes()
-
 }
 
 func (server *Server) Run(addr string) {
