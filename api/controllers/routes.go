@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"Matchup/api/middlewares"
+	"net/http"
 	"os"
 	"strings"
 
@@ -11,15 +12,18 @@ import (
 func (s *Server) initializeRoutes() {
 
 	s.Router.GET("/", func(c *gin.Context) {
-		// Redirect Heroku health check traffic to the SPA login page
-		base := os.Getenv("FRONTEND_BASE_URL")
-		if base == "" {
-			// safety: if not set, at least don’t 404
-			c.JSON(200, gin.H{"status": "ok", "service": "matchup-api"})
+		// Redirect Heroku health check traffic to the SPA login page when configured.
+		target := buildFrontendLoginURL()
+		if target == "" {
+			// safety: if not set, at least don’t 404; also hint how to configure
+			c.JSON(http.StatusOK, gin.H{
+				"status":  "ok",
+				"service": "matchup-api",
+				"hint":    "set FRONTEND_LOGIN_URL or FRONTEND_BASE_URL to enable redirect",
+			})
 			return
 		}
-		target := strings.TrimRight(base, "/") + "/login"
-		c.Redirect(302, target) // send browser to the login page
+		c.Redirect(http.StatusFound, target) // send browser to the login page
 	})
 
 	v1 := s.Router.Group("/api/v1")
@@ -74,4 +78,39 @@ func (s *Server) initializeRoutes() {
 			"path":   c.Request.URL.Path,
 		})
 	})
+}
+
+// buildFrontendLoginURL resolves the frontend login URL from env config.
+func buildFrontendLoginURL() string {
+	candidates := []string{
+		os.Getenv("FRONTEND_LOGIN_URL"),
+		os.Getenv("FRONTEND_BASE_URL"),
+	}
+
+	if appBase := os.Getenv("APP_BASE_URL"); appBase != "" {
+		lower := strings.ToLower(appBase)
+		if !strings.Contains(lower, "amazonaws.com") && !strings.Contains(lower, "s3.") {
+			candidates = append(candidates, appBase)
+		}
+	}
+
+	for _, candidate := range candidates {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" {
+			continue
+		}
+
+		lower := strings.ToLower(candidate)
+		if !strings.HasPrefix(lower, "http://") && !strings.HasPrefix(lower, "https://") {
+			scheme := "https://"
+			if strings.HasPrefix(lower, "localhost") || strings.HasPrefix(lower, "127.0.0.1") {
+				scheme = "http://"
+			}
+			candidate = scheme + candidate
+		}
+
+		return strings.TrimRight(candidate, "/") + "/login"
+	}
+
+	return ""
 }
