@@ -11,7 +11,7 @@ import (
 
 func (s *Server) initializeRoutes() {
 
-	s.Router.GET("/", func(c *gin.Context) {
+	loginRedirect := func(c *gin.Context) {
 		// Redirect Heroku health check traffic to the SPA login page when configured.
 		target := buildFrontendLoginURL()
 		if target == "" {
@@ -24,7 +24,10 @@ func (s *Server) initializeRoutes() {
 			return
 		}
 		c.Redirect(http.StatusFound, target) // send browser to the login page
-	})
+	}
+
+	s.Router.GET("/", loginRedirect)
+	s.Router.GET("/login", loginRedirect)
 
 	v1 := s.Router.Group("/api/v1")
 	{
@@ -82,35 +85,45 @@ func (s *Server) initializeRoutes() {
 
 // buildFrontendLoginURL resolves the frontend login URL from env config.
 func buildFrontendLoginURL() string {
-	candidates := []string{
-		os.Getenv("FRONTEND_LOGIN_URL"),
-		os.Getenv("FRONTEND_BASE_URL"),
+	if login := normalizeURL(os.Getenv("FRONTEND_LOGIN_URL"), true); login != "" {
+		return login
+	}
+
+	if base := normalizeURL(os.Getenv("FRONTEND_BASE_URL"), false); base != "" {
+		return base
 	}
 
 	if appBase := os.Getenv("APP_BASE_URL"); appBase != "" {
 		lower := strings.ToLower(appBase)
 		if !strings.Contains(lower, "amazonaws.com") && !strings.Contains(lower, "s3.") {
-			candidates = append(candidates, appBase)
-		}
-	}
-
-	for _, candidate := range candidates {
-		candidate = strings.TrimSpace(candidate)
-		if candidate == "" {
-			continue
-		}
-
-		lower := strings.ToLower(candidate)
-		if !strings.HasPrefix(lower, "http://") && !strings.HasPrefix(lower, "https://") {
-			scheme := "https://"
-			if strings.HasPrefix(lower, "localhost") || strings.HasPrefix(lower, "127.0.0.1") {
-				scheme = "http://"
+			if resolved := normalizeURL(appBase, false); resolved != "" {
+				return resolved
 			}
-			candidate = scheme + candidate
 		}
-
-		return strings.TrimRight(candidate, "/") + "/login"
 	}
 
 	return ""
+}
+
+func normalizeURL(raw string, expectFull bool) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+
+	lower := strings.ToLower(raw)
+	if !strings.HasPrefix(lower, "http://") && !strings.HasPrefix(lower, "https://") {
+		scheme := "https://"
+		if strings.HasPrefix(lower, "localhost") || strings.HasPrefix(lower, "127.0.0.1") {
+			scheme = "http://"
+		}
+		raw = scheme + raw
+	}
+
+	raw = strings.TrimRight(raw, "/")
+	if expectFull || strings.HasSuffix(strings.ToLower(raw), "/login") {
+		return raw
+	}
+
+	return raw + "/login"
 }
