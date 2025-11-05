@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"Matchup/api/controllers"
 
@@ -32,7 +33,6 @@ func Run() {
 		os.Getenv("DB_NAME"),
 	)
 
-	// Pick the port: Heroku provides PORT; locally use API_PORT or default to 8080.
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = os.Getenv("API_PORT")
@@ -40,9 +40,11 @@ func Run() {
 			port = "8888"
 		}
 	}
-	addr := ":" + port
+
+	addr := ":" + strings.TrimSpace(port)
 	fmt.Printf("Listening on %s\n", addr)
+	server.Run(addr)
 
 	// Start the HTTP server (base.go's Run uses http.ListenAndServe).
-	server.Run(addr)
+	server.Run(port)
 }
