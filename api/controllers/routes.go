@@ -3,35 +3,23 @@ package controllers
 import (
 	"Matchup/api/middlewares"
 	"net/http"
-	"os"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
 func (s *Server) initializeRoutes() {
 
-	loginRedirect := func(c *gin.Context) {
-		// Redirect Heroku health check traffic to the SPA login page when configured.
-		target := buildFrontendLoginURL()
-		if target == "" {
-			// safety: if not set, at least don’t 404; also hint how to configure
-			c.JSON(http.StatusOK, gin.H{
-				"status":  "ok",
-				"service": "matchup-api",
-				"hint":    "set FRONTEND_LOGIN_URL or FRONTEND_BASE_URL to enable redirect",
-			})
-			return
-		}
-		c.Redirect(http.StatusFound, target) // send browser to the login page
-	}
-
-	s.Router.GET("/", loginRedirect)
-	s.Router.GET("/login", loginRedirect)
+	s.Router.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "ok",
+			"service": "matchup-api",
+		})
+	})
 
 	v1 := s.Router.Group("/api/v1")
 	{
 		// Users routes
+		v1.GET("/me", middlewares.TokenAuthMiddleware(), s.GetCurrentUser)
 		v1.POST("/login", s.Login)
 		v1.POST("/password/forgot", s.ForgotPassword)
 		v1.POST("/password/reset", s.ResetPassword)
@@ -81,49 +69,4 @@ func (s *Server) initializeRoutes() {
 			"path":   c.Request.URL.Path,
 		})
 	})
-}
-
-// buildFrontendLoginURL resolves the frontend login URL from env config.
-func buildFrontendLoginURL() string {
-	if login := normalizeURL(os.Getenv("FRONTEND_LOGIN_URL"), true); login != "" {
-		return login
-	}
-
-	if base := normalizeURL(os.Getenv("FRONTEND_BASE_URL"), false); base != "" {
-		return base
-	}
-
-	if appBase := os.Getenv("APP_BASE_URL"); appBase != "" {
-		lower := strings.ToLower(appBase)
-		if !strings.Contains(lower, "amazonaws.com") && !strings.Contains(lower, "s3.") {
-			if resolved := normalizeURL(appBase, false); resolved != "" {
-				return resolved
-			}
-		}
-	}
-
-	return ""
-}
-
-func normalizeURL(raw string, expectFull bool) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-
-	lower := strings.ToLower(raw)
-	if !strings.HasPrefix(lower, "http://") && !strings.HasPrefix(lower, "https://") {
-		scheme := "https://"
-		if strings.HasPrefix(lower, "localhost") || strings.HasPrefix(lower, "127.0.0.1") {
-			scheme = "http://"
-		}
-		raw = scheme + raw
-	}
-
-	raw = strings.TrimRight(raw, "/")
-	if expectFull || strings.HasSuffix(strings.ToLower(raw), "/login") {
-		return raw
-	}
-
-	return raw + "/login"
 }

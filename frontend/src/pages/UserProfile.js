@@ -66,7 +66,7 @@ const UserProfile = () => {
                   <p className="profile-hero-email">{user.email}</p>
                   <div className="profile-hero-actions">
                     <Button
-                      onClick={() => navigate('/')}
+                      onClick={() => navigate('/home')}
                       className="profile-secondary-button"
                     >
                       Back to dashboard

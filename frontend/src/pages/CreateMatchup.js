@@ -96,7 +96,7 @@ const CreateMatchup = () => {
             Set the stage with a captivating title, tell everyone what the clash is about, and add contenders to get the debate started.
           </p>
           <div className="create-hero-actions">
-            <Button onClick={() => navigate('/')} className="create-secondary-button">
+            <Button onClick={() => navigate('/home')} className="create-secondary-button">
               Back to dashboard
             </Button>
             <Button onClick={goBack} className="create-tertiary-button">

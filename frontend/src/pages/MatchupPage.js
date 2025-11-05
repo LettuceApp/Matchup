@@ -130,7 +130,7 @@ const MatchupPage = () => {
     try {
       setIsDeleting(true);
       await deleteMatchup(id);
-      navigate('/');
+      navigate('/home', { replace: true });
     } catch (err) {
       console.error('Failed to delete matchup:', err);
       setError('We could not delete this matchup. Please try again.');

@@ -13,13 +13,11 @@ const HomePage = () => {
 
   useEffect(() => {
     const fetchMatchups = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        return navigate('/login');
-      }
       const userId = localStorage.getItem('userId');
       if (!userId) {
         console.error('User ID not found');
+        setError('We could not determine your account. Please log in again.');
+        setIsLoading(false);
         return;
       }
 
@@ -37,10 +35,13 @@ const HomePage = () => {
     };
 
     fetchMatchups();
-  }, [navigate]);
+  }, []);
 
   const navigateToCreateMatchup = () => {
     const userId = localStorage.getItem('userId');
+    if (!userId) {
+      return;
+    }
     navigate(`/users/${userId}/create-matchup`);
   };
 

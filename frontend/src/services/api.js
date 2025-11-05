@@ -55,4 +55,7 @@ export const getComments = (matchupId) => API.get(`/matchups/${matchupId}/commen
 export const updateComment = (id, commentData) => API.put(`/comments/${id}`, commentData);
 export const deleteComment = (id) => API.delete(`/comments/${id}`);
 
+// Auth helpers
+export const getCurrentUser = () => API.get('/me');
+
 export default API;

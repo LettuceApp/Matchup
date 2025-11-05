@@ -10,7 +10,7 @@ const NavigationBar = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('userId');
-    navigate('/login');
+    navigate('/login', { replace: true });
   };
 
   return (
@@ -19,7 +19,7 @@ const NavigationBar = () => {
         <button
           type="button"
           className="navigation-bar__brand"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/home')}
         >
           Matchup Hub
         </button>
@@ -27,7 +27,7 @@ const NavigationBar = () => {
           <button
             type="button"
             className="navigation-bar__button"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/home')}
           >
             Home
           </button>

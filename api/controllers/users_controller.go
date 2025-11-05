@@ -65,6 +65,42 @@ func (server *Server) CreateUser(c *gin.Context) {
 	})
 }
 
+// GetCurrentUser returns the authenticated user's profile
+func (server *Server) GetCurrentUser(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	uid, ok := userID.(uint)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user context"})
+		return
+	}
+
+	user := models.User{}
+	userGotten, err := user.FindUserByID(server.DB, uid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	userResponse := map[string]interface{}{
+		"id":          userGotten.ID,
+		"username":    userGotten.Username,
+		"email":       userGotten.Email,
+		"avatar_path": userGotten.AvatarPath,
+		"created_at":  userGotten.CreatedAt,
+		"updated_at":  userGotten.UpdatedAt,
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":   http.StatusOK,
+		"response": userResponse,
+	})
+}
+
 // GetUsers retrieves all users
 func (server *Server) GetUsers(c *gin.Context) {
 	user := models.User{}

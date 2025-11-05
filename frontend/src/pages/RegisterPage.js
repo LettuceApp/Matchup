@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { createUser, login } from '../services/api';
 import '../styles/RegisterPage.css';
 
@@ -10,12 +10,8 @@ const RegisterPage = () => {
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (localStorage.getItem('token')) {
-      navigate('/');
-    }
-  }, [navigate]);
+  const location = useLocation();
+  const from = location.state?.from?.pathname || '/home';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,7 +29,7 @@ const RegisterPage = () => {
       if (token && userId) {
         localStorage.setItem('token', token);
         localStorage.setItem('userId', userId);
-        navigate('/');
+        navigate(from, { replace: true });
       } else {
         setError('We could not complete registration. Please try again.');
       }

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { login } from '../services/api';
 import '../styles/LoginPage.css';
 
@@ -9,13 +9,8 @@ const LoginPage = () => {
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      navigate('/');
-    }
-  }, [navigate]);
+  const location = useLocation();
+  const from = location.state?.from?.pathname || '/home';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,7 +25,7 @@ const LoginPage = () => {
       if (token && userId) {
         localStorage.setItem('token', token);
         localStorage.setItem('userId', userId);
-        navigate('/');
+        navigate(from, { replace: true });
       } else {
         console.error('Token or User ID is missing in response');
         setError('Login failed. Please try again.');

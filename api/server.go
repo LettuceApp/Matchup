@@ -44,7 +44,4 @@ func Run() {
 	addr := ":" + strings.TrimSpace(port)
 	fmt.Printf("Listening on %s\n", addr)
 	server.Run(addr)
-
-	// Start the HTTP server (base.go's Run uses http.ListenAndServe).
-	server.Run(port)
 }
