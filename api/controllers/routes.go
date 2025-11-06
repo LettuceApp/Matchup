@@ -1,11 +1,8 @@
 package controllers
 
 import (
-	"Matchup/api/auth"
 	"Matchup/api/middlewares"
-	"net/http"
 	"os"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,32 +10,19 @@ import (
 func (s *Server) initializeRoutes() {
 
 	s.Router.GET("/", func(c *gin.Context) {
-		if target := s.frontendRedirectTarget(c); target != "" {
-			c.Redirect(http.StatusFound, target)
+		// e.g., FRONTEND_BASE_URL = https://your-frontend.example.com
+		base := os.Getenv("FRONTEND_BASE_URL")
+		if base == "" {
+			// safety: if not set, at least don’t 404
+			c.JSON(200, gin.H{"status": "ok", "service": "matchup-api"})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "ok",
-			"service": "matchup-api",
-		})
-	})
-
-	s.Router.GET("/login", func(c *gin.Context) {
-		if target := frontendLoginURL(); target != "" {
-			c.Redirect(http.StatusFound, target)
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "ok",
-			"service": "matchup-api",
-			"hint":    "set FRONTEND_LOGIN_URL or FRONTEND_BASE_URL",
-		})
+		c.Redirect(302, base) // send browser to the SPA
 	})
 
 	v1 := s.Router.Group("/api/v1")
 	{
 		// Users routes
-		v1.GET("/me", middlewares.TokenAuthMiddleware(), s.GetCurrentUser)
 		v1.POST("/login", s.Login)
 		v1.POST("/password/forgot", s.ForgotPassword)
 		v1.POST("/password/reset", s.ResetPassword)
@@ -88,69 +72,4 @@ func (s *Server) initializeRoutes() {
 			"path":   c.Request.URL.Path,
 		})
 	})
-}
-
-func (s *Server) frontendRedirectTarget(c *gin.Context) string {
-	if home := frontendHomeURL(); home != "" {
-		if _, err := auth.ExtractTokenID(c.Request); err == nil {
-			return home
-		}
-	}
-	return frontendLoginURL()
-}
-
-func frontendLoginURL() string {
-	if login := normalizeURL(os.Getenv("FRONTEND_LOGIN_URL")); login != "" {
-		return login
-	}
-	if base := normalizeURL(os.Getenv("FRONTEND_BASE_URL")); base != "" {
-		return base + "/login"
-	}
-	if app := normalizeAppURL(); app != "" {
-		return app + "/login"
-	}
-	return ""
-}
-
-func frontendHomeURL() string {
-	if home := normalizeURL(os.Getenv("FRONTEND_HOME_URL")); home != "" {
-		return home
-	}
-	if base := normalizeURL(os.Getenv("FRONTEND_BASE_URL")); base != "" {
-		return base + "/home"
-	}
-	if app := normalizeAppURL(); app != "" {
-		return app + "/home"
-	}
-	return ""
-}
-
-func normalizeAppURL() string {
-	app := strings.TrimSpace(os.Getenv("APP_BASE_URL"))
-	if app == "" {
-		return ""
-	}
-	lower := strings.ToLower(app)
-	if strings.Contains(lower, "amazonaws.com") || strings.Contains(lower, "s3.") {
-		return ""
-	}
-	return normalizeURL(app)
-}
-
-func normalizeURL(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-
-	lower := strings.ToLower(raw)
-	if !strings.HasPrefix(lower, "http://") && !strings.HasPrefix(lower, "https://") {
-		scheme := "https://"
-		if strings.HasPrefix(lower, "localhost") || strings.HasPrefix(lower, "127.0.0.1") {
-			scheme = "http://"
-		}
-		raw = scheme + raw
-	}
-
-	return strings.TrimRight(raw, "/")
 }

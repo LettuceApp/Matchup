@@ -21,6 +21,7 @@ services:
         - S3_BUCKET=${S3_BUCKET}
         - S3_ENDPOINT=${S3_ENDPOINT}
         - APP_BASE_URL=${APP_BASE_URL}
+        - FRONTEND_BASE_URL=${FRONTEND_BASE_URL}
   Matchup-postgres:
     image: postgres:latest
     container_name: Matchup_db_postgres
