@@ -2,22 +2,26 @@ package controllers
 
 import (
 	"Matchup/api/middlewares"
+	"net/url"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
 func (s *Server) initializeRoutes() {
-
 	s.Router.GET("/", func(c *gin.Context) {
-		// e.g., FRONTEND_BASE_URL = https://your-frontend.example.com
-		base := os.Getenv("FRONTEND_BASE_URL")
+		base := strings.TrimSpace(os.Getenv("FRONTEND_BASE_URL"))
 		if base == "" {
-			// safety: if not set, at least don’t 404
 			c.JSON(200, gin.H{"status": "ok", "service": "matchup-api"})
 			return
 		}
-		c.Redirect(302, base) // send browser to the SPA
+		// avoid redirecting to self (infinite loop)
+		if tgt, err := url.Parse(base); err == nil && tgt.Host == c.Request.Host {
+			c.JSON(200, gin.H{"status": "ok", "service": "matchup-api"})
+			return
+		}
+		c.Redirect(302, base)
 	})
 
 	v1 := s.Router.Group("/api/v1")
