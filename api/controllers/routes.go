@@ -2,17 +2,14 @@ package controllers
 
 import (
 	"Matchup/api/middlewares"
-	"strings"
-
-	"github.com/gin-gonic/gin"
 )
 
 func (s *Server) initializeRoutes() {
-	s.Router.Static("/", "./public")
 
 	v1 := s.Router.Group("/api/v1")
 	{
 		// Users routes
+		v1.GET("/", s.Login)
 		v1.POST("/login", s.Login)
 		v1.POST("/password/forgot", s.ForgotPassword)
 		v1.POST("/password/reset", s.ResetPassword)
@@ -53,23 +50,4 @@ func (s *Server) initializeRoutes() {
 		v1.PUT("/comments/:id", middlewares.TokenAuthMiddleware(), s.UpdateComment)
 		v1.DELETE("/comments/:id", middlewares.TokenAuthMiddleware(), s.DeleteComment)
 	}
-
-	// Optional: JSON 404 so you see exactly what method/path missed
-	s.Router.NoRoute(func(c *gin.Context) {
-		c.JSON(404, gin.H{
-			"error":  "route not found",
-			"method": c.Request.Method,
-			"path":   c.Request.URL.Path,
-		})
-	})
-
-	// Any non-API path returns index.html so React Router handles /login, /home, etc.
-	s.Router.NoRoute(func(c *gin.Context) {
-		p := c.Request.URL.Path
-		if strings.HasPrefix(p, "/api/") {
-			c.JSON(404, gin.H{"error": "route not found", "method": c.Request.Method, "path": p})
-			return
-		}
-		c.File("./public/index.html")
-	})
 }
