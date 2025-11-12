@@ -2,12 +2,13 @@ package controllers
 
 import (
 	"Matchup/api/middlewares"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
 func (s *Server) initializeRoutes() {
-	s.Router.GET("/", s.Login)
+	s.Router.Static("/", "./public")
 
 	v1 := s.Router.Group("/api/v1")
 	{
@@ -60,5 +61,15 @@ func (s *Server) initializeRoutes() {
 			"method": c.Request.Method,
 			"path":   c.Request.URL.Path,
 		})
+	})
+
+	// Any non-API path returns index.html so React Router handles /login, /home, etc.
+	s.Router.NoRoute(func(c *gin.Context) {
+		p := c.Request.URL.Path
+		if strings.HasPrefix(p, "/api/") {
+			c.JSON(404, gin.H{"error": "route not found", "method": c.Request.Method, "path": p})
+			return
+		}
+		c.File("./public/index.html")
 	})
 }
