@@ -26,3 +26,6 @@ go.work
 config.yml
 node_modules/
 .env
+.DS_Store
+.DS_Store
+api/.DS_Store

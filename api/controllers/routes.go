@@ -2,31 +2,16 @@ package controllers
 
 import (
 	"Matchup/api/middlewares"
-	"net/url"
-	"os"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
 func (s *Server) initializeRoutes() {
-	s.Router.GET("/", func(c *gin.Context) {
-		base := strings.TrimSpace(os.Getenv("FRONTEND_BASE_URL"))
-		if base == "" {
-			c.JSON(200, gin.H{"status": "ok", "service": "matchup-api"})
-			return
-		}
-		// avoid redirecting to self (infinite loop)
-		if tgt, err := url.Parse(base); err == nil && tgt.Host == c.Request.Host {
-			c.JSON(200, gin.H{"status": "ok", "service": "matchup-api"})
-			return
-		}
-		c.Redirect(302, base)
-	})
 
 	v1 := s.Router.Group("/api/v1")
 	{
 		// Users routes
+		v1.GET("/", s.Login)
 		v1.POST("/login", s.Login)
 		v1.POST("/password/forgot", s.ForgotPassword)
 		v1.POST("/password/reset", s.ResetPassword)

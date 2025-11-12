@@ -15,6 +15,10 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
+export const http = axios.create({
+  baseURL: process.env.REACT_APP_API_BASE, // e.g. http://localhost:8888/api
+});
+
 // User Auth
 export const login = (data) => API.post('/login', data);
 export const forgotPassword = (data) => API.post('/password/forgot', data);
