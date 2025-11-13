@@ -25,44 +25,51 @@ func TokenAuthMiddleware() gin.HandlerFunc {
 
 // This enables us interact with the React Frontend
 func CORSMiddleware() gin.HandlerFunc {
-	// Comma-separated list, e.g.:
-	// FRONTEND_ORIGINS=https://matchup-frontend.netlify.app,https://matchup.com,http://localhost:3000
-	allowed := strings.Split(os.Getenv("FRONTEND_ORIGINS"), ",")
-	for i := range allowed {
-		allowed[i] = strings.TrimSpace(allowed[i])
+	// FRONTEND_ORIGINS example:
+	// "https://matchup-frontend.netlify.app,https://matchup.com,http://localhost:3000"
+	raw := os.Getenv("FRONTEND_ORIGINS")
+	parts := strings.Split(raw, ",")
+	allowed := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		p = strings.TrimRight(p, "/")
+		if p != "" {
+			allowed = append(allowed, p)
+		}
+	}
+	// Developer-friendly default
+	if len(allowed) == 0 {
+		allowed = []string{"http://localhost:3000"}
 	}
 
 	return func(c *gin.Context) {
-		origin := c.GetHeader("Origin")
+		origin := strings.TrimRight(c.GetHeader("Origin"), "/")
 		allowOrigin := ""
-
-		// If no env is set, fall back to common dev origin (keeps local dev easy)
-		if len(allowed) == 1 && allowed[0] == "" {
-			allowed = []string{"http://localhost:3000"}
-		}
-
 		for _, o := range allowed {
-			if o != "" && strings.EqualFold(o, origin) {
+			if strings.EqualFold(o, origin) {
 				allowOrigin = o
 				break
 			}
 		}
 
-		// Set CORS headers only when origin is explicitly allowed
+		// Only emit CORS headers for known origins
 		if allowOrigin != "" {
 			c.Header("Access-Control-Allow-Origin", allowOrigin)
-			c.Header("Vary", "Origin") // important for proxies/caches
+			c.Header("Vary", "Origin")
 			c.Header("Access-Control-Allow-Credentials", "true")
-			c.Header("Access-Control-Allow-Headers",
-				"Authorization, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Accept, Origin, Cache-Control, X-Requested-With")
 			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			// (optional) expose headers if you return auth-related headers
-			// c.Header("Access-Control-Expose-Headers", "Authorization")
+			c.Header("Access-Control-Allow-Headers",
+				"Authorization, Content-Type, Content-Length, Accept, Accept-Encoding, X-CSRF-Token, Cache-Control, X-Requested-With")
+			// c.Header("Access-Control-Expose-Headers", "Authorization") // if needed
 		}
 
-		// Short-circuit preflight
+		// Proper preflight handling
 		if c.Request.Method == http.MethodOptions {
-			c.AbortWithStatus(http.StatusNoContent)
+			if allowOrigin == "" {
+				c.AbortWithStatus(http.StatusForbidden) // origin not allowed => fail the preflight clearly
+				return
+			}
+			c.AbortWithStatus(http.StatusNoContent) // 204 with the headers above
 			return
 		}
 
