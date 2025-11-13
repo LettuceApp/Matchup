@@ -2,8 +2,6 @@ package middlewares
 
 import (
 	"net/http"
-	"os"
-	"strings"
 
 	"Matchup/api/auth"
 
@@ -25,54 +23,16 @@ func TokenAuthMiddleware() gin.HandlerFunc {
 
 // This enables us interact with the React Frontend
 func CORSMiddleware() gin.HandlerFunc {
-	// FRONTEND_ORIGINS example:
-	// "https://matchup-frontend.netlify.app,https://matchup.com,http://localhost:3000"
-	raw := os.Getenv("FRONTEND_ORIGINS")
-	parts := strings.Split(raw, ",")
-	allowed := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		p = strings.TrimRight(p, "/")
-		if p != "" {
-			allowed = append(allowed, p)
-		}
-	}
-	// Developer-friendly default
-	if len(allowed) == 0 {
-		allowed = []string{"http://localhost:3000"}
-	}
-
 	return func(c *gin.Context) {
-		origin := strings.TrimRight(c.GetHeader("Origin"), "/")
-		allowOrigin := ""
-		for _, o := range allowed {
-			if strings.EqualFold(o, origin) {
-				allowOrigin = o
-				break
-			}
-		}
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, PATCH, DELETE")
 
-		// Only emit CORS headers for known origins
-		if allowOrigin != "" {
-			c.Header("Access-Control-Allow-Origin", allowOrigin)
-			c.Header("Vary", "Origin")
-			c.Header("Access-Control-Allow-Credentials", "true")
-			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			c.Header("Access-Control-Allow-Headers",
-				"Authorization, Content-Type, Content-Length, Accept, Accept-Encoding, X-CSRF-Token, Cache-Control, X-Requested-With")
-			// c.Header("Access-Control-Expose-Headers", "Authorization") // if needed
-		}
-
-		// Proper preflight handling
-		if c.Request.Method == http.MethodOptions {
-			if allowOrigin == "" {
-				c.AbortWithStatus(http.StatusForbidden) // origin not allowed => fail the preflight clearly
-				return
-			}
-			c.AbortWithStatus(http.StatusNoContent) // 204 with the headers above
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
 			return
 		}
-
 		c.Next()
 	}
 }
