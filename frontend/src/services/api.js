@@ -17,7 +17,16 @@ API.interceptors.request.use((config) => {
 
 
 // User Auth
-export const login = (data) => API.post('/login', data);
+export const login = async (data) => {
+  const res = await API.post('/login', data);
+  const token = res.data.token; // adjust to your API shape
+  if (token) {
+    localStorage.setItem('token', token);
+    API.defaults.headers.Authorization = `Bearer ${token}`;
+  }
+  return res;
+};
+
 export const forgotPassword = (data) => API.post('/password/forgot', data);
 export const resetPassword = (data) => API.post('/password/reset', data);
 
