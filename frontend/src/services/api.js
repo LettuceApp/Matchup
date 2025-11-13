@@ -3,7 +3,7 @@ import axios from 'axios';
 
 // Create an Axios instance with a base URL
 const API = axios.create({
-  baseURL: process.env.REACT_APP_API_BASE_URL,
+  baseURL: process.env.REACT_APP_API_BASE,
 });
 
 // Attach the Authorization token to requests if available
@@ -15,9 +15,6 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
-export const http = axios.create({
-  baseURL: process.env.REACT_APP_API_BASE, // e.g. http://localhost:8888/api
-});
 
 // User Auth
 export const login = (data) => API.post('/login', data);
