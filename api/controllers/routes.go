@@ -2,15 +2,9 @@ package controllers
 
 import (
 	"Matchup/api/middlewares"
-
-	"github.com/gin-gonic/gin"
 )
 
 func (s *Server) initializeRoutes() {
-
-	s.Router.GET("/", func(c *gin.Context) {
-		c.Redirect(302, "https://matchup-frontend-5a27300cbe76.herokuapp.com/")
-	})
 
 	v1 := s.Router.Group("/api/v1")
 	{
