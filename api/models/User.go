@@ -45,9 +45,20 @@ func (u *User) Prepare() {
 }
 
 func (u *User) AfterFind(tx *gorm.DB) (err error) {
-	if u.AvatarPath != "" {
-		u.AvatarPath = os.Getenv("DO_SPACES_URL") + u.AvatarPath
+	if u.AvatarPath == "" || strings.HasPrefix(u.AvatarPath, "http") {
+		return nil
 	}
+	bucket := os.Getenv("S3_BUCKET")      // bucket name only
+	region := os.Getenv("AWS_REGION_ENV") // e.g., us-east-2
+	if region == "" {
+		region = "us-east-2"
+	}
+	// If you saved only the filename, add your prefix folder if needed
+	key := u.AvatarPath
+	if !strings.HasPrefix(key, "UserProfilePics/") {
+		key = "UserProfilePics/" + key
+	}
+	u.AvatarPath = "https://" + bucket + ".s3." + region + ".amazonaws.com/" + key
 	return nil
 }
 

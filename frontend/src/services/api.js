@@ -35,7 +35,15 @@ export const createUser = (data) => API.post('/users', data);
 export const getUsers = () => API.get('/users');
 export const getUser = (id) => API.get(`/users/${id}`);
 export const updateUser = (id, data) => API.put(`/users/${id}`, data);
-export const updateUserAvatar = (userId, formData) => API.put(`/users/${userId}/avatar`, formData);
+export const updateUserAvatar = (userId, file) => {
+  const formData = new FormData();
+  formData.append('file', file); // MUST be 'file' to match c.FormFile("file")
+
+  return API.put(`/users/${userId}/avatar`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+};
+
 export const deleteUser = (id) => API.delete(`/users/${id}`);
 export const getUserMatchups = (userId) => API.get(`/users/${userId}/matchups`);
 export const getUserMatchup = (userId, matchupId) => API.get(`/users/${userId}/matchups/${matchupId}`);
