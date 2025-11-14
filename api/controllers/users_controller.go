@@ -223,7 +223,7 @@ func (server *Server) UpdateAvatar(c *gin.Context) {
 	}
 
 	// Load AWS config (uses default credential chain + region)
-	region := os.Getenv("AWS_REGION")
+	region := os.Getenv("AWS_REGION_ENV")
 	if region == "" {
 		region = "us-east-2"
 	}
