@@ -327,41 +327,66 @@ func (server *Server) UpdateMatchup(c *gin.Context) {
 }
 
 // DeleteMatchup allows the author to delete their matchup
+// matchups_controller.go
 func (server *Server) DeleteMatchup(c *gin.Context) {
 	matchupID := c.Param("id")
-	mid, err := strconv.ParseUint(matchupID, 10, 32)
+	mid64, err := strconv.ParseUint(matchupID, 10, 32)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid matchup ID"})
 		return
 	}
+	mid := uint(mid64)
 
-	// Get the authenticated user's ID
-	tokenID, exists := c.Get("userID")
-	if !exists {
+	// auth
+	tokenID, ok := c.Get("userID")
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 	uid := tokenID.(uint)
 
-	// Check if the matchup exists and belongs to the user
-	var matchup models.Matchup
-	err = server.DB.First(&matchup, uint(mid)).Error
-	if err != nil {
+	// load & ownership
+	var m models.Matchup
+	if err := server.DB.First(&m, mid).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Matchup not found"})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving matchup"})
+			return
 		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving matchup"})
 		return
 	}
-	if matchup.AuthorID != uid {
+	if m.AuthorID != uid {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "You are not authorized to delete this matchup"})
 		return
 	}
 
-	// Delete the matchup (associated data is deleted via ON DELETE CASCADE)
-	if _, err := matchup.DeleteMatchup(server.DB, uint(mid)); err != nil {
+	// delete children first, then the parent
+	tx := server.DB.Begin()
+
+	if err := tx.Where("matchup_id = ?", mid).Delete(&models.MatchupItem{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting matchup items"})
+		return
+	}
+	if err := tx.Where("matchup_id = ?", mid).Delete(&models.Comment{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting comments"})
+		return
+	}
+	if err := tx.Where("matchup_id = ?", mid).Delete(&models.Like{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting likes"})
+		return
+	}
+
+	if err := tx.Where("id = ?", mid).Delete(&models.Matchup{}).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting matchup"})
+		return
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error finalizing delete"})
 		return
 	}
 
