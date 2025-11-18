@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"Matchup/api/cache"
 	"Matchup/api/middlewares"
 	"Matchup/api/models"
 
@@ -62,9 +63,20 @@ func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName stri
 		log.Fatalf("Error migrating database: %v", err)
 	}
 
+	// Initialize Redis cache
+	if err := cache.InitFromEnv(); err != nil {
+		// For dev, log and continue instead of crashing the app
+		log.Printf("warning: could not connect to redis: %v", err)
+	}
+
 	server.Router = gin.Default()
+
+	// Global middlewares
 	server.Router.Use(middlewares.CORSMiddleware())
+	server.Router.Use(middlewares.RateLimitMiddleware())
+
 	server.initializeRoutes()
+
 }
 
 func (server *Server) Run(addr string) {

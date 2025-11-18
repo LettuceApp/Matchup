@@ -17,6 +17,7 @@ import (
 
 	aws2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gin-gonic/gin"
 )
@@ -166,7 +167,7 @@ func (server *Server) GetUser(c *gin.Context) {
 
 // UpdateAvatar allows a user to update their avatar image
 func (server *Server) UpdateAvatar(c *gin.Context) {
-	// Parse and validate user ID
+	// 1) Parse and validate user ID
 	userID := c.Param("id")
 	uid, err := strconv.ParseUint(userID, 10, 32)
 	if err != nil {
@@ -179,7 +180,7 @@ func (server *Server) UpdateAvatar(c *gin.Context) {
 		return
 	}
 
-	// Pull and validate the uploaded file
+	// 2) Pull and validate the uploaded file
 	file, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file"})
@@ -209,12 +210,12 @@ func (server *Server) UpdateAvatar(c *gin.Context) {
 		return
 	}
 
-	// Generate S3 key under UserProfilePics prefix
+	// 3) Generate S3 key under UserProfilePics prefix
 	filePath := fileformat.UniqueFormat(file.Filename)
 	key := "UserProfilePics/" + filePath
 
-	// Determine bucket name, stripping any accidental path suffix
-	rawBucket := os.Getenv("S3_BUCKET")
+	// 4) Get bucket & region from env
+	rawBucket := os.Getenv("S3_BUCKET") // bucket name only, e.g. "my-matchup-bucket"
 	bucketName := strings.SplitN(rawBucket, "/", 2)[0]
 	if bucketName == "" {
 		log.Printf("S3_BUCKET env var is empty or invalid: '%s'", rawBucket)
@@ -222,27 +223,43 @@ func (server *Server) UpdateAvatar(c *gin.Context) {
 		return
 	}
 
-	// Load AWS config (uses default credential chain + region)
 	region := os.Getenv("AWS_REGION_ENV")
 	if region == "" {
 		region = "us-east-2"
 	}
-	cfg, err := config.LoadDefaultConfig(
-		context.TODO(),
-		config.WithRegion(region),
-	)
+
+	// 5) Build AWS config with explicit static credentials if provided
+	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	sessionToken := os.Getenv("AWS_SESSION_TOKEN") // optional
+
+	var cfg aws2.Config
+	if accessKey != "" && secretKey != "" {
+		// Use static credentials from env (works inside Docker / local)
+		credsProvider := credentials.NewStaticCredentialsProvider(accessKey, secretKey, sessionToken)
+		cfg, err = config.LoadDefaultConfig(
+			context.TODO(),
+			config.WithRegion(region),
+			config.WithCredentialsProvider(credsProvider),
+		)
+	} else {
+		// Fall back to default chain (e.g., EC2 role) if no keys present
+		cfg, err = config.LoadDefaultConfig(
+			context.TODO(),
+			config.WithRegion(region),
+		)
+	}
+
 	if err != nil {
 		log.Printf("AWS config load error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "AWS configuration error"})
 		return
 	}
 
-	// Instantiate S3 client using path-style addressing
-	s3Client := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.UsePathStyle = true
-	})
+	// 6) Instantiate S3 client (path-style optional; most AWS buckets are fine without)
+	s3Client := s3.NewFromConfig(cfg)
 
-	// Upload to S3
+	// 7) Upload to S3
 	_, err = s3Client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket:        aws2.String(bucketName),
 		Key:           aws2.String(key),
@@ -256,7 +273,7 @@ func (server *Server) UpdateAvatar(c *gin.Context) {
 		return
 	}
 
-	// Save avatar path in DB
+	// 8) Save avatar path in DB (just the filename; URL is built on read)
 	user := models.User{AvatarPath: filePath}
 	updatedUser, err := user.UpdateAUserAvatar(server.DB, uint(uid))
 	if err != nil {
@@ -264,7 +281,8 @@ func (server *Server) UpdateAvatar(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Cannot save image, please try again later"})
 		return
 	}
-	// 7) Build a public S3 URL (virtual-host style)
+
+	// 9) Build a public S3 URL for the response
 	fullURL := fmt.Sprintf(
 		"https://%s.s3.%s.amazonaws.com/%s",
 		bucketName,
@@ -272,9 +290,8 @@ func (server *Server) UpdateAvatar(c *gin.Context) {
 		key,
 	)
 	updatedUser.AvatarPath = fullURL
-	log.Printf(updatedUser.AvatarPath)
 
-	// Build response
+	// 10) Build response
 	userResponse := map[string]interface{}{
 		"id":          updatedUser.ID,
 		"username":    updatedUser.Username,

@@ -1,4 +1,3 @@
-
 import axios from 'axios';
 
 // Create an Axios instance with a base URL
@@ -14,7 +13,6 @@ API.interceptors.request.use((config) => {
   }
   return config;
 });
-
 
 // User Auth
 export const login = async (data) => {
@@ -45,32 +43,58 @@ export const updateUserAvatar = (userId, file) => {
 };
 
 export const deleteUser = (id) => API.delete(`/users/${id}`);
-export const getUserMatchups = (userId) => API.get(`/users/${userId}/matchups`);
-export const getUserMatchup = (userId, matchupId) => API.get(`/users/${userId}/matchups/${matchupId}`);
 
-// Matchup Management
-export const createMatchup = (userId, data) => API.post(`users/${userId}/create-matchup`, data);
-export const getMatchups = () => API.get('/matchups');
-export const getMatchup = (id) => API.get(`/matchup/${id}`);
-export const updateMatchup = (id, data) => API.put(`/matchup/${id}`, data);
-export const deleteMatchup = (id) => API.delete(`/matchup/${id}`);
+// Matchup Management (paginated)
+export const getMatchups = (page = 1, limit = 10) =>
+  API.get('/matchups', { params: { page, limit } });
+
+export const getUserMatchups = (userId, page = 1, limit = 10) =>
+  API.get(`/users/${userId}/matchups`, { params: { page, limit } });
+
+export const getUserMatchup = (userId, matchupId) =>
+  API.get(`/users/${userId}/matchups/${matchupId}`);
+
+export const createMatchup = (userId, data) =>
+  API.post(`/users/${userId}/matchups`, data);
+
+export const getMatchup = (id) => API.get(`/matchups/${id}`);
+export const updateMatchup = (id, data) => API.put(`/matchups/${id}`, data);
+export const deleteMatchup = (id) => API.delete(`/matchups/${id}`);
 
 // Matchup Items
-export const incrementMatchupItemVotes = (id) => API.patch(`/matchup_items/${id}/vote`);
+export const incrementMatchupItemVotes = (id) =>
+  API.patch(`/matchup_items/${id}/vote`);
+
 export const deleteMatchupItem = (id) => API.delete(`/matchup_items/${id}`);
-export const updateMatchupItem = (itemId, updatedData) =>  API.put(`/matchup_items/${itemId}`, updatedData);
-export const addItemToMatchup = (matchupId, itemData) => API.post(`/matchups/${matchupId}/items`, itemData);
+
+export const updateMatchupItem = (itemId, updatedData) =>
+  API.put(`/matchup_items/${itemId}`, updatedData);
+
+export const addItemToMatchup = (matchupId, itemData) =>
+  API.post(`/matchups/${matchupId}/items`, itemData);
 
 // Likes Management
-export const getMatchupLikes = (matchupId) => API.get(`/likes/matchups/${matchupId}`);
-export const likeMatchup = (id) => API.post(`/likes/matchups/${id}`);
-export const unlikeMatchup = (id) => API.delete(`/likes/matchups/${id}`);
+export const getMatchupLikes = (matchupId) =>
+  API.get(`/matchups/${matchupId}/likes`);
+
+export const likeMatchup = (matchupId) =>
+  API.post(`/matchups/${matchupId}/likes`);
+
+export const unlikeMatchup = (matchupId) =>
+  API.delete(`/matchups/${matchupId}/likes`);
+
 export const getUserLikes = (userId) => API.get(`/users/${userId}/likes`);
 
 // Comments Management
-export const createComment = (matchupId, commentData) => API.post(`/matchups/${matchupId}/comments`, commentData);
-export const getComments = (matchupId) => API.get(`/matchups/${matchupId}/comments`);
-export const updateComment = (id, commentData) => API.put(`/comments/${id}`, commentData);
+export const createComment = (matchupId, commentData) =>
+  API.post(`/matchups/${matchupId}/comments`, commentData);
+
+export const getComments = (matchupId) =>
+  API.get(`/matchups/${matchupId}/comments`);
+
+export const updateComment = (id, commentData) =>
+  API.put(`/comments/${id}`, commentData);
+
 export const deleteComment = (id) => API.delete(`/comments/${id}`);
 
 // Auth helpers

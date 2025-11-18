@@ -38,8 +38,9 @@ func (u *User) BeforeSave(tx *gorm.DB) (err error) {
 }
 
 func (u *User) Prepare() {
-	u.Username = html.EscapeString(strings.TrimSpace(u.Username))
-	u.Email = html.EscapeString(strings.TrimSpace(u.Email))
+	// Normalize username/email for consistency + case-insensitive login
+	u.Username = html.EscapeString(strings.ToLower(strings.TrimSpace(u.Username)))
+	u.Email = html.EscapeString(strings.ToLower(strings.TrimSpace(u.Email)))
 	u.CreatedAt = time.Now()
 	u.UpdatedAt = time.Now()
 }

@@ -11,7 +11,7 @@ import (
 
 type Matchup struct {
 	ID        uint          `gorm:"primary_key;autoIncrement" json:"id"`
-	Title     string        `gorm:"size:255;not null;unique" json:"title"`
+	Title     string        `gorm:"size:255;not null" json:"title"`
 	Content   string        `gorm:"text;not null;" json:"content"`
 	Author    User          `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 	AuthorID  uint          `gorm:"not null" json:"author_id"`

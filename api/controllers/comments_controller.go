@@ -40,7 +40,7 @@ func (server *Server) CreateComment(c *gin.Context) {
 	errList := map[string]string{}
 
 	// Parse matchup ID from the URL
-	matchupID := c.Param("matchup_id")
+	matchupID := c.Param("id")
 	mid, err := strconv.ParseUint(matchupID, 10, 32)
 	if err != nil {
 		errList["Invalid_request"] = "Invalid Request"
@@ -145,7 +145,7 @@ func (server *Server) GetComments(c *gin.Context) {
 	errList := map[string]string{}
 
 	// Parse the matchup ID from the URL parameters
-	matchupID := c.Param("matchup_id")
+	matchupID := c.Param("id")
 	mid, err := strconv.ParseUint(matchupID, 10, 32)
 	if err != nil {
 		errList["Invalid_request"] = "Invalid Request"

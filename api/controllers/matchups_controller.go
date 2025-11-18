@@ -1,7 +1,9 @@
 package controllers
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -9,6 +11,7 @@ import (
 	"time"
 
 	"Matchup/api/auth"
+	"Matchup/api/cache"
 	"Matchup/api/models"
 	"Matchup/api/utils/formaterror"
 
@@ -77,6 +80,7 @@ func (server *Server) CreateMatchup(c *gin.Context) {
 		})
 		return
 	}
+
 	uid, err := auth.ExtractTokenID(c.Request)
 	if err != nil {
 		errList["Unauthorized"] = "Unauthorized"
@@ -99,7 +103,8 @@ func (server *Server) CreateMatchup(c *gin.Context) {
 		return
 	}
 
-	matchup.AuthorID = uid // the authenticated user is the one creating the matchup
+	// the authenticated user is the one creating the matchup
+	matchup.AuthorID = uid
 
 	matchup.Prepare()
 	errorMessages := matchup.Validate()
@@ -124,6 +129,14 @@ func (server *Server) CreateMatchup(c *gin.Context) {
 		return
 	}
 	tx.Commit()
+
+	// 🔥 NEW: Invalidate cached matchup lists in Redis
+	ctx := context.Background()
+	// Clear all general matchup list pages
+	_ = cache.DeleteByPrefix(ctx, "matchups:")
+	// Clear this user's matchup list pages
+	userPrefix := fmt.Sprintf("user:%d:matchups:", uid)
+	_ = cache.DeleteByPrefix(ctx, userPrefix)
 
 	// Retrieve the comments for the created matchup
 	comment := models.Comment{}
@@ -150,27 +163,62 @@ func (server *Server) CreateMatchup(c *gin.Context) {
 	})
 }
 
-// GetMatchups retrieves all matchups along with their items and comments
+// GetMatchups retrieves paginated matchups along with their items, comments, and likes
 func (server *Server) GetMatchups(c *gin.Context) {
-	var matchups []models.Matchup
+	// Parse pagination query params (your existing logic)
+	pageStr := c.DefaultQuery("page", "1")
+	limitStr := c.DefaultQuery("limit", "10")
 
-	// Use Preload to avoid N+1 query problem
-	err := server.DB.Preload("Items").
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	ctx := context.Background()
+	cacheKey := fmt.Sprintf("matchups:page:%d:limit:%d", page, limit)
+
+	// 1) Try Redis cache
+	if cached, err := cache.Get(ctx, cacheKey); err == nil && cached != "" {
+		// Serve raw JSON from cache
+		c.Data(http.StatusOK, "application/json", []byte(cached))
+		return
+	}
+
+	// 2) Fallback to DB + existing logic
+
+	offset := (page - 1) * limit
+
+	// Count total matchups
+	var total int64
+	if err := server.DB.Model(&models.Matchup{}).Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to count matchups"})
+		return
+	}
+
+	// Fetch paginated matchups
+	var matchups []models.Matchup
+	err = server.DB.Preload("Items").
 		Preload("Comments").
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(limit).
 		Find(&matchups).Error
 	if err != nil && err != gorm.ErrRecordNotFound {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve matchups"})
 		return
 	}
 
-	// Convert each matchup to response format
+	// Build response (same as before)
 	var response []map[string]interface{}
 	for _, matchup := range matchups {
-		// Retrieve likes count for each matchup
 		var likesCount int64
 		server.DB.Model(&models.Like{}).Where("matchup_id = ?", matchup.ID).Count(&likesCount)
 
-		// Retrieve comments for each matchup
 		comment := models.Comment{}
 		comments, err := comment.GetComments(server.DB, matchup.ID)
 		if err != nil {
@@ -181,10 +229,26 @@ func (server *Server) GetMatchups(c *gin.Context) {
 		response = append(response, toMatchupResponse(&matchup, *comments, likesCount))
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	totalPages := int((total + int64(limit) - 1) / int64(limit))
+
+	respBody := gin.H{
 		"status":   http.StatusOK,
 		"response": response,
-	})
+		"pagination": gin.H{
+			"page":        page,
+			"limit":       limit,
+			"total":       total,
+			"total_pages": totalPages,
+		},
+	}
+
+	// 3) Store JSON in Redis with a short TTL
+	if jsonBytes, err := json.Marshal(respBody); err == nil {
+		_ = cache.Set(ctx, cacheKey, jsonBytes, 30*time.Second)
+	}
+
+	// 4) Return to client
+	c.JSON(http.StatusOK, respBody)
 }
 
 // GetMatchup retrieves a specific matchup by ID
@@ -327,7 +391,6 @@ func (server *Server) UpdateMatchup(c *gin.Context) {
 }
 
 // DeleteMatchup allows the author to delete their matchup
-// matchups_controller.go
 func (server *Server) DeleteMatchup(c *gin.Context) {
 	matchupID := c.Param("id")
 	mid64, err := strconv.ParseUint(matchupID, 10, 32)
@@ -390,33 +453,78 @@ func (server *Server) DeleteMatchup(c *gin.Context) {
 		return
 	}
 
+	// 🔥 NEW: invalidate Redis caches that contain this matchup
+	ctx := context.Background()
+
+	// Clear all general matchup list pages
+	_ = cache.DeleteByPrefix(ctx, "matchups:")
+
+	// Clear this user's matchup list pages
+	userPrefix := fmt.Sprintf("user:%d:matchups:", m.AuthorID)
+	_ = cache.DeleteByPrefix(ctx, userPrefix)
+
 	c.JSON(http.StatusOK, gin.H{"message": "Matchup deleted"})
 }
 
-// GetUserMatchups retrieves all matchups created by a specific user
+// GetUserMatchups retrieves paginated matchups created by a specific user
 func (server *Server) GetUserMatchups(c *gin.Context) {
-	userID := c.Param("id") // Accept user ID as a path parameter
+	userID := c.Param("id")
 	uid, err := strconv.ParseUint(userID, 10, 32)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
+	pageStr := c.DefaultQuery("page", "1")
+	limitStr := c.DefaultQuery("limit", "10")
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 || limit > 100 {
+		limit = 10
+	}
+
+	ctx := context.Background()
+	cacheKey := fmt.Sprintf("user:%d:matchups:page:%d:limit:%d", uid, page, limit)
+
+	// Try Redis cache
+	if cached, err := cache.Get(ctx, cacheKey); err == nil && cached != "" {
+		c.Data(http.StatusOK, "application/json", []byte(cached))
+		return
+	}
+
+	offset := (page - 1) * limit
+
+	// Count total matchups for this user
+	var total int64
+	if err := server.DB.Model(&models.Matchup{}).
+		Where("author_id = ?", uint(uid)).
+		Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to count user matchups"})
+		return
+	}
+
+	// Fetch paginated matchups
 	var matchups []models.Matchup
 	err = server.DB.Preload("Author").
 		Preload("Items").
 		Preload("Comments").
 		Where("author_id = ?", uint(uid)).
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(limit).
 		Find(&matchups).Error
 	if err != nil && err != gorm.ErrRecordNotFound {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve matchups"})
 		return
 	}
 
-	// Convert matchups to response format
 	var response []map[string]interface{}
 	for _, matchup := range matchups {
-		// Retrieve comments for each matchup
 		comment := models.Comment{}
 		comments, err := comment.GetComments(server.DB, matchup.ID)
 		if err != nil {
@@ -424,18 +532,30 @@ func (server *Server) GetUserMatchups(c *gin.Context) {
 			return
 		}
 
-		// Retrieve likes count for each matchup
 		var likesCount int64
 		server.DB.Model(&models.Like{}).Where("matchup_id = ?", matchup.ID).Count(&likesCount)
 
-		// Convert matchup to response format with likes count
 		response = append(response, toMatchupResponse(&matchup, *comments, likesCount))
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	totalPages := int((total + int64(limit) - 1) / int64(limit))
+
+	respBody := gin.H{
 		"status":   http.StatusOK,
 		"response": response,
-	})
+		"pagination": gin.H{
+			"page":        page,
+			"limit":       limit,
+			"total":       total,
+			"total_pages": totalPages,
+		},
+	}
+
+	if jsonBytes, err := json.Marshal(respBody); err == nil {
+		_ = cache.Set(ctx, cacheKey, jsonBytes, 30*time.Second)
+	}
+
+	c.JSON(http.StatusOK, respBody)
 }
 
 // GetUserMatchup retrieves a specific matchup created by a specific user
