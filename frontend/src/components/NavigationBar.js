@@ -10,6 +10,7 @@ const NavigationBar = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('userId');
+    localStorage.removeItem('isAdmin');
     navigate('/login', { replace: true });
   };
 
@@ -31,6 +32,15 @@ const NavigationBar = () => {
           >
             Home
           </button>
+          {localStorage.getItem('isAdmin') === 'true' && (
+            <button
+              type="button"
+              className="navigation-bar__button"
+              onClick={() => navigate('/admin')}
+            >
+              Admin
+            </button>
+          )}
           <button
             type="button"
             className="navigation-bar__button navigation-bar__button--ghost"

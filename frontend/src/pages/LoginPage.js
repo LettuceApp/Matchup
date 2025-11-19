@@ -18,13 +18,8 @@ const LoginPage = () => {
 
     try {
       setIsSubmitting(true);
-      const response = await login({ email, password });
-      const payload = response.data.response || response.data;
-      const token = payload?.token;
-      const userId = payload?.id;
-      if (token && userId) {
-        localStorage.setItem('token', token);
-        localStorage.setItem('userId', userId);
+      const payload = await login({ email, password });
+      if (payload?.token && payload?.id) {
         navigate(from, { replace: true });
       } else {
         console.error('Token or User ID is missing in response');

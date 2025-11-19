@@ -20,9 +20,12 @@ type User struct {
 	Email      string    `gorm:"size:100;not null;unique" json:"email"`
 	Password   string    `gorm:"size:100;not null;" json:"password"`
 	AvatarPath string    `gorm:"size:255;null;" json:"avatar_path"`
+	IsAdmin    bool      `gorm:"default:false" json:"is_admin"`
 	CreatedAt  time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
 	UpdatedAt  time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
 }
+
+const SeedAdminEmail = "cordelljenkins1914@gmail.com"
 
 func (u *User) HashPassword() error {
 	hashedPassword, err := security.Hash(u.Password)
@@ -38,9 +41,19 @@ func (u *User) BeforeSave(tx *gorm.DB) (err error) {
 }
 
 func (u *User) Prepare() {
-	// Normalize username/email for consistency + case-insensitive login
 	u.Username = html.EscapeString(strings.ToLower(strings.TrimSpace(u.Username)))
 	u.Email = html.EscapeString(strings.ToLower(strings.TrimSpace(u.Email)))
+
+	// Derive admin flag on the server side
+	if u.Email == strings.ToLower(SeedAdminEmail) {
+		u.IsAdmin = true
+	} else {
+		// For newly created users, force non-admin unless they match the seed email
+		if u.ID == 0 {
+			u.IsAdmin = false
+		}
+	}
+
 	u.CreatedAt = time.Now()
 	u.UpdatedAt = time.Now()
 }

@@ -8,12 +8,14 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"Matchup/api/auth"
 	"Matchup/api/cache"
 	"Matchup/api/models"
 	"Matchup/api/utils/formaterror"
+	httpctx "Matchup/api/utils/httpctx"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -52,6 +54,34 @@ func toMatchupResponse(matchup *models.Matchup, comments []models.Comment, likes
 		"likes_count": likesCount,
 		"created_at":  matchup.CreatedAt,
 		"updated_at":  matchup.UpdatedAt,
+	}
+}
+
+func toAdminMatchupSummary(matchup *models.Matchup, likesCount int64) map[string]interface{} {
+	itemResponses := make([]map[string]interface{}, len(matchup.Items))
+	for i, item := range matchup.Items {
+		itemResponses[i] = map[string]interface{}{
+			"id":    item.ID,
+			"item":  item.Item,
+			"votes": item.Votes,
+		}
+	}
+
+	authorUsername := ""
+	if matchup.Author.ID != 0 {
+		authorUsername = matchup.Author.Username
+	}
+
+	return map[string]interface{}{
+		"id":              matchup.ID,
+		"title":           matchup.Title,
+		"content":         matchup.Content,
+		"author_id":       matchup.AuthorID,
+		"author_username": authorUsername,
+		"items":           itemResponses,
+		"likes_count":     likesCount,
+		"created_at":      matchup.CreatedAt,
+		"updated_at":      matchup.UpdatedAt,
 	}
 }
 
@@ -303,12 +333,11 @@ func (server *Server) UpdateMatchup(c *gin.Context) {
 	}
 
 	// Get the authenticated user's ID
-	tokenID, exists := c.Get("userID")
-	if !exists {
+	requestorID, ok := httpctx.CurrentUserID(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	uid := tokenID.(uint)
 
 	// Check if the matchup exists and belongs to the user
 	var existingMatchup models.Matchup
@@ -321,7 +350,7 @@ func (server *Server) UpdateMatchup(c *gin.Context) {
 		}
 		return
 	}
-	if existingMatchup.AuthorID != uid {
+	if existingMatchup.AuthorID != requestorID && !httpctx.IsAdminRequest(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "You are not authorized to update this matchup"})
 		return
 	}
@@ -390,6 +419,39 @@ func (server *Server) UpdateMatchup(c *gin.Context) {
 	})
 }
 
+func (server *Server) deleteMatchupCascade(matchup *models.Matchup) error {
+	tx := server.DB.Begin()
+
+	if err := tx.Where("matchup_id = ?", matchup.ID).Delete(&models.MatchupItem{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Where("matchup_id = ?", matchup.ID).Delete(&models.Comment{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Where("matchup_id = ?", matchup.ID).Delete(&models.Like{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Where("id = ?", matchup.ID).Delete(&models.Matchup{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+	_ = cache.DeleteByPrefix(ctx, "matchups:")
+
+	userPrefix := fmt.Sprintf("user:%d:matchups:", matchup.AuthorID)
+	_ = cache.DeleteByPrefix(ctx, userPrefix)
+
+	return nil
+}
+
 // DeleteMatchup allows the author to delete their matchup
 func (server *Server) DeleteMatchup(c *gin.Context) {
 	matchupID := c.Param("id")
@@ -401,12 +463,11 @@ func (server *Server) DeleteMatchup(c *gin.Context) {
 	mid := uint(mid64)
 
 	// auth
-	tokenID, ok := c.Get("userID")
+	requestorID, ok := httpctx.CurrentUserID(c)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	uid := tokenID.(uint)
 
 	// load & ownership
 	var m models.Matchup
@@ -418,50 +479,109 @@ func (server *Server) DeleteMatchup(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving matchup"})
 		return
 	}
-	if m.AuthorID != uid {
+	if m.AuthorID != requestorID && !httpctx.IsAdminRequest(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "You are not authorized to delete this matchup"})
 		return
 	}
 
 	// delete children first, then the parent
-	tx := server.DB.Begin()
-
-	if err := tx.Where("matchup_id = ?", mid).Delete(&models.MatchupItem{}).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting matchup items"})
-		return
-	}
-	if err := tx.Where("matchup_id = ?", mid).Delete(&models.Comment{}).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting comments"})
-		return
-	}
-	if err := tx.Where("matchup_id = ?", mid).Delete(&models.Like{}).Error; err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting likes"})
-		return
-	}
-
-	if err := tx.Where("id = ?", mid).Delete(&models.Matchup{}).Error; err != nil {
-		tx.Rollback()
+	if err := server.deleteMatchupCascade(&m); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting matchup"})
 		return
 	}
 
-	if err := tx.Commit().Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error finalizing delete"})
+	c.JSON(http.StatusOK, gin.H{"message": "Matchup deleted"})
+}
+
+// AdminListMatchups returns a paginated list of matchups for moderation tools.
+func (server *Server) AdminListMatchups(c *gin.Context) {
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	if err != nil || limit < 1 || limit > 100 {
+		limit = 20
+	}
+
+	offset := (page - 1) * limit
+	search := strings.TrimSpace(c.Query("search"))
+	authorParam := strings.TrimSpace(c.Query("author_id"))
+
+	query := server.DB.Model(&models.Matchup{})
+	if search != "" {
+		like := fmt.Sprintf("%%%s%%", search)
+		query = query.Where("title ILIKE ? OR content ILIKE ?", like, like)
+	}
+	if authorParam != "" {
+		aid, err := strconv.ParseUint(authorParam, 10, 32)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid author_id"})
+			return
+		}
+		query = query.Where("author_id = ?", uint(aid))
+	}
+
+	countQuery := query.Session(&gorm.Session{})
+	var total int64
+	if err := countQuery.Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to count matchups"})
 		return
 	}
 
-	// 🔥 NEW: invalidate Redis caches that contain this matchup
-	ctx := context.Background()
+	var matchups []models.Matchup
+	if err := query.
+		Preload("Author").
+		Preload("Items").
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&matchups).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to fetch matchups"})
+		return
+	}
 
-	// Clear all general matchup list pages
-	_ = cache.DeleteByPrefix(ctx, "matchups:")
+	matchupResponses := make([]map[string]interface{}, len(matchups))
+	for i := range matchups {
+		var likesCount int64
+		server.DB.Model(&models.Like{}).Where("matchup_id = ?", matchups[i].ID).Count(&likesCount)
+		matchupResponses[i] = toAdminMatchupSummary(&matchups[i], likesCount)
+	}
 
-	// Clear this user's matchup list pages
-	userPrefix := fmt.Sprintf("user:%d:matchups:", m.AuthorID)
-	_ = cache.DeleteByPrefix(ctx, userPrefix)
+	c.JSON(http.StatusOK, gin.H{
+		"status": http.StatusOK,
+		"response": gin.H{
+			"matchups":   matchupResponses,
+			"pagination": buildPagination(page, limit, total),
+		},
+	})
+}
+
+// AdminDeleteMatchup allows admins to delete any matchup regardless of owner.
+func (server *Server) AdminDeleteMatchup(c *gin.Context) {
+	matchupID := c.Param("id")
+	mid64, err := strconv.ParseUint(matchupID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid matchup ID"})
+		return
+	}
+	mid := uint(mid64)
+
+	var matchup models.Matchup
+	if err := server.DB.First(&matchup, mid).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Matchup not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving matchup"})
+		return
+	}
+
+	if err := server.deleteMatchupCascade(&matchup); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting matchup"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Matchup deleted"})
 }
@@ -653,12 +773,11 @@ func (server *Server) DeleteMatchupItem(c *gin.Context) {
 	}
 
 	// Get the authenticated user's ID
-	tokenID, exists := c.Get("userID")
-	if !exists {
+	requestorID, ok := httpctx.CurrentUserID(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	uid := tokenID.(uint)
 
 	// Fetch the item and its parent matchup
 	var item models.MatchupItem
@@ -673,7 +792,7 @@ func (server *Server) DeleteMatchupItem(c *gin.Context) {
 	}
 
 	// Check if the authenticated user is the author of the matchup
-	if item.Matchup.AuthorID != uid {
+	if item.Matchup.AuthorID != requestorID && !httpctx.IsAdminRequest(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "You are not authorized to delete this item"})
 		return
 	}
@@ -697,12 +816,11 @@ func (server *Server) AddItemToMatchup(c *gin.Context) {
 	}
 
 	// Get the authenticated user's ID
-	tokenID, exists := c.Get("userID")
-	if !exists {
+	requestorID, ok := httpctx.CurrentUserID(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	uid := tokenID.(uint)
 
 	// Check if the matchup exists and belongs to the user
 	var matchup models.Matchup
@@ -715,7 +833,7 @@ func (server *Server) AddItemToMatchup(c *gin.Context) {
 		}
 		return
 	}
-	if matchup.AuthorID != uid {
+	if matchup.AuthorID != requestorID && !httpctx.IsAdminRequest(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "You are not authorized to add items to this matchup"})
 		return
 	}
@@ -751,12 +869,11 @@ func (server *Server) UpdateMatchupItem(c *gin.Context) {
 	}
 
 	// Get the authenticated user's ID
-	tokenID, exists := c.Get("userID")
-	if !exists {
+	requestorID, ok := httpctx.CurrentUserID(c)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	uid := tokenID.(uint)
 
 	// Find the matchup item by ID
 	var item models.MatchupItem
@@ -770,7 +887,7 @@ func (server *Server) UpdateMatchupItem(c *gin.Context) {
 	}
 
 	// Ensure the authenticated user is the owner of the matchup
-	if item.Matchup.AuthorID != uid {
+	if item.Matchup.AuthorID != requestorID && !httpctx.IsAdminRequest(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "You are not authorized to update this item"})
 		return
 	}

@@ -4,11 +4,13 @@ import (
 	"net/http"
 
 	"Matchup/api/auth"
+	"Matchup/api/models"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
-func TokenAuthMiddleware() gin.HandlerFunc {
+func TokenAuthMiddleware(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID, err := auth.ExtractTokenID(c.Request)
 		if err != nil {
@@ -16,7 +18,16 @@ func TokenAuthMiddleware() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+
+		var user models.User
+		if err := db.Select("id", "is_admin").First(&user, userID).Error; err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			c.Abort()
+			return
+		}
+
 		c.Set("userID", userID)
+		c.Set("isAdmin", user.IsAdmin)
 		c.Next()
 	}
 }

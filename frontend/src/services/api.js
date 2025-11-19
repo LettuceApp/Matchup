@@ -17,12 +17,24 @@ API.interceptors.request.use((config) => {
 // User Auth
 export const login = async (data) => {
   const res = await API.post('/login', data);
-  const token = res.data.token; // adjust to your API shape
-  if (token) {
-    localStorage.setItem('token', token);
-    API.defaults.headers.Authorization = `Bearer ${token}`;
+  const payload = res?.data?.response || res?.data || {};
+
+  if (payload.token) {
+    localStorage.setItem('token', payload.token);
+    API.defaults.headers.Authorization = `Bearer ${payload.token}`;
   }
-  return res;
+
+  if (payload.id) {
+    localStorage.setItem('userId', String(payload.id));
+  }
+
+  if (typeof payload.is_admin === 'boolean') {
+    localStorage.setItem('isAdmin', payload.is_admin ? 'true' : 'false');
+  } else {
+    localStorage.removeItem('isAdmin');
+  }
+
+  return payload;
 };
 
 export const forgotPassword = (data) => API.post('/password/forgot', data);
@@ -99,5 +111,11 @@ export const deleteComment = (id) => API.delete(`/comments/${id}`);
 
 // Auth helpers
 export const getCurrentUser = () => API.get('/me');
+
+// Admin APIs
+export const adminGetUsers = (params = {}) => API.get('/admin/users', { params });
+export const adminUpdateUserRole = (userId, data) => API.patch(`/admin/users/${userId}/role`, data);
+export const adminGetMatchups = (params = {}) => API.get('/admin/matchups', { params });
+export const adminDeleteMatchup = (matchupId) => API.delete(`/admin/matchups/${matchupId}`);
 
 export default API;

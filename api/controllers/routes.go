@@ -40,7 +40,7 @@ func (s *Server) initializeRoutes() {
 
 		// ---------- Auth-protected routes ----------
 		auth := v1.Group("")
-		auth.Use(middlewares.TokenAuthMiddleware())
+		auth.Use(middlewares.TokenAuthMiddleware(s.DB))
 
 		// Current user
 		auth.GET("/me", s.GetCurrentUser)
@@ -69,5 +69,13 @@ func (s *Server) initializeRoutes() {
 		auth.POST("/matchups/:id/comments", s.CreateComment)
 		auth.PUT("/comments/:id", s.UpdateComment)
 		auth.DELETE("/comments/:id", s.DeleteComment)
+
+		// ---------- Admin routes ----------
+		admin := auth.Group("/admin")
+		admin.Use(middlewares.AdminOnlyMiddleware())
+		admin.GET("/users", s.AdminListUsers)
+		admin.PATCH("/users/:id/role", s.AdminUpdateUserRole)
+		admin.GET("/matchups", s.AdminListMatchups)
+		admin.DELETE("/matchups/:id", s.AdminDeleteMatchup)
 	}
 }

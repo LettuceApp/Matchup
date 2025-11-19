@@ -89,6 +89,7 @@ func (server *Server) SignIn(email, password string) (map[string]interface{}, er
 	userData["email"] = user.Email
 	userData["avatar_path"] = user.AvatarPath
 	userData["username"] = user.Username
+	userData["is_admin"] = user.IsAdmin
 
 	return userData, nil
 }

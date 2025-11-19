@@ -10,6 +10,7 @@ import (
 	"Matchup/api/auth"
 	"Matchup/api/models"
 	"Matchup/api/utils/formaterror"
+	httpctx "Matchup/api/utils/httpctx"
 
 	"github.com/gin-gonic/gin"
 )
@@ -234,7 +235,7 @@ func (server *Server) UpdateComment(c *gin.Context) {
 		})
 		return
 	}
-	if uid != origComment.UserID {
+	if uid != origComment.UserID && !httpctx.IsAdminRequest(c) {
 		errList["Unauthorized"] = "Unauthorized"
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"status": http.StatusUnauthorized,
@@ -331,7 +332,7 @@ func (server *Server) DeleteComment(c *gin.Context) {
 		return
 	}
 
-	if uid != comment.UserID {
+	if uid != comment.UserID && !httpctx.IsAdminRequest(c) {
 		errList["Unauthorized"] = "Unauthorized"
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"status": http.StatusUnauthorized,

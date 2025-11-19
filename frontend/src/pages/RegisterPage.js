@@ -21,14 +21,9 @@ const RegisterPage = () => {
       setIsSubmitting(true);
       await createUser({ email, username, password });
 
-      const res = await login({ email, password });
-      const payload = res.data.response || res.data;
-      const token = payload?.token;
-      const userId = payload?.id;
+      const payload = await login({ email, password });
 
-      if (token && userId) {
-        localStorage.setItem('token', token);
-        localStorage.setItem('userId', userId);
+      if (payload?.token && payload?.id) {
         navigate(from, { replace: true });
       } else {
         setError('We could not complete registration. Please try again.');

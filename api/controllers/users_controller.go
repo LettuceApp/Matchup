@@ -3,6 +3,7 @@ package controllers
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -14,16 +15,44 @@ import (
 	"Matchup/api/security"
 	"Matchup/api/utils/fileformat"
 	"Matchup/api/utils/formaterror"
+	httpctx "Matchup/api/utils/httpctx"
 
 	aws2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type BucketBasics struct {
 	S3Client *s3.Client
+}
+
+func userToResponse(user *models.User) map[string]interface{} {
+	return map[string]interface{}{
+		"id":          user.ID,
+		"username":    user.Username,
+		"email":       user.Email,
+		"avatar_path": user.AvatarPath,
+		"is_admin":    user.IsAdmin,
+		"created_at":  user.CreatedAt,
+		"updated_at":  user.UpdatedAt,
+	}
+}
+
+func buildPagination(page, limit int, total int64) map[string]interface{} {
+	totalPages := 0
+	if limit > 0 {
+		totalPages = int((total + int64(limit) - 1) / int64(limit))
+	}
+
+	return map[string]interface{}{
+		"page":        page,
+		"limit":       limit,
+		"total":       total,
+		"total_pages": totalPages,
+	}
 }
 
 // CreateUser handles user registration
@@ -36,6 +65,7 @@ func (server *Server) CreateUser(c *gin.Context) {
 		return
 	}
 
+	user.IsAdmin = false
 	user.Prepare()
 	errorMessages := user.Validate("")
 	if len(errorMessages) > 0 {
@@ -50,19 +80,9 @@ func (server *Server) CreateUser(c *gin.Context) {
 		return
 	}
 
-	// Prepare response without the password
-	userResponse := map[string]interface{}{
-		"id":          userCreated.ID,
-		"username":    userCreated.Username,
-		"email":       userCreated.Email,
-		"avatar_path": userCreated.AvatarPath,
-		"created_at":  userCreated.CreatedAt,
-		"updated_at":  userCreated.UpdatedAt,
-	}
-
 	c.JSON(http.StatusCreated, gin.H{
 		"status":   http.StatusCreated,
-		"response": userResponse,
+		"response": userToResponse(userCreated),
 	})
 }
 
@@ -87,18 +107,9 @@ func (server *Server) GetCurrentUser(c *gin.Context) {
 		return
 	}
 
-	userResponse := map[string]interface{}{
-		"id":          userGotten.ID,
-		"username":    userGotten.Username,
-		"email":       userGotten.Email,
-		"avatar_path": userGotten.AvatarPath,
-		"created_at":  userGotten.CreatedAt,
-		"updated_at":  userGotten.UpdatedAt,
-	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"status":   http.StatusOK,
-		"response": userResponse,
+		"response": userToResponse(userGotten),
 	})
 }
 
@@ -115,14 +126,8 @@ func (server *Server) GetUsers(c *gin.Context) {
 	// Prepare response without passwords
 	userResponses := make([]map[string]interface{}, len(*users))
 	for i, user := range *users {
-		userResponses[i] = map[string]interface{}{
-			"id":          user.ID,
-			"username":    user.Username,
-			"email":       user.Email,
-			"avatar_path": user.AvatarPath,
-			"created_at":  user.CreatedAt,
-			"updated_at":  user.UpdatedAt,
-		}
+		userCopy := user
+		userResponses[i] = userToResponse(&userCopy)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -149,19 +154,9 @@ func (server *Server) GetUser(c *gin.Context) {
 		return
 	}
 
-	// Prepare response without the password
-	userResponse := map[string]interface{}{
-		"id":          userGotten.ID,
-		"username":    userGotten.Username,
-		"email":       userGotten.Email,
-		"avatar_path": userGotten.AvatarPath,
-		"created_at":  userGotten.CreatedAt,
-		"updated_at":  userGotten.UpdatedAt,
-	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"status":   http.StatusOK,
-		"response": userResponse,
+		"response": userToResponse(userGotten),
 	})
 }
 
@@ -174,8 +169,12 @@ func (server *Server) UpdateAvatar(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
-	tokenID, exists := c.Get("userID")
-	if !exists || tokenID != uint(uid) {
+	requestorID, ok := httpctx.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	if requestorID != uint(uid) && !httpctx.IsAdminRequest(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
@@ -292,16 +291,7 @@ func (server *Server) UpdateAvatar(c *gin.Context) {
 	updatedUser.AvatarPath = fullURL
 
 	// 10) Build response
-	userResponse := map[string]interface{}{
-		"id":          updatedUser.ID,
-		"username":    updatedUser.Username,
-		"email":       updatedUser.Email,
-		"avatar_path": updatedUser.AvatarPath,
-		"created_at":  updatedUser.CreatedAt,
-		"updated_at":  updatedUser.UpdatedAt,
-	}
-
-	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK, "response": userResponse})
+	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK, "response": userToResponse(updatedUser)})
 	log.Printf("Avatar updated successfully for user %d", updatedUser.ID)
 }
 
@@ -316,8 +306,12 @@ func (server *Server) UpdateUser(c *gin.Context) {
 	}
 
 	// Get user ID from context (set by authentication middleware)
-	tokenID, exists := c.Get("userID")
-	if !exists || tokenID != uint(uid) {
+	requestorID, ok := httpctx.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	if requestorID != uint(uid) && !httpctx.IsAdminRequest(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
@@ -379,19 +373,9 @@ func (server *Server) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// Prepare response without the password
-	userResponse := map[string]interface{}{
-		"id":          updatedUser.ID,
-		"username":    updatedUser.Username,
-		"email":       updatedUser.Email,
-		"avatar_path": updatedUser.AvatarPath,
-		"created_at":  updatedUser.CreatedAt,
-		"updated_at":  updatedUser.UpdatedAt,
-	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"status":   http.StatusOK,
-		"response": userResponse,
+		"response": userToResponse(updatedUser),
 	})
 }
 
@@ -406,8 +390,12 @@ func (server *Server) DeleteUser(c *gin.Context) {
 	}
 
 	// Get user ID from context (set by authentication middleware)
-	tokenID, exists := c.Get("userID")
-	if !exists || tokenID != uint(uid) {
+	requestorID, ok := httpctx.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	if requestorID != uint(uid) && !httpctx.IsAdminRequest(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
@@ -423,5 +411,96 @@ func (server *Server) DeleteUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":   http.StatusOK,
 		"response": "User deleted",
+	})
+}
+
+// AdminListUsers returns a paginated list of users for the admin console.
+func (server *Server) AdminListUsers(c *gin.Context) {
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	if err != nil || limit < 1 || limit > 100 {
+		limit = 20
+	}
+
+	offset := (page - 1) * limit
+	search := strings.TrimSpace(c.Query("search"))
+
+	query := server.DB.Model(&models.User{})
+	if search != "" {
+		like := fmt.Sprintf("%%%s%%", search)
+		query = query.Where("username ILIKE ? OR email ILIKE ?", like, like)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to count users"})
+		return
+	}
+
+	var users []models.User
+	if err := query.Order("created_at DESC").Offset(offset).Limit(limit).Find(&users).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to fetch users"})
+		return
+	}
+
+	userResponses := make([]map[string]interface{}, len(users))
+	for i := range users {
+		userResponses[i] = userToResponse(&users[i])
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": http.StatusOK,
+		"response": gin.H{
+			"users":      userResponses,
+			"pagination": buildPagination(page, limit, total),
+		},
+	})
+}
+
+// AdminUpdateUserRole allows an admin to set/unset the admin flag on a user.
+func (server *Server) AdminUpdateUserRole(c *gin.Context) {
+	userID := c.Param("id")
+	uid, err := strconv.ParseUint(userID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	var payload struct {
+		IsAdmin *bool `json:"is_admin"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+	if payload.IsAdmin == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "is_admin is required"})
+		return
+	}
+
+	var user models.User
+	if err := server.DB.First(&user, uint(uid)).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to load user"})
+		return
+	}
+
+	if err := server.DB.Model(&user).Update("is_admin", *payload.IsAdmin).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to update user role"})
+		return
+	}
+
+	user.IsAdmin = *payload.IsAdmin
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":   http.StatusOK,
+		"response": userToResponse(&user),
 	})
 }

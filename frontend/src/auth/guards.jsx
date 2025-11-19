@@ -16,3 +16,13 @@ export function RequireAuth({ children }) {
 export function RedirectIfAuth({ children }) {
   return hasToken() ? <Navigate to="/home" replace /> : children;
 }
+
+export function RequireAdmin({ children }) {
+  const location = useLocation();
+  const isAdmin = localStorage.getItem('isAdmin') === 'true';
+  return isAdmin ? (
+    children
+  ) : (
+    <Navigate to="/home" replace state={{ from: location }} />
+  );
+}

@@ -5,7 +5,8 @@ import RegisterPage from './pages/RegisterPage';
 import MatchupPage from './pages/MatchupPage';
 import CreateMatchup from './pages/CreateMatchup';
 import UserProfile from './pages/UserProfile';
-import { RequireAuth, RedirectIfAuth } from './auth/guards';
+import AdminDashboard from './pages/AdminDashboard';
+import { RequireAuth, RedirectIfAuth, RequireAdmin } from './auth/guards';
 import { useAuthBootstrap } from './auth/useAuthBootstrap';
 
 function App() {
@@ -71,6 +72,16 @@ function App() {
           element={
             <RequireAuth>
               <UserProfile />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <RequireAuth>
+              <RequireAdmin>
+                <AdminDashboard />
+              </RequireAdmin>
             </RequireAuth>
           }
         />

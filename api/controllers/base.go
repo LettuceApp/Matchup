@@ -69,6 +69,10 @@ func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName stri
 		log.Printf("warning: could not connect to redis: %v", err)
 	}
 
+	if err := promoteSeedAdmin(server.DB); err != nil {
+		log.Printf("warning: could not promote default admin: %v", err)
+	}
+
 	server.Router = gin.Default()
 
 	// Global middlewares
@@ -81,4 +85,15 @@ func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName stri
 
 func (server *Server) Run(addr string) {
 	log.Fatal(http.ListenAndServe(addr, server.Router))
+}
+
+func promoteSeedAdmin(db *gorm.DB) error {
+	const adminEmail = "cordelljenkins1914@gmail.com"
+	if adminEmail == "" {
+		return nil
+	}
+
+	return db.Model(&models.User{}).
+		Where("email = ?", strings.ToLower(strings.TrimSpace(adminEmail))).
+		Update("is_admin", true).Error
 }

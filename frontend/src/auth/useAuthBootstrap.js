@@ -10,6 +10,7 @@ export function useAuthBootstrap() {
     const token = localStorage.getItem('token');
 
     if (!token) {
+      localStorage.removeItem('isAdmin');
       setReady(true);
       return () => { mounted = false };
     }
@@ -22,6 +23,9 @@ export function useAuthBootstrap() {
         if (!mounted) return;
         const payload = res?.data?.response || res?.data;
         if (payload?.id) localStorage.setItem('userId', String(payload.id));
+        if (typeof payload?.is_admin === 'boolean') {
+          localStorage.setItem('isAdmin', payload.is_admin ? 'true' : 'false');
+        }
       })
       .catch((err) => {
         if (!mounted) return;
@@ -29,6 +33,7 @@ export function useAuthBootstrap() {
         if (err?.response?.status === 401) {
           localStorage.removeItem('token');
           localStorage.removeItem('userId');
+          localStorage.removeItem('isAdmin');
           delete API.defaults.headers.common.Authorization;
         }
       })
