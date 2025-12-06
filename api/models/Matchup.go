@@ -19,6 +19,7 @@ type Matchup struct {
 	Comments  []Comment     `gorm:"foreignKey:MatchupID" json:"comments"`
 	CreatedAt time.Time     `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
 	UpdatedAt time.Time     `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
+	Status    string        `gorm:"size:20;not null;default:'published'" json:"status"`
 }
 
 type MatchupItem struct {
