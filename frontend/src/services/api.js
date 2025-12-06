@@ -47,7 +47,7 @@ export const getUser = (id) => API.get(`/users/${id}`);
 export const updateUser = (id, data) => API.put(`/users/${id}`, data);
 export const updateUserAvatar = (userId, file) => {
   const formData = new FormData();
-  formData.append('file', file); // MUST be 'file' to match c.FormFile("file")
+  formData.append('file', file);
 
   return API.put(`/users/${userId}/avatar`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
@@ -111,6 +111,9 @@ export const deleteComment = (id) => API.delete(`/comments/${id}`);
 
 // Auth helpers
 export const getCurrentUser = () => API.get('/me');
+
+// Leaderboard
+export const getPopularMatchups = () => API.get('/matchups/popular');
 
 // Admin APIs
 export const adminGetUsers = (params = {}) => API.get('/admin/users', { params });

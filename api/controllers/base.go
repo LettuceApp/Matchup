@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -21,15 +22,68 @@ type Server struct {
 	Router *gin.Engine
 }
 
+// ===============================
+// SECURE ADMIN SEEDING
+// ===============================
+func seedAdmin(db *gorm.DB) error {
+	adminEmail := strings.ToLower(strings.TrimSpace(os.Getenv("ADMIN_EMAIL")))
+	adminPassword := strings.TrimSpace(os.Getenv("ADMIN_PASSWORD"))
+
+	// If environment vars aren't provided, do NOTHING.
+	if adminEmail == "" || adminPassword == "" {
+		log.Println("[seedAdmin] ADMIN_EMAIL or ADMIN_PASSWORD not set — skipping admin creation.")
+		return nil
+	}
+
+	var existing models.User
+	err := db.Where("email = ?", adminEmail).First(&existing).Error
+
+	// If admin does not exist, create them
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Println("[seedAdmin] Creating initial admin:", adminEmail)
+
+		admin := models.User{
+			Username: strings.Split(adminEmail, "@")[0],
+			Email:    adminEmail,
+			Password: adminPassword,
+			IsAdmin:  true,
+		}
+
+		admin.Prepare()
+
+		if msgs := admin.Validate(""); len(msgs) > 0 {
+			log.Printf("[seedAdmin] validation failed: %+v\n", msgs)
+			return nil
+		}
+
+		_, err = admin.SaveUser(db)
+		if err != nil {
+			log.Printf("[seedAdmin] failed to create admin: %v\n", err)
+			return err
+		}
+
+		return nil
+	}
+
+	// If admin exists, ensure they stay admin
+	if err == nil && !existing.IsAdmin {
+		log.Println("[seedAdmin] Ensuring admin flag is set for:", adminEmail)
+		return db.Model(&existing).Update("is_admin", true).Error
+	}
+
+	return err
+}
+
 var errList = make(map[string]string)
 
+// ===============================
+// SERVER INITIALIZATION
+// ===============================
 func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName string) {
 	var dsn string
 
-	// Use Heroku Postgres in production; local DB otherwise
 	if strings.EqualFold(os.Getenv("APP_ENV"), "production") {
 		dsn = os.Getenv("DATABASE_URL")
-		// Heroku Postgres expects SSL
 		if dsn != "" && !strings.Contains(dsn, "sslmode=") {
 			if strings.Contains(dsn, "?") {
 				dsn += "&sslmode=require"
@@ -38,7 +92,6 @@ func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName stri
 			}
 		}
 	} else {
-		// Your original local DSN
 		dsn = fmt.Sprintf(
 			"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
 			DbHost, DbUser, DbPassword, DbName, DbPort,
@@ -51,7 +104,7 @@ func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName stri
 	}
 	server.DB = db
 
-	// Keep your existing migrations exactly as before (uncomment/adjust to match your models)
+	// Auto Migrations
 	if err := server.DB.AutoMigrate(
 		&models.User{},
 		&models.Matchup{},
@@ -63,24 +116,20 @@ func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName stri
 		log.Fatalf("Error migrating database: %v", err)
 	}
 
-	// Initialize Redis cache
+	// Redis init (safe failure)
 	if err := cache.InitFromEnv(); err != nil {
-		// For dev, log and continue instead of crashing the app
 		log.Printf("warning: could not connect to redis: %v", err)
 	}
 
-	if err := promoteSeedAdmin(server.DB); err != nil {
-		log.Printf("warning: could not promote default admin: %v", err)
+	// SECURE ADMIN CREATION
+	if err := seedAdmin(server.DB); err != nil {
+		log.Printf("error seeding admin user: %v\n", err)
 	}
 
 	server.Router = gin.Default()
-
-	// Global middlewares
 	server.Router.Use(middlewares.CORSMiddleware())
 	server.Router.Use(middlewares.RateLimitMiddleware())
-
 	server.initializeRoutes()
-
 }
 
 func (server *Server) Run(addr string) {

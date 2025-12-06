@@ -1,6 +1,7 @@
+// frontend/src/pages/HomePage.js
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { getUserMatchups } from '../services/api';
+import { getPopularMatchups } from '../services/api'; // 🔹 changed from getUserMatchups
 import NavigationBar from '../components/NavigationBar';
 import Button from '../components/Button';
 import '../styles/HomePage.css';
@@ -10,46 +11,32 @@ const HomePage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Pagination state
-  const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState(null);
-
   const navigate = useNavigate();
   const userId = localStorage.getItem('userId');
 
   useEffect(() => {
-    const fetchMatchups = async () => {
+    const fetchPopularMatchups = async () => {
       setIsLoading(true);
 
-      const storedUserId = localStorage.getItem('userId');
-      if (!storedUserId) {
-        console.error('User ID not found');
-        setError('We could not determine your account. Please log in again.');
-        setIsLoading(false);
-        return;
-      }
-
       try {
-        // Use the paginated API: getUserMatchups(userId, page, limit)
-        const response = await getUserMatchups(storedUserId, page, 10);
+        const response = await getPopularMatchups();
         const data = response.data;
 
-        // Backend may respond with { status, response, pagination } or just the array
+        // Backend may respond with { status, response } or just an array
         const matchupsData = data.response || data;
 
-        setMatchups(matchupsData);
-        setPagination(data.pagination || null);
+        setMatchups(matchupsData || []);
         setError(null);
       } catch (err) {
-        console.error('Failed to fetch user matchups:', err);
-        setError('We could not load your matchups. Please try again in a moment.');
+        console.error('Failed to fetch popular matchups:', err);
+        setError('We could not load popular matchups. Please try again in a moment.');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchMatchups();
-  }, [page]);
+    fetchPopularMatchups();
+  }, []);
 
   const navigateToCreateMatchup = () => {
     const storedUserId = localStorage.getItem('userId');
@@ -60,10 +47,8 @@ const HomePage = () => {
     navigate(`/users/${storedUserId}/create-matchup`);
   };
 
-  const totalMatchups =
-    pagination && typeof pagination.total === 'number'
-      ? pagination.total
-      : matchups.length;
+  // For the hero card, this is the number of popular matchups (max 5)
+  const totalMatchups = matchups.length;
 
   return (
     <div className="home-page">
@@ -85,7 +70,7 @@ const HomePage = () => {
           <div className="home-hero-card" aria-hidden="true">
             <div className="home-hero-card-ring" />
             <div className="home-hero-card-inner">
-              <span className="home-hero-card-label">Total Matchups</span>
+              <span className="home-hero-card-label">Popular Matchups</span>
               <span className="home-hero-card-count">{totalMatchups}</span>
             </div>
           </div>
@@ -94,8 +79,8 @@ const HomePage = () => {
         <section className="home-matchups-section">
           <header className="home-section-header">
             <div>
-              <h2>Your Matchups</h2>
-              <p>Jump back into the conversations that matter most to you.</p>
+              <h2>Popular Matchups</h2>
+              <p>See what the community is engaging with the most right now.</p>
             </div>
             <Button onClick={navigateToCreateMatchup} className="home-secondary-button">
               New Matchup
@@ -104,7 +89,7 @@ const HomePage = () => {
 
           {isLoading && (
             <div className="home-status-card">
-              <p>Loading your matchups...</p>
+              <p>Loading popular matchups...</p>
             </div>
           )}
 
@@ -116,60 +101,54 @@ const HomePage = () => {
 
           {!isLoading && !error && matchups.length === 0 && (
             <div className="home-empty-state">
-              <h3>You have not created any matchups yet.</h3>
-              <p>Start a new matchup to spark the conversation.</p>
+              <h3>No popular matchups yet.</h3>
+              <p>Be the first to create a matchup and start the conversation.</p>
               <Button
                 onClick={navigateToCreateMatchup}
                 className="home-create-button home-create-button--ghost"
               >
-                Create your first matchup
+                Create a matchup
               </Button>
             </div>
           )}
 
           {!isLoading && !error && matchups.length > 0 && (
-            <>
-              <div className="home-matchups-grid">
-                {matchups.map((matchup) => (
+            <div className="home-matchups-grid">
+              {matchups.map((matchup) => {
+                const matchupOwnerId =
+                  matchup.author_id ?? matchup.user_id ?? matchup.owner_id ?? userId;
+
+                return (
                   <article key={matchup.id} className="home-matchup-card">
                     <div className="home-matchup-card-body">
                       <h3>{matchup.title}</h3>
+                      {typeof matchup.rank !== 'undefined' && (
+                        <p className="home-matchup-meta">
+                          Rank #{matchup.rank}
+                          {typeof matchup.engagement_score !== 'undefined' &&
+                            ` · ${matchup.engagement_score} total engagements`}
+                        </p>
+                      )}
                     </div>
-                    <Link
-                      to={`/users/${userId}/matchup/${matchup.id}`}
-                      className="home-matchup-link"
-                    >
-                      View matchup
-                      <span className="home-matchup-link-arrow" aria-hidden="true">
-                        &gt;
+                    {matchupOwnerId ? (
+                      <Link
+                        to={`/users/${matchupOwnerId}/matchup/${matchup.id}`}
+                        className="home-matchup-link"
+                      >
+                        View matchup
+                        <span className="home-matchup-link-arrow" aria-hidden="true">
+                          &gt;
+                        </span>
+                      </Link>
+                    ) : (
+                      <span className="home-matchup-link" aria-disabled="true">
+                        Owner missing
                       </span>
-                    </Link>
+                    )}
                   </article>
-                ))}
-              </div>
-
-              {pagination && pagination.total_pages > 1 && (
-                <div className="home-pagination">
-                  <button
-                    disabled={page <= 1}
-                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                  >
-                    Previous
-                  </button>
-
-                  <span>
-                    Page {pagination.page} of {pagination.total_pages}
-                  </span>
-
-                  <button
-                    disabled={pagination.page >= pagination.total_pages}
-                    onClick={() => setPage((prev) => prev + 1)}
-                  >
-                    Next
-                  </button>
-                </div>
-              )}
-            </>
+                );
+              })}
+            </div>
           )}
         </section>
       </main>

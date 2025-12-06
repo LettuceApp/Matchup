@@ -24,15 +24,15 @@ services:
         - FRONTEND_BASE_URL=${FRONTEND_BASE_URL}
         - DATABASE_URL=${DATABASE_URL}
   Matchup-postgres:
-    image: postgres:latest
+    image: postgres:14
     container_name: Matchup_db_postgres
     environment:
-      - POSTGRES_USER=${DB_USER}  
+      - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
       - POSTGRES_DB=${DB_NAME}
-      - DATABASE_HOST=${DB_HOST} 
+      - DATABASE_HOST=${DB_HOST}
     ports:
-      - '5432:5432'
+      - "5432:5432"
     volumes:
       - database_postgres:/var/lib/postgresql/data
     networks:
@@ -47,7 +47,7 @@ services:
     depends_on:
       - Matchup-postgres
     ports:
-      - "5050:80"
+      - "5050:80" 
     networks:
       - matchup
     restart: unless-stopped
@@ -59,11 +59,38 @@ services:
     command: ["redis-server", "--save", "20", "1", "--loglevel", "warning"]
     volumes:
       - redis_data:/data
+    networks:
+      - matchup
+  dagster:
+    build:
+      context: .
+      dockerfile: Dockerfile.dagster
+    container_name: matchup_dagster
+    environment:
+      APP_ENV: development
+      DB_HOST: matchup-postgres
+      DB_PORT: 5432
+      DB_NAME: matchup
+      DB_USER: cordelljenkins1914
+      DB_PASSWORD: Limitless12345
+      MATCHUP_DB_URL: postgresql+psycopg2://cordelljenkins1914:Limitless12345@Matchup-postgres:5432/matchup
+      DAGSTER_HOME: /opt/dagster
+    depends_on:
+      - Matchup-postgres
+    ports:
+      - "3001:3001"          # host:container for Dagster UI
+    volumes:
+      - ./orchestration:/app/orchestration
+      - dagster_home:/opt/dagster
+    networks:
+      - matchup 
+    
 
 volumes:
   api:
   database_postgres:
   redis_data:
+  dagster_home:
 
 # Networks to be created to facilitate communication between containers
 networks:

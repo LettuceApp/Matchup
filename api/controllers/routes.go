@@ -23,6 +23,9 @@ func (s *Server) initializeRoutes() {
 		v1.GET("/matchups", s.GetMatchups)
 		v1.GET("/matchups/:id", s.GetMatchup)
 
+		// Popular matchups (public read)
+		v1.GET("/matchups/popular", s.GetPopularMatchups)
+
 		// User matchups (public read)
 		v1.GET("/users/:id/matchups", s.GetUserMatchups)
 		v1.GET("/users/:id/matchups/:matchupid", s.GetUserMatchup)

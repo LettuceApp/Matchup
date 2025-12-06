@@ -12,7 +12,12 @@ import {
 import { Card } from '@/components/ui/card';
 
 // Initialize Socket.IO connection (point to your backend)
-const socket = io(process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:4000');
+const defaultSocketURL =
+  typeof window !== 'undefined'
+    ? `${window.location.protocol}//${window.location.hostname}:4000`
+    : 'http://localhost:4000';
+
+const socket = io(process.env.NEXT_PUBLIC_WS_URL || defaultSocketURL);
 
 /**
  * MatchupChart displays a real-time, interactive bar chart for a Matchup.
