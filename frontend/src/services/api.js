@@ -1,11 +1,22 @@
-import axios from 'axios';
+// frontend/src/services/api.js
+import axios from "axios";
 
-// Create an Axios instance with a base URL
+// 1) Prefer an explicit env var if it's set (for Netlify / production, etc.)
+const envBase = (process.env.REACT_APP_API_BASE || "").trim();
+
+// 2) Fallback for local dev + Docker: API is exposed on localhost:8888
+const DEFAULT_API_BASE = "http://localhost:8888/api/v1";
+
+export const API_BASE_URL = envBase || DEFAULT_API_BASE;
+
+console.log("Using API base URL:", API_BASE_URL);
+
 const API = axios.create({
-  baseURL: process.env.REACT_APP_API_BASE,
+  baseURL: API_BASE_URL,
+  withCredentials: true,
 });
 
-// Attach the Authorization token to requests if available
+// Attach auth token
 API.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -14,7 +25,9 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
-// User Auth
+// -----------------------------------------
+// AUTH
+// -----------------------------------------
 export const login = async (data) => {
   const res = await API.post('/login', data);
   const payload = res?.data?.response || res?.data || {};
@@ -40,11 +53,12 @@ export const login = async (data) => {
 export const forgotPassword = (data) => API.post('/password/forgot', data);
 export const resetPassword = (data) => API.post('/password/reset', data);
 
-// User Management
+// USERS
 export const createUser = (data) => API.post('/users', data);
 export const getUsers = () => API.get('/users');
 export const getUser = (id) => API.get(`/users/${id}`);
 export const updateUser = (id, data) => API.put(`/users/${id}`, data);
+
 export const updateUserAvatar = (userId, file) => {
   const formData = new FormData();
   formData.append('file', file);
@@ -56,7 +70,7 @@ export const updateUserAvatar = (userId, file) => {
 
 export const deleteUser = (id) => API.delete(`/users/${id}`);
 
-// Matchup Management (paginated)
+// MATCHUPS
 export const getMatchups = (page = 1, limit = 10) =>
   API.get('/matchups', { params: { page, limit } });
 
@@ -73,19 +87,18 @@ export const getMatchup = (id) => API.get(`/matchups/${id}`);
 export const updateMatchup = (id, data) => API.put(`/matchups/${id}`, data);
 export const deleteMatchup = (id) => API.delete(`/matchups/${id}`);
 
-// Matchup Items
+// MATCHUP ITEMS
 export const incrementMatchupItemVotes = (id) =>
   API.patch(`/matchup_items/${id}/vote`);
 
 export const deleteMatchupItem = (id) => API.delete(`/matchup_items/${id}`);
-
 export const updateMatchupItem = (itemId, updatedData) =>
   API.put(`/matchup_items/${itemId}`, updatedData);
 
 export const addItemToMatchup = (matchupId, itemData) =>
   API.post(`/matchups/${matchupId}/items`, itemData);
 
-// Likes Management
+// LIKES
 export const getMatchupLikes = (matchupId) =>
   API.get(`/matchups/${matchupId}/likes`);
 
@@ -97,7 +110,7 @@ export const unlikeMatchup = (matchupId) =>
 
 export const getUserLikes = (userId) => API.get(`/users/${userId}/likes`);
 
-// Comments Management
+// COMMENTS
 export const createComment = (matchupId, commentData) =>
   API.post(`/matchups/${matchupId}/comments`, commentData);
 
@@ -109,13 +122,13 @@ export const updateComment = (id, commentData) =>
 
 export const deleteComment = (id) => API.delete(`/comments/${id}`);
 
-// Auth helpers
+// CURRENT USER
 export const getCurrentUser = () => API.get('/me');
 
-// Leaderboard
+// LEADERBOARD
 export const getPopularMatchups = () => API.get('/matchups/popular');
 
-// Admin APIs
+// ADMIN
 export const adminGetUsers = (params = {}) => API.get('/admin/users', { params });
 export const adminUpdateUserRole = (userId, data) => API.patch(`/admin/users/${userId}/role`, data);
 export const adminGetMatchups = (params = {}) => API.get('/admin/matchups', { params });

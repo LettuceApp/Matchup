@@ -1,98 +1,107 @@
-version: '3'
+version: '3.9'
+
 services:
-  app:
-    container_name: Matchup_app
-    build:
-      context: .
-      dockerfile: ./Dockerfile.dev
-    ports: 
-      - 8888:8888 
-    restart: on-failure
-    volumes:              
-      - .:/usr/src/app
-    depends_on:
-      - Matchup-postgres
-    networks:
-      - matchup
-    environment:
-        - AWS_ACCESS_KEY_ID_ENV=${AWS_ACCESS_KEY_ID_ENV}
-        - AWS_SECRET_ACCESS_KEY_ENV=${AWS_SECRET_ACCESS_KEY_ENV}
-        - AWS_REGION_ENV=${AWS_REGION_ENV}
-        - S3_BUCKET=${S3_BUCKET}
-        - S3_ENDPOINT=${S3_ENDPOINT}
-        - APP_BASE_URL=${APP_BASE_URL}
-        - FRONTEND_BASE_URL=${FRONTEND_BASE_URL}
-        - DATABASE_URL=${DATABASE_URL}
-  Matchup-postgres:
+  postgres:
     image: postgres:14
-    container_name: Matchup_db_postgres
+    container_name: postgres
     environment:
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=${DB_NAME}
-      - DATABASE_HOST=${DB_HOST}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    env_file:
+      - .env
     ports:
       - "5432:5432"
     volumes:
-      - database_postgres:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - matchup
-    
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: pgadmin_container
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
-    depends_on:
-      - Matchup-postgres
-    ports:
-      - "5050:80" 
-    networks:
-      - matchup
-    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
-    container_name: matchup_redis
+    container_name: redis
+    command: ["redis-server", "--save", "20", "1", "--loglevel", "warning"]
     ports:
       - "6379:6379"
-    command: ["redis-server", "--save", "20", "1", "--loglevel", "warning"]
-    volumes:
-      - redis_data:/data
     networks:
       - matchup
-  dagster:
+
+  api:
     build:
       context: .
-      dockerfile: Dockerfile.dagster
-    container_name: matchup_dagster
-    environment:
-      APP_ENV: development
-      DB_HOST: matchup-postgres
-      DB_PORT: 5432
-      DB_NAME: matchup
-      DB_USER: cordelljenkins1914
-      DB_PASSWORD: Limitless12345
-      MATCHUP_DB_URL: postgresql+psycopg2://cordelljenkins1914:Limitless12345@Matchup-postgres:5432/matchup
-      DAGSTER_HOME: /opt/dagster
+      dockerfile: ./api/Dockerfile
+    container_name: matchup-api
+    env_file:
+      - .env
     depends_on:
-      - Matchup-postgres
-    ports:
-      - "3001:3001"          # host:container for Dagster UI
-    volumes:
-      - ./orchestration:/app/orchestration
-      - dagster_home:/opt/dagster
+      - postgres
+      - redis
+    restart: on-failure        # <-- ADDED: keep retrying until Postgres is actually ready
     networks:
-      - matchup 
-    
+      - matchup
+    ports:
+      - "8888:8888"
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: matchup_frontend
+    ports:
+      - "3000:80"
+    env_file:
+      - .env
+    networks:
+      - matchup
+
+  dagster-daemon:
+    build:
+      context: ./orchestration
+      dockerfile: Dockerfile
+    container_name: matchup-dagster-daemon
+    environment:
+      DAGSTER_HOME: /opt/dagster
+      DAGSTER_PG_USERNAME: ${DB_USER}
+      DAGSTER_PG_PASSWORD: ${DB_PASSWORD}
+      DAGSTER_PG_HOST: postgres
+      DAGSTER_PG_DB: ${DB_NAME}
+      DAGSTER_PG_PORT: 5432
+    volumes:
+      - ./orchestration:/app
+      - ./orchestration/dagster:/opt/dagster
+    command: ["dagster-daemon", "run"]
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+    networks:
+      - matchup
+
+  dagster-webserver:
+    build:
+      context: ./orchestration
+      dockerfile: Dockerfile
+    container_name: matchup-dagster-webserver
+    environment:
+      DAGSTER_HOME: /opt/dagster
+      DAGSTER_PG_USERNAME: ${DB_USER}
+      DAGSTER_PG_PASSWORD: ${DB_PASSWORD}
+      DAGSTER_PG_HOST: postgres
+      DAGSTER_PG_DB: ${DB_NAME}
+      DAGSTER_PG_PORT: 5432
+    volumes:
+      - ./orchestration:/app
+      - ./orchestration/dagster:/opt/dagster
+    ports:
+      - "3001:3001"
+    command: ["dagster-webserver", "-h", "0.0.0.0", "-p", "3001"]
+    depends_on:
+      - postgres
+    networks:
+      - matchup
 
 volumes:
-  api:
-  database_postgres:
-  redis_data:
-  dagster_home:
+  postgres_data:
 
-# Networks to be created to facilitate communication between containers
 networks:
   matchup:
     driver: bridge

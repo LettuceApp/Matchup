@@ -1,0 +1,7 @@
+2025-12-11 00:06:08 +0000 - dagster - DEBUG - __ASSET_JOB - 7d7a6db9-9f9f-4b50-aa8a-696889df0a66 - 1077 - LOGS_CAPTURED - Started capturing logs in process (pid: 1077).
+2025-12-11 00:06:08 +0000 - dagster - DEBUG - __ASSET_JOB - 7d7a6db9-9f9f-4b50-aa8a-696889df0a66 - 1077 - raw_matchups - STEP_START - Started execution of step "raw_matchups".
+2025-12-11 00:06:08 +0000 - dagster - DEBUG - __ASSET_JOB - 7d7a6db9-9f9f-4b50-aa8a-696889df0a66 - 1077 - raw_matchups - STEP_OUTPUT - Yielded output "result" of type "DataFrame". (Type check passed).
+2025-12-11 00:06:08 +0000 - dagster - DEBUG - __ASSET_JOB - 7d7a6db9-9f9f-4b50-aa8a-696889df0a66 - raw_matchups - Writing file at: /opt/dagster/storage/raw_matchups using PickledObjectFilesystemIOManager...
+2025-12-11 00:06:08 +0000 - dagster - DEBUG - __ASSET_JOB - 7d7a6db9-9f9f-4b50-aa8a-696889df0a66 - 1077 - raw_matchups - ASSET_MATERIALIZATION - Materialized value raw_matchups.
+2025-12-11 00:06:08 +0000 - dagster - DEBUG - __ASSET_JOB - 7d7a6db9-9f9f-4b50-aa8a-696889df0a66 - 1077 - raw_matchups - HANDLED_OUTPUT - Handled output "result" using IO manager "io_manager"
+2025-12-11 00:06:08 +0000 - dagster - DEBUG - __ASSET_JOB - 7d7a6db9-9f9f-4b50-aa8a-696889df0a66 - 1077 - raw_matchups - STEP_SUCCESS - Finished execution of step "raw_matchups" in 307ms.

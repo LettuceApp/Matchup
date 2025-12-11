@@ -1,0 +1,7 @@
+2025-12-11 00:20:46 +0000 - dagster - DEBUG - __ASSET_JOB - a22b9179-df39-4f32-8fa3-0eb15e1eda62 - 1275 - LOGS_CAPTURED - Started capturing logs in process (pid: 1275).
+2025-12-11 00:20:46 +0000 - dagster - DEBUG - __ASSET_JOB - a22b9179-df39-4f32-8fa3-0eb15e1eda62 - 1275 - raw_comments - STEP_START - Started execution of step "raw_comments".
+2025-12-11 00:20:47 +0000 - dagster - DEBUG - __ASSET_JOB - a22b9179-df39-4f32-8fa3-0eb15e1eda62 - 1275 - raw_comments - STEP_OUTPUT - Yielded output "result" of type "DataFrame". (Type check passed).
+2025-12-11 00:20:47 +0000 - dagster - DEBUG - __ASSET_JOB - a22b9179-df39-4f32-8fa3-0eb15e1eda62 - raw_comments - Writing file at: /opt/dagster/storage/raw_comments using PickledObjectFilesystemIOManager...
+2025-12-11 00:20:47 +0000 - dagster - DEBUG - __ASSET_JOB - a22b9179-df39-4f32-8fa3-0eb15e1eda62 - 1275 - raw_comments - ASSET_MATERIALIZATION - Materialized value raw_comments.
+2025-12-11 00:20:47 +0000 - dagster - DEBUG - __ASSET_JOB - a22b9179-df39-4f32-8fa3-0eb15e1eda62 - 1275 - raw_comments - HANDLED_OUTPUT - Handled output "result" using IO manager "io_manager"
+2025-12-11 00:20:47 +0000 - dagster - DEBUG - __ASSET_JOB - a22b9179-df39-4f32-8fa3-0eb15e1eda62 - 1275 - raw_comments - STEP_SUCCESS - Finished execution of step "raw_comments" in 526ms.

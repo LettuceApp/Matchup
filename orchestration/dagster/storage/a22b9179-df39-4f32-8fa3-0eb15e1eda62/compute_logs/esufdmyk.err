@@ -1,0 +1,10 @@
+2025-12-11 00:20:51 +0000 - dagster - DEBUG - __ASSET_JOB - a22b9179-df39-4f32-8fa3-0eb15e1eda62 - 1394 - LOGS_CAPTURED - Started capturing logs in process (pid: 1394).
+2025-12-11 00:20:51 +0000 - dagster - DEBUG - __ASSET_JOB - a22b9179-df39-4f32-8fa3-0eb15e1eda62 - 1394 - trending_matchups - STEP_START - Started execution of step "trending_matchups".
+2025-12-11 00:20:51 +0000 - dagster - DEBUG - __ASSET_JOB - a22b9179-df39-4f32-8fa3-0eb15e1eda62 - trending_matchups - Loading file from: /opt/dagster/storage/matchup_engagement using PickledObjectFilesystemIOManager...
+2025-12-11 00:20:51 +0000 - dagster - DEBUG - __ASSET_JOB - a22b9179-df39-4f32-8fa3-0eb15e1eda62 - 1394 - trending_matchups - LOADED_INPUT - Loaded input "matchup_engagement" using input manager "io_manager", from output "result" of step "matchup_engagement"
+2025-12-11 00:20:51 +0000 - dagster - DEBUG - __ASSET_JOB - a22b9179-df39-4f32-8fa3-0eb15e1eda62 - 1394 - trending_matchups - STEP_INPUT - Got input "matchup_engagement" of type "DataFrame". (Type check passed).
+2025-12-11 00:20:51 +0000 - dagster - DEBUG - __ASSET_JOB - a22b9179-df39-4f32-8fa3-0eb15e1eda62 - 1394 - trending_matchups - STEP_OUTPUT - Yielded output "result" of type "DataFrame". (Type check passed).
+2025-12-11 00:20:51 +0000 - dagster - DEBUG - __ASSET_JOB - a22b9179-df39-4f32-8fa3-0eb15e1eda62 - trending_matchups - Writing file at: /opt/dagster/storage/trending_matchups using PickledObjectFilesystemIOManager...
+2025-12-11 00:20:51 +0000 - dagster - DEBUG - __ASSET_JOB - a22b9179-df39-4f32-8fa3-0eb15e1eda62 - 1394 - trending_matchups - ASSET_MATERIALIZATION - Materialized value trending_matchups.
+2025-12-11 00:20:51 +0000 - dagster - DEBUG - __ASSET_JOB - a22b9179-df39-4f32-8fa3-0eb15e1eda62 - 1394 - trending_matchups - HANDLED_OUTPUT - Handled output "result" using IO manager "io_manager"
+2025-12-11 00:20:51 +0000 - dagster - DEBUG - __ASSET_JOB - a22b9179-df39-4f32-8fa3-0eb15e1eda62 - 1394 - trending_matchups - STEP_SUCCESS - Finished execution of step "trending_matchups" in 455ms.

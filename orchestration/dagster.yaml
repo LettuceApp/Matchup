@@ -1,0 +1,32 @@
+instance_class: dagster-postgres
+local_artifact_storage:
+  module: dagster._core.storage.root
+  class: LocalArtifactStorage
+  config:
+    base_dir: /app/dagster_home/storage
+
+run_launcher:
+  module: dagster._core.launcher.default_run_launcher
+  class: DefaultRunLauncher
+
+run_storage:
+  module: dagster_postgres.run_storage
+  class: PostgresRunStorage
+  config:
+    postgres_db:
+      username: ${DAGSTER_PG_USERNAME}
+      password: ${DAGSTER_PG_PASSWORD}
+      hostname: ${DAGSTER_PG_HOST}
+      db_name: ${DAGSTER_PG_DB}
+      port: ${DAGSTER_PG_PORT}
+
+event_log_storage:
+  module: dagster_postgres.event_log
+  class: PostgresEventLogStorage
+  config:
+    postgres_db:
+      username: ${DAGSTER_PG_USERNAME}
+      password: ${DAGSTER_PG_PASSWORD}
+      hostname: ${DAGSTER_PG_HOST}
+      db_name: ${DAGSTER_PG_DB}
+      port: ${DAGSTER_PG_PORT}

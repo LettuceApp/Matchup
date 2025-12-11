@@ -2,9 +2,9 @@ package cache
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -15,35 +15,38 @@ var Client *redis.Client
 // InitFromEnv initializes the global Redis client using env vars.
 // This is where we plug in your Redis Cloud endpoint.
 func InitFromEnv() error {
-	addr := os.Getenv("REDIS_ADDR")
-	if addr == "" {
-		// For your Redis Cloud instance, set this in .env / docker-compose:
-		// REDIS_ADDR=redis-11982.c263.us-east-1-2.ec2.cloud.redislabs.com:11982
-		addr = "redis-11982.c263.us-east-1-2.ec2.cloud.redislabs.com:11982"
-	}
-
-	username := os.Getenv("REDIS_USERNAME") // e.g. "default"
-	password := os.Getenv("REDIS_PASSWORD") // your long password
-
-	db := 0
-	if dbStr := os.Getenv("REDIS_DB"); dbStr != "" {
-		if parsed, err := strconv.Atoi(dbStr); err == nil {
-			db = parsed
+	// Render provides rediss:// URL (TLS required)
+	valkeyURL := os.Getenv("VALKEY_URL")
+	if valkeyURL != "" {
+		opt, err := redis.ParseURL(valkeyURL)
+		if err != nil {
+			return fmt.Errorf("failed to parse VALKEY_URL: %w", err)
 		}
-	}
 
-	Client = redis.NewClient(&redis.Options{
-		Addr:     addr,
-		Username: username,
-		Password: password,
-		DB:       db,
-	})
+		// MUST enable TLS
+		opt.TLSConfig = &tls.Config{}
+
+		Client = redis.NewClient(opt)
+	} else {
+		// Local dev fallback (Docker redis — NO TLS)
+		addr := os.Getenv("REDIS_ADDR")
+		if addr == "" {
+			addr = "redis:6379"
+		}
+
+		Client = redis.NewClient(&redis.Options{
+			Addr:     addr,
+			Username: os.Getenv("REDIS_USERNAME"),
+			Password: os.Getenv("REDIS_PASSWORD"),
+			DB:       0,
+		})
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
 	if err := Client.Ping(ctx).Err(); err != nil {
-		return fmt.Errorf("failed to connect to redis: %w", err)
+		return fmt.Errorf("failed to connect to redis/valkey: %w", err)
 	}
 
 	return nil
