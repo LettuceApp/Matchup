@@ -5,25 +5,22 @@ FROM golang:1.24-alpine AS builder
 
 RUN apk add --no-cache git build-base
 
-# working directory for build
 WORKDIR /app
 
-# Copy go.mod and go.sum from root
+# Copy go.mod and go.sum first
 COPY go.mod go.sum ./
 RUN go mod download
 
 # Copy the entire repository
 COPY . .
 
-# Build the main Go application (main.go in root)
-RUN go build -o server ./
-
+# Build Go application from root (main.go)
+RUN go build -o server .
 
 ############################################
 # 2. RUN STAGE
 ############################################
 FROM alpine:3.19
-
 RUN apk add --no-cache ca-certificates
 
 WORKDIR /root/
