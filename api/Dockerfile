@@ -5,17 +5,18 @@ FROM golang:1.24-alpine AS builder
 
 RUN apk add --no-cache git build-base
 
-# Set working directory INSIDE the api folder
+# working directory for build
 WORKDIR /app
 
-# Copy ONLY the api folder
-COPY ./api/go.mod ./api/go.sum ./
+# Copy go.mod and go.sum from root
+COPY go.mod go.sum ./
 RUN go mod download
 
-COPY ./api .
+# Copy the entire repository
+COPY . .
 
-# Build the Go binary
-RUN go build -o server .
+# Build the main Go application (main.go in root)
+RUN go build -o server ./
 
 
 ############################################
@@ -29,6 +30,6 @@ WORKDIR /root/
 
 COPY --from=builder /app/server .
 
-RUN chmod +x ./server
+RUN chmod +x server
 
 CMD ["./server"]
