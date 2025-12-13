@@ -35,11 +35,27 @@ func TokenAuthMiddleware(db *gorm.DB) gin.HandlerFunc {
 // This enables us interact with the React Frontend
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+		origin := c.Request.Header.Get("Origin")
+
+		allowedOrigins := []string{
+			"https://matchup-ud05.onrender.com", // your frontend URL
+			"http://localhost:3000",
+		}
+
+		// Check if incoming Origin is allowed
+		for _, o := range allowedOrigins {
+			if origin == o {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", o)
+				break
+			}
+		}
+
+		c.Writer.Header().Set("Vary", "Origin")
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Headers",
 			"Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Accept, Origin, Cache-Control, X-Requested-With")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, PATCH, DELETE")
+		c.Writer.Header().Set("Access-Control-Allow-Methods",
+			"POST, OPTIONS, GET, PUT, PATCH, DELETE")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
