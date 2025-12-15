@@ -1,7 +1,6 @@
 // frontend/src/services/api.js
 import axios from "axios";
 
-import axios from "axios";
 
 let API_BASE_URL = process.env.REACT_APP_API_BASE;
 
