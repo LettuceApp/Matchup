@@ -2,7 +2,7 @@ package middlewares
 
 import (
 	"net/http"
-	"os"
+	"strings"
 
 	"Matchup/auth"
 	"Matchup/models"
@@ -38,28 +38,33 @@ func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 
-		frontend := os.Getenv("FRONTEND_BASE_URL")
 		allowedOrigins := []string{
-			frontend,
+			"https://matchup-uud5.onrender.com",
 			"http://localhost:3000",
+			"http://localhost:5173",
+			"https://*.onrender.com",
 		}
 
+		// Match origins dynamically
+		allowed := false
 		for _, o := range allowedOrigins {
-			if o == origin {
-				c.Writer.Header().Set("Access-Control-Allow-Origin", o)
+			if o == origin || strings.Contains(o, "*") {
+				allowed = true
 				break
 			}
 		}
 
-		c.Writer.Header().Set("Vary", "Origin")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers",
-			"Content-Type, Authorization, Content-Length, X-CSRF-Token, Accept, Origin, Cache-Control, X-Requested-With")
-		c.Writer.Header().Set("Access-Control-Allow-Methods",
-			"POST, GET, OPTIONS, PUT, PATCH, DELETE")
+		if allowed {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+		}
 
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+
+		// REQUIRED FOR RENDER CORS
 		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
+			c.AbortWithStatus(200)
 			return
 		}
 
