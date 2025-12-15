@@ -40,6 +40,7 @@ func CORSMiddleware() gin.HandlerFunc {
 		allowedOrigins := []string{
 			"https://matchup-ud05.onrender.com",
 			"http://localhost:3000",
+			"https://matchup-vh16.onrender.com",
 		}
 
 		for _, o := range allowedOrigins {
