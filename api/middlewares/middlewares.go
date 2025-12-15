@@ -2,7 +2,6 @@ package middlewares
 
 import (
 	"net/http"
-	"strings"
 
 	"Matchup/auth"
 	"Matchup/models"
@@ -36,35 +35,29 @@ func TokenAuthMiddleware(db *gorm.DB) gin.HandlerFunc {
 // This enables us interact with the React Frontend
 func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		origin := c.Request.Header.Get("Origin")
 
-		allowedOrigins := []string{
-			"https://matchup-uud5.onrender.com",
-			"http://localhost:3000",
-			"http://localhost:5173",
-			"https://*.onrender.com",
+		origin := c.GetHeader("Origin")
+
+		allowedOrigins := map[string]bool{
+			"https://matchup-uud5.onrender.com": true,
+			"https://matchup-vhl6.onrender.com": true, // backend URL can call itself
+			"http://localhost:3000":             true,
+			"http://localhost:5173":             true,
 		}
 
-		// Match origins dynamically
-		allowed := false
-		for _, o := range allowedOrigins {
-			if o == origin || strings.Contains(o, "*") {
-				allowed = true
-				break
-			}
+		if allowedOrigins[origin] {
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Vary", "Origin")
 		}
 
-		if allowed {
-			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
-		}
+		c.Header("Access-Control-Allow-Credentials", "true")
+		c.Header("Access-Control-Allow-Headers",
+			"Origin, Content-Type, Authorization, Accept")
+		c.Header("Access-Control-Allow-Methods",
+			"GET, POST, PUT, PATCH, DELETE, OPTIONS")
 
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-
-		// REQUIRED FOR RENDER CORS
 		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(200)
+			c.AbortWithStatus(204)
 			return
 		}
 
