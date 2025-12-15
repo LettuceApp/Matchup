@@ -35,10 +35,7 @@ func Run() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = os.Getenv("API_PORT")
-		if port == "" {
-			port = "8888"
-		}
+		port = "8888"
 	}
 
 	addr := ":" + strings.TrimSpace(port)
