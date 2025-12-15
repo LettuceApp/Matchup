@@ -6,10 +6,10 @@ import (
 	"io"
 	"net/http"
 
-	"Matchup/api/auth"
-	"Matchup/api/models"
-	"Matchup/api/security"
-	"Matchup/api/utils/formaterror"
+	"Matchup/auth"
+	"Matchup/models"
+	"Matchup/security"
+	"Matchup/utils/formaterror"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"

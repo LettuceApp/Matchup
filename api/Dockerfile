@@ -1,12 +1,15 @@
-FROM golang:1.22 AS build
+FROM golang:1.24 AS builder
 
 WORKDIR /app
-COPY api/go.mod api/go.sum ./
+
+COPY go.mod go.sum ./
 RUN go mod download
 
-COPY api/ .
-RUN go build -o server .
+COPY . .
+RUN go build -o server ./cmd
 
 FROM gcr.io/distroless/base-debian12
-COPY --from=build /app/server /server
-CMD ["/server"]
+WORKDIR /app
+COPY --from=builder /app/server .
+EXPOSE 8888
+CMD ["/app/server"]

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"Matchup/api"
+	api "Matchup"
 )
 
 func main() {

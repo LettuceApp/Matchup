@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"time"
 
-	"Matchup/api/auth"
-	"Matchup/api/models"
-	"Matchup/api/utils/formaterror"
-	httpctx "Matchup/api/utils/httpctx"
+	"Matchup/auth"
+	"Matchup/models"
+	"Matchup/utils/formaterror"
+	httpctx "Matchup/utils/httpctx"
 
 	"github.com/gin-gonic/gin"
 )

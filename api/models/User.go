@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"Matchup/api/security"
+	"Matchup/security"
 
 	"github.com/badoux/checkmail"
 	"gorm.io/gorm"

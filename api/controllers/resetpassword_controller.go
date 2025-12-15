@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"os"
 
-	"Matchup/api/mailer"
-	"Matchup/api/models"
-	"Matchup/api/security"
-	"Matchup/api/utils/formaterror"
+	"Matchup/mailer"
+	"Matchup/models"
+	"Matchup/security"
+	"Matchup/utils/formaterror"
 
 	"github.com/gin-gonic/gin"
 )

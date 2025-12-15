@@ -28,7 +28,7 @@ services:
 
   api:
     build:
-      context: .
+      context: ./api
       dockerfile: ./api/Dockerfile
     container_name: matchup-api
     env_file:

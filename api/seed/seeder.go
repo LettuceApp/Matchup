@@ -3,7 +3,7 @@ package seed
 import (
 	"log"
 
-	"Matchup/api/models"
+	"Matchup/models"
 
 	"github.com/jinzhu/gorm"
 )

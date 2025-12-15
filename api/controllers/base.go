@@ -8,9 +8,9 @@ import (
 	"os"
 	"strings"
 
-	"Matchup/api/cache"
-	"Matchup/api/middlewares"
-	"Matchup/api/models"
+	"Matchup/cache"
+	"Matchup/middlewares"
+	"Matchup/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"

@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"testing"
 
-	"Matchup/api/controllers"
-	"Matchup/api/models"
+	"Matchup/controllers"
+	"Matchup/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"

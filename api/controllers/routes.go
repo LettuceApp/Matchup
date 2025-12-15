@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"Matchup/api/middlewares"
+	"Matchup/middlewares"
 )
 
 func (s *Server) initializeRoutes() {

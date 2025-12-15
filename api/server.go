@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"Matchup/api/controllers"
+	"Matchup/controllers"
 
 	"github.com/joho/godotenv"
 )

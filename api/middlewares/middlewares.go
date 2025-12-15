@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"os"
 
-	"Matchup/api/auth"
-	"Matchup/api/models"
+	"Matchup/auth"
+	"Matchup/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"

@@ -11,11 +11,11 @@ import (
 	"strconv"
 	"strings"
 
-	"Matchup/api/models"
-	"Matchup/api/security"
-	"Matchup/api/utils/fileformat"
-	"Matchup/api/utils/formaterror"
-	httpctx "Matchup/api/utils/httpctx"
+	"Matchup/models"
+	"Matchup/security"
+	"Matchup/utils/fileformat"
+	"Matchup/utils/formaterror"
+	httpctx "Matchup/utils/httpctx"
 
 	aws2 "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"

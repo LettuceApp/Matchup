@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"Matchup/api/auth"
-	"Matchup/api/cache"
-	"Matchup/api/models"
-	"Matchup/api/utils/formaterror"
-	httpctx "Matchup/api/utils/httpctx"
+	"Matchup/auth"
+	"Matchup/cache"
+	"Matchup/models"
+	"Matchup/utils/formaterror"
+	httpctx "Matchup/utils/httpctx"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
