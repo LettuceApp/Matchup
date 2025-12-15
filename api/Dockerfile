@@ -1,5 +1,5 @@
 # backend /api/Dockerfile
-FROM golang:1.22 AS build
+FROM golang:1.24 AS build
 WORKDIR /app
 COPY . .
 RUN go mod download
