@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"net/http"
+	"os"
 
 	"Matchup/api/auth"
 	"Matchup/api/models"
@@ -37,10 +38,10 @@ func CORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 
+		frontend := os.Getenv("FRONTEND_BASE_URL")
 		allowedOrigins := []string{
-			"https://matchup-ud05.onrender.com",
+			frontend,
 			"http://localhost:3000",
-			"https://matchup-vh16.onrender.com",
 		}
 
 		for _, o := range allowedOrigins {
