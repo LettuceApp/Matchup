@@ -1,11 +1,9 @@
 package middlewares
 
 import (
-	"net/http"
-	"strings"
-
 	"Matchup/auth"
 	"Matchup/models"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -34,34 +32,36 @@ func TokenAuthMiddleware(db *gorm.DB) gin.HandlerFunc {
 }
 
 func CORSMiddleware() gin.HandlerFunc {
-	allowedOrigins := []string{
-		"https://matchup-uud5.onrender.com", // frontend
-		"https://matchup-vh16.onrender.com", // backend (for redirects, health checks)
-		"http://localhost:3000",
-		"http://localhost:8888",
-	}
-
 	return func(c *gin.Context) {
+
+		allowedOrigins := []string{
+			"http://localhost:3000",
+			"http://127.0.0.1:3000",
+			"https://matchup-uud5.onrender.com", // YOUR FRONTEND
+		}
+
 		origin := c.Request.Header.Get("Origin")
 
-		// If origin is allowed, set headers
+		// Default: no origin allowed
+		allowOrigin := ""
+
 		for _, o := range allowedOrigins {
-			if strings.EqualFold(o, origin) {
-				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
-				c.Writer.Header().Set("Vary", "Origin")
+			if origin == o {
+				allowOrigin = o
 				break
 			}
 		}
 
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers",
-			"Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept")
-		c.Writer.Header().Set("Access-Control-Allow-Methods",
-			"GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		if allowOrigin != "" {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", allowOrigin)
+		}
 
-		// Respond immediately to preflight
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+
 		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
+			c.AbortWithStatus(200)
 			return
 		}
 

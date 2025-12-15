@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log"
 	"os"
 
 	"Matchup/controllers"
@@ -11,18 +12,19 @@ import (
 var server = controllers.Server{}
 
 func init() {
-	// Load .env only outside production. On Heroku, config comes from Config Vars.
+	// Only load .env in local dev
 	if os.Getenv("APP_ENV") != "production" {
 		_ = godotenv.Load()
 	}
 }
 
 func Run() {
-	// Local convenience: try loading .env again (no-op in prod).
-	_ = godotenv.Load()
+	// Make sure Gin runs in release mode on Render
+	if os.Getenv("APP_ENV") == "production" {
+		os.Setenv("GIN_MODE", "release")
+	}
 
-	// Initialize DB using your existing initializer.
-	// In prod, base.go will use DATABASE_URL; in dev, it will use these pieces.
+	// Initialize DB (in prod, base.go uses DATABASE_URL)
 	server.Initialize(
 		os.Getenv("DB_USER"),
 		os.Getenv("DB_PASSWORD"),
@@ -31,10 +33,13 @@ func Run() {
 		os.Getenv("DB_NAME"),
 	)
 
+	// Render provides PORT, fallback for local dev only
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "10000" // Render default fallback
+		port = "10000"
 	}
-	server.Run(":" + port)
 
+	log.Printf("Starting server on port %s\n", port)
+
+	server.Run(":" + port)
 }

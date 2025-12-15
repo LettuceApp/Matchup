@@ -1,15 +1,14 @@
 // frontend/src/services/api.js
 import axios from "axios";
 
-// Determine API base URL
+import axios from "axios";
+
 let API_BASE_URL = process.env.REACT_APP_API_BASE;
 
-if (!API_BASE_URL) {
+if (!API_BASE_URL || API_BASE_URL.includes("localhost")) {
   if (window.location.hostname.includes("onrender.com")) {
-    // Auto-configure for Render production
-    API_BASE_URL = "https://matchup-vh16.onrender.com/api/v1";
+    API_BASE_URL = "https://matchup-vhl6.onrender.com/api/v1";
   } else {
-    // Local fallback
     API_BASE_URL = "http://localhost:8888/api/v1";
   }
 }
@@ -20,6 +19,7 @@ const API = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
 });
+
 
 
 // Attach auth token
