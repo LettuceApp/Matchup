@@ -1,9 +1,7 @@
 package api
 
 import (
-	"fmt"
 	"os"
-	"strings"
 
 	"Matchup/controllers"
 
@@ -35,10 +33,8 @@ func Run() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8888"
+		port = "10000" // Render default fallback
 	}
+	server.Run(":" + port)
 
-	addr := ":" + strings.TrimSpace(port)
-	fmt.Printf("Listening on %s\n", addr)
-	server.Run(addr)
 }

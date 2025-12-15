@@ -8,6 +8,7 @@ func (s *Server) initializeRoutes() {
 	v1 := s.Router.Group("/api/v1")
 	{
 		// ---------- Public routes ----------
+		v1.OPTIONS("/*path", middlewares.CORSMiddleware())
 
 		// Auth & password reset (with stricter rate limit)
 		v1.POST("/login", middlewares.LoginRateLimitMiddleware(), s.Login)
@@ -80,5 +81,6 @@ func (s *Server) initializeRoutes() {
 		admin.PATCH("/users/:id/role", s.AdminUpdateUserRole)
 		admin.GET("/matchups", s.AdminListMatchups)
 		admin.DELETE("/matchups/:id", s.AdminDeleteMatchup)
+
 	}
 }

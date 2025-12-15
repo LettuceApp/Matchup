@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"net/http"
+	"strings"
 
 	"Matchup/auth"
 	"Matchup/models"
@@ -32,30 +33,33 @@ func TokenAuthMiddleware(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-// This enables us interact with the React Frontend
 func CORSMiddleware() gin.HandlerFunc {
+	allowedOrigins := []string{
+		"https://matchup-uud5.onrender.com", // frontend
+		"https://matchup-vh16.onrender.com", // backend (for redirects, health checks)
+		"http://localhost:3000",
+		"http://localhost:8888",
+	}
+
 	return func(c *gin.Context) {
+		origin := c.Request.Header.Get("Origin")
 
-		origin := c.GetHeader("Origin")
-
-		allowedOrigins := map[string]bool{
-			"https://matchup-uud5.onrender.com": true,
-			"https://matchup-vhl6.onrender.com": true, // backend URL can call itself
-			"http://localhost:3000":             true,
-			"http://localhost:5173":             true,
+		// If origin is allowed, set headers
+		for _, o := range allowedOrigins {
+			if strings.EqualFold(o, origin) {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+				c.Writer.Header().Set("Vary", "Origin")
+				break
+			}
 		}
 
-		if allowedOrigins[origin] {
-			c.Header("Access-Control-Allow-Origin", origin)
-			c.Header("Vary", "Origin")
-		}
-
-		c.Header("Access-Control-Allow-Credentials", "true")
-		c.Header("Access-Control-Allow-Headers",
-			"Origin, Content-Type, Authorization, Accept")
-		c.Header("Access-Control-Allow-Methods",
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers",
+			"Content-Type, Authorization, X-CSRF-Token, X-Requested-With, Accept")
+		c.Writer.Header().Set("Access-Control-Allow-Methods",
 			"GET, POST, PUT, PATCH, DELETE, OPTIONS")
 
+		// Respond immediately to preflight
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return

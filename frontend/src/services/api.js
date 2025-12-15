@@ -1,13 +1,18 @@
 // frontend/src/services/api.js
 import axios from "axios";
 
-// 1) Prefer an explicit env var if it's set (for Netlify / production, etc.)
-const envBase = (process.env.REACT_APP_API_BASE || "").trim();
+// Determine API base URL
+let API_BASE_URL = process.env.REACT_APP_API_BASE;
 
-// 2) Fallback for local dev + Docker: API is exposed on localhost:8888
-const DEFAULT_API_BASE = "http://localhost:8888/api/v1";
-
-export const API_BASE_URL = envBase || DEFAULT_API_BASE;
+if (!API_BASE_URL) {
+  if (window.location.hostname.includes("onrender.com")) {
+    // Auto-configure for Render production
+    API_BASE_URL = "https://matchup-vh16.onrender.com/api/v1";
+  } else {
+    // Local fallback
+    API_BASE_URL = "http://localhost:8888/api/v1";
+  }
+}
 
 console.log("Using API base URL:", API_BASE_URL);
 
@@ -15,6 +20,7 @@ const API = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
 });
+
 
 // Attach auth token
 API.interceptors.request.use((config) => {
