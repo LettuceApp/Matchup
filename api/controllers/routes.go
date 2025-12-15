@@ -2,11 +2,18 @@ package controllers
 
 import (
 	"Matchup/middlewares"
+
+	"github.com/gin-gonic/gin"
 )
 
 func (s *Server) initializeRoutes() {
 	v1 := s.Router.Group("/api/v1")
 	{
+
+		// Simple health check so your backend root doesn't 404
+		v1.GET("/", func(c *gin.Context) {
+			c.JSON(200, gin.H{"status": "backend running"})
+		})
 		// ---------- Public routes ----------
 		v1.OPTIONS("/*path", middlewares.CORSMiddleware())
 
