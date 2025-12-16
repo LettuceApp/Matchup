@@ -37,7 +37,8 @@ func CORSMiddleware() gin.HandlerFunc {
 		allowedOrigins := []string{
 			"http://localhost:3000",
 			"http://127.0.0.1:3000",
-			"https://matchup-uud5.onrender.com", // YOUR FRONTEND
+			"https://matchup-uud5.onrender.com", // frontend
+			"https://matchup-vhl6.onrender.com", // backend (needed for some browsers)
 		}
 
 		origin := c.Request.Header.Get("Origin")

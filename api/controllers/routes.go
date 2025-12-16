@@ -15,8 +15,6 @@ func (s *Server) initializeRoutes() {
 			c.JSON(200, gin.H{"status": "backend running"})
 		})
 		// ---------- Public routes ----------
-		v1.OPTIONS("/*path", middlewares.CORSMiddleware())
-
 		// Auth & password reset (with stricter rate limit)
 		v1.POST("/login", middlewares.LoginRateLimitMiddleware(), s.Login)
 		v1.POST("/password/forgot", middlewares.LoginRateLimitMiddleware(), s.ForgotPassword)
