@@ -36,7 +36,7 @@ func Run() {
 	// Render provides PORT, fallback for local dev only
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "10000"
+		port = "8080"
 	}
 
 	log.Printf("Starting server on port %s\n", port)
