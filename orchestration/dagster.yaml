@@ -12,26 +12,7 @@ run_launcher:
   module: dagster._core.launcher.default_run_launcher
   class: DefaultRunLauncher
 
-run_storage:
-  module: dagster_postgres.run_storage
-  class: PostgresRunStorage
-  config:
+storage:
+  postgres:
     postgres_url: ${DAGSTER_PG_URL}
-
-event_log_storage:
-  module: dagster_postgres.event_log
-  class: PostgresEventLogStorage
-  config:
-    postgres_url: ${DAGSTER_PG_URL}
-
-schedule_storage:
-  module: dagster_postgres.schedule_storage
-  class: PostgresScheduleStorage
-  config:
-    postgres_url: ${DAGSTER_PG_URL}
-
-sensor_storage:
-  module: dagster_postgres.sensor_storage
-  class: PostgresSensorStorage
-  config:
-    postgres_url: ${DAGSTER_PG_URL}
+    should_autocreate_tables: true
