@@ -1,6 +1,6 @@
 instance_class:
-  module: dagster_postgres.instance
-  class: DagsterPostgresInstance
+  module: dagster._core.instance
+  class: DagsterInstance
 
 local_artifact_storage:
   module: dagster._core.storage.root
@@ -17,9 +17,9 @@ run_storage:
   class: PostgresRunStorage
   config:
     postgres_db:
+      hostname: ${DAGSTER_PG_HOST}
       username: ${DAGSTER_PG_USERNAME}
       password: ${DAGSTER_PG_PASSWORD}
-      hostname: ${DAGSTER_PG_HOST}
       db_name: ${DAGSTER_PG_DB}
       port: ${DAGSTER_PG_PORT}
 
@@ -28,8 +28,16 @@ event_log_storage:
   class: PostgresEventLogStorage
   config:
     postgres_db:
+      hostname: ${DAGSTER_PG_HOST}
       username: ${DAGSTER_PG_USERNAME}
       password: ${DAGSTER_PG_PASSWORD}
-      hostname: ${DAGSTER_PG_HOST}
       db_name: ${DAGSTER_PG_DB}
       port: ${DAGSTER_PG_PORT}
+
+schedule_storage:
+  module: dagster_postgres.schedule_storage
+  class: PostgresScheduleStorage
+  config:
+    postgres_db:
+      hostname: ${DAGSTER_PG_HOST}
+      username: ${DAGSTER_PG_USERNAME}
