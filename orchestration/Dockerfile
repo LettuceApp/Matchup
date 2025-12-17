@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir dagster dagster-webserver dagster-postgres python
 COPY . .
 
 RUN mkdir -p /opt/dagster
-COPY dagster.yaml /opt/dagster/dagster.yaml
-COPY workspace.yaml /app/workspace.yaml
+COPY orchestration/dagster.yaml /opt/dagster/dagster.yaml
+COPY orchestration/workspace.yaml /app/workspace.yaml
 
 ENV DAGSTER_HOME=/opt/dagster
