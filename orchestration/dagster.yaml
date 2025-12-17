@@ -17,33 +17,31 @@ run_storage:
   class: PostgresRunStorage
   config:
     postgres_db:
-      hostname: ${DAGSTER_PG_HOST}
-      username: ${DAGSTER_PG_USERNAME}
-      password: ${DAGSTER_PG_PASSWORD}
-      db_name: ${DAGSTER_PG_DB}
-      port:
-        env: DAGSTER_PG_PORT
+      hostname: dpg-d4ti8s2dbo4c73f0ikg0-a
+      username: matchup_postgres_user
+      password: 1gKt1IIREOosDwx49hVzwjjVqEpfpGTF
+      db_name: matchup_postgres
+      port: 5432
 
 event_log_storage:
   module: dagster_postgres.event_log
   class: PostgresEventLogStorage
   config:
     postgres_db:
-      hostname: ${DAGSTER_PG_HOST}
-      username: ${DAGSTER_PG_USERNAME}
-      password: ${DAGSTER_PG_PASSWORD}
-      db_name: ${DAGSTER_PG_DB}
-      port:
-        env: DAGSTER_PG_PORT
+      hostname: dpg-d4ti8s2dbo4c73f0ikg0-a
+      username: matchup_postgres_user
+      password: 1gKt1IIREOosDwx49hVzwjjVqEpfpGTF
+      db_name: matchup_postgres
+      port: 5432
+
 
 schedule_storage:
   module: dagster_postgres.schedule_storage
   class: PostgresScheduleStorage
   config:
     postgres_db:
-      hostname: ${DAGSTER_PG_HOST}
-      username: ${DAGSTER_PG_USERNAME}
-      password: ${DAGSTER_PG_PASSWORD}
-      db_name: ${DAGSTER_PG_DB}
-      port:
-        env: DAGSTER_PG_PORT
+      hostname: dpg-d4ti8s2dbo4c73f0ikg0-a
+      username: matchup_postgres_user
+      password: 1gKt1IIREOosDwx49hVzwjjVqEpfpGTF
+      db_name: matchup_postgres
+      port: 5432
