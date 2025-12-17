@@ -1,7 +1,3 @@
-instance_class:
-  module: dagster._core.instance
-  class: DagsterInstance
-
 local_artifact_storage:
   module: dagster._core.storage.root
   class: LocalArtifactStorage
