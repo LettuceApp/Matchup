@@ -1,4 +1,7 @@
-instance_class: dagster-postgres
+instance_class:
+  module: dagster_postgres.instance
+  class: DagsterPostgresInstance
+
 local_artifact_storage:
   module: dagster._core.storage.root
   class: LocalArtifactStorage
