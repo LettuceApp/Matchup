@@ -7,20 +7,22 @@ FROM python:3.10-slim
 RUN apt-get update && apt-get install -y supervisor && \
     mkdir -p /var/log/supervisor
 
-# Working directory for your app
+# Set working directory
 WORKDIR /app
 
-# Copy project files FIRST
+# Copy all project files
 COPY . /app
 
-# Install Python dependencies
+# Install your Python package
 RUN pip install --no-cache-dir .
 
-# Dagster storage directory
+# Create Dagster storage directory
 RUN mkdir -p /opt/dagster/storage
+
+# Copy Dagster config
 COPY dagster.yaml /opt/dagster/dagster.yaml
 
-# Copy workspace (must be in same folder as code)
+# Copy workspace
 COPY workspace.yaml /app/workspace.yaml
 
 # ================================
@@ -33,19 +35,21 @@ COPY <<EOF /etc/supervisor/conf.d/dagster.conf
 nodaemon=true
 
 [program:webserver]
-command=dagster-webserver -h 0.0.0.0 -p 3001 -w /app/workspace.yaml
+command=dagster-webserver -h 0.0.0.0 -p 3000 -w /app/workspace.yaml
+environment=DAGSTER_HOME="/opt/dagster"
 autostart=true
 autorestart=true
 priority=10
 
 [program:daemon]
 command=dagster-daemon run
+environment=DAGSTER_HOME="/opt/dagster"
 autostart=true
 autorestart=true
 priority=20
 EOF
 
 # ================================
-# Start Supervisord (runs both)
+# Start supervisord (runs BOTH Dagster processes)
 # ================================
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/dagster.conf"]
