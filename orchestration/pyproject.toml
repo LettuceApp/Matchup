@@ -2,15 +2,14 @@
 name = "matchup_orchestration"
 version = "0.1.0"
 dependencies = [
-  "dagster==1.12.6",
-  "dagster-webserver==1.12.6",
-  "dagster-postgres==1.12.6",
+  "dagster",
+  "dagster-webserver",
+  "dagster-postgres",
   "python-dotenv",
   "pandas",
   "sqlalchemy",
   "psycopg2-binary"
 ]
-
 
 [tool.setuptools]
 py-modules = ["definitions", "assets"]

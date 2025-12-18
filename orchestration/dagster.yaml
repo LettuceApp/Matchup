@@ -1,29 +1,43 @@
 storage:
-
   run:
     module: dagster_postgres.run_storage
     class: PostgresRunStorage
     config:
-      postgres_url: "postgresql://matchup_postgres_user:...@host:5432/matchup_postgres"
+      postgres_url:
+        username: matchup_postgres_user
+        password: 1gKt1IIREOosDwx49hVzwjjVqEpfpGTF
+        hostname: dpg-d4ti8s2dbo4c73f0ikg0-a
+        db_name: matchup_postgres
+        port: 5432
 
   event_log:
     module: dagster_postgres.event_log
     class: PostgresEventLogStorage
     config:
-      postgres_url: "postgresql://matchup_postgres_user:...@host:5432/matchup_postgres"
+      postgres_url:
+        username: matchup_postgres_user
+        password: 1gKt1IIREOosDwx49hVzwjjVqEpfpGTF
+        hostname: dpg-d4ti8s2dbo4c73f0ikg0-a
+        db_name: matchup_postgres
+        port: 5432
 
   schedule:
     module: dagster_postgres.schedule_storage
     class: PostgresScheduleStorage
     config:
-      postgres_url: "postgresql://matchup_postgres_user:...@host:5432/matchup_postgres"
-
-run_launcher:
-  module: dagster._core.launcher.default_run_launcher
-  class: DefaultRunLauncher
+      postgres_url:
+        username: matchup_postgres_user
+        password: 1gKt1IIREOosDwx49hVzwjjVqEpfpGTF
+        hostname: dpg-d4ti8s2dbo4c73f0ikg0-a
+        db_name: matchup_postgres
+        port: 5432
 
 local_artifact_storage:
   module: dagster._core.storage.root
   class: LocalArtifactStorage
   config:
     base_dir: /opt/dagster/storage
+
+run_launcher:
+  module: dagster._core.launcher.default_run_launcher
+  class: DefaultRunLauncher
