@@ -1,4 +1,4 @@
 load_from:
   - python_file:
-      module: "definitions"
-
+      relative_path: "definitions.py"
+      location_name: "matchup_orchestration"
