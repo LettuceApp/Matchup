@@ -4,19 +4,19 @@ storage:
     module: dagster_postgres.run_storage
     class: PostgresRunStorage
     config:
-      postgres_url: "postgresql://matchup_postgres_user:1gKt1IIREOosDwx49hVzwjjVqEpfpGTF@dpg-d4ti8s2dbo4c73f0ikg0-a:5432/matchup_postgres"
+      postgres_url: "postgresql://matchup_postgres_user:...@host:5432/matchup_postgres"
 
   event_log:
     module: dagster_postgres.event_log
     class: PostgresEventLogStorage
     config:
-      postgres_url: "postgresql://matchup_postgres_user:1gKt1IIREOosDwx49hVzwjjVqEpfpGTF@dpg-d4ti8s2dbo4c73f0ikg0-a:5432/matchup_postgres"
+      postgres_url: "postgresql://matchup_postgres_user:...@host:5432/matchup_postgres"
 
   schedule:
     module: dagster_postgres.schedule_storage
     class: PostgresScheduleStorage
     config:
-      postgres_url: "postgresql://matchup_postgres_user:1gKt1IIREOosDwx49hVzwjjVqEpfpGTF@dpg-d4ti8s2dbo4c73f0ikg0-a:5432/matchup_postgres"
+      postgres_url: "postgresql://matchup_postgres_user:...@host:5432/matchup_postgres"
 
 run_launcher:
   module: dagster._core.launcher.default_run_launcher
