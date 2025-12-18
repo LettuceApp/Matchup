@@ -1,7 +1,0 @@
-2025-12-11 00:21:46 +0000 - dagster - DEBUG - __ASSET_JOB - 75717fa2-fac4-4f13-a9d3-e8d7016db1dc - 1875 - LOGS_CAPTURED - Started capturing logs in process (pid: 1875).
-2025-12-11 00:21:46 +0000 - dagster - DEBUG - __ASSET_JOB - 75717fa2-fac4-4f13-a9d3-e8d7016db1dc - 1875 - popular_matchups - STEP_START - Started execution of step "popular_matchups".
-2025-12-11 00:21:46 +0000 - dagster - DEBUG - __ASSET_JOB - 75717fa2-fac4-4f13-a9d3-e8d7016db1dc - 1875 - popular_matchups - STEP_OUTPUT - Yielded output "result" of type "Any". (Type check passed).
-2025-12-11 00:21:46 +0000 - dagster - DEBUG - __ASSET_JOB - 75717fa2-fac4-4f13-a9d3-e8d7016db1dc - popular_matchups - Writing file at: /opt/dagster/storage/popular_matchups using PickledObjectFilesystemIOManager...
-2025-12-11 00:21:46 +0000 - dagster - DEBUG - __ASSET_JOB - 75717fa2-fac4-4f13-a9d3-e8d7016db1dc - 1875 - popular_matchups - ASSET_MATERIALIZATION - Materialized value popular_matchups.
-2025-12-11 00:21:47 +0000 - dagster - DEBUG - __ASSET_JOB - 75717fa2-fac4-4f13-a9d3-e8d7016db1dc - 1875 - popular_matchups - HANDLED_OUTPUT - Handled output "result" using IO manager "io_manager"
-2025-12-11 00:21:47 +0000 - dagster - DEBUG - __ASSET_JOB - 75717fa2-fac4-4f13-a9d3-e8d7016db1dc - 1875 - popular_matchups - STEP_SUCCESS - Finished execution of step "popular_matchups" in 454ms.

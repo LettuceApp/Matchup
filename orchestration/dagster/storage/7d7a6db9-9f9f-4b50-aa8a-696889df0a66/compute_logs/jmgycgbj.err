@@ -1,7 +1,0 @@
-2025-12-11 00:06:08 +0000 - dagster - DEBUG - __ASSET_JOB - 7d7a6db9-9f9f-4b50-aa8a-696889df0a66 - 1075 - LOGS_CAPTURED - Started capturing logs in process (pid: 1075).
-2025-12-11 00:06:08 +0000 - dagster - DEBUG - __ASSET_JOB - 7d7a6db9-9f9f-4b50-aa8a-696889df0a66 - 1075 - raw_likes - STEP_START - Started execution of step "raw_likes".
-2025-12-11 00:06:08 +0000 - dagster - DEBUG - __ASSET_JOB - 7d7a6db9-9f9f-4b50-aa8a-696889df0a66 - 1075 - raw_likes - STEP_OUTPUT - Yielded output "result" of type "DataFrame". (Type check passed).
-2025-12-11 00:06:08 +0000 - dagster - DEBUG - __ASSET_JOB - 7d7a6db9-9f9f-4b50-aa8a-696889df0a66 - raw_likes - Writing file at: /opt/dagster/storage/raw_likes using PickledObjectFilesystemIOManager...
-2025-12-11 00:06:08 +0000 - dagster - DEBUG - __ASSET_JOB - 7d7a6db9-9f9f-4b50-aa8a-696889df0a66 - 1075 - raw_likes - ASSET_MATERIALIZATION - Materialized value raw_likes.
-2025-12-11 00:06:08 +0000 - dagster - DEBUG - __ASSET_JOB - 7d7a6db9-9f9f-4b50-aa8a-696889df0a66 - 1075 - raw_likes - HANDLED_OUTPUT - Handled output "result" using IO manager "io_manager"
-2025-12-11 00:06:08 +0000 - dagster - DEBUG - __ASSET_JOB - 7d7a6db9-9f9f-4b50-aa8a-696889df0a66 - 1075 - raw_likes - STEP_SUCCESS - Finished execution of step "raw_likes" in 314ms.

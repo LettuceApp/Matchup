@@ -1,7 +1,18 @@
 [project]
 name = "matchup_orchestration"
 version = "0.1.0"
-dependencies = ["dagster", "dagster-webserver", "dagster-postgres", "python-dotenv", "pandas", "sqlalchemy", "psycopg2-binary"]
+dependencies = [
+  "dagster",
+  "dagster-webserver",
+  "dagster-postgres",
+  "python-dotenv",
+  "pandas",
+  "sqlalchemy",
+  "psycopg2-binary"
+]
+
+[tool.setuptools]
+py-modules = ["definitions", "assets"]
 
 [tool.dagster]
 module_name = "definitions"
