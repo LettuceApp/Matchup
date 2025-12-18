@@ -33,7 +33,7 @@ COPY <<EOF /etc/supervisor/conf.d/dagster.conf
 nodaemon=true
 
 [program:webserver]
-command=dagster-webserver -h 0.0.0.0 -p 3000 -w /app/workspace.yaml
+command=dagster-webserver -h 0.0.0.0 -p 3001 -w /app/workspace.yaml
 autostart=true
 autorestart=true
 priority=10
