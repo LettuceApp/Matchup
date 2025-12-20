@@ -2,24 +2,19 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Copy only dependency files first for caching
 COPY requirements.txt /app/requirements.txt
 RUN pip install -r requirements.txt
 
-# Copy source code
 COPY . .
 
-# Dagster home
 ENV DAGSTER_HOME=/opt/dagster
 RUN mkdir -p /opt/dagster
 
 ENV PYTHONPATH="/app"
 
-# Config files
 COPY dagster.yaml /opt/dagster/dagster.yaml
 COPY workspace.yaml /app/workspace.yaml
 
 EXPOSE 3000
 
-# Render overrides CMD with Start Commands
 CMD ["dagster-webserver", "-h", "0.0.0.0", "-p", "3000", "-w", "/app/workspace.yaml"]
