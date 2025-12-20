@@ -222,7 +222,7 @@ func (server *Server) UpdateAvatar(c *gin.Context) {
 		return
 	}
 
-	region := os.Getenv("AWS_REGION_ENV")
+	region := os.Getenv("AWS_REGION")
 	if region == "" {
 		region = "us-east-2"
 	}

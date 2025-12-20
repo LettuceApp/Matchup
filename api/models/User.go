@@ -63,7 +63,7 @@ func (u *User) AfterFind(tx *gorm.DB) (err error) {
 		return nil
 	}
 	bucket := os.Getenv("S3_BUCKET")      // bucket name only
-	region := os.Getenv("AWS_REGION_ENV") // e.g., us-east-2
+	region := os.Getenv("AWS_REGION") // e.g., us-east-2
 	if region == "" {
 		region = "us-east-2"
 	}

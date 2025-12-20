@@ -3,10 +3,10 @@ import API, { getUser } from '../services/api';
 
 // —– Add these at the top —–
 const S3_BUCKET   = process.env.REACT_APP_S3_BUCKET;
-const AWS_REGION_ENV  = process.env.REACT_APP_AWS_REGION_ENV;
+const AWS_REGION  = process.env.REACT_APP_AWS_REGION;
 const S3_BASE_URL =
   process.env.REACT_APP_S3_BASE ||
-  `https://${S3_BUCKET}.s3.${AWS_REGION_ENV}.amazonaws.com`;
+  `https://${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com`;
 // —————————————————
 
 /**
