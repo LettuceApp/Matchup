@@ -13,6 +13,8 @@ COPY . /app
 ENV DAGSTER_HOME=/opt/dagster
 RUN mkdir -p /opt/dagster
 
+ENV PYTHONPATH="/app"
+
 # Config files
 COPY dagster.yaml /opt/dagster/dagster.yaml
 COPY workspace.yaml /app/workspace.yaml
