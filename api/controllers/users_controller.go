@@ -254,6 +254,10 @@ func (server *Server) UpdateAvatar(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "AWS configuration error"})
 		return
 	}
+	log.Printf("DEBUG UPLOAD: AWS_REGION: '%s'", os.Getenv("AWS_REGION"))
+	log.Printf("DEBUG UPLOAD: AWS_ACCESS_KEY_ID: '%s'", os.Getenv("AWS_ACCESS_KEY_ID"))
+	log.Printf("DEBUG UPLOAD: AWS_SECRET_ACCESS_KEY length: %d", len(os.Getenv("AWS_SECRET_ACCESS_KEY")))
+	log.Printf("DEBUG UPLOAD: S3_BUCKET: '%s'", os.Getenv("S3_BUCKET"))
 
 	// 6) Instantiate S3 client (path-style optional; most AWS buckets are fine without)
 	s3Client := s3.NewFromConfig(cfg)
