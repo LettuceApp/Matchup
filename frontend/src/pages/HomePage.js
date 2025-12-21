@@ -6,6 +6,8 @@ import NavigationBar from '../components/NavigationBar';
 import Button from '../components/Button';
 import '../styles/HomePage.css';
 
+const MAX_POPULAR_MATCHUPS = 5;
+
 const HomePage = () => {
   const [matchups, setMatchups] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -24,8 +26,8 @@ const HomePage = () => {
 
         // Backend may respond with { status, response } or just an array
         const matchupsData = data.response || data;
-
-        setMatchups(matchupsData || []);
+        // Only keep the first five entries for the homepage hero/list
+        setMatchups((matchupsData || []).slice(0, MAX_POPULAR_MATCHUPS));
         setError(null);
       } catch (err) {
         console.error('Failed to fetch popular matchups:', err);
