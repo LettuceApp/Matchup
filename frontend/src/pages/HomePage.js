@@ -1,7 +1,7 @@
 // frontend/src/pages/HomePage.js
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { getPopularMatchups, getUserMatchups } from '../services/api';
+import { getPopularMatchups, getUserMatchups, getMatchupLikes } from '../services/api';
 import NavigationBar from '../components/NavigationBar';
 import Button from '../components/Button';
 import '../styles/HomePage.css';
@@ -58,17 +58,40 @@ const HomePage = () => {
       }
 
       let page = 1;
-      const limit = 100;
+      const limit = 25;
       let totalPages = 1;
       let engagementAccumulator = 0;
 
-      const calculateEngagement = (matchup) => {
-        const likes = Number(matchup.likes_count) || 0;
-        const comments = Array.isArray(matchup.comments) ? matchup.comments.length : 0;
+      const currentUserId = Number(userId);
+      const calculateEngagement = (matchup, likesArray = []) => {
+        const filteredComments = Array.isArray(matchup.comments)
+          ? matchup.comments.filter(
+              (comment) => Number(comment.user_id) !== currentUserId
+            )
+          : [];
+        const filteredLikes = Array.isArray(likesArray)
+          ? likesArray.filter((like) => Number(like.user_id) !== currentUserId)
+          : [];
         const votes = Array.isArray(matchup.items)
           ? matchup.items.reduce((sum, item) => sum + (Number(item.votes) || 0), 0)
           : 0;
-        return likes + comments + votes;
+        return filteredLikes.length + filteredComments.length + votes;
+      };
+
+      const fetchLikesForMatchups = async (matchupsList) => {
+        const likesMap = {};
+        await Promise.all(
+          matchupsList.map(async (matchup) => {
+            try {
+              const res = await getMatchupLikes(matchup.id);
+              likesMap[matchup.id] = res.data?.response || [];
+            } catch (err) {
+              console.error(`Failed to load likes for matchup ${matchup.id}:`, err);
+              likesMap[matchup.id] = [];
+            }
+          })
+        );
+        return likesMap;
       };
 
       try {
@@ -78,11 +101,12 @@ const HomePage = () => {
           const matchupsData = payload.response || [];
           const paginationInfo = payload.pagination || {};
           totalPages = paginationInfo.total_pages || 1;
+          const likesMap = await fetchLikesForMatchups(matchupsData);
 
-          engagementAccumulator += matchupsData.reduce(
-            (sum, matchup) => sum + calculateEngagement(matchup),
-            0
-          );
+          engagementAccumulator += matchupsData.reduce((sum, matchup) => {
+            const likesForMatchup = likesMap[matchup.id] || [];
+            return sum + calculateEngagement(matchup, likesForMatchup);
+          }, 0);
 
           page += 1;
         } while (page <= totalPages);
