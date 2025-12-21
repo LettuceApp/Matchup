@@ -1,15 +1,16 @@
 // frontend/src/pages/HomePage.js
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { getPopularMatchups } from '../services/api'; // 🔹 changed from getUserMatchups
+import { getPopularMatchups, getUserMatchups } from '../services/api';
 import NavigationBar from '../components/NavigationBar';
 import Button from '../components/Button';
 import '../styles/HomePage.css';
 
-const MAX_POPULAR_MATCHUPS = 5;
+const MAX_POPULAR_MATCHUPS = 3;
 
 const HomePage = () => {
   const [matchups, setMatchups] = useState([]);
+  const [totalEngagements, setTotalEngagements] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -49,8 +50,52 @@ const HomePage = () => {
     navigate(`/users/${storedUserId}/create-matchup`);
   };
 
-  // For the hero card, this is the number of popular matchups (max 5)
-  const totalMatchups = matchups.length;
+  useEffect(() => {
+    const fetchUserEngagements = async () => {
+      if (!userId) {
+        setTotalEngagements(0);
+        return;
+      }
+
+      let page = 1;
+      const limit = 100;
+      let totalPages = 1;
+      let engagementAccumulator = 0;
+
+      const calculateEngagement = (matchup) => {
+        const likes = Number(matchup.likes_count) || 0;
+        const comments = Array.isArray(matchup.comments) ? matchup.comments.length : 0;
+        const votes = Array.isArray(matchup.items)
+          ? matchup.items.reduce((sum, item) => sum + (Number(item.votes) || 0), 0)
+          : 0;
+        return likes + comments + votes;
+      };
+
+      try {
+        do {
+          const response = await getUserMatchups(userId, page, limit);
+          const payload = response.data || {};
+          const matchupsData = payload.response || [];
+          const paginationInfo = payload.pagination || {};
+          totalPages = paginationInfo.total_pages || 1;
+
+          engagementAccumulator += matchupsData.reduce(
+            (sum, matchup) => sum + calculateEngagement(matchup),
+            0
+          );
+
+          page += 1;
+        } while (page <= totalPages);
+
+        setTotalEngagements(engagementAccumulator);
+      } catch (err) {
+        console.error('Failed to calculate user engagements:', err);
+        setTotalEngagements(0);
+      }
+    };
+
+    fetchUserEngagements();
+  }, [userId]);
 
   return (
     <div className="home-page">
@@ -72,8 +117,8 @@ const HomePage = () => {
           <div className="home-hero-card" aria-hidden="true">
             <div className="home-hero-card-ring" />
             <div className="home-hero-card-inner">
-              <span className="home-hero-card-label">Popular Matchups</span>
-              <span className="home-hero-card-count">{totalMatchups}</span>
+              <span className="home-hero-card-label">Your Total Engagements</span>
+              <span className="home-hero-card-count">{totalEngagements}</span>
             </div>
           </div>
         </section>
