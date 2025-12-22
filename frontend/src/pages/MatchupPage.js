@@ -195,21 +195,23 @@ const MatchupPage = () => {
 
         <section className="matchup-hero">
           <div className="matchup-hero-text">
-            <p className="matchup-overline">Matchup Detail</p>
-            <h1>{matchup.title}</h1>
-            <p className="matchup-description">{matchup.content}</p>
-            <div className="matchup-meta">
+            <p className="matchup-overline">
+              Matchup Detail
               {authorName && (
-                <span>
-                  Created by{' '}
+                <>
+                  {' · '}
                   <Link
                     to={`/users/${matchup.author_id}/profile`}
                     className="matchup-author-link"
                   >
                     {authorName}
                   </Link>
-                </span>
+                </>
               )}
+            </p>
+            <h1>{matchup.title}</h1>
+            <p className="matchup-description">{matchup.content}</p>
+            <div className="matchup-meta">
               {formattedCreatedAt && <span>Published {formattedCreatedAt}</span>}
             </div>
             <div className="matchup-actions">
