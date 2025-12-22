@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import NavigationBar from '../components/NavigationBar';
 import MatchupItem from '../components/MatchupItem';
 import Comment from '../components/Comment';
@@ -199,7 +199,17 @@ const MatchupPage = () => {
             <h1>{matchup.title}</h1>
             <p className="matchup-description">{matchup.content}</p>
             <div className="matchup-meta">
-              {authorName && <span>Created by {authorName}</span>}
+              {authorName && (
+                <span>
+                  Created by{' '}
+                  <Link
+                    to={`/users/${matchup.author_id}/profile`}
+                    className="matchup-author-link"
+                  >
+                    {authorName}
+                  </Link>
+                </span>
+              )}
               {formattedCreatedAt && <span>Published {formattedCreatedAt}</span>}
             </div>
             <div className="matchup-actions">
