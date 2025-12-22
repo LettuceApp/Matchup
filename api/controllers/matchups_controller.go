@@ -23,6 +23,12 @@ import (
 
 // toMatchupResponse converts a Matchup model to a response-friendly structure
 func toMatchupResponse(matchup *models.Matchup, comments []models.Comment, likesCount int64) map[string]interface{} {
+
+	author := map[string]interface{}{
+		"id":       matchup.AuthorID,
+		"username": matchup.Author.Username,
+	}
+
 	itemResponses := make([]map[string]interface{}, len(matchup.Items))
 	for i, item := range matchup.Items {
 		itemResponses[i] = map[string]interface{}{
@@ -49,6 +55,7 @@ func toMatchupResponse(matchup *models.Matchup, comments []models.Comment, likes
 		"title":       matchup.Title,
 		"content":     matchup.Content,
 		"author_id":   matchup.AuthorID,
+		"author":      author,
 		"items":       itemResponses,
 		"comments":    commentResponses,
 		"likes_count": likesCount,
