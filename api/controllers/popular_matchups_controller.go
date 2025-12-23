@@ -1,7 +1,11 @@
 package controllers
 
 import (
+	"Matchup/cache"
+	"context"
+	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -20,28 +24,25 @@ type PopularMatchup struct {
 
 // GetPopularMatchups returns the top popular matchups from the analytics table
 func (server *Server) GetPopularMatchups(c *gin.Context) {
-	const defaultLimit = 5
+	const limit = 5
+	cacheKey := "popular_matchups:top3"
+	ctx := context.Background()
 
-	// You can optionally read ?limit= param if you want, but we'll keep it fixed at 5
+	// 1. Try Redis first
+	if cached, err := cache.Get(ctx, cacheKey); err == nil && cached != "" {
+		c.Data(http.StatusOK, "application/json", []byte(cached))
+		return
+	}
+
+	// 2. Fallback to DB
 	var results []PopularMatchup
-
-	// Map matchup_id -> id so the frontend sees the same "id" it expects
-	tx := server.DB.
+	err := server.DB.
 		Table("popular_matchups").
-		Select(`
-            matchup_id,
-            title,
-            author_id,
-            total_votes,
-            likes,
-            comments,
-            engagement_score,
-            rank
-        `).
 		Order("rank ASC").
-		Limit(defaultLimit)
+		Limit(limit).
+		Scan(&results).Error
 
-	if err := tx.Scan(&results).Error; err != nil {
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "failed to load popular matchups",
@@ -49,6 +50,15 @@ func (server *Server) GetPopularMatchups(c *gin.Context) {
 		return
 	}
 
+	// 3. Cache result (short TTL)
+	if jsonBytes, err := json.Marshal(gin.H{
+		"status":   "success",
+		"response": results,
+	}); err == nil {
+		_ = cache.Set(ctx, cacheKey, jsonBytes, 60*time.Second)
+	}
+
+	// 4. Return response
 	c.JSON(http.StatusOK, gin.H{
 		"status":   "success",
 		"response": results,

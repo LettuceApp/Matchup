@@ -6,8 +6,6 @@ import NavigationBar from '../components/NavigationBar';
 import Button from '../components/Button';
 import '../styles/HomePage.css';
 
-const MAX_POPULAR_MATCHUPS = 3;
-
 const HomePage = () => {
   const [matchups, setMatchups] = useState([]);
   const [totalEngagements, setTotalEngagements] = useState(0);
@@ -25,10 +23,9 @@ const HomePage = () => {
         const response = await getPopularMatchups();
         const data = response.data;
 
-        // Backend may respond with { status, response } or just an array
+        // Backend is now responsible for returning exactly what we need (top 3)
         const matchupsData = data.response || data;
-        // Only keep the first five entries for the homepage hero/list
-        setMatchups((matchupsData || []).slice(0, MAX_POPULAR_MATCHUPS));
+        setMatchups(matchupsData || []);
         setError(null);
       } catch (err) {
         console.error('Failed to fetch popular matchups:', err);
@@ -43,12 +40,12 @@ const HomePage = () => {
 
   const navigateToCreateMatchup = () => {
     const storedUserId = localStorage.getItem('userId');
-    if (!storedUserId) {
-      return;
-    }
-    // This is your frontend route (React Router), not the API route
+    if (!storedUserId) return;
     navigate(`/users/${storedUserId}/create-matchup`);
   };
+
+  // (rest of the file remains unchanged)
+
 
   useEffect(() => {
     const fetchUserEngagements = async () => {
