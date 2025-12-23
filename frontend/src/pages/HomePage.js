@@ -194,7 +194,7 @@ const HomePage = () => {
                         <p className="home-matchup-meta">
                           Rank #{matchup.rank}
                           {typeof matchup.engagement_score !== 'undefined' &&
-                            ` · ${matchup.engagement_score} total engagements`}
+                            ` · ${Math.round(matchup.engagement_score)} total engagements`}
                         </p>
                       )}
                     </div>

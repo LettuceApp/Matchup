@@ -159,9 +159,9 @@ def popular_matchups():
 
     # --- 2. COMPUTE ANALYTICS METRIC ---
     df["engagement_score"] = (
-        df["total_votes"] * 0.5 +
-        df["likes"] * 0.3 +
-        df["comments"] * 0.2
+        df["total_votes"] * 5 +
+        df["likes"] * 3 +
+        df["comments"] * 2
     )
 
     # --- 3. RANK MATCHUPS ---
