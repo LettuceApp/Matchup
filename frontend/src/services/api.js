@@ -133,6 +133,30 @@ export const getCurrentUser = () => API.get('/me');
 // LEADERBOARD
 export const getPopularMatchups = () => API.get('/matchups/popular');
 
+// BRACKET
+export const createBracket = (userId, data) =>
+  API.post(`/users/${userId}/brackets`, data);
+
+export const getUserBrackets = (userId, params = {}) =>
+  API.get(`/users/${userId}/brackets`, { params });
+
+export const getBracket = (id) =>
+  API.get(`/brackets/${id}`);
+
+export const getBracketMatchups = (id) =>
+  API.get(`/brackets/${id}/matchups`);
+
+export const attachMatchupToBracket = (bracketId, data) =>
+  API.post(`/brackets/${bracketId}/matchups`, data);
+
+export const updateBracket = (id, data) =>
+  API.put(`/brackets/${id}`, data);
+
+export const advanceBracket = (id) =>
+  API.post(`/brackets/${id}/advance`);
+
+
+
 // ADMIN
 export const adminGetUsers = (params = {}) => API.get('/admin/users', { params });
 export const adminUpdateUserRole = (userId, data) => API.patch(`/admin/users/${userId}/role`, data);
