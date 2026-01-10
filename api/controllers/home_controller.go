@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -41,11 +42,14 @@ func (server *Server) GetHomeSummary(c *gin.Context) {
 		Order("rank ASC").
 		Limit(5).
 		Scan(&popularMatchups).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "failed to load popular matchups",
-		})
-		return
+		if !isMissingRelation(err, "popular_matchups_snapshot") {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "error",
+				"message": "failed to load popular matchups",
+			})
+			return
+		}
+		log.Printf("popular matchups snapshot missing: %v", err)
 	}
 
 	popularBrackets := []PopularBracket{}
@@ -54,11 +58,14 @@ func (server *Server) GetHomeSummary(c *gin.Context) {
 		Order("rank ASC").
 		Limit(5).
 		Scan(&popularBrackets).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "failed to load popular brackets",
-		})
-		return
+		if !isMissingRelation(err, "popular_brackets_snapshot") {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "error",
+				"message": "failed to load popular brackets",
+			})
+			return
+		}
+		log.Printf("popular brackets snapshot missing: %v", err)
 	}
 
 	totalEngagements := 0.0
@@ -88,6 +95,14 @@ func (server *Server) GetHomeSummary(c *gin.Context) {
 		"status":   "success",
 		"response": response,
 	})
+}
+
+func isMissingRelation(err error, relation string) bool {
+	if err == nil {
+		return false
+	}
+	errLower := strings.ToLower(err.Error())
+	return strings.Contains(errLower, "does not exist") && strings.Contains(errLower, strings.ToLower(relation))
 }
 
 func (server *Server) calculateUserEngagement(userID uint) (float64, error) {
