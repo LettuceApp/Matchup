@@ -18,8 +18,22 @@ type Bracket struct {
 	AuthorID uint `gorm:"not null;index" json:"author_id"`
 
 	Size         int    `gorm:"not null" json:"size"`
-	Status       string `gorm:"size:20;not null;default:'draft'" json:"status"`
+	Status       string `gorm:"size:20;not null;default:'draft'" json:"status"` // draft|active|completed
 	CurrentRound int    `gorm:"default:1" json:"current_round"`
+
+	// Bracket timer ONLY (matchups inherit from bracket when in bracket)
+	AdvanceMode          string     `gorm:"size:20;not null;default:'manual'" json:"advance_mode"` // manual|timer
+	RoundDurationSeconds int        `gorm:"not null;default:0" json:"round_duration_seconds"`      // 60..86400 when timer
+	RoundStartedAt       *time.Time `json:"round_started_at,omitempty"`
+	RoundEndsAt          *time.Time `json:"round_ends_at,omitempty"`
+	CompletedAt          *time.Time `json:"completed_at,omitempty"`
+
+	// Optional champion fields for final UI highlighting
+	ChampionMatchupID *uint `json:"champion_matchup_id,omitempty"`
+	ChampionItemID    *uint `json:"champion_item_id,omitempty"`
+
+	// Computed at runtime
+	LikesCount int64 `gorm:"-" json:"likes_count"`
 
 	CreatedAt time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
 	UpdatedAt time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
@@ -44,6 +58,13 @@ func (b *Bracket) Prepare() {
 	if b.CurrentRound == 0 {
 		b.CurrentRound = 1
 	}
+
+	if strings.TrimSpace(b.AdvanceMode) == "" {
+		b.AdvanceMode = "manual"
+	}
+	if b.RoundDurationSeconds < 0 {
+		b.RoundDurationSeconds = 0
+	}
 }
 
 func (b *Bracket) Validate() map[string]string {
@@ -61,6 +82,19 @@ func (b *Bracket) Validate() map[string]string {
 	if b.Status == "" {
 		err = errors.New("required status")
 		errorsMap["Required_status"] = err.Error()
+	}
+
+	mode := strings.TrimSpace(b.AdvanceMode)
+	if mode == "" {
+		mode = "manual"
+	}
+	if mode != "manual" && mode != "timer" {
+		errorsMap["advance_mode"] = "advance_mode must be 'manual' or 'timer'"
+	}
+	if mode == "timer" {
+		if b.RoundDurationSeconds < 60 || b.RoundDurationSeconds > 86400 {
+			errorsMap["round_duration_seconds"] = "round_duration_seconds must be between 60 and 86400 (up to 24 hours)"
+		}
 	}
 
 	return errorsMap
@@ -117,11 +151,18 @@ func (b *Bracket) UpdateBracket(db *gorm.DB) (*Bracket, error) {
 	err := db.Model(&Bracket{}).
 		Where("id = ?", b.ID).
 		Updates(map[string]interface{}{
-			"title":         b.Title,
-			"description":   b.Description,
-			"status":        b.Status,
-			"current_round": b.CurrentRound,
-			"updated_at":    b.UpdatedAt,
+			"title":                  b.Title,
+			"description":            b.Description,
+			"status":                 b.Status,
+			"current_round":          b.CurrentRound,
+			"advance_mode":           b.AdvanceMode,
+			"round_duration_seconds": b.RoundDurationSeconds,
+			"round_started_at":       b.RoundStartedAt,
+			"round_ends_at":          b.RoundEndsAt,
+			"champion_matchup_id":    b.ChampionMatchupID,
+			"champion_item_id":       b.ChampionItemID,
+			"completed_at":           b.CompletedAt,
+			"updated_at":             b.UpdatedAt,
 		}).Error
 
 	if err != nil {

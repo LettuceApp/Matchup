@@ -4,26 +4,36 @@ import NavigationBar from '../components/NavigationBar';
 import {
   adminGetUsers,
   adminUpdateUserRole,
+  adminDeleteUser,
   adminGetMatchups,
   adminDeleteMatchup,
+  adminGetBrackets,
+  adminDeleteBracket,
 } from '../services/api';
 import '../styles/AdminDashboard.css';
 
 const AdminDashboard = () => {
   const [users, setUsers] = useState([]);
   const [matchups, setMatchups] = useState([]);
+  const [brackets, setBrackets] = useState([]);
   const [userPage, setUserPage] = useState(1);
   const [matchupPage, setMatchupPage] = useState(1);
+  const [bracketPage, setBracketPage] = useState(1);
   const [userPagination, setUserPagination] = useState(null);
   const [matchupPagination, setMatchupPagination] = useState(null);
+  const [bracketPagination, setBracketPagination] = useState(null);
   const [userSearchInput, setUserSearchInput] = useState('');
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [matchupSearchInput, setMatchupSearchInput] = useState('');
   const [matchupSearchQuery, setMatchupSearchQuery] = useState('');
+  const [bracketSearchInput, setBracketSearchInput] = useState('');
+  const [bracketSearchQuery, setBracketSearchQuery] = useState('');
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingMatchups, setLoadingMatchups] = useState(false);
+  const [loadingBrackets, setLoadingBrackets] = useState(false);
   const [userError, setUserError] = useState(null);
   const [matchupError, setMatchupError] = useState(null);
+  const [bracketError, setBracketError] = useState(null);
   const [actionMessage, setActionMessage] = useState('');
 
   const navigate = useNavigate();
@@ -94,6 +104,33 @@ const AdminDashboard = () => {
       .finally(() => setLoadingMatchups(false));
   }, [matchupPage, matchupSearchQuery, handleUnauthorized, handleAdminAccessLost]);
 
+  const fetchBrackets = useCallback(() => {
+    setLoadingBrackets(true);
+    setBracketError(null);
+    const params = { page: bracketPage, limit: 10 };
+    if (bracketSearchQuery) params.search = bracketSearchQuery;
+
+    adminGetBrackets(params)
+      .then((res) => {
+        const payload = res?.data?.response || res?.data;
+        setBrackets(payload?.brackets || []);
+        setBracketPagination(payload?.pagination || null);
+      })
+      .catch((err) => {
+        const status = err?.response?.status;
+        if (status === 401) {
+          handleUnauthorized();
+          return;
+        }
+        if (status === 403) {
+          handleAdminAccessLost();
+          return;
+        }
+        setBracketError('Unable to load brackets right now.');
+      })
+      .finally(() => setLoadingBrackets(false));
+  }, [bracketPage, bracketSearchQuery, handleUnauthorized, handleAdminAccessLost]);
+
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
@@ -101,6 +138,10 @@ const AdminDashboard = () => {
   useEffect(() => {
     fetchMatchups();
   }, [fetchMatchups]);
+
+  useEffect(() => {
+    fetchBrackets();
+  }, [fetchBrackets]);
 
   const handleUserSearchSubmit = (e) => {
     e.preventDefault();
@@ -112,6 +153,12 @@ const AdminDashboard = () => {
     e.preventDefault();
     setMatchupPage(1);
     setMatchupSearchQuery(matchupSearchInput.trim());
+  };
+
+  const handleBracketSearchSubmit = (e) => {
+    e.preventDefault();
+    setBracketPage(1);
+    setBracketSearchQuery(bracketSearchInput.trim());
   };
 
   const handleToggleAdmin = async (user) => {
@@ -144,8 +191,37 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleDeleteUser = async (user) => {
+    setActionMessage('');
+    if (!window.confirm(`Delete ${user.username}? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await adminDeleteUser(user.id);
+      setActionMessage('User deleted.');
+      fetchUsers();
+      fetchMatchups();
+      fetchBrackets();
+    } catch (err) {
+      const status = err?.response?.status;
+      if (status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      if (status === 403) {
+        handleAdminAccessLost();
+        return;
+      }
+      setActionMessage('Unable to delete user.');
+    }
+  };
+
   const handleDeleteMatchup = async (matchupId) => {
     setActionMessage('');
+    if (!window.confirm('Delete this matchup? This cannot be undone.')) {
+      return;
+    }
     try {
       await adminDeleteMatchup(matchupId);
       setActionMessage('Matchup deleted.');
@@ -161,6 +237,31 @@ const AdminDashboard = () => {
         return;
       }
       setActionMessage('Unable to delete matchup.');
+    }
+  };
+
+  const handleDeleteBracket = async (bracketId) => {
+    setActionMessage('');
+    if (!window.confirm('Delete this bracket and all associated matchups?')) {
+      return;
+    }
+
+    try {
+      await adminDeleteBracket(bracketId);
+      setActionMessage('Bracket deleted.');
+      fetchBrackets();
+      fetchMatchups();
+    } catch (err) {
+      const status = err?.response?.status;
+      if (status === 401) {
+        handleUnauthorized();
+        return;
+      }
+      if (status === 403) {
+        handleAdminAccessLost();
+        return;
+      }
+      setActionMessage('Unable to delete bracket.');
     }
   };
 
@@ -249,13 +350,22 @@ const AdminDashboard = () => {
                       <td>{user.is_admin ? 'Admin' : 'User'}</td>
                       <td>{new Date(user.created_at).toLocaleDateString()}</td>
                       <td>
-                        <button
-                          type="button"
-                          className="admin-link"
-                          onClick={() => handleToggleAdmin(user)}
-                        >
-                          {user.is_admin ? 'Remove Admin' : 'Make Admin'}
-                        </button>
+                        <div className="admin-action-group">
+                          <button
+                            type="button"
+                            className="admin-link"
+                            onClick={() => handleToggleAdmin(user)}
+                          >
+                            {user.is_admin ? 'Remove Admin' : 'Make Admin'}
+                          </button>
+                          <button
+                            type="button"
+                            className="admin-link admin-link--danger"
+                            onClick={() => handleDeleteUser(user)}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -336,6 +446,80 @@ const AdminDashboard = () => {
                 </tbody>
               </table>
               {renderPagination(matchupPagination, matchupPage, setMatchupPage)}
+            </>
+          )}
+        </section>
+
+        <section className="admin-section">
+          <div className="admin-section-header">
+            <div>
+              <h2>Brackets</h2>
+              <p>Review and remove brackets along with their matchups.</p>
+            </div>
+            <form className="admin-search" onSubmit={handleBracketSearchSubmit}>
+              <input
+                type="text"
+                placeholder="Search by title"
+                value={bracketSearchInput}
+                onChange={(e) => setBracketSearchInput(e.target.value)}
+              />
+              <button type="submit">Search</button>
+            </form>
+          </div>
+
+          {loadingBrackets && <div className="admin-status-card">Loading brackets…</div>}
+          {bracketError && !loadingBrackets && (
+            <div className="admin-status-card admin-status-card--error">{bracketError}</div>
+          )}
+
+          {!loadingBrackets && !bracketError && (
+            <>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Title</th>
+                    <th>Author</th>
+                    <th>Status</th>
+                    <th>Round</th>
+                    <th>Likes</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {brackets.length === 0 && (
+                    <tr>
+                      <td colSpan="8" className="admin-empty">
+                        No brackets found.
+                      </td>
+                    </tr>
+                  )}
+                  {brackets.map((bracket) => (
+                    <tr key={bracket.id}>
+                      <td>{bracket.id}</td>
+                      <td>{bracket.title}</td>
+                      <td>
+                        {bracket.author_username} (#{bracket.author_id})
+                      </td>
+                      <td>{bracket.status}</td>
+                      <td>{bracket.current_round}</td>
+                      <td>{bracket.likes_count}</td>
+                      <td>{new Date(bracket.created_at).toLocaleDateString()}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="admin-link admin-link--danger"
+                          onClick={() => handleDeleteBracket(bracket.id)}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {renderPagination(bracketPagination, bracketPage, setBracketPage)}
             </>
           )}
         </section>

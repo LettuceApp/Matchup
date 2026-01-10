@@ -29,35 +29,40 @@ services:
   api:
     build:
       context: ./api
-      dockerfile: ./api/Dockerfile
+      dockerfile: Dockerfile
     container_name: matchup-api
     env_file:
       - .env
     depends_on:
       - postgres
       - redis
-    restart: on-failure        # <-- ADDED: keep retrying until Postgres is actually ready
-    networks:
-      - matchup
+    restart: on-failure
     ports:
       - "8888:8888"
+    networks:
+      - matchup
 
   frontend:
     build:
-      context: ./frontend
+      context: .
+      dockerfile: frontend/Dockerfile
     container_name: matchup_frontend
-    ports:
-      - "3000:80"
     env_file:
       - .env
+    ports:
+      - "3000:80"
     networks:
       - matchup
+    volumes:
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
   dagster-daemon:
     build:
       context: ./orchestration
       dockerfile: Dockerfile
     container_name: matchup-dagster-daemon
+    env_file:
+      - .env
     environment:
       DAGSTER_HOME: /opt/dagster
       DAGSTER_PG_USERNAME: ${DB_USER}
@@ -68,9 +73,8 @@ services:
     volumes:
       - ./orchestration:/app
       - ./orchestration/dagster:/opt/dagster
-    command: ["dagster-daemon", "run"]
-    env_file:
-      - .env
+    command: ["dagster-daemon", "run", "--workspace", "/app/workspace.yaml"]
+
     depends_on:
       - postgres
     networks:
@@ -81,6 +85,8 @@ services:
       context: ./orchestration
       dockerfile: Dockerfile
     container_name: matchup-dagster-webserver
+    env_file:
+      - .env
     environment:
       DAGSTER_HOME: /opt/dagster
       DAGSTER_PG_USERNAME: ${DB_USER}
@@ -93,7 +99,7 @@ services:
       - ./orchestration/dagster:/opt/dagster
     ports:
       - "3001:3001"
-    command: ["dagster-webserver", "-h", "0.0.0.0", "-p", "3001"]
+    command: ["dagster-webserver", "--workspace", "/app/workspace.yaml", "-h", "0.0.0.0", "-p", "3001"]
     depends_on:
       - postgres
     networks:

@@ -1,3 +1,4 @@
+/*
 import React, { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import {
@@ -24,6 +25,8 @@ const socket = io(process.env.NEXT_PUBLIC_WS_URL || defaultSocketURL);
  * Props:
  *  - matchupId: unique identifier for the matchup in your backend
  */
+
+/*
 export default function MatchupChart({ matchupId }) {
   const [data, setData] = useState([]);
 
@@ -67,3 +70,4 @@ export default function MatchupChart({ matchupId }) {
     </Card>
   );
 }
+  */

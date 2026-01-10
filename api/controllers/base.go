@@ -110,8 +110,12 @@ func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName stri
 		&models.Matchup{},
 		&models.ResetPassword{},
 		&models.Like{},
+		&models.MatchupVote{},
+		&models.MatchupVoteRollup{},
+		&models.BracketLike{},
 		&models.Comment{},
 		&models.MatchupItem{},
+		&models.Bracket{},
 	); err != nil {
 		log.Fatalf("Error migrating database: %v", err)
 	}

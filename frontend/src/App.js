@@ -6,6 +6,8 @@ import MatchupPage from './pages/MatchupPage';
 import CreateMatchup from './pages/CreateMatchup';
 import UserProfile from './pages/UserProfile';
 import AdminDashboard from './pages/AdminDashboard';
+import CreateBracketPage from './pages/CreateBracketPage';
+import BracketPage from './pages/BracketPage';
 import { RequireAuth, RedirectIfAuth, RequireAdmin } from './auth/guards';
 import { useAuthBootstrap } from './auth/useAuthBootstrap';
 
@@ -75,6 +77,23 @@ function App() {
             </RequireAuth>
           }
         />
+        <Route 
+          path="/brackets/new" 
+          element={
+          <RequireAuth>
+            <CreateBracketPage />
+          </RequireAuth>
+          } 
+        />
+        <Route
+          path="/brackets/:id"
+          element={
+            <RequireAuth>
+              <BracketPage />
+            </RequireAuth>
+          }
+        />
+
         <Route
           path="/admin"
           element={

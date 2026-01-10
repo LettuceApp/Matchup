@@ -169,6 +169,18 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.home-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.home-section-header > div:first-child {
+  flex: 1 1 260px;
 }
 
 .home-section-header h2 {
@@ -201,6 +213,19 @@
   border-color: rgba(148, 163, 255, 0.7);
 }
 
+.home-secondary-button--alt {
+  background: rgba(249, 115, 22, 0.15);
+  border-color: rgba(249, 115, 22, 0.45);
+  color: #fed7aa;
+}
+
+.home-secondary-button--alt:hover,
+.home-secondary-button--alt:focus-visible {
+  background: rgba(249, 115, 22, 0.25);
+  border-color: rgba(249, 115, 22, 0.65);
+  color: #fff7ed;
+}
+
 .home-status-card,
 .home-empty-state {
   border-radius: 20px;
@@ -231,6 +256,17 @@
 .home-empty-state p {
   margin: 0 0 1.4rem;
   color: rgba(226, 232, 240, 0.78);
+}
+
+.home-empty-state .home-create-button {
+  min-width: 180px;
+}
+
+.home-empty-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .home-matchups-grid {

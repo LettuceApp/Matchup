@@ -4,6 +4,7 @@ import (
 	"Matchup/models"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -11,6 +12,7 @@ import (
 
 // LikeMatchup allows a user to like a specific matchup
 func (server *Server) LikeMatchup(c *gin.Context) {
+
 	// Get the authenticated user's ID
 	tokenID, exists := c.Get("userID")
 	if !exists {
@@ -27,11 +29,40 @@ func (server *Server) LikeMatchup(c *gin.Context) {
 	}
 
 	// Check if the matchup exists
-	matchup := models.Matchup{}
-	err = server.DB.Model(models.Matchup{}).Where("id = ?", uint(mid)).Take(&matchup).Error
-	if err != nil {
+	var matchup models.Matchup
+	if err := server.DB.First(&matchup, matchupID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Matchup not found"})
 		return
+	}
+
+	// 🚫 Not activated
+	if !isMatchupOpenStatus(matchup.Status) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Matchup is not active"})
+		return
+	}
+
+	if matchup.EndTime != nil && time.Now().After(*matchup.EndTime) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Matchup has ended"})
+		return
+	}
+
+	// 🧩 Bracket constraint
+	if matchup.BracketID != nil {
+		var bracket models.Bracket
+		if err := server.DB.First(&bracket, *matchup.BracketID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
+			return
+		}
+
+		if bracket.Status != "active" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Bracket is not active"})
+			return
+		}
+
+		if matchup.Round == nil || *matchup.Round != bracket.CurrentRound {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Matchup is not in the active round"})
+			return
+		}
 	}
 
 	// Check if the user has already liked the matchup

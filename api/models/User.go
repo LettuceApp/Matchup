@@ -18,7 +18,7 @@ type User struct {
 	ID         uint      `gorm:"primary_key;autoIncrement" json:"id"`
 	Username   string    `gorm:"size:255;not null;unique" json:"username"`
 	Email      string    `gorm:"size:100;not null;unique" json:"email"`
-	Password   string    `gorm:"size:255;not null" json:"-"`
+	Password   string    `gorm:"size:255;not null" json:"password"`
 	AvatarPath string    `gorm:"size:255;null;" json:"avatar_path"`
 	IsAdmin    bool      `gorm:"default:false" json:"is_admin"`
 	CreatedAt  time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`

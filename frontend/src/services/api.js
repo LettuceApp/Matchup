@@ -20,7 +20,6 @@ const API = axios.create({
 });
 
 
-
 // Attach auth token
 API.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
@@ -114,6 +113,20 @@ export const unlikeMatchup = (matchupId) =>
   API.delete(`/matchups/${matchupId}/likes`);
 
 export const getUserLikes = (userId) => API.get(`/users/${userId}/likes`);
+export const getUserMatchupVotes = (userId) => API.get(`/users/${userId}/matchup_votes`);
+
+// BRACKET LIKES
+export const getBracketLikes = (bracketId) =>
+  API.get(`/brackets/${bracketId}/likes`);
+
+export const likeBracket = (bracketId) =>
+  API.post(`/brackets/${bracketId}/likes`);
+
+export const unlikeBracket = (bracketId) =>
+  API.delete(`/brackets/${bracketId}/likes`);
+
+export const getUserBracketLikes = (userId) =>
+  API.get(`/users/${userId}/bracket_likes`);
 
 // COMMENTS
 export const createComment = (matchupId, commentData) =>
@@ -121,6 +134,11 @@ export const createComment = (matchupId, commentData) =>
 
 export const getComments = (matchupId) =>
   API.get(`/matchups/${matchupId}/comments`);
+
+export const overrideMatchupWinner = (matchupId, winnerItemId) =>
+  API.post(`/matchups/${matchupId}/override-winner`, {
+    winner_item_id: winnerItemId,
+  });
 
 export const updateComment = (id, commentData) =>
   API.put(`/comments/${id}`, commentData);
@@ -132,6 +150,14 @@ export const getCurrentUser = () => API.get('/me');
 
 // LEADERBOARD
 export const getPopularMatchups = () => API.get('/matchups/popular');
+export const getPopularBrackets = () => API.get('/brackets/popular');
+export const getHomeSummary = (userId) => {
+  const params = {};
+  if (userId) {
+    params.user_id = userId;
+  }
+  return API.get('/home', { params });
+};
 
 // BRACKET
 export const createBracket = (userId, data) =>
@@ -146,6 +172,14 @@ export const getBracket = (id) =>
 export const getBracketMatchups = (id) =>
   API.get(`/brackets/${id}/matchups`);
 
+export const getBracketSummary = (id, viewerId) => {
+  const params = {};
+  if (viewerId) {
+    params.viewer_id = viewerId;
+  }
+  return API.get(`/brackets/${id}/summary`, { params });
+};
+
 export const attachMatchupToBracket = (bracketId, data) =>
   API.post(`/brackets/${bracketId}/matchups`, data);
 
@@ -155,12 +189,35 @@ export const updateBracket = (id, data) =>
 export const advanceBracket = (id) =>
   API.post(`/brackets/${id}/advance`);
 
+export const archiveBracket = (id) =>
+  API.put(`/brackets/${id}`, { status: "archived" });
+
+export const activateMatchup = (matchupId) =>
+  API.post(`/matchups/${matchupId}/activate`);
+
+
+
+export const deleteBracket = (id) =>
+  API.delete(`/brackets/${id}`);
+
+export const completeMatchup = (matchupId) =>
+  API.post(`/matchups/${matchupId}/complete`);
+
+
+export const resolveTieAndAdvance = (matchupId, winnerItemId) =>
+  API.post(`/matchups/${matchupId}/resolve-and-advance`, {
+    winner_item_id: winnerItemId,
+  });
+
 
 
 // ADMIN
 export const adminGetUsers = (params = {}) => API.get('/admin/users', { params });
 export const adminUpdateUserRole = (userId, data) => API.patch(`/admin/users/${userId}/role`, data);
+export const adminDeleteUser = (userId) => API.delete(`/admin/users/${userId}`);
 export const adminGetMatchups = (params = {}) => API.get('/admin/matchups', { params });
 export const adminDeleteMatchup = (matchupId) => API.delete(`/admin/matchups/${matchupId}`);
+export const adminGetBrackets = (params = {}) => API.get('/admin/brackets', { params });
+export const adminDeleteBracket = (bracketId) => API.delete(`/admin/brackets/${bracketId}`);
 
 export default API;

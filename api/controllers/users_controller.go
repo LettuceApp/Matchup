@@ -66,6 +66,12 @@ func (server *Server) CreateUser(c *gin.Context) {
 	}
 
 	user.IsAdmin = false
+	if strings.TrimSpace(user.Username) == "" {
+		parts := strings.SplitN(strings.TrimSpace(user.Email), "@", 2)
+		if len(parts) > 0 && parts[0] != "" {
+			user.Username = parts[0]
+		}
+	}
 	user.Prepare()
 	errorMessages := user.Validate("")
 	if len(errorMessages) > 0 {
@@ -507,4 +513,73 @@ func (server *Server) AdminUpdateUserRole(c *gin.Context) {
 		"status":   http.StatusOK,
 		"response": userToResponse(&user),
 	})
+}
+
+// AdminDeleteUser deletes a user and their content.
+func (server *Server) AdminDeleteUser(c *gin.Context) {
+	userID := c.Param("id")
+	uid, err := strconv.ParseUint(userID, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+	id := uint(uid)
+
+	var user models.User
+	if err := server.DB.First(&user, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to load user"})
+		return
+	}
+
+	var brackets []models.Bracket
+	if err := server.DB.Where("author_id = ?", id).Find(&brackets).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to load user brackets"})
+		return
+	}
+	for i := range brackets {
+		if err := server.deleteBracketCascade(&brackets[i]); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user brackets"})
+			return
+		}
+	}
+
+	var matchups []models.Matchup
+	if err := server.DB.Where("author_id = ? AND bracket_id IS NULL", id).Find(&matchups).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to load user matchups"})
+		return
+	}
+	for i := range matchups {
+		if err := server.deleteMatchupCascade(&matchups[i]); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user matchups"})
+			return
+		}
+	}
+
+	if err := server.DB.Where("user_id = ?", id).Delete(&models.MatchupVote{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user votes"})
+		return
+	}
+	if err := server.DB.Where("user_id = ?", id).Delete(&models.Like{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user likes"})
+		return
+	}
+	if err := server.DB.Where("user_id = ?", id).Delete(&models.BracketLike{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user bracket likes"})
+		return
+	}
+	if err := server.DB.Where("user_id = ?", id).Delete(&models.Comment{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user comments"})
+		return
+	}
+
+	if _, err := user.DeleteAUser(server.DB, id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User deleted"})
 }

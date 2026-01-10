@@ -1,44 +1,47 @@
-import React, { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import NavigationBar from '../components/NavigationBar';
-import Button from '../components/Button';
-import { createMatchup } from '../services/api';
-import '../styles/CreateMatchup.css';
+import React, { useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import NavigationBar from "../components/NavigationBar";
+import Button from "../components/Button";
+import { createMatchup } from "../services/api";
+import "../styles/CreateMatchup.css";
 
 const CreateMatchup = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
 
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [items, setItems] = useState([{ item: '' }, { item: '' }]);
+  // Prefer the authenticated user id (localStorage), fallback to route param
+  const authedUserId = Number(localStorage.getItem("userId") || userId);
+
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [items, setItems] = useState([{ item: "" }, { item: "" }]);
+  const [endMode, setEndMode] = useState("timer");
+  const [durationMinutes, setDurationMinutes] = useState(60);
+  const [durationSeconds, setDurationSeconds] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const maxItems = 5;
 
   const handleTitleChange = (e) => setTitle(e.target.value);
   const handleContentChange = (e) => setContent(e.target.value);
 
   const handleItemChange = (index, value) => {
-    const newItems = [...items];
-    newItems[index].item = value;
-    setItems(newItems);
+    setItems((prev) => prev.map((it, i) => (i === index ? { ...it, item: value } : it)));
   };
 
   const addItem = () => {
-    setItems([...items, { item: '' }]);
+    setItems((prev) => (prev.length < maxItems ? [...prev, { item: "" }] : prev));
   };
 
   const removeItem = (index) => {
-    if (items.length > 1) {
-      const newItems = items.filter((_, i) => i !== index);
-      setItems(newItems);
-    }
+    setItems((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev));
   };
 
   const goBack = () => navigate(-1);
 
+  // Sanitize + validate
   const sanitizedItems = useMemo(
-    () => items.map(({ item }) => ({ item: item.trim() })),
+    () => items.map(({ item }) => ({ item: (item ?? "").trim() })),
     [items]
   );
 
@@ -49,37 +52,59 @@ const CreateMatchup = () => {
 
   const hasRequiredContenders = filledItems.length >= 2;
 
+  // All contender inputs must be non-empty (no blank rows)
+  const allInputsFilled = filledItems.length === items.length;
+
   const isCreateDisabled =
     isSubmitting ||
     title.trim().length === 0 ||
     content.trim().length === 0 ||
-    filledItems.length !== items.length ||
-    !hasRequiredContenders;
+    !allInputsFilled ||
+    !hasRequiredContenders ||
+    !Number.isFinite(authedUserId) ||
+    authedUserId <= 0;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isCreateDisabled) {
-      return;
-    }
+    if (isCreateDisabled) return;
+
+    setError(null);
 
     const matchupData = {
       title: title.trim(),
       content: content.trim(),
       items: sanitizedItems,
+      status: "draft",
+      end_mode: endMode,
     };
+    if (endMode === "timer") {
+      const totalSeconds = durationMinutes * 60 + durationSeconds;
+      if (totalSeconds < 60 || totalSeconds > 86400) {
+        setError("Timer must be between 1 minute and 24 hours.");
+        return;
+      }
+      matchupData.duration_seconds = totalSeconds;
+    }
 
     try {
       setIsSubmitting(true);
       setError(null);
-      const response = await createMatchup(userId, matchupData);
-      console.log('Matchup created:', response.data);
 
-      const newMatchupId = response.data.response.id;
+      const response = await createMatchup(authedUserId, matchupData);
 
-      navigate(`/users/${userId}/matchup/${newMatchupId}`);
-    } catch (error) {
-      console.error('Error creating matchup:', error);
-      setError('We could not create that matchup. Please review your entries and try again.');
+      const created = response?.data?.response ?? response?.data;
+      if (!created?.id) {
+        throw new Error("Create matchup response missing id");
+      }
+
+      // Use returned author_id so routing always matches backend access rules
+      const createdAuthorId =
+        created.author_id ?? created.authorId ?? created.AuthorID ?? authedUserId;
+
+      navigate(`/users/${createdAuthorId}/matchup/${created.id}`);
+    } catch (err) {
+      console.error("Error creating matchup:", err);
+      setError("We could not create that matchup. Please review your entries and try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -93,10 +118,11 @@ const CreateMatchup = () => {
           <p className="create-overline">New Matchup</p>
           <h1>Bring a fresh head-to-head to the community.</h1>
           <p className="create-subtitle">
-            Set the stage with a captivating title, tell everyone what the clash is about, and add contenders to get the debate started.
+            Set the stage with a captivating title, tell everyone what the clash is about, and add
+            contenders to get the debate started.
           </p>
           <div className="create-hero-actions">
-            <Button onClick={() => navigate('/home')} className="create-secondary-button">
+            <Button onClick={() => navigate("/home")} className="create-secondary-button">
               Back to dashboard
             </Button>
             <Button onClick={goBack} className="create-tertiary-button">
@@ -138,9 +164,65 @@ const CreateMatchup = () => {
             </div>
 
             <div className="create-form-group">
+              <label htmlFor="matchup-end-mode">
+                How should this matchup end? <span aria-hidden="true">*</span>
+              </label>
+              <select
+                id="matchup-end-mode"
+                value={endMode}
+                onChange={(e) => setEndMode(e.target.value)}
+                className="create-input"
+                required
+              >
+                <option value="manual">End manually (owner completes)</option>
+                <option value="timer">End by timer</option>
+              </select>
+            </div>
+
+            {endMode === "timer" && (
+              <div className="create-form-group">
+                <label>Timer duration</label>
+                <div className="create-duration-row">
+                  <div className="create-duration-field">
+                    <input
+                      type="number"
+                      min={0}
+                      max={1440}
+                      value={durationMinutes}
+                      onChange={(e) => {
+                        const next = Number(e.target.value);
+                        setDurationMinutes(Number.isFinite(next) ? next : 0);
+                      }}
+                      className="create-input"
+                      required
+                    />
+                    <span className="create-duration-label">Minutes</span>
+                  </div>
+                  <div className="create-duration-field">
+                    <input
+                      type="number"
+                      min={0}
+                      max={59}
+                      value={durationSeconds}
+                      onChange={(e) => {
+                        const next = Number(e.target.value);
+                        setDurationSeconds(Number.isFinite(next) ? next : 0);
+                      }}
+                      className="create-input"
+                      required
+                    />
+                    <span className="create-duration-label">Seconds</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="create-form-group">
               <div className="create-form-group-header">
                 <label>Contenders</label>
-                <span className="create-form-hint">Add at least two contenders to keep things interesting.</span>
+                <span className="create-form-hint">
+                  Add at least two contenders to keep things interesting.
+                </span>
               </div>
 
               <div className="create-items">
@@ -167,25 +249,45 @@ const CreateMatchup = () => {
                 ))}
               </div>
 
-              <Button type="button" onClick={addItem} className="create-add-button">
+              <Button
+                type="button"
+                onClick={addItem}
+                className="create-add-button"
+                disabled={items.length >= maxItems}
+              >
                 + Add another contender
               </Button>
+
+              {items.length >= maxItems && (
+                <p className="create-inline-hint" role="alert">
+                  Standalone matchups can have up to {maxItems} contenders.
+                </p>
+              )}
+
               {!hasRequiredContenders && (
                 <p className="create-inline-hint" role="alert">
                   You need at least two contenders to create a matchup.
                 </p>
               )}
+
+              {hasRequiredContenders && !allInputsFilled && (
+                <p className="create-inline-hint" role="alert">
+                  Please fill in every contender field (or remove empty ones).
+                </p>
+              )}
+
+              {!Number.isFinite(authedUserId) || authedUserId <= 0 ? (
+                <p className="create-inline-hint" role="alert">
+                  You appear to be logged out. Please sign in again to create a matchup.
+                </p>
+              ) : null}
             </div>
 
             {error && <p className="create-error">{error}</p>}
 
             <div className="create-form-actions">
-              <Button
-                type="submit"
-                className="create-primary-button"
-                disabled={isCreateDisabled}
-              >
-                {isSubmitting ? 'Creating...' : 'Create matchup'}
+              <Button type="submit" className="create-primary-button" disabled={isCreateDisabled}>
+                {isSubmitting ? "Creating..." : "Create matchup"}
               </Button>
               <Button type="button" onClick={goBack} className="create-tertiary-button">
                 Cancel
@@ -199,8 +301,11 @@ const CreateMatchup = () => {
               <span className="create-preview-count">{filledItems.length} contenders</span>
             </div>
             <div className="create-preview-body">
-              <h2>{title.trim() || 'Your matchup title will appear here'}</h2>
-              <p>{content.trim() || 'Use the description field to explain what makes this matchup exciting.'}</p>
+              <h2>{title.trim() || "Your matchup title will appear here"}</h2>
+              <p>
+                {content.trim() ||
+                  "Use the description field to explain what makes this matchup exciting."}
+              </p>
               <ul className="create-preview-list">
                 {(filledItems.length > 0 ? filledItems : sanitizedItems).map(({ item }, index) => (
                   <li key={index}>

@@ -1,0 +1,201 @@
+.create-bracket-page {
+  min-height: 100vh;
+  width: 100%;
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(59, 130, 246, 0.35) 0%, rgba(15, 23, 42, 0) 45%),
+    radial-gradient(120% 120% at 100% 0%, rgba(244, 114, 182, 0.35) 0%, rgba(15, 23, 42, 0) 45%),
+    linear-gradient(135deg, #0f172a 0%, #111c3d 100%);
+  color: #e5edff;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+}
+
+.create-bracket-content {
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 5.5rem clamp(1.5rem, 4vw, 4rem) 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.create-bracket-panel {
+  background: rgba(15, 23, 42, 0.72);
+  border-radius: 28px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  box-shadow: 0 32px 70px rgba(15, 23, 42, 0.55);
+  padding: clamp(2rem, 5vw, 3.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.create-bracket-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.create-bracket-overline {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: rgba(148, 163, 255, 0.8);
+  margin: 0;
+}
+
+.create-bracket-hero h1 {
+  margin: 0;
+  font-size: clamp(2rem, 3.6vw, 2.6rem);
+  line-height: 1.15;
+  color: #f8fbff;
+}
+
+.create-bracket-hero p {
+  margin: 0;
+  color: rgba(226, 232, 240, 0.84);
+  max-width: 36rem;
+}
+
+.create-bracket-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.create-bracket-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.create-bracket-field label {
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.95);
+}
+
+.create-bracket-hint {
+  margin: 0;
+  color: rgba(226, 232, 240, 0.72);
+  font-size: 0.9rem;
+}
+
+.create-bracket-seeds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem 1rem;
+  margin-top: 0.5rem;
+}
+
+.create-bracket-seed-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.create-bracket-seed-label {
+  font-size: 0.85rem;
+  color: rgba(226, 232, 240, 0.75);
+}
+
+.create-bracket-field input,
+.create-bracket-field textarea,
+.create-bracket-field select {
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 255, 0.3);
+  padding: 1rem 1.2rem;
+  background: rgba(15, 23, 42, 0.6);
+  color: #f1f5ff;
+  font-size: 1rem;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.create-bracket-duration {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.create-bracket-duration-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 140px;
+  flex: 1;
+}
+
+.create-bracket-duration-field span {
+  font-size: 0.85rem;
+  color: rgba(226, 232, 240, 0.75);
+}
+
+.create-bracket-field input:focus,
+.create-bracket-field textarea:focus,
+.create-bracket-field select:focus {
+  border-color: rgba(96, 165, 250, 0.8);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
+}
+
+.create-bracket-error {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  background: rgba(127, 29, 29, 0.65);
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  color: #fee2e2;
+  font-size: 0.95rem;
+}
+
+.create-bracket-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.create-bracket-button {
+  padding: 0.85rem 1.8rem;
+  border-radius: 999px;
+  border: none;
+  font-weight: 600;
+  color: #0f172a;
+  background: linear-gradient(120deg, #60a5fa, #a855f7, #f97316);
+  box-shadow: 0 18px 35px rgba(96, 165, 250, 0.35);
+  cursor: pointer;
+  transition: transform 200ms ease, box-shadow 200ms ease, filter 200ms ease;
+}
+
+.create-bracket-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.create-bracket-button--ghost {
+  color: #e0e7ff;
+  background: rgba(148, 163, 255, 0.2);
+  box-shadow: none;
+  border: 1px solid rgba(148, 163, 255, 0.45);
+}
+
+.create-bracket-button--ghost:hover,
+.create-bracket-button--ghost:focus-visible {
+  background: rgba(148, 163, 255, 0.3);
+}
+
+@media (max-width: 720px) {
+  .create-bracket-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .create-bracket-button,
+  .create-bracket-button--ghost {
+    width: 100%;
+    text-align: center;
+  }
+}

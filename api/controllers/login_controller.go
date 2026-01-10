@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"Matchup/auth"
 	"Matchup/models"
@@ -69,7 +70,8 @@ func (server *Server) SignIn(email, password string) (map[string]interface{}, er
 
 	user := models.User{}
 
-	err = server.DB.Model(models.User{}).Where("email = ?", email).Take(&user).Error
+	normalizedEmail := strings.ToLower(email)
+	err = server.DB.Model(models.User{}).Where("lower(email) = ?", normalizedEmail).Take(&user).Error
 	if err != nil {
 		fmt.Println("this is the error getting the user: ", err)
 		return nil, err

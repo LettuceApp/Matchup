@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"Matchup/controllers"
+	"Matchup/middlewares"
 	"Matchup/models"
 
 	"github.com/gin-gonic/gin"
@@ -573,7 +574,13 @@ func TestUpdateMatchup(t *testing.T) {
 		t.Fatalf("Failed to connect to in-memory database: %v", err)
 	}
 	server.DB = db
-	server.DB.AutoMigrate(&models.User{}, &models.Matchup{}, &models.MatchupItem{}, &models.Comment{})
+	server.DB.AutoMigrate(
+		&models.User{},
+		&models.Matchup{},
+		&models.MatchupItem{},
+		&models.Comment{},
+		&models.MatchupVote{},
+	)
 
 	r.POST("/api/v1/users", server.CreateUser)
 	r.POST("/api/v1/login", server.Login)
@@ -681,7 +688,9 @@ func TestIncrementMatchupItemVotes(t *testing.T) {
 	r.POST("/api/v1/users", server.CreateUser)
 	r.POST("/api/v1/login", server.Login)
 	r.POST("/api/v1/matchups", server.CreateMatchup)
-	r.PUT("/api/v1/matchups/:id/items/:item_id/vote", server.IncrementMatchupItemVotes)
+	authRoutes := r.Group("/api/v1")
+	authRoutes.Use(middlewares.TokenAuthMiddleware(server.DB))
+	authRoutes.PATCH("/matchup_items/:id/vote", server.IncrementMatchupItemVotes)
 
 	// Create and authenticate a user
 	mockUser := map[string]string{
@@ -730,11 +739,10 @@ func TestIncrementMatchupItemVotes(t *testing.T) {
 	r.ServeHTTP(matchupW, matchupReq)
 	var matchupResponse map[string]interface{}
 	json.Unmarshal(matchupW.Body.Bytes(), &matchupResponse)
-	matchupID := uint(matchupResponse["response"].(map[string]interface{})["id"].(float64))
 	itemID := uint(matchupResponse["response"].(map[string]interface{})["items"].([]interface{})[0].(map[string]interface{})["id"].(float64))
 
 	// Increment vote for the item
-	incrementReq, _ := http.NewRequest(http.MethodPut, "/api/v1/matchups/"+strconv.Itoa(int(matchupID))+"/items/"+strconv.Itoa(int(itemID))+"/vote", nil)
+	incrementReq, _ := http.NewRequest(http.MethodPatch, "/api/v1/matchup_items/"+strconv.Itoa(int(itemID))+"/vote", nil)
 	incrementReq.Header.Set("Content-Type", "application/json")
 	incrementReq.Header.Set("Authorization", "Bearer "+token)
 	incrementW := httptest.NewRecorder()

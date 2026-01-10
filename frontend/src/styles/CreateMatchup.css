@@ -149,6 +149,25 @@
   resize: vertical;
 }
 
+.create-duration-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.create-duration-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 140px;
+  flex: 1;
+}
+
+.create-duration-label {
+  font-size: 0.85rem;
+  color: rgba(226, 232, 240, 0.75);
+}
+
 .create-items {
   display: flex;
   flex-direction: column;

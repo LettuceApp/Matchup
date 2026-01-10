@@ -10,12 +10,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// PopularMatchup represents a row from the popular_matchups table
+// PopularMatchup represents a row from the popular_matchups_snapshot table
 type PopularMatchup struct {
 	ID              uint    `json:"id" gorm:"column:matchup_id"`
 	Title           string  `json:"title" gorm:"column:title"`
 	AuthorID        uint    `json:"author_id" gorm:"column:author_id"`
-	TotalVotes      int64   `json:"total_votes" gorm:"column:total_votes"`
+	BracketID       *uint   `json:"bracket_id" gorm:"column:bracket_id"`
+	BracketAuthorID *uint   `json:"bracket_author_id" gorm:"column:bracket_author_id"`
+	Round           *int    `json:"round" gorm:"column:round"`
+	CurrentRound    *int    `json:"current_round" gorm:"column:current_round"`
+	Votes           int64   `json:"votes" gorm:"column:votes"`
 	Likes           int64   `json:"likes" gorm:"column:likes"`
 	Comments        int64   `json:"comments" gorm:"column:comments"`
 	EngagementScore float64 `json:"engagement_score" gorm:"column:engagement_score"`
@@ -37,7 +41,7 @@ func (server *Server) GetPopularMatchups(c *gin.Context) {
 	// 2. Fallback to DB
 	var results []PopularMatchup
 	err := server.DB.
-		Table("popular_matchups").
+		Table("popular_matchups_snapshot").
 		Order("rank ASC").
 		Limit(limit).
 		Scan(&results).Error

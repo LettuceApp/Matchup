@@ -1,7 +1,11 @@
 import os
 import pandas as pd
+import psycopg2
 import sqlalchemy as sa
 from dagster import asset, AssetExecutionContext
+
+SERVING_TABLE = "popular_matchups_snapshot"
+POPULAR_BRACKETS_TABLE = "popular_brackets_snapshot"
 
 # ---------------------------------------------------------------------------
 # DATABASE CONNECTION
@@ -14,176 +18,495 @@ DB_URL = os.getenv(
 
 ENGINE = sa.create_engine(DB_URL)
 
+
+def _pg_dsn() -> str:
+    """
+    psycopg2 expects a postgres DSN; normalize SQLAlchemy URLs safely.
+    """
+    url = os.getenv("MATCHUP_DB_URL") or os.getenv("DATABASE_URL") or DB_URL
+    return url.replace("postgresql+psycopg2://", "postgresql://")
+
 # ---------------------------------------------------------------------------
-# RAW TABLE ASSETS
+# RAW TABLE ASSETS (SOURCE OF TRUTH)
 # ---------------------------------------------------------------------------
 
 @asset
 def raw_matchups() -> pd.DataFrame:
-    """Load all matchups from the database."""
-    query = "SELECT * FROM matchups"
     with ENGINE.connect() as conn:
-        return pd.read_sql(query, conn)
+        return pd.read_sql("SELECT * FROM matchups", conn)
+
+
+@asset
+def raw_brackets() -> pd.DataFrame:
+    with ENGINE.connect() as conn:
+        return pd.read_sql("SELECT * FROM brackets", conn)
 
 
 @asset
 def raw_matchup_items() -> pd.DataFrame:
-    """Load all matchup items (the two choices per matchup)."""
-    query = "SELECT * FROM matchup_items"
     with ENGINE.connect() as conn:
-        return pd.read_sql(query, conn)
+        return pd.read_sql("SELECT * FROM matchup_items", conn)
+
+
+@asset
+def raw_matchup_votes() -> pd.DataFrame:
+    with ENGINE.connect() as conn:
+        return pd.read_sql("SELECT * FROM matchup_votes", conn)
+
+@asset
+def raw_matchup_vote_rollups() -> pd.DataFrame:
+    with ENGINE.connect() as conn:
+        return pd.read_sql("SELECT * FROM matchup_vote_rollups", conn)
 
 
 @asset
 def raw_likes() -> pd.DataFrame:
-    """Load all likes for each matchup."""
-    query = "SELECT * FROM likes"
     with ENGINE.connect() as conn:
-        return pd.read_sql(query, conn)
+        return pd.read_sql("SELECT * FROM likes", conn)
+
+
+@asset
+def raw_bracket_likes() -> pd.DataFrame:
+    with ENGINE.connect() as conn:
+        return pd.read_sql("SELECT * FROM bracket_likes", conn)
 
 
 @asset
 def raw_comments() -> pd.DataFrame:
-    """Load all comments for each matchup."""
-    query = "SELECT * FROM comments"
     with ENGINE.connect() as conn:
-        return pd.read_sql(query, conn)
+        return pd.read_sql("SELECT * FROM comments", conn)
 
 # ---------------------------------------------------------------------------
-# ENGAGEMENT SCORE ASSET
+# ENGAGEMENT SNAPSHOT
 # ---------------------------------------------------------------------------
 
 @asset
 def matchup_engagement(
     raw_matchups: pd.DataFrame,
+    raw_brackets: pd.DataFrame,
+    raw_matchup_items: pd.DataFrame,
+    raw_matchup_votes: pd.DataFrame,
     raw_likes: pd.DataFrame,
-    raw_comments: pd.DataFrame
-) -> pd.DataFrame:
-    """Compute engagement metrics for each matchup."""
-
-    matchups = raw_matchups.copy()
-    matchups.rename(columns={"id": "matchup_id"}, inplace=True)
-
-    likes_count = raw_likes.groupby("matchup_id").size().reset_index(name="likes")
-    comments_count = raw_comments.groupby("matchup_id").size().reset_index(name="comments")
-
-    merged = (
-        matchups
-        .merge(likes_count, on="matchup_id", how="left")
-        .merge(comments_count, on="matchup_id", how="left")
-    )
-
-    merged["likes"] = merged["likes"].fillna(0).astype(int)
-    merged["comments"] = merged["comments"].fillna(0).astype(int)
-    merged["total_votes"] = merged["likes"] + merged["comments"]
-    merged["engagement_score"] = merged["total_votes"]
-
-    return merged
-
-# ---------------------------------------------------------------------------
-# TRENDING MATCHUPS (TOP 20)
-# ---------------------------------------------------------------------------
-
-@asset
-def trending_matchups(matchup_engagement: pd.DataFrame) -> pd.DataFrame:
-    """Top 20 matchups sorted by engagement score."""
-    df = matchup_engagement.sort_values("engagement_score", ascending=False)
-    return df.head(20).reset_index(drop=True)
-
-# ---------------------------------------------------------------------------
-# TOP 5 POPULAR MATCHUPS — WRITES TO DB
-# ---------------------------------------------------------------------------
-
-@asset
-def top_matchups(
-    context: AssetExecutionContext,
-    trending_matchups: pd.DataFrame
+    raw_comments: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Top 5 most-engaged matchups.
-    Persisted to the `popular_matchups` database table
-    for the API and frontend to consume.
+    Computes engagement score.
+    - Excludes self-likes
+    - Excludes self-comments
+    - Excludes interactions from bracket owners
+    - Votes exclude matchup authors and bracket owners
+    - Legacy votes fall back to matchup_items totals if no per-user votes exist
     """
-    df = trending_matchups.copy()
 
-    df = df.sort_values("engagement_score", ascending=False).head(5).reset_index(drop=True)
-
-    # Add ranking
-    df["rank"] = range(1, len(df) + 1)
-
-    # Persist to DB
-    with ENGINE.begin() as conn:
-        df.to_sql("popular_matchups", con=conn, if_exists="replace", index=False)
-
-    context.log.info("Wrote top 5 popular matchups to table 'popular_matchups'")
-
-    return df
-
-@asset
-def popular_matchups():
-    """
-    Creates and populates the 'popular_matchups' analytics table.
-    """
-    engine = sa.create_engine(DB_URL)
-
-    # --- 1. LOAD RAW DATA FROM APP TABLES ---
-    query = sa.text("""
-        SELECT
-            m.id AS matchup_id,
-            m.title,
-            m.author_id,
-
-            -- Sum votes from matchup_items
-            COALESCE(SUM(mi.votes), 0) AS total_votes,
-
-            -- Count likes
-            (
-                SELECT COUNT(*)
-                FROM likes l
-                WHERE l.matchup_id = m.id
-            ) AS likes,
-
-            -- Count comments
-            (
-                SELECT COUNT(*)
-                FROM comments c
-                WHERE c.matchup_id = m.id
-            ) AS comments
-
-        FROM matchups m
-        LEFT JOIN matchup_items mi ON mi.matchup_id = m.id
-        GROUP BY m.id, m.title, m.author_id
-    """)
-
-    df = pd.read_sql(query, engine)
-
-    # --- 2. COMPUTE ANALYTICS METRIC ---
-    df["engagement_score"] = (
-        df["total_votes"] * 5 +
-        df["likes"] * 3 +
-        df["comments"] * 2
-    )
-
-    # --- 3. RANK MATCHUPS ---
-    df = df.sort_values("engagement_score", ascending=False)
-    df["rank"] = range(1, len(df) + 1)
-
-    # --- 4. MATERIALIZE INTO THE ANALYTICS TABLE ---
-    df.to_sql(
-        "popular_matchups",
-        engine,
-        if_exists="replace",
-        index=False,
-        dtype={
-            "matchup_id": sa.Integer,
-            "title": sa.Text,
-            "author_id": sa.Integer,
-            "total_votes": sa.Integer,
-            "likes": sa.Integer,
-            "comments": sa.Integer,
-            "engagement_score": sa.Float,
-            "rank": sa.Integer,
+    matchups = raw_matchups.rename(columns={"id": "matchup_id"})
+    brackets = raw_brackets.rename(
+        columns={
+            "id": "bracket_id",
+            "author_id": "bracket_author_id",
         }
     )
+    matchups = matchups.merge(
+        brackets[["bracket_id", "bracket_author_id", "current_round"]],
+        on="bracket_id",
+        how="left",
+    )
+
+    # ------------------------
+    # Votes (exclude matchup and bracket owners)
+    # ------------------------
+    if raw_matchup_votes.empty:
+        per_user_votes = pd.DataFrame(columns=["matchup_id", "votes"])
+        per_user_votes_total = pd.DataFrame(columns=["matchup_id", "total_votes"])
+    else:
+        per_user_votes_total = (
+            raw_matchup_votes
+            .groupby("matchup_id")
+            .size()
+            .reset_index(name="total_votes")
+        )
+        per_user_votes = (
+            raw_matchup_votes
+            .merge(
+                matchups[["matchup_id", "author_id", "bracket_author_id"]],
+                on="matchup_id",
+                how="left",
+            )
+            .query("user_id != author_id and user_id != bracket_author_id")
+            .groupby("matchup_id")
+            .size()
+            .reset_index(name="votes")
+        )
+
+    if raw_matchup_items.empty:
+        matchup_item_votes = pd.DataFrame(columns=["matchup_id", "item_votes"])
+    else:
+        matchup_item_votes = (
+            raw_matchup_items
+            .groupby("matchup_id")["votes"]
+            .sum()
+            .reset_index(name="item_votes")
+        )
+
+    votes = (
+        per_user_votes
+        .merge(per_user_votes_total, on="matchup_id", how="outer")
+        .merge(matchup_item_votes, on="matchup_id", how="outer")
+    )
+    if votes.empty:
+        votes = pd.DataFrame(columns=["matchup_id", "votes"])
+    else:
+        votes["votes"] = votes["votes"].fillna(0).astype(int)
+        votes["total_votes"] = votes["total_votes"].fillna(0).astype(int)
+        votes["item_votes"] = votes["item_votes"].fillna(0).astype(int)
+        votes["legacy_votes"] = (
+            (votes["item_votes"] - votes["total_votes"])
+            .clip(lower=0)
+            .astype(int)
+        )
+        votes["votes"] = votes["votes"] + votes["legacy_votes"]
+        votes = votes[["matchup_id", "votes"]]
+
+    # ------------------------
+    # Likes (exclude author)
+    # ------------------------
+    likes = (
+        raw_likes
+        .merge(
+            matchups[["matchup_id", "author_id", "bracket_author_id"]],
+            on="matchup_id",
+            how="left",
+        )
+        .query("user_id != author_id and user_id != bracket_author_id")
+        .groupby("matchup_id")
+        .size()
+        .reset_index(name="likes")
+    )
+
+    # ------------------------
+    # Comments (exclude author)
+    # ------------------------
+    comments = (
+        raw_comments
+        .merge(
+            matchups[["matchup_id", "author_id", "bracket_author_id"]],
+            on="matchup_id",
+            how="left",
+        )
+        .query("user_id != author_id and user_id != bracket_author_id")
+        .groupby("matchup_id")
+        .size()
+        .reset_index(name="comments")
+    )
+
+    # ------------------------
+    # Merge all
+    # ------------------------
+    df = (
+        matchups[
+            [
+                "matchup_id",
+                "title",
+                "author_id",
+                "bracket_id",
+                "bracket_author_id",
+                "round",
+                "current_round",
+            ]
+        ]
+        .merge(votes, on="matchup_id", how="left")
+        .merge(likes, on="matchup_id", how="left")
+        .merge(comments, on="matchup_id", how="left")
+    )
+
+    df[["votes", "likes", "comments"]] = (
+        df[["votes", "likes", "comments"]]
+        .fillna(0)
+        .astype(int)
+    )
+
+    df["engagement_score"] = (
+        df["votes"] * 2 +
+        df["likes"] * 3 +
+        df["comments"] * .5
+    )
 
     return df
+
+
+# ---------------------------------------------------------------------------
+# BRACKET ENGAGEMENT (CURRENT ROUND)
+# ---------------------------------------------------------------------------
+
+@asset
+def bracket_engagement(
+    matchup_engagement: pd.DataFrame,
+    raw_brackets: pd.DataFrame,
+    raw_bracket_likes: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Sum of matchup engagement scores for each bracket's current round.
+    """
+    if matchup_engagement.empty:
+        return pd.DataFrame(
+            columns=[
+                "bracket_id",
+                "bracket_author_id",
+                "current_round",
+                "matchup_count",
+                "bracket_engagement_score",
+            ]
+        )
+
+    df = (
+        matchup_engagement[
+            matchup_engagement["bracket_id"].notna()
+            & matchup_engagement["round"].notna()
+            & matchup_engagement["current_round"].notna()
+        ]
+        .copy()
+    )
+
+    if df.empty:
+        return pd.DataFrame(
+            columns=[
+                "bracket_id",
+                "bracket_author_id",
+                "current_round",
+                "matchup_count",
+                "bracket_engagement_score",
+            ]
+        )
+
+    df["round"] = df["round"].astype(int)
+    df["current_round"] = df["current_round"].astype(int)
+
+    current_round = df[df["round"] == df["current_round"]]
+
+    bracket_scores = (
+        current_round
+        .groupby(["bracket_id", "bracket_author_id", "current_round"])
+        .agg(
+            matchup_count=("matchup_id", "count"),
+            bracket_engagement_score=("engagement_score", "sum"),
+        )
+        .reset_index()
+    )
+
+    if raw_bracket_likes.empty:
+        bracket_likes = pd.DataFrame(columns=["bracket_id", "bracket_likes"])
+    else:
+        brackets = raw_brackets.rename(
+            columns={"id": "bracket_id", "author_id": "bracket_author_id"}
+        )
+        bracket_likes = (
+            raw_bracket_likes
+            .merge(
+                brackets[["bracket_id", "bracket_author_id"]],
+                on="bracket_id",
+                how="left",
+            )
+            .query("user_id != bracket_author_id")
+            .groupby("bracket_id")
+            .size()
+            .reset_index(name="bracket_likes")
+        )
+
+    bracket_scores = bracket_scores.merge(
+        bracket_likes,
+        on="bracket_id",
+        how="left",
+    )
+    bracket_scores["bracket_likes"] = (
+        bracket_scores["bracket_likes"]
+        .fillna(0)
+        .astype(int)
+    )
+    bracket_scores["bracket_engagement_score"] = (
+        bracket_scores["bracket_engagement_score"] +
+        bracket_scores["bracket_likes"] * 3
+    )
+
+    return bracket_scores[
+        [
+            "bracket_id",
+            "bracket_author_id",
+            "current_round",
+            "matchup_count",
+            "bracket_engagement_score",
+        ]
+    ]
+
+
+# ---------------------------------------------------------------------------
+# POPULAR BRACKETS SNAPSHOT (TOP 5)
+# ---------------------------------------------------------------------------
+
+@asset
+def popular_brackets(
+    context: AssetExecutionContext,
+    bracket_engagement: pd.DataFrame,
+    raw_brackets: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Materialized snapshot of the top 5 most-engaged brackets.
+    """
+    if bracket_engagement.empty:
+        df = pd.DataFrame(
+            columns=[
+                "bracket_id",
+                "title",
+                "author_id",
+                "current_round",
+                "matchup_count",
+                "bracket_engagement_score",
+                "rank",
+            ]
+        )
+    else:
+        brackets = raw_brackets.rename(columns={"id": "bracket_id"})
+        df = bracket_engagement.copy()
+        df = df[df["bracket_engagement_score"] > 0]
+
+        if df.empty:
+            df = pd.DataFrame(
+                columns=[
+                    "bracket_id",
+                    "title",
+                    "author_id",
+                    "current_round",
+                    "matchup_count",
+                    "bracket_engagement_score",
+                    "rank",
+                ]
+            )
+        else:
+            df["author_id"] = df["bracket_author_id"]
+            df = df.merge(
+                brackets[["bracket_id", "title"]],
+                on="bracket_id",
+                how="left",
+            )
+            df = (
+                df.sort_values("bracket_engagement_score", ascending=False)
+                .head(5)
+                .reset_index(drop=True)
+            )
+            df["rank"] = range(1, len(df) + 1)
+            df = df[
+                [
+                    "bracket_id",
+                    "title",
+                    "author_id",
+                    "current_round",
+                    "matchup_count",
+                    "bracket_engagement_score",
+                    "rank",
+                ]
+            ]
+
+            assert df["bracket_engagement_score"].min() >= 0
+
+    with ENGINE.begin() as conn:
+        df.to_sql(
+            POPULAR_BRACKETS_TABLE,
+            conn,
+            if_exists="replace",
+            index=False,
+        )
+
+    context.log.info("Popular brackets snapshot written.")
+
+    return df
+
+
+# ---------------------------------------------------------------------------
+# POPULAR MATCHUPS SNAPSHOT (TOP 5)
+# ---------------------------------------------------------------------------
+
+@asset
+def popular_matchups(
+    context: AssetExecutionContext,
+    matchup_engagement: pd.DataFrame,
+) -> pd.DataFrame:
+
+    if matchup_engagement.empty:
+        df = pd.DataFrame(
+            columns=[
+                "matchup_id",
+                "title",
+                "author_id",
+                "bracket_id",
+                "bracket_author_id",
+                "round",
+                "current_round",
+                "votes",
+                "likes",
+                "comments",
+                "engagement_score",
+                "rank",
+            ]
+        )
+    else:
+        df = matchup_engagement.copy()
+        df = df[df["engagement_score"] > 0]
+
+        if df.empty:
+            df = pd.DataFrame(
+                columns=[
+                    "matchup_id",
+                    "title",
+                    "author_id",
+                    "bracket_id",
+                    "bracket_author_id",
+                    "round",
+                    "current_round",
+                    "votes",
+                    "likes",
+                    "comments",
+                    "engagement_score",
+                    "rank",
+                ]
+            )
+        else:
+            df = (
+                df.sort_values("engagement_score", ascending=False)
+                .head(5)
+                .reset_index(drop=True)
+            )
+            df["rank"] = range(1, len(df) + 1)
+
+            assert df["engagement_score"].min() >= 0
+            assert df["engagement_score"].is_monotonic_decreasing
+
+    with ENGINE.begin() as conn:
+        df.to_sql(
+            SERVING_TABLE,
+            conn,
+            if_exists="replace",
+            index=False,
+        )
+
+    context.log.info("Popular matchups snapshot written.")
+
+    return df
+
+@asset
+def expired_brackets():
+    conn = psycopg2.connect(_pg_dsn())
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT id
+        FROM brackets
+        WHERE
+          status = 'active'
+          AND advance_mode = 'timer'
+          AND round_ends_at IS NOT NULL
+          AND round_ends_at <= NOW()
+    """)
+
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return [row[0] for row in rows]

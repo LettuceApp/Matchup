@@ -10,21 +10,29 @@ import (
 )
 
 type Matchup struct {
-	ID        uint          `gorm:"primary_key;autoIncrement" json:"id"`
-	Title     string        `gorm:"size:255;not null" json:"title"`
-	Content   string        `gorm:"text;not null;" json:"content"`
-	Author    User          `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
-	AuthorID  uint          `gorm:"not null" json:"author_id"`
-	Items     []MatchupItem `gorm:"foreignKey:MatchupID;constraint:OnDelete:CASCADE" json:"items"`
-	Comments  []Comment     `gorm:"foreignKey:MatchupID" json:"comments"`
-	CreatedAt time.Time     `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
-	UpdatedAt time.Time     `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
-	Status    string        `gorm:"size:20;not null;default:'published'" json:"status"`
+	ID              uint          `gorm:"primary_key;autoIncrement" json:"id"`
+	Title           string        `gorm:"size:255;not null" json:"title"`
+	Content         string        `gorm:"text;not null;" json:"content"`
+	Author          User          `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
+	AuthorID        uint          `gorm:"not null" json:"author_id"`
+	Items           []MatchupItem `gorm:"foreignKey:MatchupID;constraint:OnDelete:CASCADE" json:"items"`
+	Comments        []Comment     `gorm:"foreignKey:MatchupID" json:"comments"`
+	CreatedAt       time.Time     `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
+	UpdatedAt       time.Time     `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
+	Status          string        `gorm:"size:20;not null;default:'published'" json:"status"`
+	EndMode         string        `gorm:"size:20;not null;default:'timer'" json:"end_mode"`
+	DurationSeconds int           `gorm:"not null;default:0" json:"duration_seconds"`
+	BracketID       *uint         `gorm:"index" json:"bracket_id,omitempty"`
+	Round           *int          `json:"round,omitempty"`
+	Seed            *int          `json:"seed,omitempty"`
+	WinnerItemID    *uint         `json:"winner_item_id"`
+	StartTime       *time.Time    `json:"start_time,omitempty"`
+	EndTime         *time.Time    `json:"end_time,omitempty"`
 }
 
 type MatchupItem struct {
 	ID        uint    `gorm:"primary_key;autoIncrement" json:"id"`
-	Matchup   Matchup `json:"-"`
+	Matchup   Matchup `gorm:"constraint:OnDelete:CASCADE" json:"-"`
 	MatchupID uint    `gorm:"not null;index" json:"matchup_id"`
 	Item      string  `json:"item"`
 	Votes     int     `json:"votes"`
@@ -36,6 +44,10 @@ func (m *Matchup) Prepare() {
 	m.Author = User{}
 	m.CreatedAt = time.Now()
 	m.UpdatedAt = time.Now()
+
+	if strings.TrimSpace(m.EndMode) == "" {
+		m.EndMode = "timer"
+	}
 }
 
 func (m *Matchup) Validate() map[string]string {
@@ -165,4 +177,75 @@ func (m *Matchup) GetComments(db *gorm.DB) (*[]Comment, error) {
 		return &[]Comment{}, err
 	}
 	return &comments, nil
+}
+
+func FindMatchupsByBracket(db *gorm.DB, bracketID uint) ([]Matchup, error) {
+	var matchups []Matchup
+	err := db.
+		Where("bracket_id = ?", bracketID).
+		Order("round ASC, seed ASC, created_at ASC").
+		Preload("Items").
+		Find(&matchups).Error
+
+	return matchups, err
+}
+
+func (m *Matchup) WinnerItem() (*MatchupItem, error) {
+	if m.WinnerItemID != nil {
+		for _, item := range m.Items {
+			if item.ID == *m.WinnerItemID {
+				return &item, nil
+			}
+		}
+		return nil, errors.New("manual winner not found")
+	}
+
+	if len(m.Items) != 2 {
+		return nil, errors.New("matchup does not have exactly 2 items")
+	}
+
+	a := m.Items[0]
+	b := m.Items[1]
+
+	if a.Votes == b.Votes {
+		return nil, errors.New("matchup is tied")
+	}
+
+	if a.Votes > b.Votes {
+		return &a, nil
+	}
+	return &b, nil
+}
+
+func (m *Matchup) HasTie() bool {
+	if len(m.Items) < 2 {
+		return false
+	}
+
+	votes := m.Items[0].Votes
+	for _, item := range m.Items[1:] {
+		if item.Votes != votes {
+			return false
+		}
+	}
+	return true
+}
+
+func FindBracketRounds(db *gorm.DB, bracketID uint) (map[int][]Matchup, error) {
+	matchups, err := FindMatchupsByBracket(db, bracketID)
+	if err != nil {
+		return nil, err
+	}
+
+	rounds := make(map[int][]Matchup)
+
+	for _, m := range matchups {
+		if m.Round == nil {
+			continue
+		}
+		round := *m.Round
+		rounds[round] = append(rounds[round], m)
+	}
+
+	return rounds, nil
 }

@@ -1,42 +1,56 @@
 // frontend/src/pages/HomePage.js
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { getPopularMatchups, getUserMatchups, getMatchupLikes } from '../services/api';
+import { getHomeSummary } from '../services/api';
 import NavigationBar from '../components/NavigationBar';
 import Button from '../components/Button';
 import '../styles/HomePage.css';
 
 const HomePage = () => {
   const [matchups, setMatchups] = useState([]);
+  const [brackets, setBrackets] = useState([]);
   const [totalEngagements, setTotalEngagements] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [bracketsLoading, setBracketsLoading] = useState(true);
+  const [bracketsError, setBracketsError] = useState(null);
 
   const navigate = useNavigate();
   const userId = localStorage.getItem('userId');
+  const navigateToCreateBracket = () => {
+    navigate('/brackets/new');
+  };
+  
 
   useEffect(() => {
-    const fetchPopularMatchups = async () => {
+    const fetchHomeSummary = async () => {
       setIsLoading(true);
+      setBracketsLoading(true);
 
       try {
-        const response = await getPopularMatchups();
-        const data = response.data;
+        const response = await getHomeSummary(userId);
+        const data = response.data?.response ?? response.data ?? {};
+        const matchupsData = data.popular_matchups ?? [];
+        const bracketsData = data.popular_brackets ?? [];
 
-        // Backend is now responsible for returning exactly what we need (top 3)
-        const matchupsData = data.response || data;
-        setMatchups(matchupsData || []);
+        setMatchups(Array.isArray(matchupsData) ? matchupsData : []);
+        setBrackets(Array.isArray(bracketsData) ? bracketsData : []);
+        setTotalEngagements(Number(data.total_engagements ?? 0));
         setError(null);
+        setBracketsError(null);
       } catch (err) {
-        console.error('Failed to fetch popular matchups:', err);
+        console.error('Failed to fetch home summary:', err);
         setError('We could not load popular matchups. Please try again in a moment.');
+        setBracketsError('We could not load popular brackets. Please try again in a moment.');
+        setTotalEngagements(0);
       } finally {
         setIsLoading(false);
+        setBracketsLoading(false);
       }
     };
 
-    fetchPopularMatchups();
-  }, []);
+    fetchHomeSummary();
+  }, [userId]);
 
   const navigateToCreateMatchup = () => {
     const storedUserId = localStorage.getItem('userId');
@@ -48,74 +62,9 @@ const HomePage = () => {
 
 
   useEffect(() => {
-    const fetchUserEngagements = async () => {
-      if (!userId) {
-        setTotalEngagements(0);
-        return;
-      }
-
-      let page = 1;
-      const limit = 25;
-      let totalPages = 1;
-      let engagementAccumulator = 0;
-
-      const currentUserId = Number(userId);
-      const calculateEngagement = (matchup, likesArray = []) => {
-        const filteredComments = Array.isArray(matchup.comments)
-          ? matchup.comments.filter(
-              (comment) => Number(comment.user_id) !== currentUserId
-            )
-          : [];
-        const filteredLikes = Array.isArray(likesArray)
-          ? likesArray.filter((like) => Number(like.user_id) !== currentUserId)
-          : [];
-        const votes = Array.isArray(matchup.items)
-          ? matchup.items.reduce((sum, item) => sum + (Number(item.votes) || 0), 0)
-          : 0;
-        return filteredLikes.length + filteredComments.length + votes;
-      };
-
-      const fetchLikesForMatchups = async (matchupsList) => {
-        const likesMap = {};
-        await Promise.all(
-          matchupsList.map(async (matchup) => {
-            try {
-              const res = await getMatchupLikes(matchup.id);
-              likesMap[matchup.id] = res.data?.response || [];
-            } catch (err) {
-              console.error(`Failed to load likes for matchup ${matchup.id}:`, err);
-              likesMap[matchup.id] = [];
-            }
-          })
-        );
-        return likesMap;
-      };
-
-      try {
-        do {
-          const response = await getUserMatchups(userId, page, limit);
-          const payload = response.data || {};
-          const matchupsData = payload.response || [];
-          const paginationInfo = payload.pagination || {};
-          totalPages = paginationInfo.total_pages || 1;
-          const likesMap = await fetchLikesForMatchups(matchupsData);
-
-          engagementAccumulator += matchupsData.reduce((sum, matchup) => {
-            const likesForMatchup = likesMap[matchup.id] || [];
-            return sum + calculateEngagement(matchup, likesForMatchup);
-          }, 0);
-
-          page += 1;
-        } while (page <= totalPages);
-
-        setTotalEngagements(engagementAccumulator);
-      } catch (err) {
-        console.error('Failed to calculate user engagements:', err);
-        setTotalEngagements(0);
-      }
-    };
-
-    fetchUserEngagements();
+    if (!userId) {
+      setTotalEngagements(0);
+    }
   }, [userId]);
 
   return (
@@ -131,9 +80,6 @@ const HomePage = () => {
               Track community sentiment, share your thoughts, and keep every matchup in one vibrant
               dashboard.
             </p>
-            <Button onClick={navigateToCreateMatchup} className="home-create-button">
-              Create a Matchup
-            </Button>
           </div>
           <div className="home-hero-card" aria-hidden="true">
             <div className="home-hero-card-ring" />
@@ -150,9 +96,11 @@ const HomePage = () => {
               <h2>Popular Matchups</h2>
               <p>See what the community is engaging with the most right now.</p>
             </div>
-            <Button onClick={navigateToCreateMatchup} className="home-secondary-button">
-              New Matchup
-            </Button>
+            <div className="home-section-actions">
+              <Button onClick={navigateToCreateMatchup} className="home-secondary-button">
+                New Matchup
+              </Button>
+            </div>
           </header>
 
           {isLoading && (
@@ -161,46 +109,46 @@ const HomePage = () => {
             </div>
           )}
 
-          {error && !isLoading && (
-            <div className="home-status-card home-status-error">
-              <p>{error}</p>
-            </div>
-          )}
-
-          {!isLoading && !error && matchups.length === 0 && (
+          {!isLoading && (error || matchups.length === 0) && (
             <div className="home-empty-state">
               <h3>No popular matchups yet.</h3>
-              <p>Be the first to create a matchup and start the conversation.</p>
-              <Button
-                onClick={navigateToCreateMatchup}
-                className="home-create-button home-create-button--ghost"
-              >
-                Create a matchup
-              </Button>
+              <p>
+                {error
+                  ? 'Popular matchups are not available right now.'
+                  : 'Be the first to create a matchup and start the conversation.'}
+              </p>
+              <div className="home-empty-actions">
+                <Button
+                  onClick={navigateToCreateMatchup}
+                  className="home-create-button home-create-button--ghost"
+                >
+                  Create a Matchup
+                </Button>
+              </div>
             </div>
           )}
 
           {!isLoading && !error && matchups.length > 0 && (
             <div className="home-matchups-grid">
               {matchups.map((matchup) => {
+                const matchupId = matchup.id ?? matchup.matchup_id ?? matchup.matchupId;
+                const matchupTitle = matchup.title || `Matchup #${matchupId}`;
                 const matchupOwnerId =
                   matchup.author_id ?? matchup.user_id ?? matchup.owner_id ?? userId;
 
                 return (
-                  <article key={matchup.id} className="home-matchup-card">
+                  <article key={matchupId} className="home-matchup-card">
                     <div className="home-matchup-card-body">
-                      <h3>{matchup.title}</h3>
-                      {typeof matchup.rank !== 'undefined' && (
-                        <p className="home-matchup-meta">
-                          Rank #{matchup.rank}
-                          {typeof matchup.engagement_score !== 'undefined' &&
-                            ` · ${Math.round(matchup.engagement_score)} total engagements`}
-                        </p>
-                      )}
+                      <h3>{matchupTitle}</h3>
+                      <p className="home-matchup-meta">
+                        {typeof matchup.rank !== 'undefined' && `Rank #${matchup.rank}`}
+                        {typeof matchup.engagement_score !== 'undefined' &&
+                          ` · ${Math.round(matchup.engagement_score)} total engagements`}
+                      </p>
                     </div>
                     {matchupOwnerId ? (
                       <Link
-                        to={`/users/${matchupOwnerId}/matchup/${matchup.id}`}
+                        to={`/users/${matchupOwnerId}/matchup/${matchupId}`}
                         className="home-matchup-link"
                       >
                         View matchup
@@ -211,6 +159,84 @@ const HomePage = () => {
                     ) : (
                       <span className="home-matchup-link" aria-disabled="true">
                         Owner missing
+                      </span>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="home-matchups-section">
+          <header className="home-section-header">
+            <div>
+              <h2>Popular Brackets</h2>
+              <p>See which brackets are getting the most attention this round.</p>
+            </div>
+            <div className="home-section-actions">
+              <Button
+                onClick={navigateToCreateBracket}
+                className="home-secondary-button home-secondary-button--alt"
+              >
+                New Bracket
+              </Button>
+            </div>
+          </header>
+
+          {bracketsLoading && (
+            <div className="home-status-card">
+              <p>Loading popular brackets...</p>
+            </div>
+          )}
+
+          {!bracketsLoading && (bracketsError || brackets.length === 0) && (
+            <div className="home-empty-state">
+              <h3>No popular brackets yet.</h3>
+              <p>
+                {bracketsError
+                  ? 'Popular brackets are not available right now.'
+                  : 'Start a bracket and invite others to vote.'}
+              </p>
+              <div className="home-empty-actions">
+                <Button
+                  onClick={navigateToCreateBracket}
+                  className="home-create-button home-create-button--ghost"
+                >
+                  Create a Bracket
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {!bracketsLoading && !bracketsError && brackets.length > 0 && (
+            <div className="home-matchups-grid">
+              {brackets.map((bracket) => {
+                const bracketId = bracket.id ?? bracket.bracket_id ?? bracket.bracketId;
+                const bracketTitle = bracket.title || `Bracket #${bracketId}`;
+
+                return (
+                  <article key={bracketId} className="home-matchup-card">
+                    <div className="home-matchup-card-body">
+                      <h3>{bracketTitle}</h3>
+                      <p className="home-matchup-meta">
+                        {typeof bracket.rank !== 'undefined' && `Rank #${bracket.rank}`}
+                        {typeof bracket.current_round !== 'undefined' &&
+                          ` · Round ${bracket.current_round}`}
+                        {typeof bracket.engagement_score !== 'undefined' &&
+                          ` · ${Math.round(bracket.engagement_score)} round engagements`}
+                      </p>
+                    </div>
+                    {bracketId ? (
+                      <Link to={`/brackets/${bracketId}`} className="home-matchup-link">
+                        View bracket
+                        <span className="home-matchup-link-arrow" aria-hidden="true">
+                          &gt;
+                        </span>
+                      </Link>
+                    ) : (
+                      <span className="home-matchup-link" aria-disabled="true">
+                        Bracket missing
                       </span>
                     )}
                   </article>

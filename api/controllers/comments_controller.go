@@ -87,6 +87,34 @@ func (server *Server) CreateComment(c *gin.Context) {
 		return
 	}
 
+	if !isMatchupOpenStatus(matchup.Status) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Matchup is not active"})
+		return
+	}
+
+	if matchup.EndTime != nil && time.Now().After(*matchup.EndTime) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Matchup has ended"})
+		return
+	}
+
+	if matchup.BracketID != nil {
+		var bracket models.Bracket
+		if err := server.DB.First(&bracket, *matchup.BracketID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
+			return
+		}
+
+		if bracket.Status != "active" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Bracket is not active"})
+			return
+		}
+
+		if matchup.Round == nil || *matchup.Round != bracket.CurrentRound {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Matchup is not in the active round"})
+			return
+		}
+	}
+
 	// Bind JSON to comment struct
 	var comment models.Comment
 	if err := c.ShouldBindJSON(&comment); err != nil {
