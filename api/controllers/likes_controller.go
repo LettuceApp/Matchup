@@ -85,6 +85,10 @@ func (server *Server) LikeMatchup(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error liking matchup"})
 		return
 	}
+	if matchup.BracketID != nil {
+		invalidateBracketSummaryCache(*matchup.BracketID)
+	}
+	invalidateHomeSummaryCache(matchup.AuthorID)
 
 	c.JSON(http.StatusCreated, gin.H{"status": http.StatusCreated, "response": "Matchup liked successfully"})
 }
@@ -121,6 +125,13 @@ func (server *Server) UnLikeMatchup(c *gin.Context) {
 	if err := server.DB.Delete(&existingLike).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error unliking matchup"})
 		return
+	}
+	var matchup models.Matchup
+	if err := server.DB.First(&matchup, uint(mid)).Error; err == nil {
+		if matchup.BracketID != nil {
+			invalidateBracketSummaryCache(*matchup.BracketID)
+		}
+		invalidateHomeSummaryCache(matchup.AuthorID)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK, "response": "Matchup unliked successfully"})

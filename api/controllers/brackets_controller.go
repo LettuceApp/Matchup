@@ -115,7 +115,50 @@ func formatSeedLabel(seed int, name string) string {
 	if trimmed == "" {
 		return fmt.Sprintf("Seed %d", seed)
 	}
+	trimmed = stripSeedPrefix(trimmed)
+	if trimmed == "" {
+		return fmt.Sprintf("Seed %d", seed)
+	}
 	return fmt.Sprintf("Seed %d - %s", seed, trimmed)
+}
+
+func stripSeedPrefix(label string) string {
+	trimmed := strings.TrimSpace(label)
+	if trimmed == "" {
+		return ""
+	}
+
+	for {
+		lower := strings.ToLower(trimmed)
+		if !strings.HasPrefix(lower, "seed") {
+			return trimmed
+		}
+
+		i := len("seed")
+		for i < len(trimmed) && trimmed[i] == ' ' {
+			i++
+		}
+		startDigits := i
+		for i < len(trimmed) && trimmed[i] >= '0' && trimmed[i] <= '9' {
+			i++
+		}
+		if startDigits == i {
+			return trimmed
+		}
+		for i < len(trimmed) && trimmed[i] == ' ' {
+			i++
+		}
+		if i < len(trimmed) && (trimmed[i] == '-' || trimmed[i] == ':') {
+			i++
+			for i < len(trimmed) && trimmed[i] == ' ' {
+				i++
+			}
+		}
+		trimmed = strings.TrimSpace(trimmed[i:])
+		if trimmed == "" {
+			return ""
+		}
+	}
 }
 
 func generateFullBracket(db *gorm.DB, bracket models.Bracket, entries []string) {
@@ -271,6 +314,7 @@ func (s *Server) AdvanceBracket(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	invalidateBracketSummaryCache(bracket.ID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":  "Bracket advanced successfully",
@@ -440,6 +484,7 @@ func (s *Server) UpdateBracket(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update bracket"})
 		return
 	}
+	invalidateBracketSummaryCache(bracket.ID)
 
 	c.JSON(http.StatusOK, gin.H{"response": updated})
 }
@@ -473,6 +518,7 @@ func (s *Server) DeleteBracket(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete bracket"})
 		return
 	}
+	invalidateBracketSummaryCache(bracket.ID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "Bracket deleted"})
 }
@@ -493,10 +539,16 @@ func (s *Server) deleteBracketCascade(bracket *models.Bracket) error {
 		Delete(&models.BracketLike{}).Error; err != nil {
 		return err
 	}
+	if err := s.DB.Where("bracket_id = ?", bracket.ID).
+		Delete(&models.BracketComment{}).Error; err != nil {
+		return err
+	}
 
 	if _, err := bracket.DeleteBracket(s.DB, bracket.ID); err != nil {
 		return err
 	}
+	invalidateBracketSummaryCache(bracket.ID)
+	invalidateHomeSummaryCache(bracket.AuthorID)
 
 	return nil
 }
@@ -578,6 +630,7 @@ func (s *Server) AttachMatchupToBracket(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to attach matchup"})
 		return
 	}
+	invalidateBracketSummaryCache(bracket.ID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"response": matchup,
@@ -642,12 +695,16 @@ func (s *Server) DetachMatchupFromBracket(c *gin.Context) {
 		return
 	}
 
+	previousBracketID := matchup.BracketID
 	matchup.BracketID = nil
 	matchup.Round = nil
 
 	if err := s.DB.Save(&matchup).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to detach matchup"})
 		return
+	}
+	if previousBracketID != nil {
+		invalidateBracketSummaryCache(*previousBracketID)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Matchup detached"})

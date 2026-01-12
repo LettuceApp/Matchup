@@ -4,14 +4,15 @@ import Button from './Button';
 import { deleteComment } from '../services/api';
 import '../styles/Comment.css';
 
-const Comment = ({ comment, refreshComments }) => {
+const Comment = ({ comment, refreshComments, onDelete }) => {
   const storedUserId = localStorage.getItem('userId');
   const userId = storedUserId ? parseInt(storedUserId, 10) : null;
   const isOwner = comment.user_id === userId;
 
   const handleDelete = async () => {
     try {
-      await deleteComment(comment.id);
+      const deleteFn = onDelete || deleteComment;
+      await deleteFn(comment.id);
       if (refreshComments) {
         refreshComments();
       }

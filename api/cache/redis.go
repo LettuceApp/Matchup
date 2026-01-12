@@ -82,6 +82,13 @@ func Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
 	return Client.Set(ctx, key, value, ttl).Err()
 }
 
+func Delete(ctx context.Context, key string) error {
+	if Client == nil {
+		return nil
+	}
+	return Client.Del(ctx, key).Err()
+}
+
 func DeleteByPrefix(ctx context.Context, prefix string) error {
 	if Client == nil {
 		return nil

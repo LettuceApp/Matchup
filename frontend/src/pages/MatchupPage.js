@@ -17,7 +17,7 @@ import {
   overrideMatchupWinner,
   completeMatchup,
   getCurrentUser,
-  activateMatchup,
+  updateBracket,
 } from "../services/api";
 import "../styles/MatchupPage.css";
 import useCountdown from "../hooks/useCountdown";
@@ -148,10 +148,9 @@ const MatchupPage = () => {
 
   const isAdmin = (currentUser?.role ?? currentUser?.Role) === "admin";
 
-  const showActivateButton =
-    !isBracketMatchup &&
-    isOwner &&
-    matchupStatus === "draft";
+  const canManageBracket = isBracketMatchup && (isOwner || isAdmin);
+  const showBracketActivate =
+    canManageBracket && bracket?.status === "draft";
 
   const isActiveBracketRound =
     isBracketMatchup &&
@@ -273,12 +272,6 @@ const MatchupPage = () => {
     }
   };
 
-  const handleActivateMatchup = async () => {
-    if (!window.confirm("Activate this matchup and start voting?")) return;
-    await activateMatchup(matchup.id);
-    await refreshMatchup();
-  };
-  
   
 
   const handleLikeToggle = async () => {
@@ -441,17 +434,6 @@ const MatchupPage = () => {
               <span>Likes</span>
             </div>
           </div>
-
-          {showActivateButton && (
-            <div className="matchup-activate">
-              <Button
-                onClick={handleActivateMatchup}
-                className="matchup-primary-button"
-              >
-                Activate matchup
-              </Button>
-            </div>
-          )}
 
 
           {canReadyUp && (

@@ -113,6 +113,7 @@ func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName stri
 		&models.MatchupVote{},
 		&models.MatchupVoteRollup{},
 		&models.BracketLike{},
+		&models.BracketComment{},
 		&models.Comment{},
 		&models.MatchupItem{},
 		&models.Bracket{},

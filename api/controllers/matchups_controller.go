@@ -493,6 +493,10 @@ func (server *Server) deleteMatchupCascade(matchup *models.Matchup) error {
 
 	userPrefix := fmt.Sprintf("user:%d:matchups:", matchup.AuthorID)
 	_ = cache.DeleteByPrefix(ctx, userPrefix)
+	invalidateHomeSummaryCache(matchup.AuthorID)
+	if matchup.BracketID != nil {
+		invalidateBracketSummaryCache(*matchup.BracketID)
+	}
 
 	return nil
 }
@@ -845,6 +849,9 @@ func (s *Server) ResolveTieAndAdvance(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to resolve matchup"})
 		return
 	}
+	if matchup.BracketID != nil {
+		invalidateBracketSummaryCache(*matchup.BracketID)
+	}
 
 	// 🚀 Attempt bracket advance (non-fatal if blocked)
 	advanced, err := s.advanceBracketInternal(s.DB, &bracket)
@@ -1001,6 +1008,10 @@ func (server *Server) IncrementMatchupItemVotes(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving updated item"})
 		return
 	}
+	if item.Matchup.BracketID != nil {
+		invalidateBracketSummaryCache(*item.Matchup.BracketID)
+	}
+	invalidateHomeSummaryCache(item.Matchup.AuthorID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":   http.StatusOK,
@@ -1041,6 +1052,9 @@ func (server *Server) DeleteMatchupItem(c *gin.Context) {
 	if err := server.DB.Delete(&item).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error deleting item"})
 		return
+	}
+	if item.Matchup.BracketID != nil {
+		invalidateBracketSummaryCache(*item.Matchup.BracketID)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Item deleted"})
@@ -1111,6 +1125,9 @@ func (server *Server) AddItemToMatchup(c *gin.Context) {
 	if err := server.DB.Create(&item).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error saving the new item"})
 		return
+	}
+	if matchup.BracketID != nil {
+		invalidateBracketSummaryCache(*matchup.BracketID)
 	}
 
 	c.JSON(http.StatusCreated, item)
@@ -1201,6 +1218,9 @@ func (server *Server) UpdateMatchupItem(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to update matchup item"})
 		return
 	}
+	if item.Matchup.BracketID != nil {
+		invalidateBracketSummaryCache(*item.Matchup.BracketID)
+	}
 
 	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK, "response": item})
 }
@@ -1290,6 +1310,9 @@ func (s *Server) OverrideMatchupWinner(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to override winner"})
 		return
 	}
+	if matchup.BracketID != nil {
+		invalidateBracketSummaryCache(*matchup.BracketID)
+	}
 
 	// ------------------------------
 	// RESPONSE
@@ -1353,6 +1376,9 @@ func (server *Server) CompleteMatchup(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reopen matchup"})
 			return
 		}
+		if matchup.BracketID != nil {
+			invalidateBracketSummaryCache(*matchup.BracketID)
+		}
 
 		c.JSON(http.StatusOK, gin.H{
 			"message": "Matchup reopened",
@@ -1374,6 +1400,9 @@ func (server *Server) CompleteMatchup(c *gin.Context) {
 	if err := server.DB.Save(&matchup).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to complete matchup"})
 		return
+	}
+	if matchup.BracketID != nil {
+		invalidateBracketSummaryCache(*matchup.BracketID)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1417,6 +1446,9 @@ func (s *Server) ReadyUpMatchup(c *gin.Context) {
 	if err := s.DB.Save(&matchup).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to ready matchup"})
 		return
+	}
+	if matchup.BracketID != nil {
+		invalidateBracketSummaryCache(*matchup.BracketID)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

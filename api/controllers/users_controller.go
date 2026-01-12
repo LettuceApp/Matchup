@@ -571,6 +571,10 @@ func (server *Server) AdminDeleteUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user bracket likes"})
 		return
 	}
+	if err := server.DB.Where("user_id = ?", id).Delete(&models.BracketComment{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user bracket comments"})
+		return
+	}
 	if err := server.DB.Where("user_id = ?", id).Delete(&models.Comment{}).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user comments"})
 		return

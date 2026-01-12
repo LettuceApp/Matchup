@@ -3,14 +3,18 @@ import { useNavigate, useParams } from "react-router-dom";
 import NavigationBar from "../components/NavigationBar";
 import Button from "../components/Button";
 import BracketView from "../components/BracketView";
+import Comment from "../components/Comment";
 import {
   getBracketSummary,
+  getBracketComments,
   getCurrentUser,
   updateBracket,
   advanceBracket,
   deleteBracket,
   likeBracket,
   unlikeBracket,
+  createBracketComment,
+  deleteBracketComment,
 } from "../services/api";
 import "../styles/BracketPage.css";
 import useCountdown from "../hooks/useCountdown";
@@ -30,6 +34,10 @@ export default function BracketPage() {
   const [isLiked, setIsLiked] = useState(false);
   const [likePending, setLikePending] = useState(false);
   const [likedMatchupIds, setLikedMatchupIds] = useState(new Set());
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState("");
+  const [commentError, setCommentError] = useState(null);
+  const [commentPending, setCommentPending] = useState(false);
 
   /* ------------------------------------------------------------------ */
   /* DATA LOADING */
@@ -70,6 +78,20 @@ export default function BracketPage() {
   useEffect(() => {
     loadBracket();
   }, [loadBracket]);
+
+  const loadComments = useCallback(async () => {
+    try {
+      const res = await getBracketComments(id);
+      setComments(res.data?.response ?? res.data ?? []);
+    } catch (err) {
+      console.error("Failed to load bracket comments", err);
+      setComments([]);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    loadComments();
+  }, [loadComments]);
 
   useEffect(() => {
     const loadMe = async () => {
@@ -237,6 +259,24 @@ export default function BracketPage() {
     navigate("/home");
   };
 
+  const handleCommentSubmit = async (e) => {
+    e.preventDefault();
+    if (!newComment.trim() || commentPending || bracket?.status === "completed") return;
+
+    try {
+      setCommentPending(true);
+      setCommentError(null);
+      await createBracketComment(id, { body: newComment.trim() });
+      setNewComment("");
+      await loadComments();
+    } catch (err) {
+      console.error("Unable to post bracket comment", err);
+      setCommentError("Unable to post comment.");
+    } finally {
+      setCommentPending(false);
+    }
+  };
+
   const handleLikeToggle = async () => {
     if (!bracket || likePending || !viewerId) return;
 
@@ -357,6 +397,65 @@ export default function BracketPage() {
             champion={champion}
             likedMatchupIds={likedMatchupIds}
           />
+        </section>
+
+        <section className="bracket-section">
+          <header className="bracket-section-header">
+            <h2>Bracket comments</h2>
+            <p>Talk about the bracket as a whole.</p>
+          </header>
+
+          <div className="bracket-comments">
+            {comments.length === 0 ? (
+              <div className="bracket-comment-empty">No comments yet.</div>
+            ) : (
+              comments.map((comment) => (
+                <Comment
+                  key={comment.id}
+                  comment={comment}
+                  refreshComments={loadComments}
+                  onDelete={deleteBracketComment}
+                />
+              ))
+            )}
+          </div>
+
+          {!viewerId && (
+            <div className="bracket-inline-hint">
+              Sign in to join the bracket discussion.
+            </div>
+          )}
+          {bracket?.status === "completed" && (
+            <div className="bracket-inline-hint">
+              Comments are closed for completed brackets.
+            </div>
+          )}
+
+          <form className="bracket-comment-form" onSubmit={handleCommentSubmit}>
+            <label htmlFor="newBracketComment" className="bracket-form-label">
+              Add a comment
+            </label>
+            <textarea
+              id="newBracketComment"
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              rows={3}
+              disabled={commentPending || !viewerId || bracket?.status === "completed"}
+              className="bracket-textarea"
+            />
+            {commentError && (
+              <p className="bracket-inline-error">{commentError}</p>
+            )}
+            <div className="bracket-form-actions">
+              <button
+                type="submit"
+                disabled={commentPending || !viewerId || bracket?.status === "completed"}
+                className="bracket-button bracket-button--ghost"
+              >
+                {commentPending ? "Posting…" : "Post comment"}
+              </button>
+            </div>
+          </form>
         </section>
       </main>
     </div>

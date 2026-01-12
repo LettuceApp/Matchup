@@ -156,6 +156,16 @@ func (server *Server) calculateUserEngagement(userID uint) (float64, error) {
 		return 0, err
 	}
 
+	var bracketComments int64
+	if err := server.DB.Raw(`
+		SELECT COALESCE(COUNT(*), 0)
+		FROM bracket_comments bc
+		JOIN brackets b ON b.id = bc.bracket_id
+		WHERE b.author_id = ? AND bc.user_id <> ?
+	`, userID, userID).Scan(&bracketComments).Error; err != nil {
+		return 0, err
+	}
+
 	votes := totalVotes - selfVotes
 	if votes < 0 {
 		votes = 0
@@ -164,5 +174,6 @@ func (server *Server) calculateUserEngagement(userID uint) (float64, error) {
 	return float64(votes)*2 +
 		float64(likes)*3 +
 		float64(comments)*.5 +
-		float64(bracketLikes)*3, nil
+		float64(bracketLikes)*3 +
+		float64(bracketComments)*.5, nil
 }

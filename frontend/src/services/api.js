@@ -135,15 +135,23 @@ export const createComment = (matchupId, commentData) =>
 export const getComments = (matchupId) =>
   API.get(`/matchups/${matchupId}/comments`);
 
+export const getBracketComments = (bracketId) =>
+  API.get(`/brackets/${bracketId}/comments`);
+
 export const overrideMatchupWinner = (matchupId, winnerItemId) =>
   API.post(`/matchups/${matchupId}/override-winner`, {
     winner_item_id: winnerItemId,
   });
 
+export const createBracketComment = (bracketId, commentData) =>
+  API.post(`/brackets/${bracketId}/comments`, commentData);
+
 export const updateComment = (id, commentData) =>
   API.put(`/comments/${id}`, commentData);
 
 export const deleteComment = (id) => API.delete(`/comments/${id}`);
+
+export const deleteBracketComment = (id) => API.delete(`/bracket_comments/${id}`);
 
 // CURRENT USER
 export const getCurrentUser = () => API.get('/me');

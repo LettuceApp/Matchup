@@ -168,6 +168,7 @@ func (server *Server) CreateComment(c *gin.Context) {
 		"status":   http.StatusCreated,
 		"response": commentResponse,
 	})
+	invalidateHomeSummaryCache(matchup.AuthorID)
 }
 
 func (server *Server) GetComments(c *gin.Context) {
@@ -377,6 +378,10 @@ func (server *Server) DeleteComment(c *gin.Context) {
 			"error":  errList,
 		})
 		return
+	}
+	var matchup models.Matchup
+	if err := server.DB.First(&matchup, comment.MatchupID).Error; err == nil {
+		invalidateHomeSummaryCache(matchup.AuthorID)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

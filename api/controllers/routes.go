@@ -43,6 +43,7 @@ func (s *Server) initializeRoutes() {
 		v1.GET("/brackets/:id/summary", s.GetBracketSummary)
 		v1.GET("/users/:id/brackets", s.GetUserBrackets)
 		v1.GET("/brackets/:id/matchups", s.GetBracketMatchups)
+		v1.GET("/brackets/:id/comments", s.GetBracketComments)
 
 		// Comments (public read)
 		v1.GET("/matchups/:id/comments", s.GetComments)
@@ -91,6 +92,8 @@ func (s *Server) initializeRoutes() {
 		auth.DELETE("/matchups/:id/likes", s.UnLikeMatchup)
 		auth.POST("/brackets/:id/likes", s.LikeBracket)
 		auth.DELETE("/brackets/:id/likes", s.UnLikeBracket)
+		auth.POST("/brackets/:id/comments", s.CreateBracketComment)
+		auth.DELETE("/bracket_comments/:id", s.DeleteBracketComment)
 
 		// Comments
 		auth.POST("/matchups/:id/comments", s.CreateComment)

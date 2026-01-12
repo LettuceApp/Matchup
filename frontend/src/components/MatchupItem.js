@@ -24,6 +24,10 @@ const MatchupItem = ({
     setVotes(Number(item.votes ?? item.Votes ?? 0));
   }, [item.votes, item.Votes, item.id]);
 
+  useEffect(() => {
+    setItemName(item.item ?? item.name ?? '');
+  }, [item.item, item.name, item.id]);
+
   const computedCanEdit =
     typeof allowEdit === 'boolean'
       ? allowEdit

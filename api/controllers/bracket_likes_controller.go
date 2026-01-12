@@ -49,6 +49,8 @@ func (server *Server) LikeBracket(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error liking bracket"})
 		return
 	}
+	invalidateBracketSummaryCache(bracket.ID)
+	invalidateHomeSummaryCache(bracket.AuthorID)
 
 	c.JSON(http.StatusCreated, gin.H{"status": http.StatusCreated, "response": "Bracket liked successfully"})
 }
@@ -82,6 +84,11 @@ func (server *Server) UnLikeBracket(c *gin.Context) {
 	if err := server.DB.Delete(&existingLike).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error unliking bracket"})
 		return
+	}
+	var bracket models.Bracket
+	if err := server.DB.First(&bracket, uint(bid)).Error; err == nil {
+		invalidateBracketSummaryCache(bracket.ID)
+		invalidateHomeSummaryCache(bracket.AuthorID)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK, "response": "Bracket unliked successfully"})
