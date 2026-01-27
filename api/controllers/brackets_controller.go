@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -90,24 +89,6 @@ func groupMatchupsByRound(matchups []models.Matchup) map[int][]models.Matchup {
 		}
 	}
 	return rounds
-}
-
-func determineWinner(matchup models.Matchup) (*models.MatchupItem, error) {
-	if len(matchup.Items) != 2 {
-		return nil, errors.New("matchup does not have exactly 2 items")
-	}
-
-	a := matchup.Items[0]
-	b := matchup.Items[1]
-
-	if a.Votes == b.Votes {
-		return nil, errors.New("matchup is tied")
-	}
-
-	if a.Votes > b.Votes {
-		return &a, nil
-	}
-	return &b, nil
 }
 
 func formatSeedLabel(seed int, name string) string {
@@ -209,6 +190,19 @@ func generateFullBracket(db *gorm.DB, bracket models.Bracket, entries []string) 
 // ===============================
 //
 
+// CreateBracket godoc
+// @Summary      Create a bracket
+// @Description  Create a new bracket with optional seeded entries
+// @Tags         brackets
+// @Accept       json
+// @Produce      json
+// @Param        id       path      string                  true  "User ID"
+// @Param        bracket  body      BracketCreateRequest  true  "Bracket payload"
+// @Success      201      {object}  BracketResponseEnvelope
+// @Failure      400      {object}  ErrorResponse
+// @Failure      401      {object}  ErrorResponse
+// @Router       /users/{id}/brackets [post]
+// @Security     BearerAuth
 func (s *Server) CreateBracket(c *gin.Context) {
 	userID, ok := httpctx.CurrentUserID(c)
 	if !ok {
@@ -223,6 +217,7 @@ func (s *Server) CreateBracket(c *gin.Context) {
 		AdvanceMode          string   `json:"advance_mode"`
 		DurationMinutes      *int     `json:"duration_minutes"`
 		RoundDurationSeconds *int     `json:"round_duration_seconds"`
+		Visibility           string   `json:"visibility"`
 		Entries              []string `json:"entries"`
 	}
 
@@ -255,6 +250,7 @@ func (s *Server) CreateBracket(c *gin.Context) {
 		Status:               "draft",
 		AdvanceMode:          advanceMode,
 		RoundDurationSeconds: roundDurationSeconds,
+		Visibility:           normalizeVisibility(input.Visibility),
 	}
 
 	if len(input.Entries) > 0 && len(input.Entries) != input.Size {
@@ -272,7 +268,7 @@ func (s *Server) CreateBracket(c *gin.Context) {
 
 	generateFullBracket(s.DB, *newBracket, input.Entries)
 
-	c.JSON(http.StatusCreated, gin.H{"response": newBracket})
+	c.JSON(http.StatusCreated, gin.H{"response": bracketToDTO(s.DB, newBracket)})
 }
 
 //
@@ -281,21 +277,39 @@ func (s *Server) CreateBracket(c *gin.Context) {
 // ===============================
 //
 
+// AdvanceBracket godoc
+// @Summary      Advance bracket
+// @Description  Advance a bracket to the next round
+// @Tags         brackets
+// @Produce      json
+// @Param        id   path      string  true  "Bracket ID"
+// @Success      200  {object}  SimpleMessageResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Router       /brackets/{id}/advance [post]
+// @Security     BearerAuth
 func (s *Server) AdvanceBracket(c *gin.Context) {
-	bracketID, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bracket ID"})
-		return
-	}
-
 	userID, ok := httpctx.CurrentUserID(c)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
+	bracketRecord, err := resolveBracketByIdentifier(s.DB, c.Param("id"))
+	if err != nil {
+		if errors.Is(err, errInvalidIdentifier) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bracket ID"})
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Bracket not found"})
+		}
+		return
+	}
+
 	var bracket models.Bracket
-	if err := s.DB.First(&bracket, uint(bracketID)).Error; err != nil {
+	if err := s.DB.First(&bracket, bracketRecord.ID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
 		return
 	}
@@ -321,7 +335,6 @@ func (s *Server) AdvanceBracket(c *gin.Context) {
 		"round":    bracket.CurrentRound,
 		"advanced": advanced,
 	})
-	return
 }
 
 // POST /internal/brackets/:id/advance
@@ -334,18 +347,43 @@ func (s *Server) InternalAdvanceBracket(c *gin.Context) {
 	s.AdvanceBracket(c)
 }
 
-// GetBracket retrieves a single bracket by ID
+// GetBracket godoc
+// @Summary      Get a bracket
+// @Description  Get bracket details by ID
+// @Tags         brackets
+// @Produce      json
+// @Param        id   path      string  true  "Bracket ID"
+// @Success      200  {object}  BracketResponseEnvelope
+// @Failure      400  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Router       /brackets/{id} [get]
 func (s *Server) GetBracket(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	var bracket models.Bracket
+	bracketRecord, err := resolveBracketByIdentifier(s.DB, c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bracket ID"})
+		if errors.Is(err, errInvalidIdentifier) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bracket ID"})
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Bracket not found"})
+		}
+		return
+	}
+	found, err := bracket.FindBracketByID(s.DB, bracketRecord.ID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
 		return
 	}
 
-	var bracket models.Bracket
-	found, err := bracket.FindBracketByID(s.DB, uint(id))
+	viewerID, hasViewer := optionalViewerID(c)
+	allowed, reason, err := canViewUserContent(s.DB, viewerID, hasViewer, &found.Author, found.Visibility, httpctx.IsAdminRequest(c))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to check bracket visibility"})
+		return
+	}
+	if !allowed {
+		respondVisibilityDenied(c, reason)
 		return
 	}
 
@@ -366,51 +404,102 @@ func (s *Server) GetBracket(c *gin.Context) {
 		Count(&likesCount)
 	found.LikesCount = likesCount
 
-	c.JSON(http.StatusOK, gin.H{"response": found})
+	c.JSON(http.StatusOK, gin.H{"response": bracketToDTO(s.DB, found)})
 }
 
-// GetUserBrackets retrieves all brackets created by a user
+// GetUserBrackets godoc
+// @Summary      List a user's brackets
+// @Description  Get all brackets created by a user
+// @Tags         brackets
+// @Produce      json
+// @Param        id   path      string  true  "User ID"
+// @Success      200  {object}  UserBracketsResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Router       /users/{id}/brackets [get]
 func (s *Server) GetUserBrackets(c *gin.Context) {
-	uid, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	owner, err := resolveUserByIdentifier(s.DB, c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	viewerID, hasViewer := optionalViewerID(c)
+	isAdmin := httpctx.IsAdminRequest(c)
+	allowed, reason, err := canViewUserContent(s.DB, viewerID, hasViewer, owner, visibilityPublic, isAdmin)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to check visibility"})
+		return
+	}
+	if !allowed {
+		respondVisibilityDenied(c, reason)
 		return
 	}
 
 	var bracket models.Bracket
-	brackets, err := bracket.FindUserBrackets(s.DB, uint(uid))
+	brackets, err := bracket.FindUserBrackets(s.DB, owner.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve brackets"})
 		return
 	}
 
+	filtered := make([]BracketDTO, 0, len(*brackets))
 	for i := range *brackets {
+		allowed, _, err := canViewUserContent(s.DB, viewerID, hasViewer, owner, (*brackets)[i].Visibility, isAdmin)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to check bracket visibility"})
+			return
+		}
+		if !allowed {
+			continue
+		}
 		var likesCount int64
 		s.DB.Model(&models.BracketLike{}).
 			Where("bracket_id = ?", (*brackets)[i].ID).
 			Count(&likesCount)
 		(*brackets)[i].LikesCount = likesCount
+		filtered = append(filtered, bracketToDTO(s.DB, &(*brackets)[i]))
 	}
 
-	c.JSON(http.StatusOK, gin.H{"response": brackets})
+	c.JSON(http.StatusOK, gin.H{"response": filtered})
 }
 
 // UpdateBracket updates an existing bracket
+// UpdateBracket godoc
+// @Summary      Update a bracket
+// @Description  Update bracket details
+// @Tags         brackets
+// @Accept       json
+// @Produce      json
+// @Param        id    path      string                  true  "Bracket ID"
+// @Param        body  body      UpdateBracketRequest true  "Bracket payload"
+// @Success      200   {object}  BracketResponseEnvelope
+// @Failure      400   {object}  ErrorResponse
+// @Failure      401   {object}  ErrorResponse
+// @Failure      404   {object}  ErrorResponse
+// @Router       /brackets/{id} [put]
+// @Security     BearerAuth
 func (s *Server) UpdateBracket(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bracket ID"})
-		return
-	}
-
 	userID, ok := httpctx.CurrentUserID(c)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
+	bracketRecord, err := resolveBracketByIdentifier(s.DB, c.Param("id"))
+	if err != nil {
+		if errors.Is(err, errInvalidIdentifier) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bracket ID"})
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Bracket not found"})
+		}
+		return
+	}
+
 	var bracket models.Bracket
-	if err := s.DB.First(&bracket, uint(id)).Error; err != nil {
+	if err := s.DB.First(&bracket, bracketRecord.ID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
 		return
 	}
@@ -486,25 +575,43 @@ func (s *Server) UpdateBracket(c *gin.Context) {
 	}
 	invalidateBracketSummaryCache(bracket.ID)
 
-	c.JSON(http.StatusOK, gin.H{"response": updated})
+	c.JSON(http.StatusOK, gin.H{"response": bracketToDTO(s.DB, updated)})
 }
 
 // DeleteBracket deletes a bracket
+// DeleteBracket godoc
+// @Summary      Delete a bracket
+// @Description  Delete a bracket owned by the authenticated user
+// @Tags         brackets
+// @Produce      json
+// @Param        id   path      string  true  "Bracket ID"
+// @Success      200  {object}  SimpleMessageResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Router       /brackets/{id} [delete]
+// @Security     BearerAuth
 func (s *Server) DeleteBracket(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bracket ID"})
-		return
-	}
-
 	userID, ok := httpctx.CurrentUserID(c)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
+	bracketRecord, err := resolveBracketByIdentifier(s.DB, c.Param("id"))
+	if err != nil {
+		if errors.Is(err, errInvalidIdentifier) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bracket ID"})
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Bracket not found"})
+		}
+		return
+	}
+
 	var bracket models.Bracket
-	if err := s.DB.First(&bracket, uint(id)).Error; err != nil {
+	if err := s.DB.First(&bracket, bracketRecord.ID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
 		return
 	}
@@ -553,14 +660,21 @@ func (s *Server) deleteBracketCascade(bracket *models.Bracket) error {
 	return nil
 }
 
+// AttachMatchupToBracket godoc
+// @Summary      Attach matchup to bracket
+// @Description  Attach a matchup to a bracket round
+// @Tags         brackets
+// @Accept       json
+// @Produce      json
+// @Param        id    path      string                 true  "Bracket ID"
+// @Param        body  body      AttachMatchupRequest true  "Attach payload"
+// @Success      200   {object}  MatchupResponseEnvelope
+// @Failure      400   {object}  ErrorResponse
+// @Failure      401   {object}  ErrorResponse
+// @Failure      404   {object}  ErrorResponse
+// @Router       /brackets/{id}/matchups [post]
+// @Security     BearerAuth
 func (s *Server) AttachMatchupToBracket(c *gin.Context) {
-	// Parse bracket ID
-	bracketID, err := strconv.ParseUint(c.Param("id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bracket ID"})
-		return
-	}
-
 	// Auth
 	userID, ok := httpctx.CurrentUserID(c)
 	if !ok {
@@ -568,9 +682,21 @@ func (s *Server) AttachMatchupToBracket(c *gin.Context) {
 		return
 	}
 
+	bracketRecord, err := resolveBracketByIdentifier(s.DB, c.Param("id"))
+	if err != nil {
+		if errors.Is(err, errInvalidIdentifier) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bracket ID"})
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Bracket not found"})
+		}
+		return
+	}
+
 	// Load bracket
 	var bracket models.Bracket
-	if err := s.DB.First(&bracket, uint(bracketID)).Error; err != nil {
+	if err := s.DB.First(&bracket, bracketRecord.ID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
 		return
 	}
@@ -619,7 +745,7 @@ func (s *Server) AttachMatchupToBracket(c *gin.Context) {
 	}
 
 	// Attach matchup to bracket
-	matchup.BracketID = ptrUint(uint(bracketID))
+	matchup.BracketID = ptrUint(bracketRecord.ID)
 	matchup.Round = ptrInt(input.Round)
 
 	if input.Seed != nil {
@@ -632,31 +758,69 @@ func (s *Server) AttachMatchupToBracket(c *gin.Context) {
 	}
 	invalidateBracketSummaryCache(bracket.ID)
 
+	var reloaded models.Matchup
+	if err := s.DB.Preload("Items").Preload("Author").First(&reloaded, matchup.ID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to load matchup"})
+		return
+	}
+	var likesCount int64
+	s.DB.Model(&models.Like{}).Where("matchup_id = ?", reloaded.ID).Count(&likesCount)
+
 	c.JSON(http.StatusOK, gin.H{
-		"response": matchup,
+		"response": toMatchupResponse(s.DB, &reloaded, []models.Comment{}, likesCount),
 	})
 }
 
+// GetBracketMatchups godoc
+// @Summary      List bracket matchups
+// @Description  Get matchups for a bracket
+// @Tags         brackets
+// @Produce      json
+// @Param        id   path      string  true  "Bracket ID"
+// @Success      200  {object}  BracketMatchupsResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Router       /brackets/{id}/matchups [get]
 func (s *Server) GetBracketMatchups(c *gin.Context) {
-	bracketID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	var bracket models.Bracket
+	bracketRecord, err := resolveBracketByIdentifier(s.DB, c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bracket ID"})
+		if errors.Is(err, errInvalidIdentifier) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bracket ID"})
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Bracket not found"})
+		}
+		return
+	}
+	found, err := bracket.FindBracketByID(s.DB, bracketRecord.ID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
 		return
 	}
 
-	var bracket models.Bracket
-	if found, err := bracket.FindBracketByID(s.DB, uint(bracketID)); err == nil {
-		if found.Status == "active" &&
-			found.AdvanceMode == "timer" &&
-			found.RoundEndsAt != nil &&
-			!time.Now().Before(*found.RoundEndsAt) {
-			if _, err := s.advanceBracketInternal(s.DB, found); err != nil {
-				log.Printf("auto advance bracket %d: %v", found.ID, err)
-			}
+	viewerID, hasViewer := optionalViewerID(c)
+	allowed, reason, err := canViewUserContent(s.DB, viewerID, hasViewer, &found.Author, found.Visibility, httpctx.IsAdminRequest(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to check bracket visibility"})
+		return
+	}
+	if !allowed {
+		respondVisibilityDenied(c, reason)
+		return
+	}
+
+	if found.Status == "active" &&
+		found.AdvanceMode == "timer" &&
+		found.RoundEndsAt != nil &&
+		!time.Now().Before(*found.RoundEndsAt) {
+		if _, err := s.advanceBracketInternal(s.DB, found); err != nil {
+			log.Printf("auto advance bracket %d: %v", found.ID, err)
 		}
 	}
 
-	matchups, err := models.FindMatchupsByBracket(s.DB, uint(bracketID))
+	matchups, err := models.FindMatchupsByBracket(s.DB, bracketRecord.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load matchups"})
 		return
@@ -668,24 +832,49 @@ func (s *Server) GetBracketMatchups(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"response": matchups})
-}
-
-func (s *Server) DetachMatchupFromBracket(c *gin.Context) {
-	matchupID, err := strconv.ParseUint(c.Param("matchup_id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid matchup ID"})
-		return
+	response := make([]MatchupDTO, 0, len(matchups))
+	for i := range matchups {
+		var likesCount int64
+		s.DB.Model(&models.Like{}).Where("matchup_id = ?", matchups[i].ID).Count(&likesCount)
+		response = append(response, toMatchupResponse(s.DB, &matchups[i], []models.Comment{}, likesCount))
 	}
 
+	c.JSON(http.StatusOK, gin.H{"response": response})
+}
+
+// DetachMatchupFromBracket godoc
+// @Summary      Detach matchup from bracket
+// @Description  Detach a matchup from a bracket
+// @Tags         brackets
+// @Produce      json
+// @Param        matchup_id   path      string  true  "Matchup ID"
+// @Success      200          {object}  SimpleMessageResponse
+// @Failure      400          {object}  ErrorResponse
+// @Failure      401          {object}  ErrorResponse
+// @Failure      404          {object}  ErrorResponse
+// @Router       /brackets/matchups/{matchup_id} [delete]
+// @Security     BearerAuth
+func (s *Server) DetachMatchupFromBracket(c *gin.Context) {
 	userID, ok := httpctx.CurrentUserID(c)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
+	matchupRecord, err := resolveMatchupByIdentifier(s.DB, c.Param("matchup_id"))
+	if err != nil {
+		if errors.Is(err, errInvalidIdentifier) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid matchup ID"})
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Matchup not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Matchup not found"})
+		}
+		return
+	}
+
 	var matchup models.Matchup
-	if err := s.DB.First(&matchup, uint(matchupID)).Error; err != nil {
+	if err := s.DB.First(&matchup, matchupRecord.ID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Matchup not found"})
 		return
 	}

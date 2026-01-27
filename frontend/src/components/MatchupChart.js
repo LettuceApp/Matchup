@@ -1,73 +1,80 @@
-/*
-import React, { useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
+import React, { useMemo } from 'react';
 import {
-  ResponsiveContainer,
-  BarChart,
   Bar,
+  BarChart,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  Tooltip,
-  LabelList,
 } from 'recharts';
-import { Card } from '@/components/ui/card';
+import { motion } from 'framer-motion';
 
-// Initialize Socket.IO connection (point to your backend)
-const defaultSocketURL =
-  typeof window !== 'undefined'
-    ? `${window.location.protocol}//${window.location.hostname}:4000`
-    : 'http://localhost:4000';
+const palette = ['#f59e0b', '#38bdf8', '#a78bfa', '#34d399'];
 
-const socket = io(process.env.NEXT_PUBLIC_WS_URL || defaultSocketURL);
+const MatchupChart = ({ matchup }) => {
+  const data = useMemo(() => {
+    const items = Array.isArray(matchup?.items) ? matchup.items : [];
+    return items.map((item, index) => ({
+      name: item.item || `Contender ${index + 1}`,
+      votes: Number(item.votes ?? 0),
+      fill: palette[index % palette.length],
+    }));
+  }, [matchup?.items]);
 
-/**
- * MatchupChart displays a real-time, interactive bar chart for a Matchup.
- * Props:
- *  - matchupId: unique identifier for the matchup in your backend
- */
+  if (!data.length) {
+    return null;
+  }
 
-/*
-export default function MatchupChart({ matchupId }) {
-  const [data, setData] = useState([]);
-
-  useEffect(() => {
-    if (!matchupId) return;
-    // Join the socket room for this matchup
-    socket.emit('joinMatchup', matchupId);
-
-    // Listen for updates
-    socket.on('matchupUpdate', (matchupData) => {
-      // matchupData: [{ option: 'yes', votes: 4 }, ...]
-      // Sort ascending by votes (so the largest bar is at the bottom)
-      const sorted = [...matchupData].sort((a, b) => a.votes - b.votes);
-      setData(sorted.map((d) => ({ name: d.option, value: d.votes })));
-    });
-
-    return () => {
-      // Clean up listeners and leave the room
-      socket.emit('leaveMatchup', matchupId);
-      socket.off('matchupUpdate');
-    };
-  }, [matchupId]);
+  const totalVotes = data.reduce((sum, entry) => sum + entry.votes, 0);
 
   return (
-    <Card className="w-full h-full p-4">
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart
-          data={data}
-          layout="vertical"
-          margin={{ top: 20, right: 40, bottom: 20, left: 20 }}
-        >
-          <XAxis type="number" hide />
-          <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} width={100} />
-          <Tooltip formatter={(value) => `${value} votes`} />
-
-          <Bar dataKey="value" barSize={20} radius={[10, 10, 10, 10]} animationDuration={500}>
-            <LabelList dataKey="value" position="right" offset={8} />
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </Card>
+    <motion.div
+      className="mt-4 rounded-2xl border border-slate-700/50 bg-slate-950/40 p-4"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+        <span>Votes snapshot</span>
+        <span>{totalVotes} total</span>
+      </div>
+      <div className="mt-3 h-44 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <XAxis
+              dataKey="name"
+              tickLine={false}
+              axisLine={false}
+              tick={{ fill: '#cbd5f5', fontSize: 11 }}
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              tick={{ fill: '#94a3b8', fontSize: 10 }}
+              allowDecimals={false}
+            />
+            <Tooltip
+              cursor={{ fill: 'rgba(148,163,184,0.15)' }}
+              contentStyle={{
+                background: '#0f172a',
+                border: '1px solid rgba(148,163,184,0.35)',
+                borderRadius: 12,
+                color: '#f8fafc',
+                fontSize: 12,
+              }}
+              formatter={(value) => [`${value}`, 'Votes']}
+            />
+            <Bar dataKey="votes" radius={[10, 10, 10, 10]} animationDuration={600}>
+              {data.map((entry) => (
+                <Cell key={entry.name} fill={entry.fill} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </motion.div>
   );
-}
-  */
+};
+
+export default MatchupChart;

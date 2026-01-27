@@ -26,6 +26,8 @@ func (s *Server) initializeRoutes() {
 		v1.POST("/users", s.CreateUser)
 		v1.GET("/users", s.GetUsers)
 		v1.GET("/users/:id", s.GetUser)
+		v1.GET("/users/:id/followers", s.GetFollowers)
+		v1.GET("/users/:id/following", s.GetFollowing)
 
 		// Matchups (public read)
 		v1.GET("/matchups", s.GetMatchups)
@@ -50,6 +52,7 @@ func (s *Server) initializeRoutes() {
 
 		// Likes (public read)
 		v1.GET("/matchups/:id/likes", s.GetLikes)
+		v1.PATCH("/matchup_items/:id/vote", s.IncrementMatchupItemVotes)
 		v1.GET("/users/:id/likes", s.GetUserLikes)
 		v1.GET("/brackets/:id/likes", s.GetBracketLikes)
 		v1.GET("/users/:id/bracket_likes", s.GetUserBracketLikes)
@@ -64,8 +67,12 @@ func (s *Server) initializeRoutes() {
 
 		// Users
 		auth.PUT("/users/:id", s.UpdateUser)
+		auth.PATCH("/users/:id/privacy", s.UpdateUserPrivacy)
 		auth.PUT("/users/:id/avatar", s.UpdateAvatar)
 		auth.DELETE("/users/:id", s.DeleteUser)
+		auth.POST("/users/:id/follow", s.FollowUser)
+		auth.DELETE("/users/:id/follow", s.UnfollowUser)
+		auth.GET("/users/:id/relationship", s.GetRelationship)
 
 		// Matchups
 		auth.POST("/users/:id/matchups", s.CreateMatchup)
@@ -85,27 +92,28 @@ func (s *Server) initializeRoutes() {
 		auth.POST("/matchups/:id/items", s.AddItemToMatchup)
 		auth.PUT("/matchup_items/:id", s.UpdateMatchupItem)
 		auth.DELETE("/matchup_items/:id", s.DeleteMatchupItem)
-		auth.PATCH("/matchup_items/:id/vote", s.IncrementMatchupItemVotes)
 
 		// Likes
 		auth.POST("/matchups/:id/likes", s.LikeMatchup)
 		auth.DELETE("/matchups/:id/likes", s.UnLikeMatchup)
 		auth.POST("/brackets/:id/likes", s.LikeBracket)
 		auth.DELETE("/brackets/:id/likes", s.UnLikeBracket)
-		auth.POST("/brackets/:id/comments", s.CreateBracketComment)
-		auth.DELETE("/bracket_comments/:id", s.DeleteBracketComment)
 
 		// Comments
 		auth.POST("/matchups/:id/comments", s.CreateComment)
 		auth.PUT("/comments/:id", s.UpdateComment)
 		auth.DELETE("/comments/:id", s.DeleteComment)
+		auth.POST("/brackets/:id/comments", s.CreateBracketComment)
+		auth.DELETE("/bracket_comments/:id", s.DeleteBracketComment)
 
 		// Bracket → Matchups
 		auth.POST("/brackets/:id/matchups", s.AttachMatchupToBracket)
 		auth.DELETE("/brackets/matchups/:matchup_id", s.DetachMatchupFromBracket)
 		auth.POST("/brackets/:id/advance", s.AdvanceBracket)
-		auth.POST("/internal/brackets/:id/advance", s.InternalAdvanceBracket)
 		auth.POST("/matchups/:id/resolve-and-advance", s.ResolveTieAndAdvance)
+
+		//Internal
+		auth.POST("/internal/brackets/:id/advance", s.InternalAdvanceBracket)
 
 		// ---------- Admin routes ----------
 		admin := auth.Group("/admin")

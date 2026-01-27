@@ -6,11 +6,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/twinj/uuid"
 	"gorm.io/gorm"
 )
 
 type Matchup struct {
 	ID              uint          `gorm:"primary_key;autoIncrement" json:"id"`
+	PublicID        string        `gorm:"type:uuid;uniqueIndex;column:public_id" json:"public_id"`
 	Title           string        `gorm:"size:255;not null" json:"title"`
 	Content         string        `gorm:"text;not null;" json:"content"`
 	Author          User          `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
@@ -20,7 +22,7 @@ type Matchup struct {
 	CreatedAt       time.Time     `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
 	UpdatedAt       time.Time     `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
 	Status          string        `gorm:"size:20;not null;default:'published'" json:"status"`
-	EndMode         string        `gorm:"size:20;not null;default:'timer'" json:"end_mode"`
+	EndMode         string        `gorm:"size:20;not null;default:'manual'" json:"end_mode"`
 	DurationSeconds int           `gorm:"not null;default:0" json:"duration_seconds"`
 	BracketID       *uint         `gorm:"index" json:"bracket_id,omitempty"`
 	Round           *int          `json:"round,omitempty"`
@@ -28,14 +30,30 @@ type Matchup struct {
 	WinnerItemID    *uint         `json:"winner_item_id"`
 	StartTime       *time.Time    `json:"start_time,omitempty"`
 	EndTime         *time.Time    `json:"end_time,omitempty"`
+	Visibility      string        `gorm:"size:20;not null;default:'public'" json:"visibility"`
+}
+
+func (m *Matchup) BeforeCreate(tx *gorm.DB) (err error) {
+	if strings.TrimSpace(m.PublicID) == "" {
+		m.PublicID = uuid.NewV4().String()
+	}
+	return nil
 }
 
 type MatchupItem struct {
 	ID        uint    `gorm:"primary_key;autoIncrement" json:"id"`
+	PublicID  string  `gorm:"type:uuid;uniqueIndex;column:public_id" json:"public_id"`
 	Matchup   Matchup `gorm:"constraint:OnDelete:CASCADE" json:"-"`
 	MatchupID uint    `gorm:"not null;index" json:"matchup_id"`
 	Item      string  `json:"item"`
 	Votes     int     `json:"votes"`
+}
+
+func (m *MatchupItem) BeforeCreate(tx *gorm.DB) (err error) {
+	if strings.TrimSpace(m.PublicID) == "" {
+		m.PublicID = uuid.NewV4().String()
+	}
+	return nil
 }
 
 func (m *Matchup) Prepare() {
@@ -46,7 +64,10 @@ func (m *Matchup) Prepare() {
 	m.UpdatedAt = time.Now()
 
 	if strings.TrimSpace(m.EndMode) == "" {
-		m.EndMode = "timer"
+		m.EndMode = "manual"
+	}
+	if strings.TrimSpace(m.Visibility) == "" {
+		m.Visibility = "public"
 	}
 }
 
@@ -184,6 +205,7 @@ func FindMatchupsByBracket(db *gorm.DB, bracketID uint) ([]Matchup, error) {
 	err := db.
 		Where("bracket_id = ?", bracketID).
 		Order("round ASC, seed ASC, created_at ASC").
+		Preload("Author").
 		Preload("Items").
 		Find(&matchups).Error
 

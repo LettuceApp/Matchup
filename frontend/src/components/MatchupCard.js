@@ -1,9 +1,12 @@
 import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import MatchupItem from "./MatchupItem";
 import MatchupChart from "./MatchupChart";
 import Comment from "./Comment";
 import { getUserLikes, likeMatchup, unlikeMatchup } from "../services/api";
+
+const MotionLink = motion(Link);
 
 export default function MatchupCard({
   matchup,
@@ -14,10 +17,7 @@ export default function MatchupCard({
   likedMatchupIds,
 }) {
   const isBracket = variant === "bracket";
-  const viewerId = useMemo(() => {
-    const stored = localStorage.getItem("userId");
-    return stored ? Number(stored) : 0;
-  }, []);
+  const viewerId = useMemo(() => localStorage.getItem("userId"), []);
   const matchupOwnerId =
     ownerId ??
     matchup?.author_id ??
@@ -40,6 +40,7 @@ export default function MatchupCard({
     matchupOwnerId !== ""
       ? String(matchupOwnerId)
       : null;
+  const profileSlug = matchup?.author?.username || normalizedOwnerId;
   const items = Array.isArray(matchup.items) ? matchup.items : [];
   const roundNumber =
     typeof matchup.round === "number"
@@ -55,6 +56,14 @@ export default function MatchupCard({
     isBracket && placeholderLabels.length
       ? placeholderLabels.slice(0, Math.max(0, 2 - items.length))
       : [];
+  const totalVotes = useMemo(
+    () =>
+      items.reduce(
+        (sum, item) => sum + Number(item?.votes ?? item?.Votes ?? 0),
+        0,
+      ),
+    [items],
+  );
   const matchupStatus = matchup?.status ?? matchup?.Status ?? "active";
   const isOpenStatus = matchupStatus === "published" || matchupStatus === "active";
   const endsAtRaw = matchup?.end_time ?? matchup?.EndTime ?? matchup?.endTime ?? null;
@@ -96,7 +105,7 @@ export default function MatchupCard({
   useEffect(() => {
     if (!viewerId || !matchup?.id) return;
     if (likedMatchupIds instanceof Set) {
-      setIsLiked(likedMatchupIds.has(Number(matchup.id)));
+      setIsLiked(likedMatchupIds.has(String(matchup.id)));
       return;
     }
 
@@ -106,7 +115,9 @@ export default function MatchupCard({
         if (!isMounted) return;
         const likes = res.data?.response ?? res.data ?? [];
         const liked = Array.isArray(likes)
-          ? likes.some((like) => Number(like.matchup_id) === Number(matchup.id))
+          ? likes.some(
+              (like) => String(like.matchup_id) === String(matchup.id),
+            )
           : false;
         setIsLiked(liked);
       })
@@ -149,6 +160,14 @@ export default function MatchupCard({
     }
   };
 
+  const cardMotion = {
+    layout: true,
+    initial: { opacity: 0, y: 14 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -10 },
+    transition: { duration: 0.25 },
+  };
+
   const cardBody = (
     <>
       <h4 className="matchup-title">{matchup.title}</h4>
@@ -166,7 +185,11 @@ export default function MatchupCard({
             key={item.id}
             item={item}
             matchupId={matchup.id}
-            disabled={isBracket}
+            disabled={false}
+            isBracketMatchup={isBracket}
+            isVotingLocked={interactionLocked}
+            totalVotes={totalVotes}
+            showVoteBar={isBracket}
           />
         ))}
 
@@ -178,20 +201,22 @@ export default function MatchupCard({
         ))}
       </div>
 
-      <div className="matchup-actions">
-        <button
-          type="button"
-          className={`matchup-like-button ${isLiked ? "is-liked" : ""}`}
-          onClick={handleLikeToggle}
-          disabled={!canLike || likePending}
-        >
-          {likePending ? "Updating…" : isLiked ? "Liked" : "Like"}
-        </button>
-        <div className="matchup-like-indicator">
-          <span className="matchup-like-count">{likesCount}</span>
-          <span>Likes</span>
+      {!isBracket && (
+        <div className="matchup-actions">
+          <button
+            type="button"
+            className={`matchup-like-button ${isLiked ? "is-liked" : ""}`}
+            onClick={handleLikeToggle}
+            disabled={!canLike || likePending}
+          >
+            {likePending ? "Updating…" : isLiked ? "Liked" : "Like"}
+          </button>
+          <div className="matchup-like-indicator">
+            <span className="matchup-like-count">{likesCount}</span>
+            <span>Likes</span>
+          </div>
         </div>
-      </div>
+      )}
 
       {!isBracket && <MatchupChart matchup={matchup} />}
       {!isBracket && <Comment matchupId={matchup.id} />}
@@ -200,23 +225,37 @@ export default function MatchupCard({
 
   if (isBracket) {
     const bracketMatchupPath =
-      normalizedOwnerId && matchup?.id
-        ? `/users/${normalizedOwnerId}/matchup/${matchup.id}`
+      profileSlug && matchup?.id
+        ? `/users/${profileSlug}/matchup/${matchup.id}`
         : null;
 
     if (!bracketMatchupPath) {
-      return <div className="matchup-card bracket">{cardBody}</div>;
+      return (
+        <motion.div
+          className="matchup-card bracket"
+          whileHover={{ y: -4 }}
+          {...cardMotion}
+        >
+          {cardBody}
+        </motion.div>
+      );
     }
 
     return (
-      <Link
+      <MotionLink
         to={bracketMatchupPath}
         className="matchup-card bracket matchup-card-link"
+        whileHover={{ y: -4 }}
+        {...cardMotion}
       >
         {cardBody}
-      </Link>
+      </MotionLink>
     );
   }
 
-  return <div className="matchup-card">{cardBody}</div>;
+  return (
+    <motion.div className="matchup-card" whileHover={{ y: -4 }} {...cardMotion}>
+      {cardBody}
+    </motion.div>
+  );
 }

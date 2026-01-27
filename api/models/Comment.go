@@ -5,17 +5,26 @@ import (
 	"strings"
 	"time"
 
+	"github.com/twinj/uuid"
 	"gorm.io/gorm"
 )
 
 type Comment struct {
 	ID        uint      `gorm:"primary_key;autoIncrement" json:"id"`
+	PublicID  string    `gorm:"type:uuid;uniqueIndex;column:public_id" json:"public_id"`
 	UserID    uint      `gorm:"not null" json:"user_id"`
 	MatchupID uint      `gorm:"not null" json:"matchup_id"`
 	Author    User      `gorm:"foreignKey:UserID" json:"author"`
 	Body      string    `gorm:"text;not null;" json:"body"`
 	CreatedAt time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
 	UpdatedAt time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
+}
+
+func (c *Comment) BeforeCreate(tx *gorm.DB) (err error) {
+	if strings.TrimSpace(c.PublicID) == "" {
+		c.PublicID = uuid.NewV4().String()
+	}
+	return nil
 }
 
 func (c *Comment) Prepare() {

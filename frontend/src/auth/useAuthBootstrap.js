@@ -23,6 +23,7 @@ export function useAuthBootstrap() {
         if (!mounted) return;
         const payload = res?.data?.response || res?.data;
         if (payload?.id) localStorage.setItem('userId', String(payload.id));
+        if (payload?.username) localStorage.setItem('username', String(payload.username));
         if (typeof payload?.is_admin === 'boolean') {
           localStorage.setItem('isAdmin', payload.is_admin ? 'true' : 'false');
         }
@@ -33,6 +34,7 @@ export function useAuthBootstrap() {
         if (err?.response?.status === 401) {
           localStorage.removeItem('token');
           localStorage.removeItem('userId');
+          localStorage.removeItem('username');
           localStorage.removeItem('isAdmin');
           delete API.defaults.headers.common.Authorization;
         }

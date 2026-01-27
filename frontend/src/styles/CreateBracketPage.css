@@ -77,6 +77,13 @@
   color: rgba(226, 232, 240, 0.95);
 }
 
+.create-bracket-seed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 .create-bracket-hint {
   margin: 0;
   color: rgba(226, 232, 240, 0.72);
@@ -96,9 +103,41 @@
   gap: 0.4rem;
 }
 
+.create-bracket-seed-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
 .create-bracket-seed-label {
   font-size: 0.85rem;
   color: rgba(226, 232, 240, 0.75);
+}
+
+.create-bracket-mutuals-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 255, 0.35);
+  background: rgba(15, 23, 42, 0.6);
+  color: rgba(226, 232, 240, 0.9);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 200ms ease, background-color 200ms ease, transform 200ms ease;
+}
+
+.create-bracket-mutuals-toggle input {
+  accent-color: #60a5fa;
+}
+
+.create-bracket-mutuals-toggle:hover,
+.create-bracket-mutuals-toggle:focus-within {
+  border-color: rgba(96, 165, 250, 0.6);
+  background: rgba(59, 130, 246, 0.18);
+  transform: translateY(-1px);
 }
 
 .create-bracket-field input,

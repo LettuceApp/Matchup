@@ -1,15 +1,26 @@
 package controllers
 
 import (
-	"Matchup/models"
+	"errors"
 	"net/http"
-	"strconv"
 
+	"Matchup/models"
+	httpctx "Matchup/utils/httpctx"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-// LikeBracket allows a user to like a specific bracket
+// LikeBracket godoc
+// @Summary      Like a bracket
+// @Description  Like a bracket as the authenticated user
+// @Tags         bracket-likes
+// @Produce      json
+// @Param        id   path      string  true  "Bracket ID"
+// @Success      201  {object}  SimpleMessageResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Router       /brackets/{id}/likes [post]
+// @Security     BearerAuth
 func (server *Server) LikeBracket(c *gin.Context) {
 	tokenID, exists := c.Get("userID")
 	if !exists {
@@ -19,20 +30,36 @@ func (server *Server) LikeBracket(c *gin.Context) {
 	uid := tokenID.(uint)
 
 	bracketID := c.Param("id")
-	bid, err := strconv.ParseUint(bracketID, 10, 32)
+	bracketRecord, err := resolveBracketByIdentifier(server.DB, bracketID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bracket ID"})
+		if errors.Is(err, errInvalidIdentifier) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bracket ID"})
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Bracket not found"})
+		}
 		return
 	}
 
 	var bracket models.Bracket
-	if err := server.DB.First(&bracket, bracketID).Error; err != nil {
+	if err := server.DB.Preload("Author").First(&bracket, bracketRecord.ID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
 		return
 	}
 
+	allowed, reason, err := canViewUserContent(server.DB, uid, true, &bracket.Author, bracket.Visibility, httpctx.IsAdminRequest(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to check bracket visibility"})
+		return
+	}
+	if !allowed {
+		respondVisibilityDenied(c, reason)
+		return
+	}
+
 	existingLike := models.BracketLike{}
-	err = server.DB.Where("user_id = ? AND bracket_id = ?", uid, uint(bid)).First(&existingLike).Error
+	err = server.DB.Where("user_id = ? AND bracket_id = ?", uid, bracketRecord.ID).First(&existingLike).Error
 	if err == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "You have already liked this bracket"})
 		return
@@ -43,7 +70,7 @@ func (server *Server) LikeBracket(c *gin.Context) {
 
 	like := models.BracketLike{
 		UserID:    uid,
-		BracketID: uint(bid),
+		BracketID: bracketRecord.ID,
 	}
 	if err := server.DB.Create(&like).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error liking bracket"})
@@ -55,7 +82,17 @@ func (server *Server) LikeBracket(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"status": http.StatusCreated, "response": "Bracket liked successfully"})
 }
 
-// UnLikeBracket allows a user to remove their like from a specific bracket
+// UnLikeBracket godoc
+// @Summary      Unlike a bracket
+// @Description  Remove the authenticated user's like from a bracket
+// @Tags         bracket-likes
+// @Produce      json
+// @Param        id   path      string  true  "Bracket ID"
+// @Success      200  {object}  SimpleMessageResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Router       /brackets/{id}/likes [delete]
+// @Security     BearerAuth
 func (server *Server) UnLikeBracket(c *gin.Context) {
 	tokenID, exists := c.Get("userID")
 	if !exists {
@@ -65,14 +102,20 @@ func (server *Server) UnLikeBracket(c *gin.Context) {
 	uid := tokenID.(uint)
 
 	bracketID := c.Param("id")
-	bid, err := strconv.ParseUint(bracketID, 10, 32)
+	bracketRecord, err := resolveBracketByIdentifier(server.DB, bracketID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bracket ID"})
+		if errors.Is(err, errInvalidIdentifier) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bracket ID"})
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Bracket not found"})
+		}
 		return
 	}
 
 	existingLike := models.BracketLike{}
-	err = server.DB.Where("user_id = ? AND bracket_id = ?", uid, uint(bid)).First(&existingLike).Error
+	err = server.DB.Where("user_id = ? AND bracket_id = ?", uid, bracketRecord.ID).First(&existingLike).Error
 	if err == gorm.ErrRecordNotFound {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Like not found"})
 		return
@@ -86,7 +129,7 @@ func (server *Server) UnLikeBracket(c *gin.Context) {
 		return
 	}
 	var bracket models.Bracket
-	if err := server.DB.First(&bracket, uint(bid)).Error; err == nil {
+	if err := server.DB.First(&bracket, bracketRecord.ID).Error; err == nil {
 		invalidateBracketSummaryCache(bracket.ID)
 		invalidateHomeSummaryCache(bracket.AuthorID)
 	}
@@ -94,39 +137,107 @@ func (server *Server) UnLikeBracket(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK, "response": "Bracket unliked successfully"})
 }
 
-// GetBracketLikes retrieves likes for a bracket
+// GetBracketLikes godoc
+// @Summary      List bracket likes
+// @Description  Get likes for a bracket
+// @Tags         bracket-likes
+// @Produce      json
+// @Param        id   path      string  true  "Bracket ID"
+// @Success      200  {object}  BracketLikesListResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Router       /brackets/{id}/likes [get]
 func (server *Server) GetBracketLikes(c *gin.Context) {
 	bracketID := c.Param("id")
-	bid, err := strconv.ParseUint(bracketID, 10, 32)
+	bracketRecord, err := resolveBracketByIdentifier(server.DB, bracketID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bracket ID"})
+		if errors.Is(err, errInvalidIdentifier) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid bracket ID"})
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Bracket not found"})
+		}
+		return
+	}
+
+	var bracket models.Bracket
+	if err := server.DB.Preload("Author").First(&bracket, bracketRecord.ID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
+		return
+	}
+
+	viewerID, hasViewer := optionalViewerID(c)
+	allowed, reason, err := canViewUserContent(server.DB, viewerID, hasViewer, &bracket.Author, bracket.Visibility, httpctx.IsAdminRequest(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to check bracket visibility"})
+		return
+	}
+	if !allowed {
+		respondVisibilityDenied(c, reason)
 		return
 	}
 
 	likes := []models.BracketLike{}
-	if err := server.DB.Where("bracket_id = ?", uint(bid)).Find(&likes).Error; err != nil {
+	if err := server.DB.Where("bracket_id = ?", bracketRecord.ID).Find(&likes).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "No likes found"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK, "response": likes})
+	userIDs := make([]uint, 0, len(likes))
+	bracketIDs := make([]uint, 0, len(likes))
+	for _, likeEntry := range likes {
+		userIDs = append(userIDs, likeEntry.UserID)
+		bracketIDs = append(bracketIDs, likeEntry.BracketID)
+	}
+
+	userPublicIDs := loadUserPublicIDMap(server.DB, userIDs)
+	bracketPublicIDs := loadBracketPublicIDMap(server.DB, bracketIDs)
+
+	response := make([]BracketLikeDTO, len(likes))
+	for i, likeEntry := range likes {
+		response[i] = bracketLikeToDTO(likeEntry, userPublicIDs[likeEntry.UserID], bracketPublicIDs[likeEntry.BracketID])
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK, "response": response})
 }
 
-// GetUserBracketLikes retrieves all bracket likes for a user
+// GetUserBracketLikes godoc
+// @Summary      List user bracket likes
+// @Description  Get bracket likes for a user
+// @Tags         bracket-likes
+// @Produce      json
+// @Param        id   path      string  true  "User ID"
+// @Success      200  {object}  BracketLikesListResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
+// @Router       /users/{id}/bracket_likes [get]
 func (server *Server) GetUserBracketLikes(c *gin.Context) {
-	userID := c.Param("id")
-	uid, err := strconv.ParseUint(userID, 10, 32)
+	user, err := resolveUserByIdentifier(server.DB, c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
 
 	likes := []models.BracketLike{}
-	err = server.DB.Where("user_id = ?", uint(uid)).Find(&likes).Error
+	err = server.DB.Where("user_id = ?", user.ID).Find(&likes).Error
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving user bracket likes"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK, "response": likes})
+	bracketIDs := make([]uint, 0, len(likes))
+	for _, likeEntry := range likes {
+		bracketIDs = append(bracketIDs, likeEntry.BracketID)
+	}
+
+	userPublicIDs := loadUserPublicIDMap(server.DB, []uint{user.ID})
+	bracketPublicIDs := loadBracketPublicIDMap(server.DB, bracketIDs)
+
+	response := make([]BracketLikeDTO, len(likes))
+	for i, likeEntry := range likes {
+		response[i] = bracketLikeToDTO(likeEntry, userPublicIDs[likeEntry.UserID], bracketPublicIDs[likeEntry.BracketID])
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": http.StatusOK, "response": response})
 }

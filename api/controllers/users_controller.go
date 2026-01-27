@@ -3,7 +3,6 @@ package controllers
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -29,16 +28,8 @@ type BucketBasics struct {
 	S3Client *s3.Client
 }
 
-func userToResponse(user *models.User) map[string]interface{} {
-	return map[string]interface{}{
-		"id":          user.ID,
-		"username":    user.Username,
-		"email":       user.Email,
-		"avatar_path": user.AvatarPath,
-		"is_admin":    user.IsAdmin,
-		"created_at":  user.CreatedAt,
-		"updated_at":  user.UpdatedAt,
-	}
+func userToResponse(user *models.User) UserDTO {
+	return userToDTO(user)
 }
 
 func buildPagination(page, limit int, total int64) map[string]interface{} {
@@ -55,7 +46,17 @@ func buildPagination(page, limit int, total int64) map[string]interface{} {
 	}
 }
 
-// CreateUser handles user registration
+// CreateUser godoc
+// @Summary      Register a user
+// @Description  Create a new user account
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Param        user  body      UserCreateRequest  true  "User payload"
+// @Success      201   {object}  UserResponseEnvelope
+// @Failure      400   {object}  ErrorResponse
+// @Failure      422   {object}  ErrorResponse
+// @Router       /users [post]
 func (server *Server) CreateUser(c *gin.Context) {
 	var user models.User
 
@@ -92,7 +93,15 @@ func (server *Server) CreateUser(c *gin.Context) {
 	})
 }
 
-// GetCurrentUser returns the authenticated user's profile
+// GetCurrentUser godoc
+// @Summary      Get current user
+// @Description  Get the authenticated user's profile
+// @Tags         users
+// @Produce      json
+// @Success      200  {object}  UserResponseEnvelope
+// @Failure      401  {object}  ErrorResponse
+// @Router       /me [get]
+// @Security     BearerAuth
 func (server *Server) GetCurrentUser(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
@@ -119,7 +128,14 @@ func (server *Server) GetCurrentUser(c *gin.Context) {
 	})
 }
 
-// GetUsers retrieves all users
+// GetUsers godoc
+// @Summary      List users
+// @Description  Get a list of users
+// @Tags         users
+// @Produce      json
+// @Success      200  {object}  UsersListResponse
+// @Failure      500  {object}  ErrorResponse
+// @Router       /users [get]
 func (server *Server) GetUsers(c *gin.Context) {
 	user := models.User{}
 
@@ -130,7 +146,7 @@ func (server *Server) GetUsers(c *gin.Context) {
 	}
 
 	// Prepare response without passwords
-	userResponses := make([]map[string]interface{}, len(*users))
+	userResponses := make([]UserDTO, len(*users))
 	for i, user := range *users {
 		userCopy := user
 		userResponses[i] = userToResponse(&userCopy)
@@ -142,19 +158,19 @@ func (server *Server) GetUsers(c *gin.Context) {
 	})
 }
 
-// GetUser retrieves a user by ID
+// GetUser godoc
+// @Summary      Get a user
+// @Description  Get a user by ID
+// @Tags         users
+// @Produce      json
+// @Param        id   path      string  true  "User ID"
+// @Success      200  {object}  UserResponseEnvelope
+// @Failure      400  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Router       /users/{id} [get]
 func (server *Server) GetUser(c *gin.Context) {
 	userID := c.Param("id")
-
-	uid, err := strconv.ParseUint(userID, 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
-
-	user := models.User{}
-
-	userGotten, err := user.FindUserByID(server.DB, uint(uid))
+	userGotten, err := resolveUserByIdentifier(server.DB, userID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
@@ -166,13 +182,25 @@ func (server *Server) GetUser(c *gin.Context) {
 	})
 }
 
-// UpdateAvatar allows a user to update their avatar image
+// UpdateAvatar godoc
+// @Summary      Update avatar
+// @Description  Upload a new avatar image
+// @Tags         users
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        id    path      string   true  "User ID"
+// @Param        file  formData  file  true  "Avatar image"
+// @Success      200   {object}  UserResponseEnvelope
+// @Failure      400   {object}  ErrorResponse
+// @Failure      401   {object}  ErrorResponse
+// @Router       /users/{id}/avatar [put]
+// @Security     BearerAuth
 func (server *Server) UpdateAvatar(c *gin.Context) {
 	// 1) Parse and validate user ID
 	userID := c.Param("id")
-	uid, err := strconv.ParseUint(userID, 10, 32)
+	user, err := resolveUserByIdentifier(server.DB, userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
 	requestorID, ok := httpctx.CurrentUserID(c)
@@ -180,7 +208,7 @@ func (server *Server) UpdateAvatar(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	if requestorID != uint(uid) && !httpctx.IsAdminRequest(c) {
+	if requestorID != user.ID && !httpctx.IsAdminRequest(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
@@ -283,8 +311,8 @@ func (server *Server) UpdateAvatar(c *gin.Context) {
 	}
 
 	// 8) Save avatar path in DB (just the filename; URL is built on read)
-	user := models.User{AvatarPath: filePath}
-	updatedUser, err := user.UpdateAUserAvatar(server.DB, uint(uid))
+	avatarUser := models.User{AvatarPath: filePath}
+	updatedUser, err := avatarUser.UpdateAUserAvatar(server.DB, user.ID)
 	if err != nil {
 		log.Printf("DB update failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Cannot save image, please try again later"})
@@ -305,13 +333,26 @@ func (server *Server) UpdateAvatar(c *gin.Context) {
 	log.Printf("Avatar updated successfully for user %d", updatedUser.ID)
 }
 
-// UpdateUser allows a user to update their email and password
+// UpdateUser godoc
+// @Summary      Update user
+// @Description  Update email or password
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Param        id    path      string               true  "User ID"
+// @Param        body  body      UserUpdateRequest true  "User payload"
+// @Success      200   {object}  UserResponseEnvelope
+// @Failure      400   {object}  ErrorResponse
+// @Failure      401   {object}  ErrorResponse
+// @Failure      404   {object}  ErrorResponse
+// @Failure      422   {object}  ErrorResponse
+// @Router       /users/{id} [put]
+// @Security     BearerAuth
 func (server *Server) UpdateUser(c *gin.Context) {
 	userID := c.Param("id")
-
-	uid, err := strconv.ParseUint(userID, 10, 32)
+	user, err := resolveUserByIdentifier(server.DB, userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
 
@@ -321,7 +362,7 @@ func (server *Server) UpdateUser(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	if requestorID != uint(uid) && !httpctx.IsAdminRequest(c) {
+	if requestorID != user.ID && !httpctx.IsAdminRequest(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
@@ -334,7 +375,7 @@ func (server *Server) UpdateUser(c *gin.Context) {
 
 	// Retrieve existing user data
 	formerUser := models.User{}
-	err = server.DB.Model(&models.User{}).Where("id = ?", uint(uid)).Take(&formerUser).Error
+	err = server.DB.Model(&models.User{}).Where("id = ?", user.ID).Take(&formerUser).Error
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
@@ -376,7 +417,7 @@ func (server *Server) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	updatedUser, err := newUser.UpdateAUser(server.DB, uint(uid))
+	updatedUser, err := newUser.UpdateAUser(server.DB, user.ID)
 	if err != nil {
 		formattedError := formaterror.FormatError(err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"errors": formattedError})
@@ -389,13 +430,79 @@ func (server *Server) UpdateUser(c *gin.Context) {
 	})
 }
 
-// DeleteUser deletes a user and their associated data
+// UpdateUserPrivacy godoc
+// @Summary      Update profile privacy
+// @Description  Set whether the user's profile is private (followers-only)
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Param        id      path      string                     true  "User ID"
+// @Param        body    body      UserPrivacyUpdateRequest true  "Privacy payload"
+// @Success      200     {object}  UserResponseEnvelope
+// @Failure      400     {object}  ErrorResponse
+// @Failure      401     {object}  ErrorResponse
+// @Failure      404     {object}  ErrorResponse
+// @Router       /users/{id}/privacy [patch]
+// @Security     BearerAuth
+func (server *Server) UpdateUserPrivacy(c *gin.Context) {
+	userID := c.Param("id")
+	user, err := resolveUserByIdentifier(server.DB, userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	requestorID, ok := httpctx.CurrentUserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	if requestorID != user.ID && !httpctx.IsAdminRequest(c) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	var payload struct {
+		IsPrivate *bool `json:"is_private"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if payload.IsPrivate == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "is_private is required"})
+		return
+	}
+
+	if err := server.DB.Model(user).Update("is_private", *payload.IsPrivate).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to update user"})
+		return
+	}
+	user.IsPrivate = *payload.IsPrivate
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":   http.StatusOK,
+		"response": userToResponse(user),
+	})
+}
+
+// DeleteUser godoc
+// @Summary      Delete user
+// @Description  Delete the authenticated user
+// @Tags         users
+// @Produce      json
+// @Param        id   path      string  true  "User ID"
+// @Success      200  {object}  SimpleMessageResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Router       /users/{id} [delete]
+// @Security     BearerAuth
 func (server *Server) DeleteUser(c *gin.Context) {
 	userID := c.Param("id")
-
-	uid, err := strconv.ParseUint(userID, 10, 32)
+	user, err := resolveUserByIdentifier(server.DB, userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
 
@@ -405,14 +512,21 @@ func (server *Server) DeleteUser(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	if requestorID != uint(uid) && !httpctx.IsAdminRequest(c) {
+	if requestorID != user.ID && !httpctx.IsAdminRequest(c) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	user := models.User{}
-	_, err = user.DeleteAUser(server.DB, uint(uid))
-	if err != nil {
+	if err := server.DB.Transaction(func(tx *gorm.DB) error {
+		if err := removeUserFollowEdges(tx, user.ID); err != nil {
+			return err
+		}
+		user := models.User{}
+		if _, err := user.DeleteAUser(tx, user.ID); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Please try again later"})
 		return
 	}
@@ -457,7 +571,7 @@ func (server *Server) AdminListUsers(c *gin.Context) {
 		return
 	}
 
-	userResponses := make([]map[string]interface{}, len(users))
+	userResponses := make([]UserDTO, len(users))
 	for i := range users {
 		userResponses[i] = userToResponse(&users[i])
 	}
@@ -474,9 +588,9 @@ func (server *Server) AdminListUsers(c *gin.Context) {
 // AdminUpdateUserRole allows an admin to set/unset the admin flag on a user.
 func (server *Server) AdminUpdateUserRole(c *gin.Context) {
 	userID := c.Param("id")
-	uid, err := strconv.ParseUint(userID, 10, 32)
+	user, err := resolveUserByIdentifier(server.DB, userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
 
@@ -492,17 +606,7 @@ func (server *Server) AdminUpdateUserRole(c *gin.Context) {
 		return
 	}
 
-	var user models.User
-	if err := server.DB.First(&user, uint(uid)).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to load user"})
-		return
-	}
-
-	if err := server.DB.Model(&user).Update("is_admin", *payload.IsAdmin).Error; err != nil {
+	if err := server.DB.Model(user).Update("is_admin", *payload.IsAdmin).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to update user role"})
 		return
 	}
@@ -511,29 +615,19 @@ func (server *Server) AdminUpdateUserRole(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":   http.StatusOK,
-		"response": userToResponse(&user),
+		"response": userToResponse(user),
 	})
 }
 
 // AdminDeleteUser deletes a user and their content.
 func (server *Server) AdminDeleteUser(c *gin.Context) {
 	userID := c.Param("id")
-	uid, err := strconv.ParseUint(userID, 10, 32)
+	user, err := resolveUserByIdentifier(server.DB, userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
-	id := uint(uid)
-
-	var user models.User
-	if err := server.DB.First(&user, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to load user"})
-		return
-	}
+	id := user.ID
 
 	var brackets []models.Bracket
 	if err := server.DB.Where("author_id = ?", id).Find(&brackets).Error; err != nil {
@@ -580,6 +674,10 @@ func (server *Server) AdminDeleteUser(c *gin.Context) {
 		return
 	}
 
+	if err := removeUserFollowEdges(server.DB, id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user follows"})
+		return
+	}
 	if _, err := user.DeleteAUser(server.DB, id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user"})
 		return

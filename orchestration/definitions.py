@@ -2,10 +2,8 @@ from dagster import Definitions, load_assets_from_modules, in_process_executor
 import assets as matchup_assets
 
 from jobs import advance_expired_brackets, popular_matchups_job
-from schedules import (
-    advance_expired_brackets_schedule,
-    popular_matchups_hourly_schedule,
-)
+from schedules import popular_matchups_minute_schedule
+from sensors import advance_expired_brackets_sensor
 
 all_assets = load_assets_from_modules([matchup_assets])
 
@@ -16,8 +14,10 @@ defs = Definitions(
         popular_matchups_job,
     ],
     schedules=[
-        advance_expired_brackets_schedule,
-        popular_matchups_hourly_schedule,
+        popular_matchups_minute_schedule,
+    ],
+    sensors=[
+        advance_expired_brackets_sensor,
     ],
     executor=in_process_executor,  # 🔑 THIS IS THE FIX
 )

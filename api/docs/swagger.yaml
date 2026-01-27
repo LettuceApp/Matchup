@@ -1,0 +1,2352 @@
+basePath: /api/v1
+definitions:
+  controllers.AttachMatchupRequest:
+    properties:
+      matchup_id:
+        type: integer
+      round:
+        type: integer
+      seed:
+        type: integer
+    type: object
+  controllers.BracketCommentCreateRequest:
+    properties:
+      body:
+        type: string
+    type: object
+  controllers.BracketCommentListResponseDoc:
+    properties:
+      response:
+        items:
+          $ref: '#/definitions/controllers.BracketCommentResponseDoc'
+        type: array
+      status:
+        type: integer
+    type: object
+  controllers.BracketCommentResponseDoc:
+    properties:
+      body:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+      username:
+        type: string
+    type: object
+  controllers.BracketCreateRequest:
+    properties:
+      advance_mode:
+        type: string
+      description:
+        type: string
+      duration_minutes:
+        type: integer
+      entries:
+        items:
+          type: string
+        type: array
+      round_duration_seconds:
+        type: integer
+      size:
+        type: integer
+      title:
+        type: string
+    type: object
+  controllers.BracketLikeResponseDoc:
+    properties:
+      bracket_id:
+        type: integer
+      created_at:
+        type: string
+      id:
+        type: integer
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  controllers.BracketLikesListResponse:
+    properties:
+      response:
+        items:
+          $ref: '#/definitions/controllers.BracketLikeResponseDoc'
+        type: array
+      status:
+        type: integer
+    type: object
+  controllers.BracketMatchupsResponse:
+    properties:
+      response:
+        items:
+          $ref: '#/definitions/controllers.MatchupResponse'
+        type: array
+    type: object
+  controllers.BracketResponse:
+    properties:
+      advance_mode:
+        type: string
+      author_id:
+        type: integer
+      current_round:
+        type: integer
+      description:
+        type: string
+      id:
+        type: integer
+      likes_count:
+        type: integer
+      round_duration_seconds:
+        type: integer
+      round_ends_at:
+        type: string
+      round_started_at:
+        type: string
+      size:
+        type: integer
+      status:
+        type: string
+      title:
+        type: string
+    type: object
+  controllers.BracketResponseEnvelope:
+    properties:
+      response:
+        $ref: '#/definitions/controllers.BracketResponse'
+    type: object
+  controllers.BracketSummaryEnvelope:
+    properties:
+      response:
+        $ref: '#/definitions/controllers.BracketSummaryResponse'
+      status:
+        type: string
+    type: object
+  controllers.BracketSummaryResponse:
+    properties:
+      bracket:
+        $ref: '#/definitions/controllers.BracketResponse'
+      liked_bracket:
+        type: boolean
+      liked_matchup_ids:
+        items:
+          type: integer
+        type: array
+      matchups:
+        items:
+          $ref: '#/definitions/controllers.MatchupResponse'
+        type: array
+    type: object
+  controllers.CommentCreateRequest:
+    properties:
+      body:
+        type: string
+    type: object
+  controllers.CommentListResponseDoc:
+    properties:
+      response:
+        items:
+          $ref: '#/definitions/controllers.CommentResponseDoc'
+        type: array
+      status:
+        type: integer
+    type: object
+  controllers.CommentResponseDoc:
+    properties:
+      body:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+      username:
+        type: string
+    type: object
+  controllers.CommentUpdateRequest:
+    properties:
+      body:
+        type: string
+    type: object
+  controllers.CompleteMatchupResponse:
+    properties:
+      message:
+        type: string
+      status:
+        type: string
+      winner_item_id:
+        type: integer
+    type: object
+  controllers.ErrorResponse:
+    properties:
+      error: {}
+    type: object
+  controllers.ForgotPasswordRequest:
+    properties:
+      email:
+        type: string
+    type: object
+  controllers.HomeSummary:
+    properties:
+      popular_brackets:
+        items:
+          $ref: '#/definitions/controllers.PopularBracket'
+        type: array
+      popular_matchups:
+        items:
+          $ref: '#/definitions/controllers.PopularMatchup'
+        type: array
+      total_engagements:
+        type: number
+    type: object
+  controllers.HomeSummaryEnvelope:
+    properties:
+      response:
+        $ref: '#/definitions/controllers.HomeSummary'
+      status:
+        type: string
+    type: object
+  controllers.LikeResponseDoc:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      matchup_id:
+        type: integer
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  controllers.LikesListResponse:
+    properties:
+      response:
+        items:
+          $ref: '#/definitions/controllers.LikeResponseDoc'
+        type: array
+      status:
+        type: integer
+    type: object
+  controllers.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  controllers.LoginResponse:
+    properties:
+      avatar_path:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      is_admin:
+        type: boolean
+      token:
+        type: string
+      username:
+        type: string
+    type: object
+  controllers.LoginResponseEnvelope:
+    properties:
+      response:
+        $ref: '#/definitions/controllers.LoginResponse'
+      status:
+        type: integer
+    type: object
+  controllers.MatchupCreateRequest:
+    properties:
+      bracket_id:
+        type: integer
+      content:
+        type: string
+      duration_seconds:
+        type: integer
+      end_mode:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/controllers.MatchupItemCreate'
+        type: array
+      round:
+        type: integer
+      seed:
+        type: integer
+      title:
+        type: string
+    type: object
+  controllers.MatchupItemCreate:
+    properties:
+      item:
+        type: string
+    type: object
+  controllers.MatchupItemCreateRequest:
+    properties:
+      item:
+        type: string
+    type: object
+  controllers.MatchupItemDeleteResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  controllers.MatchupItemResponse:
+    properties:
+      id:
+        type: integer
+      item:
+        type: string
+      votes:
+        type: integer
+    type: object
+  controllers.MatchupItemResponseEnvelope:
+    properties:
+      response:
+        $ref: '#/definitions/controllers.MatchupItemResponse'
+      status:
+        type: integer
+    type: object
+  controllers.MatchupItemUpdateRequest:
+    properties:
+      item:
+        type: string
+    type: object
+  controllers.MatchupItemVoteResponse:
+    properties:
+      already_voted:
+        type: boolean
+      response:
+        $ref: '#/definitions/controllers.MatchupItemResponse'
+      status:
+        type: integer
+    type: object
+  controllers.MatchupListResponse:
+    properties:
+      pagination:
+        $ref: '#/definitions/controllers.PaginationResponse'
+      response:
+        items:
+          $ref: '#/definitions/controllers.MatchupResponse'
+        type: array
+      status:
+        type: integer
+    type: object
+  controllers.MatchupResponse:
+    properties:
+      author_id:
+        type: integer
+      bracket_id:
+        type: integer
+      content:
+        type: string
+      id:
+        type: integer
+      items:
+        items:
+          $ref: '#/definitions/controllers.MatchupItemResponse'
+        type: array
+      likes_count:
+        type: integer
+      round:
+        type: integer
+      seed:
+        type: integer
+      status:
+        type: string
+      title:
+        type: string
+    type: object
+  controllers.MatchupResponseEnvelope:
+    properties:
+      response:
+        $ref: '#/definitions/controllers.MatchupResponse'
+      status:
+        type: integer
+    type: object
+  controllers.MatchupVoteResponseDoc:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      matchup_id:
+        type: integer
+      matchup_item_id:
+        type: integer
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  controllers.MatchupVotesListResponse:
+    properties:
+      response:
+        items:
+          $ref: '#/definitions/controllers.MatchupVoteResponseDoc'
+        type: array
+      status:
+        type: integer
+    type: object
+  controllers.PaginationResponse:
+    properties:
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  controllers.PopularBracket:
+    properties:
+      author_id:
+        type: integer
+      current_round:
+        type: integer
+      engagement_score:
+        type: number
+      id:
+        type: integer
+      matchup_count:
+        type: integer
+      rank:
+        type: integer
+      title:
+        type: string
+    type: object
+  controllers.PopularBracketsEnvelope:
+    properties:
+      response:
+        items:
+          $ref: '#/definitions/controllers.PopularBracket'
+        type: array
+      status:
+        type: string
+    type: object
+  controllers.PopularMatchup:
+    properties:
+      author_id:
+        type: integer
+      bracket_author_id:
+        type: integer
+      bracket_id:
+        type: integer
+      comments:
+        type: integer
+      current_round:
+        type: integer
+      engagement_score:
+        type: number
+      id:
+        type: integer
+      likes:
+        type: integer
+      rank:
+        type: integer
+      round:
+        type: integer
+      title:
+        type: string
+      votes:
+        type: integer
+    type: object
+  controllers.PopularMatchupsEnvelope:
+    properties:
+      response:
+        items:
+          $ref: '#/definitions/controllers.PopularMatchup'
+        type: array
+      status:
+        type: string
+    type: object
+  controllers.ResetPasswordRequest:
+    properties:
+      new_password:
+        type: string
+      retype_password:
+        type: string
+      token:
+        type: string
+    type: object
+  controllers.SimpleMessageResponse:
+    properties:
+      response: {}
+      status:
+        type: integer
+    type: object
+  controllers.UpdateBracketRequest:
+    properties:
+      advance_mode:
+        type: string
+      description:
+        type: string
+      duration_minutes:
+        type: integer
+      round_duration_seconds:
+        type: integer
+      status:
+        type: string
+      title:
+        type: string
+    type: object
+  controllers.UpdateMatchupRequest:
+    properties:
+      content:
+        type: string
+      title:
+        type: string
+    type: object
+  controllers.UserBracketsResponse:
+    properties:
+      response:
+        items:
+          $ref: '#/definitions/controllers.BracketResponse'
+        type: array
+    type: object
+  controllers.UserCreateRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  controllers.UserMatchupsResponse:
+    properties:
+      pagination:
+        $ref: '#/definitions/controllers.PaginationResponse'
+      response:
+        items:
+          $ref: '#/definitions/controllers.MatchupResponse'
+        type: array
+      status:
+        type: integer
+    type: object
+  controllers.UserResponse:
+    properties:
+      avatar_path:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      is_admin:
+        type: boolean
+      username:
+        type: string
+    type: object
+  controllers.UserResponseEnvelope:
+    properties:
+      response:
+        $ref: '#/definitions/controllers.UserResponse'
+      status:
+        type: integer
+    type: object
+  controllers.UserUpdateRequest:
+    properties:
+      current_password:
+        type: string
+      email:
+        type: string
+      new_password:
+        type: string
+    type: object
+  controllers.UsersListResponse:
+    properties:
+      response:
+        items:
+          $ref: '#/definitions/controllers.UserResponse'
+        type: array
+      status:
+        type: integer
+    type: object
+  controllers.WinnerOverrideRequest:
+    properties:
+      winner_item_id:
+        type: integer
+    type: object
+  controllers.WinnerOverrideResponse:
+    properties:
+      message:
+        type: string
+      winner_item_id:
+        type: integer
+    type: object
+info:
+  contact: {}
+  description: API for brackets, matchups, voting, and engagement
+  title: Matchup API
+  version: "1.0"
+paths:
+  /bracket_comments/{id}:
+    delete:
+      description: Delete a bracket comment (owner or admin)
+      parameters:
+      - description: Comment ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.SimpleMessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a bracket comment
+      tags:
+      - bracket-comments
+  /brackets/{id}:
+    delete:
+      description: Delete a bracket owned by the authenticated user
+      parameters:
+      - description: Bracket ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.SimpleMessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a bracket
+      tags:
+      - brackets
+    get:
+      description: Get bracket details by ID
+      parameters:
+      - description: Bracket ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.BracketResponseEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: Get a bracket
+      tags:
+      - brackets
+    put:
+      consumes:
+      - application/json
+      description: Update bracket details
+      parameters:
+      - description: Bracket ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Bracket payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateBracketRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.BracketResponseEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a bracket
+      tags:
+      - brackets
+  /brackets/{id}/advance:
+    post:
+      description: Advance a bracket to the next round
+      parameters:
+      - description: Bracket ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.SimpleMessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Advance bracket
+      tags:
+      - brackets
+  /brackets/{id}/comments:
+    get:
+      description: Get comments for a bracket
+      parameters:
+      - description: Bracket ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.BracketCommentListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: List bracket comments
+      tags:
+      - bracket-comments
+    post:
+      consumes:
+      - application/json
+      description: Add a comment to a bracket
+      parameters:
+      - description: Bracket ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Comment payload
+        in: body
+        name: comment
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.BracketCommentCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/controllers.BracketCommentResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a bracket comment
+      tags:
+      - bracket-comments
+  /brackets/{id}/likes:
+    delete:
+      description: Remove the authenticated user's like from a bracket
+      parameters:
+      - description: Bracket ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.SimpleMessageResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Unlike a bracket
+      tags:
+      - bracket-likes
+    get:
+      description: Get likes for a bracket
+      parameters:
+      - description: Bracket ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.BracketLikesListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: List bracket likes
+      tags:
+      - bracket-likes
+    post:
+      description: Like a bracket as the authenticated user
+      parameters:
+      - description: Bracket ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/controllers.SimpleMessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Like a bracket
+      tags:
+      - bracket-likes
+  /brackets/{id}/matchups:
+    get:
+      description: Get matchups for a bracket
+      parameters:
+      - description: Bracket ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.BracketMatchupsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: List bracket matchups
+      tags:
+      - brackets
+    post:
+      consumes:
+      - application/json
+      description: Attach a matchup to a bracket round
+      parameters:
+      - description: Bracket ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Attach payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.AttachMatchupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.MatchupResponseEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Attach matchup to bracket
+      tags:
+      - brackets
+  /brackets/{id}/summary:
+    get:
+      description: Get bracket, matchups, and viewer-specific likes
+      parameters:
+      - description: Bracket ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Viewer ID
+        in: query
+        name: viewer_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.BracketSummaryEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: Get bracket summary
+      tags:
+      - brackets
+  /brackets/matchups/{matchup_id}:
+    delete:
+      description: Detach a matchup from a bracket
+      parameters:
+      - description: Matchup ID
+        in: path
+        name: matchup_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.SimpleMessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Detach matchup from bracket
+      tags:
+      - brackets
+  /brackets/popular:
+    get:
+      description: Get top engaged brackets
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.PopularBracketsEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: Get popular brackets
+      tags:
+      - popular
+  /comments/{id}:
+    delete:
+      description: Delete a matchup comment (owner only)
+      parameters:
+      - description: Comment ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.SimpleMessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a comment
+      tags:
+      - comments
+    put:
+      consumes:
+      - application/json
+      description: Update a matchup comment (owner only)
+      parameters:
+      - description: Comment ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Comment payload
+        in: body
+        name: comment
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CommentUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.CommentResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a comment
+      tags:
+      - comments
+  /home:
+    get:
+      description: Get popular matchups, popular brackets, and total engagements
+      parameters:
+      - description: User ID
+        in: query
+        name: user_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.HomeSummaryEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: Get home summary
+      tags:
+      - home
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate with email and password
+      parameters:
+      - description: Login payload
+        in: body
+        name: credentials
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.LoginResponseEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: Log in
+      tags:
+      - auth
+  /matchup_items/{id}:
+    delete:
+      description: Delete a matchup item (owner only)
+      parameters:
+      - description: Matchup Item ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.MatchupItemDeleteResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a matchup item
+      tags:
+      - matchup-items
+    put:
+      consumes:
+      - application/json
+      description: Update a matchup item's name
+      parameters:
+      - description: Matchup Item ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Item payload
+        in: body
+        name: item
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.MatchupItemUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.MatchupItemResponseEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a matchup item
+      tags:
+      - matchup-items
+  /matchup_items/{id}/vote:
+    patch:
+      description: Cast or switch a vote for a matchup item
+      parameters:
+      - description: Matchup Item ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.MatchupItemVoteResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Vote for a matchup item
+      tags:
+      - votes
+  /matchups:
+    get:
+      description: Get paginated matchups
+      parameters:
+      - description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.MatchupListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: List matchups
+      tags:
+      - matchups
+  /matchups/{id}:
+    delete:
+      description: Delete a matchup owned by the authenticated user
+      parameters:
+      - description: Matchup ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.SimpleMessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a matchup
+      tags:
+      - matchups
+    get:
+      description: Get matchup details by ID
+      parameters:
+      - description: Matchup ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.MatchupResponseEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: Get a matchup
+      tags:
+      - matchups
+    put:
+      consumes:
+      - application/json
+      description: Update a matchup's title or content
+      parameters:
+      - description: Matchup ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Matchup payload
+        in: body
+        name: matchup
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateMatchupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.MatchupResponseEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a matchup
+      tags:
+      - matchups
+  /matchups/{id}/activate:
+    post:
+      description: Activate a standalone matchup
+      parameters:
+      - description: Matchup ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.MatchupResponseEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Activate matchup
+      tags:
+      - matchups
+  /matchups/{id}/comments:
+    get:
+      description: Get comments for a matchup
+      parameters:
+      - description: Matchup ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.CommentListResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: List matchup comments
+      tags:
+      - comments
+    post:
+      consumes:
+      - application/json
+      description: Add a comment to a matchup
+      parameters:
+      - description: Matchup ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Comment payload
+        in: body
+        name: comment
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CommentCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/controllers.CommentResponseDoc'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a matchup comment
+      tags:
+      - comments
+  /matchups/{id}/complete:
+    post:
+      description: Finalize a matchup and lock voting
+      parameters:
+      - description: Matchup ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.CompleteMatchupResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Complete a matchup
+      tags:
+      - votes
+  /matchups/{id}/items:
+    post:
+      consumes:
+      - application/json
+      description: Add a new item to a matchup
+      parameters:
+      - description: Matchup ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Item payload
+        in: body
+        name: item
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.MatchupItemCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/controllers.MatchupItemResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Add a matchup item
+      tags:
+      - matchup-items
+  /matchups/{id}/likes:
+    delete:
+      description: Remove the authenticated user's like from a matchup
+      parameters:
+      - description: Matchup ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.SimpleMessageResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Unlike a matchup
+      tags:
+      - likes
+    get:
+      description: Get likes for a matchup
+      parameters:
+      - description: Matchup ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.LikesListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: List matchup likes
+      tags:
+      - likes
+    post:
+      description: Like a matchup as the authenticated user
+      parameters:
+      - description: Matchup ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/controllers.SimpleMessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Like a matchup
+      tags:
+      - likes
+  /matchups/{id}/override-winner:
+    post:
+      consumes:
+      - application/json
+      description: Select the winner for a matchup
+      parameters:
+      - description: Matchup ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Winner payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.WinnerOverrideRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.WinnerOverrideResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Override matchup winner
+      tags:
+      - votes
+  /matchups/{id}/ready:
+    post:
+      description: Mark a matchup as ready (owner/admin)
+      parameters:
+      - description: Matchup ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.SimpleMessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Ready a matchup
+      tags:
+      - votes
+  /matchups/{id}/resolve-and-advance:
+    post:
+      consumes:
+      - application/json
+      description: 'Internal: resolve a tie and advance the bracket'
+      parameters:
+      - description: Matchup ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Winner payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.WinnerOverrideRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.SimpleMessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Resolve tie and advance
+      tags:
+      - internal
+  /matchups/popular:
+    get:
+      description: Get top engaged matchups
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.PopularMatchupsEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: Get popular matchups
+      tags:
+      - popular
+  /me:
+    get:
+      description: Get the authenticated user's profile
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.UserResponseEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get current user
+      tags:
+      - users
+  /password/forgot:
+    post:
+      consumes:
+      - application/json
+      description: Send a password reset email
+      parameters:
+      - description: Forgot password payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.ForgotPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.SimpleMessageResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: Request password reset
+      tags:
+      - auth
+  /password/reset:
+    post:
+      consumes:
+      - application/json
+      description: Reset password using a valid token
+      parameters:
+      - description: Reset password payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.ResetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.SimpleMessageResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: Reset password
+      tags:
+      - auth
+  /users:
+    get:
+      description: Get a list of users
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.UsersListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: List users
+      tags:
+      - users
+    post:
+      consumes:
+      - application/json
+      description: Create a new user account
+      parameters:
+      - description: User payload
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UserCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/controllers.UserResponseEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: Register a user
+      tags:
+      - users
+  /users/{id}:
+    delete:
+      description: Delete the authenticated user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.SimpleMessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete user
+      tags:
+      - users
+    get:
+      description: Get a user by ID
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.UserResponseEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: Get a user
+      tags:
+      - users
+    put:
+      consumes:
+      - application/json
+      description: Update email or password
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: User payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UserUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.UserResponseEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update user
+      tags:
+      - users
+  /users/{id}/avatar:
+    put:
+      consumes:
+      - multipart/form-data
+      description: Upload a new avatar image
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Avatar image
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.UserResponseEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update avatar
+      tags:
+      - users
+  /users/{id}/bracket_likes:
+    get:
+      description: Get bracket likes for a user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.BracketLikesListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: List user bracket likes
+      tags:
+      - bracket-likes
+  /users/{id}/brackets:
+    get:
+      description: Get all brackets created by a user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.UserBracketsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: List a user's brackets
+      tags:
+      - brackets
+    post:
+      consumes:
+      - application/json
+      description: Create a new bracket with optional seeded entries
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Bracket payload
+        in: body
+        name: bracket
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.BracketCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/controllers.BracketResponseEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a bracket
+      tags:
+      - brackets
+  /users/{id}/likes:
+    get:
+      description: Get likes made by a user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.LikesListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: List user likes
+      tags:
+      - likes
+  /users/{id}/matchup_votes:
+    get:
+      description: Get votes made by a user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.MatchupVotesListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: List user matchup votes
+      tags:
+      - votes
+  /users/{id}/matchups:
+    get:
+      description: Get paginated matchups for a user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.UserMatchupsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: List a user's matchups
+      tags:
+      - matchups
+    post:
+      consumes:
+      - application/json
+      description: Create a new matchup for the authenticated user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Matchup payload
+        in: body
+        name: matchup
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.MatchupCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/controllers.MatchupResponseEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a matchup
+      tags:
+      - matchups
+  /users/{id}/matchups/{matchupid}:
+    get:
+      description: Get a matchup owned by a user
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Matchup ID
+        in: path
+        name: matchupid
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/controllers.MatchupResponseEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/controllers.ErrorResponse'
+      summary: Get a user's matchup
+      tags:
+      - matchups
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    description: 'Provide a valid JWT as: Bearer <token>'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

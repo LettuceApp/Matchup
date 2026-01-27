@@ -6,6 +6,9 @@ from dagster import asset, AssetExecutionContext
 
 SERVING_TABLE = "popular_matchups_snapshot"
 POPULAR_BRACKETS_TABLE = "popular_brackets_snapshot"
+HOME_SUMMARY_TABLE = "home_summary_snapshot"
+HOME_CREATORS_TABLE = "home_creators_snapshot"
+HOME_NEW_THIS_WEEK_TABLE = "home_new_this_week_snapshot"
 
 # ---------------------------------------------------------------------------
 # DATABASE CONNECTION
@@ -76,6 +79,160 @@ def raw_comments() -> pd.DataFrame:
     with ENGINE.connect() as conn:
         return pd.read_sql("SELECT * FROM comments", conn)
 
+
+@asset
+def raw_users() -> pd.DataFrame:
+    with ENGINE.connect() as conn:
+        return pd.read_sql("SELECT * FROM users", conn)
+
+
+# ---------------------------------------------------------------------------
+# HOME SNAPSHOTS
+# ---------------------------------------------------------------------------
+
+@asset
+def home_summary_snapshot(
+    context: AssetExecutionContext,
+    raw_matchups: pd.DataFrame,
+    raw_brackets: pd.DataFrame,
+    raw_matchup_votes: pd.DataFrame,
+) -> pd.DataFrame:
+    now = pd.Timestamp.now(tz="UTC")
+    votes_today = 0
+    if not raw_matchup_votes.empty and "created_at" in raw_matchup_votes.columns:
+        vote_times = pd.to_datetime(
+            raw_matchup_votes["created_at"],
+            errors="coerce",
+            utc=True,
+        )
+        cutoff = now - pd.Timedelta(days=1)
+        votes_today = int((vote_times >= cutoff).sum())
+
+    active_matchups = 0
+    if not raw_matchups.empty and "status" in raw_matchups.columns:
+        active_matchups = int(
+            raw_matchups["status"].isin(["active", "published"]).sum()
+        )
+
+    active_brackets = 0
+    if not raw_brackets.empty and "status" in raw_brackets.columns:
+        active_brackets = int((raw_brackets["status"] == "active").sum())
+
+    df = pd.DataFrame(
+        [
+            {
+                "votes_today": votes_today,
+                "active_matchups": active_matchups,
+                "active_brackets": active_brackets,
+                "updated_at": now,
+            }
+        ]
+    )
+
+    with ENGINE.begin() as conn:
+        df.to_sql(
+            HOME_SUMMARY_TABLE,
+            conn,
+            if_exists="replace",
+            index=False,
+        )
+
+    context.log.info("Home summary snapshot written.")
+
+    return df
+
+
+@asset
+def home_creators_snapshot(
+    context: AssetExecutionContext,
+    raw_users: pd.DataFrame,
+) -> pd.DataFrame:
+    if raw_users.empty:
+        df = pd.DataFrame(
+            columns=[
+                "user_id",
+                "username",
+                "avatar_path",
+                "followers_count",
+                "following_count",
+                "is_private",
+                "rank",
+            ]
+        )
+    else:
+        df = raw_users.copy()
+        df = df[df["is_admin"] == False]
+        df = df.sort_values(["followers_count", "id"], ascending=[False, True])
+        df = df.head(10).reset_index(drop=True)
+        df["rank"] = range(1, len(df) + 1)
+        df = df.rename(columns={"id": "user_id"})
+        df = df[
+            [
+                "user_id",
+                "username",
+                "avatar_path",
+                "followers_count",
+                "following_count",
+                "is_private",
+                "rank",
+            ]
+        ]
+
+    with ENGINE.begin() as conn:
+        df.to_sql(
+            HOME_CREATORS_TABLE,
+            conn,
+            if_exists="replace",
+            index=False,
+        )
+
+    context.log.info("Home creators snapshot written.")
+
+    return df
+
+
+@asset
+def home_new_this_week_snapshot(
+    context: AssetExecutionContext,
+    raw_matchups: pd.DataFrame,
+) -> pd.DataFrame:
+    columns = [
+        "matchup_id",
+        "title",
+        "author_id",
+        "bracket_id",
+        "created_at",
+        "visibility",
+        "rank",
+    ]
+    if raw_matchups.empty or "created_at" not in raw_matchups.columns:
+        df = pd.DataFrame(columns=columns)
+    else:
+        df = raw_matchups.copy()
+        df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce", utc=True)
+        cutoff = pd.Timestamp.now(tz="UTC") - pd.Timedelta(days=7)
+        df = df[df["created_at"] >= cutoff]
+        if "bracket_id" in df.columns:
+            df = df[df["bracket_id"].isna()]
+        if "visibility" not in df.columns:
+            df["visibility"] = "public"
+        df = df.sort_values("created_at", ascending=False).head(6)
+        df = df.rename(columns={"id": "matchup_id"})
+        df["rank"] = range(1, len(df) + 1)
+        df = df[columns]
+
+    with ENGINE.begin() as conn:
+        df.to_sql(
+            HOME_NEW_THIS_WEEK_TABLE,
+            conn,
+            if_exists="replace",
+            index=False,
+        )
+
+    context.log.info("Home new-this-week snapshot written.")
+
+    return df
+
 # ---------------------------------------------------------------------------
 # ENGAGEMENT SNAPSHOT
 # ---------------------------------------------------------------------------
@@ -118,19 +275,32 @@ def matchup_engagement(
         per_user_votes = pd.DataFrame(columns=["matchup_id", "votes"])
         per_user_votes_total = pd.DataFrame(columns=["matchup_id", "total_votes"])
     else:
+        matchup_votes = raw_matchup_votes.copy()
+        if "matchup_public_id" in matchup_votes.columns:
+            matchup_votes = matchup_votes.merge(
+                matchups[["matchup_id", "public_id", "author_id", "bracket_author_id"]],
+                left_on="matchup_public_id",
+                right_on="public_id",
+                how="left",
+            )
+        else:
+            matchup_votes = matchup_votes.merge(
+                matchups[["matchup_id", "author_id", "bracket_author_id"]],
+                on="matchup_id",
+                how="left",
+            )
+
+        if "matchup_id" in matchup_votes.columns:
+            matchup_votes = matchup_votes.dropna(subset=["matchup_id"])
+
         per_user_votes_total = (
-            raw_matchup_votes
+            matchup_votes
             .groupby("matchup_id")
             .size()
             .reset_index(name="total_votes")
         )
         per_user_votes = (
-            raw_matchup_votes
-            .merge(
-                matchups[["matchup_id", "author_id", "bracket_author_id"]],
-                on="matchup_id",
-                how="left",
-            )
+            matchup_votes
             .query("user_id != author_id and user_id != bracket_author_id")
             .groupby("matchup_id")
             .size()

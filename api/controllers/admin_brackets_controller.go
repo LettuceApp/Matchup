@@ -12,23 +12,13 @@ import (
 	"gorm.io/gorm"
 )
 
-func toAdminBracketSummary(bracket *models.Bracket, likesCount int64) map[string]interface{} {
+func toAdminBracketSummary(bracket *models.Bracket, likesCount int64) AdminBracketDTO {
 	authorUsername := ""
 	if bracket.Author.ID != 0 {
 		authorUsername = bracket.Author.Username
 	}
 
-	return map[string]interface{}{
-		"id":              bracket.ID,
-		"title":           bracket.Title,
-		"author_id":       bracket.AuthorID,
-		"author_username": authorUsername,
-		"status":          bracket.Status,
-		"current_round":   bracket.CurrentRound,
-		"likes_count":     likesCount,
-		"created_at":      bracket.CreatedAt,
-		"updated_at":      bracket.UpdatedAt,
-	}
+	return adminBracketToDTO(bracket, likesCount, authorUsername)
 }
 
 // AdminListBrackets returns a paginated list of brackets for moderation tools.
@@ -79,7 +69,7 @@ func (server *Server) AdminListBrackets(c *gin.Context) {
 		return
 	}
 
-	bracketResponses := make([]map[string]interface{}, len(brackets))
+	bracketResponses := make([]AdminBracketDTO, len(brackets))
 	for i := range brackets {
 		var likesCount int64
 		server.DB.Model(&models.BracketLike{}).Where("bracket_id = ?", brackets[i].ID).Count(&likesCount)

@@ -15,6 +15,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ForgotPassword godoc
+// @Summary      Request password reset
+// @Description  Send a password reset email
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      ForgotPasswordRequest  true  "Forgot password payload"
+// @Success      200   {object}  SimpleMessageResponse
+// @Failure      422   {object}  ErrorResponse
+// @Router       /password/forgot [post]
 func (server *Server) ForgotPassword(c *gin.Context) {
 	//remove any possible error, because the frontend dont reload
 	errList = map[string]string{}
@@ -91,6 +101,16 @@ func (server *Server) ForgotPassword(c *gin.Context) {
 	})
 }
 
+// ResetPassword godoc
+// @Summary      Reset password
+// @Description  Reset password using a valid token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      ResetPasswordRequest  true  "Reset password payload"
+// @Success      200   {object}  SimpleMessageResponse
+// @Failure      422   {object}  ErrorResponse
+// @Router       /password/reset [post]
 func (server *Server) ResetPassword(c *gin.Context) {
 	//remove any possible error, because the frontend dont reload
 	errList = map[string]string{}

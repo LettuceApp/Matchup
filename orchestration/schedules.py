@@ -11,9 +11,9 @@ advance_expired_brackets_schedule = ScheduleDefinition(
 )
 
 # Asset-based schedule (implemented as a job schedule)
-popular_matchups_hourly_schedule = ScheduleDefinition(
+popular_matchups_minute_schedule = ScheduleDefinition(
     job=popular_matchups_job,
-    cron_schedule="@hourly",
-    description="Hourly snapshot of top engaged matchups and brackets",
+    cron_schedule="*/1 * * * *",
+    description="Minute snapshot of top engaged matchups and brackets",
     tags={"domain": "analytics", "type": "snapshot"},
 )
