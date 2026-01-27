@@ -6,8 +6,16 @@ import '../styles/Comment.css';
 
 const Comment = ({ comment, refreshComments, onDelete }) => {
   const storedUserId = localStorage.getItem('userId');
-  const userId = storedUserId ? parseInt(storedUserId, 10) : null;
-  const isOwner = comment.user_id === userId;
+  const userId = storedUserId || null;
+  const isOwner = userId && String(comment.user_id) === userId;
+  const profileSlug = comment.username || comment.user_id;
+  const decodeHtml = (value) => {
+    if (!value || typeof value !== 'string') return value;
+    if (typeof document === 'undefined') return value;
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = value;
+    return textarea.value;
+  };
 
   const handleDelete = async () => {
     try {
@@ -26,7 +34,7 @@ const Comment = ({ comment, refreshComments, onDelete }) => {
     <article className="comment-card">
       <header className="comment-card__header">
         <Link
-          to={`/users/${comment.user_id}/profile`}
+          to={`/users/${profileSlug}`}
           className="comment-card__author"
         >
           {comment.username}
@@ -36,7 +44,7 @@ const Comment = ({ comment, refreshComments, onDelete }) => {
         </span>
       </header>
 
-      <p className="comment-card__body">{comment.body}</p>
+      <p className="comment-card__body">{decodeHtml(comment.body)}</p>
 
       {isOwner && (
         <div className="comment-card__actions">

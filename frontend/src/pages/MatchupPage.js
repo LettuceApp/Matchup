@@ -4,6 +4,7 @@ import NavigationBar from "../components/NavigationBar";
 import MatchupItem from "../components/MatchupItem";
 import Comment from "../components/Comment";
 import Button from "../components/Button";
+import SkeletonCard from "../components/SkeletonCard";
 import {
   getMatchup,
   getUserMatchup,
@@ -14,6 +15,7 @@ import {
   getComments,
   deleteMatchup,
   getBracket,
+  activateMatchup,
   overrideMatchupWinner,
   completeMatchup,
   getCurrentUser,
@@ -26,7 +28,7 @@ const MatchupPage = () => {
   const { uid, id } = useParams();
   const navigate = useNavigate();
   const userId = localStorage.getItem("userId");
-  const viewerId = Number(userId || 0);
+  const viewerId = userId || null;
 
   const [currentUser, setCurrentUser] = useState(null);
   const [matchup, setMatchup] = useState(null);
@@ -35,12 +37,14 @@ const MatchupPage = () => {
   const [isLiked, setIsLiked] = useState(false);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
+  const [commentsOpen, setCommentsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [commentError, setCommentError] = useState(null);
   const [commentPending, setCommentPending] = useState(false);
   const [likePending, setLikePending] = useState(false);
   const [readyPending, setReadyPending] = useState(false);
+  const [activatePending, setActivatePending] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   /* ------------------------------------------------------------------ */
@@ -54,6 +58,9 @@ const MatchupPage = () => {
       const res = await getMatchup(id);
       matchupData = res.data?.response ?? res.data;
     } catch (e) {
+      if (e?.response?.status === 403) {
+        throw e;
+      }
       // fallback for older setups
       const res = await getUserMatchup(uid, id);
       matchupData = res.data?.response ?? res.data;
@@ -69,7 +76,7 @@ const MatchupPage = () => {
       const likesRes = await getUserLikes(viewerId);
       const likes = likesRes.data.response ?? likesRes.data ?? [];
       const liked = Array.isArray(likes)
-        ? likes.some((l) => l.matchup_id === Number(id))
+        ? likes.some((l) => String(l.matchup_id) === String(id))
         : false;
       setIsLiked(liked);
     } else {
@@ -92,7 +99,11 @@ const MatchupPage = () => {
       await refreshMatchup();
     } catch (err) {
       console.error(err);
-      setError("We couldn't load this matchup right now.");
+      setError(
+        err?.response?.status === 403
+          ? "Only followers can view this matchup."
+          : "We couldn't load this matchup right now."
+      );
     } finally {
       if (initial) setIsLoading(false);
     }
@@ -144,7 +155,7 @@ const MatchupPage = () => {
   /* PERMISSIONS + LOCKS */
   /* ------------------------------------------------------------------ */
 
-  const isOwner = viewerId && matchup?.author_id === Number(viewerId);
+  const isOwner = viewerId && matchup?.author_id && viewerId === matchup.author_id;
 
   const isAdmin = (currentUser?.role ?? currentUser?.Role) === "admin";
 
@@ -174,14 +185,26 @@ const MatchupPage = () => {
         bracket.status !== "active" ||
         Number(matchupRound) !==
           Number(bracket?.current_round ?? bracket?.currentRound)));
-  const canReadyUp = isOwner || isAdmin;
-  const canLike = Boolean(viewerId) && !interactionLocked;
+  const isReady = matchupStatus === "completed";
+  const canReadyUp = (isOwner || isAdmin) && (isOpenStatus || isReady);
+  const canLike = Boolean(viewerId) && matchupStatus !== "draft";
+  const canComment = Boolean(viewerId) && matchupStatus !== "draft";
+  const winnerMenuRef = useRef(null);
+  const canActivate =
+    !isBracketMatchup &&
+    isOwner &&
+    matchupStatus === "draft" &&
+    !activatePending;
 
   /* ------------------------------------------------------------------ */
   /* DERIVED MATCHUP STATE */
   /* ------------------------------------------------------------------ */
 
   const items = matchup?.items ?? matchup?.Items ?? [];
+  const totalVotes = items.reduce(
+    (sum, item) => sum + Number(item?.votes ?? item?.Votes ?? 0),
+    0
+  );
 
   const winnerItemIdRaw =
     matchup?.winner_item_id ?? matchup?.winnerItemId ?? matchup?.WinnerItemID ?? null;
@@ -211,8 +234,6 @@ const MatchupPage = () => {
     refreshMatchup,
   ]);
 
-  const isReady = matchupStatus === "completed";
-
   const canOverrideWinner =
     isBracketMatchup &&
     (isOwner || isAdmin) &&
@@ -231,6 +252,8 @@ const MatchupPage = () => {
       topCount += 1;
     }
   });
+
+  const leadingVotes = topCount === 1 ? highestVotes : null;
 
   const votesAreTied = items.length > 0 && topCount > 1;
 
@@ -263,7 +286,8 @@ const MatchupPage = () => {
     try {
       setIsDeleting(true);
       await deleteMatchup(matchup.id);
-      navigate(`/users/${uid}/profile`);
+      const profileSlug = matchup?.author?.username || uid;
+      navigate(`/users/${profileSlug}`);
     } catch (err) {
       console.error(err);
       setError("Unable to delete matchup.");
@@ -275,7 +299,7 @@ const MatchupPage = () => {
   
 
   const handleLikeToggle = async () => {
-    if (!matchup || likePending || interactionLocked) return;
+    if (!matchup || likePending || !canLike) return;
 
     try {
       setLikePending(true);
@@ -298,7 +322,7 @@ const MatchupPage = () => {
 
   const handleCommentSubmit = async (e) => {
     e.preventDefault();
-    if (!newComment.trim() || commentPending || interactionLocked) return;
+    if (!newComment.trim() || commentPending || !canComment) return;
 
     try {
       setCommentPending(true);
@@ -334,7 +358,7 @@ const MatchupPage = () => {
   };
 
   const handleReadyUp = async () => {
-    if (!readyEnabled || readyPending || matchupExpired) return;
+    if (!readyEnabled || readyPending) return;
 
     const promptMessage = isReady ? "Undo ready?" : "Ready up and lock the winner?";
     if (!window.confirm(promptMessage)) return;
@@ -351,6 +375,21 @@ const MatchupPage = () => {
     }
   };
 
+  const handleActivateMatchup = async () => {
+    if (!canActivate) return;
+    if (!window.confirm("Activate this matchup?")) return;
+    try {
+      setActivatePending(true);
+      await activateMatchup(matchup.id);
+      await refreshMatchup();
+    } catch (err) {
+      console.error(err);
+      setError("Unable to activate matchup.");
+    } finally {
+      setActivatePending(false);
+    }
+  };
+
   /* ------------------------------------------------------------------ */
   /* RENDER */
   /* ------------------------------------------------------------------ */
@@ -360,7 +399,10 @@ const MatchupPage = () => {
       <div className="matchup-page">
         <NavigationBar />
         <main className="matchup-content">
-          <div className="matchup-status-card">Loading matchup…</div>
+          <div className="matchup-skeleton-grid">
+            <SkeletonCard lines={3} />
+            <SkeletonCard lines={2} />
+          </div>
         </main>
       </div>
     );
@@ -420,53 +462,108 @@ const MatchupPage = () => {
             )}
           </div>
 
-          <div className="matchup-actions">
-            <button
-              type="button"
-              className={`matchup-like-button ${isLiked ? "is-liked" : ""}`}
-              onClick={handleLikeToggle}
-              disabled={!canLike || likePending}
-            >
-              {likePending ? "Updating…" : isLiked ? "Liked" : "Like"}
-            </button>
-            <div className="matchup-like-indicator">
-              <span className="matchup-like-count">{likesCount}</span>
-              <span>Likes</span>
+          <div className="matchup-status-toolbar">
+            <div className="matchup-actions">
+              {viewerId ? (
+                <button
+                  type="button"
+                  className={`matchup-like-button ${isLiked ? "is-liked" : ""}`}
+                  onClick={handleLikeToggle}
+                  disabled={!canLike || likePending}
+                >
+                  {likePending ? "Updating…" : isLiked ? "Liked" : "Like"}
+                </button>
+              ) : null}
+              <div className="matchup-like-indicator">
+                <span className="matchup-like-count">{likesCount}</span>
+                <span>Likes</span>
+              </div>
+            </div>
+
+            <div className="matchup-status-actions">
+              {canReadyUp && (
+                <Button
+                  onClick={handleReadyUp}
+                  disabled={!readyEnabled || readyPending}
+                  className={`matchup-readyup-button ${
+                    isReady ? "matchup-readyup-button--armed" : ""
+                  }`}
+                >
+                  {readyPending ? (isReady ? "Unlocking…" : "Locking…") : isReady ? "Undo Ready" : "Ready up"}
+                </Button>
+              )}
+
+              {canActivate && (
+                <Button
+                  onClick={handleActivateMatchup}
+                  disabled={activatePending}
+                  className="matchup-readyup-button"
+                >
+                  {activatePending ? "Activating…" : "Activate matchup"}
+                </Button>
+              )}
             </div>
           </div>
-
-
-          {canReadyUp && (
-            <div className="matchup-readyup">
-              <Button
-                onClick={handleReadyUp}
-                disabled={!readyEnabled || readyPending || matchupExpired}
-                className={`matchup-readyup-button ${
-                  isReady ? "matchup-readyup-button--armed" : ""
-                }`}
-              >
-                {readyPending ? (isReady ? "Unlocking…" : "Locking…") : isReady ? "Undo Ready" : "Ready up"}
-              </Button>
-            </div>
-          )}
         </section>
 
         <section className="matchup-section">
-          <header className="matchup-section-header">
-            <h2>
-              Matchup{" "}
-              {!isBracketMatchup && (
-                <>
-                  · <Link to={`/users/${matchup.author_id}/profile`}>{authorName}</Link>
-                </>
-              )}
-            </h2>
+          <header className="matchup-section-header matchup-section-header--stacked">
+            <div>
+              <h2>
+                Matchup{" "}
+                {!isBracketMatchup && (
+                  <>
+                    ·{" "}
+                    <Link
+                      to={`/users/${matchup?.author?.username || matchup.author_id}`}
+                      className="matchup-author-link"
+                    >
+                      {authorName}
+                    </Link>
+                  </>
+                )}
+              </h2>
+              <p>Tap a contender to cast your vote.</p>
+            </div>
 
-            {isVotingLocked && (
-              <span className="matchup-badge matchup-badge--locked">
-                Voting locked
-              </span>
-            )}
+            <div className="matchup-header-actions">
+              {isVotingLocked && (
+                <span className="matchup-badge matchup-badge--locked">
+                  Voting locked
+                </span>
+              )}
+              {canOverrideWinner && items.length > 0 && (
+                <details ref={winnerMenuRef} className="matchup-winner-menu">
+                  <summary className="matchup-winner-summary" aria-label="Winner options">
+                    ⋯
+                  </summary>
+                  <div className="matchup-winner-panel">
+                    <p className="matchup-winner-title">Select winner</p>
+                    {items.map((item) => {
+                      const itemLabel = item.item ?? item.name ?? "Contender";
+                      const isSelected = winnerItemId === item.id;
+                      return (
+                        <button
+                          key={`winner-${item.id}`}
+                          type="button"
+                          className={`matchup-winner-option ${
+                            isSelected ? "is-selected" : ""
+                          }`}
+                          onClick={() => {
+                            handleOverrideWinner(item.id);
+                            if (winnerMenuRef.current) {
+                              winnerMenuRef.current.removeAttribute("open");
+                            }
+                          }}
+                        >
+                          {itemLabel}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </details>
+              )}
+            </div>
           </header>
 
           <div className="matchup-items">
@@ -474,7 +571,14 @@ const MatchupPage = () => {
               <MatchupItem
                 key={item.id}
                 item={item}
+                totalVotes={totalVotes}
+                showVoteBar
                 isWinner={winnerItemId === item.id}
+                isLeading={
+                  winnerItemId === null &&
+                  leadingVotes !== null &&
+                  Number(item?.votes ?? item?.Votes ?? 0) === Number(leadingVotes)
+                }
                 hasWinner={winnerItemId !== null}
                 allowEdit={
                   isOwner &&
@@ -504,48 +608,60 @@ const MatchupPage = () => {
           )}
         </section>
 
-        <section className="matchup-section">
-          <header className="matchup-section-header">
-            <h2>Comments</h2>
+        <section className="matchup-section matchup-section--comments">
+          <header className="matchup-section-header matchup-section-header--comments">
+            <div>
+              <h2>Comments</h2>
+              <p>Join the debate.</p>
+            </div>
+            <button
+              type="button"
+              className="matchup-comment-toggle"
+              onClick={() => setCommentsOpen((prev) => !prev)}
+            >
+              {commentsOpen ? "Hide" : "Show"}
+            </button>
           </header>
 
-          <div className="matchup-comments">
-            {comments.length === 0 ? (
-              <div className="matchup-empty">No comments yet.</div>
-            ) : (
-              comments.map((comment) => <Comment key={comment.id} comment={comment} />)
-            )}
-          </div>
+          {commentsOpen && (
+            <>
+              <div className="matchup-comments">
+                {comments.length === 0 ? (
+                  <div className="matchup-empty">No comments yet.</div>
+                ) : (
+                  comments.map((comment) => (
+                    <Comment key={comment.id} comment={comment} />
+                  ))
+                )}
+              </div>
 
-          {interactionLocked && (
-            <div className="matchup-inline-hint">
-              Comments are disabled for expired or inactive matchups.
-            </div>
+              {viewerId ? (
+                <form className="matchup-comment-form" onSubmit={handleCommentSubmit}>
+                  <label htmlFor="newComment" className="matchup-form-label">
+                    Add a comment
+                  </label>
+                  <textarea
+                    id="newComment"
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    rows={3}
+                    disabled={commentPending || !canComment}
+                    className="matchup-textarea"
+                  />
+                  {commentError && <p className="matchup-inline-error">{commentError}</p>}
+                  <div className="matchup-form-actions">
+                    <button
+                      type="submit"
+                      disabled={commentPending || !canComment}
+                      className="matchup-primary-button"
+                    >
+                      {commentPending ? "Posting…" : "Post comment"}
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+            </>
           )}
-
-          <form className="matchup-comment-form" onSubmit={handleCommentSubmit}>
-            <label htmlFor="newComment" className="matchup-form-label">
-              Add a comment
-            </label>
-            <textarea
-              id="newComment"
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              rows={3}
-              disabled={commentPending || interactionLocked}
-              className="matchup-textarea"
-            />
-            {commentError && <p className="matchup-inline-error">{commentError}</p>}
-            <div className="matchup-form-actions">
-              <button
-                type="submit"
-                disabled={commentPending || interactionLocked}
-                className="matchup-primary-button"
-              >
-                {commentPending ? "Posting…" : "Post comment"}
-              </button>
-            </div>
-          </form>
         </section>
       </main>
     </div>

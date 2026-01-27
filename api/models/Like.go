@@ -1,17 +1,27 @@
 package models
 
 import (
+	"strings"
 	"time"
 
+	"github.com/twinj/uuid"
 	"gorm.io/gorm"
 )
 
 type Like struct {
 	ID        uint      `gorm:"primary_key;autoIncrement" json:"id"`
+	PublicID  string    `gorm:"type:uuid;uniqueIndex;column:public_id" json:"public_id"`
 	UserID    uint      `gorm:"not null" json:"user_id"`
 	MatchupID uint      `gorm:"not null" json:"matchup_id"`
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+func (like *Like) BeforeCreate(tx *gorm.DB) (err error) {
+	if strings.TrimSpace(like.PublicID) == "" {
+		like.PublicID = uuid.NewV4().String()
+	}
+	return nil
 }
 
 func (like *Like) SaveLike(db *gorm.DB) (*Like, error) {

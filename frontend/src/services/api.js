@@ -45,6 +45,10 @@ export const login = async (data) => {
     localStorage.setItem('userId', String(payload.id));
   }
 
+  if (payload.username) {
+    localStorage.setItem('username', String(payload.username));
+  }
+
   if (typeof payload.is_admin === 'boolean') {
     localStorage.setItem('isAdmin', payload.is_admin ? 'true' : 'false');
   } else {
@@ -62,6 +66,15 @@ export const createUser = (data) => API.post('/users', data);
 export const getUsers = () => API.get('/users');
 export const getUser = (id) => API.get(`/users/${id}`);
 export const updateUser = (id, data) => API.put(`/users/${id}`, data);
+export const updateUserPrivacy = (id, isPrivate) =>
+  API.patch(`/users/${id}/privacy`, { is_private: isPrivate });
+export const followUser = (id) => API.post(`/users/${id}/follow`);
+export const unfollowUser = (id) => API.delete(`/users/${id}/follow`);
+export const getUserRelationship = (id) => API.get(`/users/${id}/relationship`);
+export const getUserFollowers = (id, params = {}) =>
+  API.get(`/users/${id}/followers`, { params });
+export const getUserFollowing = (id, params = {}) =>
+  API.get(`/users/${id}/following`, { params });
 
 export const updateUserAvatar = (userId, file) => {
   const formData = new FormData();

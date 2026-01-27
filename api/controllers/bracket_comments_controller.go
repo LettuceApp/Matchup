@@ -1,9 +1,8 @@
 package controllers
 
 import (
+	"errors"
 	"net/http"
-	"strconv"
-	"time"
 
 	"Matchup/auth"
 	"Matchup/models"
@@ -14,26 +13,42 @@ import (
 	"gorm.io/gorm"
 )
 
-type BracketCommentResponse struct {
-	ID        uint      `json:"id"`
-	UserID    uint      `json:"user_id"`
-	Username  string    `json:"username"`
-	Body      string    `json:"body"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
+// CreateBracketComment godoc
+// @Summary      Create a bracket comment
+// @Description  Add a comment to a bracket
+// @Tags         bracket-comments
+// @Accept       json
+// @Produce      json
+// @Param        id       path      string                        true  "Bracket ID"
+// @Param        comment  body      BracketCommentCreateRequest true  "Comment payload"
+// @Success      201      {object}  BracketCommentResponseDoc
+// @Failure      400      {object}  ErrorResponse
+// @Failure      401      {object}  ErrorResponse
+// @Failure      403      {object}  ErrorResponse
+// @Failure      422      {object}  ErrorResponse
+// @Router       /brackets/{id}/comments [post]
+// @Security     BearerAuth
 func (server *Server) CreateBracketComment(c *gin.Context) {
 	errList := map[string]string{}
 
 	bracketID := c.Param("id")
-	bid, err := strconv.ParseUint(bracketID, 10, 32)
+	bracketRecord, err := resolveBracketByIdentifier(server.DB, bracketID)
 	if err != nil {
-		errList["Invalid_request"] = "Invalid Request"
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status": http.StatusBadRequest,
-			"error":  errList,
-		})
+		if errors.Is(err, errInvalidIdentifier) {
+			errList["Invalid_request"] = "Invalid Request"
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status": http.StatusBadRequest,
+				"error":  errList,
+			})
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			errList["No_bracket"] = "No bracket found"
+			c.JSON(http.StatusNotFound, gin.H{
+				"status": http.StatusNotFound,
+				"error":  errList,
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve bracket"})
+		}
 		return
 	}
 
@@ -58,7 +73,7 @@ func (server *Server) CreateBracketComment(c *gin.Context) {
 	}
 
 	bracket := models.Bracket{}
-	if err := server.DB.Where("id = ?", uint(bid)).Take(&bracket).Error; err != nil {
+	if err := server.DB.Preload("Author").Where("id = ?", bracketRecord.ID).Take(&bracket).Error; err != nil {
 		errList["No_bracket"] = "No bracket found"
 		c.JSON(http.StatusNotFound, gin.H{
 			"status": http.StatusNotFound,
@@ -66,8 +81,14 @@ func (server *Server) CreateBracketComment(c *gin.Context) {
 		})
 		return
 	}
-	if bracket.Status == "completed" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Bracket comments are closed"})
+
+	allowed, reason, err := canViewUserContent(server.DB, uid, true, &bracket.Author, bracket.Visibility, httpctx.IsAdminRequest(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to check bracket visibility"})
+		return
+	}
+	if !allowed {
+		respondVisibilityDenied(c, reason)
 		return
 	}
 
@@ -82,7 +103,7 @@ func (server *Server) CreateBracketComment(c *gin.Context) {
 	}
 
 	comment.UserID = uid
-	comment.BracketID = uint(bid)
+	comment.BracketID = bracketRecord.ID
 
 	comment.Prepare()
 	errorMessages := comment.Validate("")
@@ -106,9 +127,9 @@ func (server *Server) CreateBracketComment(c *gin.Context) {
 		return
 	}
 
-	commentResponse := BracketCommentResponse{
-		ID:        commentCreated.ID,
-		UserID:    commentCreated.UserID,
+	commentResponse := CommentDTO{
+		ID:        commentCreated.PublicID,
+		UserID:    user.PublicID,
 		Username:  user.Username,
 		Body:      commentCreated.Body,
 		CreatedAt: commentCreated.CreatedAt,
@@ -122,22 +143,42 @@ func (server *Server) CreateBracketComment(c *gin.Context) {
 	invalidateHomeSummaryCache(bracket.AuthorID)
 }
 
+// GetBracketComments godoc
+// @Summary      List bracket comments
+// @Description  Get comments for a bracket
+// @Tags         bracket-comments
+// @Produce      json
+// @Param        id   path      string  true  "Bracket ID"
+// @Success      200  {object}  BracketCommentListResponseDoc
+// @Failure      400  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Router       /brackets/{id}/comments [get]
 func (server *Server) GetBracketComments(c *gin.Context) {
 	errList := map[string]string{}
 
 	bracketID := c.Param("id")
-	bid, err := strconv.ParseUint(bracketID, 10, 32)
+	bracketRecord, err := resolveBracketByIdentifier(server.DB, bracketID)
 	if err != nil {
-		errList["Invalid_request"] = "Invalid Request"
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status": http.StatusBadRequest,
-			"error":  errList,
-		})
+		if errors.Is(err, errInvalidIdentifier) {
+			errList["Invalid_request"] = "Invalid Request"
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status": http.StatusBadRequest,
+				"error":  errList,
+			})
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			errList["No_bracket"] = "No bracket found"
+			c.JSON(http.StatusNotFound, gin.H{
+				"status": http.StatusNotFound,
+				"error":  errList,
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve bracket"})
+		}
 		return
 	}
 
 	bracket := models.Bracket{}
-	if err := server.DB.Model(models.Bracket{}).Where("id = ?", uint(bid)).Take(&bracket).Error; err != nil {
+	if err := server.DB.Preload("Author").Where("id = ?", bracketRecord.ID).Take(&bracket).Error; err != nil {
 		errList["No_bracket"] = "No bracket found"
 		c.JSON(http.StatusNotFound, gin.H{
 			"status": http.StatusNotFound,
@@ -146,8 +187,19 @@ func (server *Server) GetBracketComments(c *gin.Context) {
 		return
 	}
 
+	viewerID, hasViewer := optionalViewerID(c)
+	allowed, reason, err := canViewUserContent(server.DB, viewerID, hasViewer, &bracket.Author, bracket.Visibility, httpctx.IsAdminRequest(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to check bracket visibility"})
+		return
+	}
+	if !allowed {
+		respondVisibilityDenied(c, reason)
+		return
+	}
+
 	comments := []models.BracketComment{}
-	if err := server.DB.Preload("Author").Where("bracket_id = ?", uint(bid)).
+	if err := server.DB.Preload("Author").Where("bracket_id = ?", bracketRecord.ID).
 		Order("created_at desc").Find(&comments).Error; err != nil {
 		errList["No_comments"] = "No comments found"
 		c.JSON(http.StatusNotFound, gin.H{
@@ -157,16 +209,9 @@ func (server *Server) GetBracketComments(c *gin.Context) {
 		return
 	}
 
-	commentResponses := []map[string]interface{}{}
+	commentResponses := []CommentDTO{}
 	for _, comment := range comments {
-		commentResponses = append(commentResponses, map[string]interface{}{
-			"id":         comment.ID,
-			"user_id":    comment.UserID,
-			"username":   comment.Author.Username,
-			"body":       comment.Body,
-			"created_at": comment.CreatedAt,
-			"updated_at": comment.UpdatedAt,
-		})
+		commentResponses = append(commentResponses, bracketCommentToDTO(server.DB, comment))
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -175,17 +220,42 @@ func (server *Server) GetBracketComments(c *gin.Context) {
 	})
 }
 
+// DeleteBracketComment godoc
+// @Summary      Delete a bracket comment
+// @Description  Delete a bracket comment (owner or admin)
+// @Tags         bracket-comments
+// @Produce      json
+// @Param        id   path      string  true  "Comment ID"
+// @Success      200  {object}  SimpleMessageResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Router       /bracket_comments/{id} [delete]
+// @Security     BearerAuth
 func (server *Server) DeleteBracketComment(c *gin.Context) {
 	errList := map[string]string{}
 
 	commentID := c.Param("id")
-	cid, err := strconv.ParseUint(commentID, 10, 32)
+	commentRecord, err := resolveBracketCommentByIdentifier(server.DB, commentID)
 	if err != nil {
-		errList["Invalid_request"] = "Invalid Request"
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status": http.StatusBadRequest,
-			"error":  errList,
-		})
+		if errors.Is(err, errInvalidIdentifier) {
+			errList["Invalid_request"] = "Invalid Request"
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status": http.StatusBadRequest,
+				"error":  errList,
+			})
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			errList["No_comment"] = "No Comment Found"
+			c.JSON(http.StatusNotFound, gin.H{
+				"status": http.StatusNotFound,
+				"error":  errList,
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status": http.StatusInternalServerError,
+				"error":  "Error finding comment",
+			})
+		}
 		return
 	}
 
@@ -200,7 +270,7 @@ func (server *Server) DeleteBracketComment(c *gin.Context) {
 	}
 
 	comment := models.BracketComment{}
-	if err := server.DB.Model(models.BracketComment{}).Where("id = ?", uint(cid)).Take(&comment).Error; err != nil {
+	if err := server.DB.Model(models.BracketComment{}).Where("id = ?", commentRecord.ID).Take(&comment).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			errList["No_comment"] = "No Comment Found"
 			c.JSON(http.StatusNotFound, gin.H{

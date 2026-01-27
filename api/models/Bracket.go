@@ -6,11 +6,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/twinj/uuid"
 	"gorm.io/gorm"
 )
 
 type Bracket struct {
 	ID          uint   `gorm:"primary_key;autoIncrement" json:"id"`
+	PublicID    string `gorm:"type:uuid;uniqueIndex;column:public_id" json:"public_id"`
 	Title       string `gorm:"size:255;not null" json:"title"`
 	Description string `gorm:"text" json:"description"`
 
@@ -20,6 +22,7 @@ type Bracket struct {
 	Size         int    `gorm:"not null" json:"size"`
 	Status       string `gorm:"size:20;not null;default:'draft'" json:"status"` // draft|active|completed
 	CurrentRound int    `gorm:"default:1" json:"current_round"`
+	Visibility   string `gorm:"size:20;not null;default:'public'" json:"visibility"`
 
 	// Bracket timer ONLY (matchups inherit from bracket when in bracket)
 	AdvanceMode          string     `gorm:"size:20;not null;default:'manual'" json:"advance_mode"` // manual|timer
@@ -37,6 +40,13 @@ type Bracket struct {
 
 	CreatedAt time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
 	UpdatedAt time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
+}
+
+func (b *Bracket) BeforeCreate(tx *gorm.DB) (err error) {
+	if strings.TrimSpace(b.PublicID) == "" {
+		b.PublicID = uuid.NewV4().String()
+	}
+	return nil
 }
 
 //
@@ -64,6 +74,9 @@ func (b *Bracket) Prepare() {
 	}
 	if b.RoundDurationSeconds < 0 {
 		b.RoundDurationSeconds = 0
+	}
+	if strings.TrimSpace(b.Visibility) == "" {
+		b.Visibility = "public"
 	}
 }
 

@@ -11,18 +11,23 @@ import (
 	"Matchup/security"
 
 	"github.com/badoux/checkmail"
+	"github.com/twinj/uuid"
 	"gorm.io/gorm"
 )
 
 type User struct {
-	ID         uint      `gorm:"primary_key;autoIncrement" json:"id"`
-	Username   string    `gorm:"size:255;not null;unique" json:"username"`
-	Email      string    `gorm:"size:100;not null;unique" json:"email"`
-	Password   string    `gorm:"size:255;not null" json:"password"`
-	AvatarPath string    `gorm:"size:255;null;" json:"avatar_path"`
-	IsAdmin    bool      `gorm:"default:false" json:"is_admin"`
-	CreatedAt  time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
-	UpdatedAt  time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
+	ID             uint      `gorm:"primary_key;autoIncrement" json:"id"`
+	PublicID       string    `gorm:"type:uuid;uniqueIndex;column:public_id" json:"public_id"`
+	Username       string    `gorm:"size:255;not null;unique" json:"username"`
+	Email          string    `gorm:"size:100;not null;unique" json:"email"`
+	Password       string    `gorm:"size:255;not null" json:"password"`
+	AvatarPath     string    `gorm:"size:255;null;" json:"avatar_path"`
+	IsAdmin        bool      `gorm:"default:false" json:"is_admin"`
+	IsPrivate      bool      `gorm:"not null;default:false" json:"is_private"`
+	FollowersCount int64     `gorm:"not null;default:0" json:"followers_count"`
+	FollowingCount int64     `gorm:"not null;default:0" json:"following_count"`
+	CreatedAt      time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
+	UpdatedAt      time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
 }
 
 const SeedAdminEmail = "cordelljenkins1914@gmail.com"
@@ -38,6 +43,13 @@ func (u *User) HashPassword() error {
 
 func (u *User) BeforeSave(tx *gorm.DB) (err error) {
 	return u.HashPassword()
+}
+
+func (u *User) BeforeCreate(tx *gorm.DB) (err error) {
+	if strings.TrimSpace(u.PublicID) == "" {
+		u.PublicID = uuid.NewV4().String()
+	}
+	return nil
 }
 
 func (u *User) Prepare() {

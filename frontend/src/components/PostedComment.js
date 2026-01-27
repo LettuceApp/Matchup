@@ -4,8 +4,9 @@ import { deleteComment } from '../services/api';
 
 const PostedComment = ({ comment, refreshComments }) => {
   const { user_id, username, body, created_at, id } = comment;
-  const loggedInUserId = parseInt(localStorage.getItem('userId'), 10);
-  const isOwner = loggedInUserId === user_id;
+  const loggedInUserId = localStorage.getItem('userId');
+  const isOwner = loggedInUserId && String(user_id) === loggedInUserId;
+  const profileSlug = username || user_id;
 
   const handleDelete = async () => {
     try {
@@ -22,7 +23,7 @@ const PostedComment = ({ comment, refreshComments }) => {
       {/* Username and Timestamp */}
       <div>
         <Link 
-          to={`/users/${user_id}/profile`} 
+          to={`/users/${profileSlug}`} 
           style={{ fontSize: '18px', fontWeight: 'bold', textDecoration: 'none', color: '#3b5998' }}
         >
           {username}

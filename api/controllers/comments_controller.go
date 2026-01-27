@@ -2,10 +2,9 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
-	"strconv"
-	"time"
 
 	"Matchup/auth"
 	"Matchup/models"
@@ -13,42 +12,51 @@ import (
 	httpctx "Matchup/utils/httpctx"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
-
-type CommentResponse struct {
-	ID        uint      `json:"id"`
-	UserID    uint      `json:"user_id"`
-	Username  string    `json:"username"`
-	Body      string    `json:"body"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
 
 type CommentUser struct {
 	ID       uint   `json:"id"`
 	Username string `json:"username"`
 }
 
-func ExtractUserIDsFromComments(comments []CommentResponse) []uint {
-	userIDs := make([]uint, len(comments))
-	for i, comment := range comments {
-		userIDs[i] = comment.UserID
-	}
-	return userIDs
-}
-
+// CreateComment godoc
+// @Summary      Create a matchup comment
+// @Description  Add a comment to a matchup
+// @Tags         comments
+// @Accept       json
+// @Produce      json
+// @Param        id       path      string                  true  "Matchup ID"
+// @Param        comment  body      CommentCreateRequest true  "Comment payload"
+// @Success      201      {object}  CommentResponseDoc
+// @Failure      400      {object}  ErrorResponse
+// @Failure      401      {object}  ErrorResponse
+// @Failure      403      {object}  ErrorResponse
+// @Failure      422      {object}  ErrorResponse
+// @Router       /matchups/{id}/comments [post]
+// @Security     BearerAuth
 func (server *Server) CreateComment(c *gin.Context) {
 	errList := map[string]string{}
 
 	// Parse matchup ID from the URL
 	matchupID := c.Param("id")
-	mid, err := strconv.ParseUint(matchupID, 10, 32)
+	matchupRecord, err := resolveMatchupByIdentifier(server.DB, matchupID)
 	if err != nil {
-		errList["Invalid_request"] = "Invalid Request"
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status": http.StatusBadRequest,
-			"error":  errList,
-		})
+		if errors.Is(err, errInvalidIdentifier) {
+			errList["Invalid_request"] = "Invalid Request"
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status": http.StatusBadRequest,
+				"error":  errList,
+			})
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			errList["No_matchup"] = "No matchup found"
+			c.JSON(http.StatusNotFound, gin.H{
+				"status": http.StatusNotFound,
+				"error":  errList,
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve matchup"})
+		}
 		return
 	}
 
@@ -77,7 +85,7 @@ func (server *Server) CreateComment(c *gin.Context) {
 
 	// Verify the matchup exists
 	matchup := models.Matchup{}
-	err = server.DB.Where("id = ?", uint(mid)).Take(&matchup).Error
+	err = server.DB.Preload("Author").Where("id = ?", matchupRecord.ID).Take(&matchup).Error
 	if err != nil {
 		errList["No_matchup"] = "No matchup found"
 		c.JSON(http.StatusNotFound, gin.H{
@@ -87,17 +95,22 @@ func (server *Server) CreateComment(c *gin.Context) {
 		return
 	}
 
-	if !isMatchupOpenStatus(matchup.Status) {
+	allowed, reason, err := canViewUserContent(server.DB, uid, true, &matchup.Author, matchup.Visibility, httpctx.IsAdminRequest(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to check matchup visibility"})
+		return
+	}
+	if !allowed {
+		respondVisibilityDenied(c, reason)
+		return
+	}
+
+	if matchup.Status == matchupStatusDraft {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Matchup is not active"})
 		return
 	}
 
-	if matchup.EndTime != nil && time.Now().After(*matchup.EndTime) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Matchup has ended"})
-		return
-	}
-
-	if matchup.BracketID != nil {
+	if matchup.BracketID != nil && matchup.Status != matchupStatusCompleted {
 		var bracket models.Bracket
 		if err := server.DB.First(&bracket, *matchup.BracketID).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Bracket not found"})
@@ -128,7 +141,7 @@ func (server *Server) CreateComment(c *gin.Context) {
 
 	// Set the user ID and matchup ID
 	comment.UserID = uid
-	comment.MatchupID = uint(mid)
+	comment.MatchupID = matchupRecord.ID
 
 	// Prepare and validate the comment
 	comment.Prepare()
@@ -155,12 +168,13 @@ func (server *Server) CreateComment(c *gin.Context) {
 	}
 
 	// Prepare the response with the username
-	commentResponse := CommentResponse{
-		ID:        commentCreated.ID,
-		UserID:    commentCreated.UserID,
+	commentResponse := CommentDTO{
+		ID:        commentCreated.PublicID,
+		UserID:    user.PublicID,
 		Username:  user.Username, // Use the username of the authenticated user
 		Body:      commentCreated.Body,
 		CreatedAt: commentCreated.CreatedAt,
+		UpdatedAt: commentCreated.UpdatedAt,
 	}
 
 	// Send the response
@@ -171,24 +185,44 @@ func (server *Server) CreateComment(c *gin.Context) {
 	invalidateHomeSummaryCache(matchup.AuthorID)
 }
 
+// GetComments godoc
+// @Summary      List matchup comments
+// @Description  Get comments for a matchup
+// @Tags         comments
+// @Produce      json
+// @Param        id   path      string  true  "Matchup ID"
+// @Success      200  {object}  CommentListResponseDoc
+// @Failure      400  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Router       /matchups/{id}/comments [get]
 func (server *Server) GetComments(c *gin.Context) {
 	errList := map[string]string{}
 
 	// Parse the matchup ID from the URL parameters
 	matchupID := c.Param("id")
-	mid, err := strconv.ParseUint(matchupID, 10, 32)
+	matchupRecord, err := resolveMatchupByIdentifier(server.DB, matchupID)
 	if err != nil {
-		errList["Invalid_request"] = "Invalid Request"
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status": http.StatusBadRequest,
-			"error":  errList,
-		})
+		if errors.Is(err, errInvalidIdentifier) {
+			errList["Invalid_request"] = "Invalid Request"
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status": http.StatusBadRequest,
+				"error":  errList,
+			})
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			errList["No_matchup"] = "No matchup found"
+			c.JSON(http.StatusNotFound, gin.H{
+				"status": http.StatusNotFound,
+				"error":  errList,
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to retrieve matchup"})
+		}
 		return
 	}
 
 	// Check if the matchup exists
 	matchup := models.Matchup{}
-	err = server.DB.Model(models.Matchup{}).Where("id = ?", uint(mid)).Take(&matchup).Error
+	err = server.DB.Preload("Author").Where("id = ?", matchupRecord.ID).Take(&matchup).Error
 	if err != nil {
 		errList["No_matchup"] = "No matchup found"
 		c.JSON(http.StatusNotFound, gin.H{
@@ -198,9 +232,20 @@ func (server *Server) GetComments(c *gin.Context) {
 		return
 	}
 
+	viewerID, hasViewer := optionalViewerID(c)
+	allowed, reason, err := canViewUserContent(server.DB, viewerID, hasViewer, &matchup.Author, matchup.Visibility, httpctx.IsAdminRequest(c))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to check matchup visibility"})
+		return
+	}
+	if !allowed {
+		respondVisibilityDenied(c, reason)
+		return
+	}
+
 	// Load comments with the associated author's username using Preload
 	comments := []models.Comment{}
-	err = server.DB.Preload("Author").Where("matchup_id = ?", uint(mid)).Order("created_at desc").Find(&comments).Error
+	err = server.DB.Preload("Author").Where("matchup_id = ?", matchupRecord.ID).Order("created_at desc").Find(&comments).Error
 	if err != nil {
 		errList["No_comments"] = "No comments found"
 		c.JSON(http.StatusNotFound, gin.H{
@@ -211,16 +256,9 @@ func (server *Server) GetComments(c *gin.Context) {
 	}
 
 	// Prepare response data with comments including usernames
-	commentResponses := []map[string]interface{}{}
+	commentResponses := []CommentDTO{}
 	for _, comment := range comments {
-		commentResponses = append(commentResponses, map[string]interface{}{
-			"id":         comment.ID,
-			"user_id":    comment.UserID,
-			"username":   comment.Author.Username, // Use the Author's username
-			"body":       comment.Body,
-			"created_at": comment.CreatedAt,
-			"updated_at": comment.UpdatedAt,
-		})
+		commentResponses = append(commentResponses, commentToDTO(server.DB, comment))
 	}
 
 	// Send the response back to the client
@@ -230,17 +268,42 @@ func (server *Server) GetComments(c *gin.Context) {
 	})
 }
 
+// UpdateComment godoc
+// @Summary      Update a comment
+// @Description  Update a matchup comment (owner only)
+// @Tags         comments
+// @Accept       json
+// @Produce      json
+// @Param        id      path      string                  true  "Comment ID"
+// @Param        comment body      CommentUpdateRequest true  "Comment payload"
+// @Success      200     {object}  CommentResponseDoc
+// @Failure      400     {object}  ErrorResponse
+// @Failure      401     {object}  ErrorResponse
+// @Failure      404     {object}  ErrorResponse
+// @Failure      422     {object}  ErrorResponse
+// @Router       /comments/{id} [put]
+// @Security     BearerAuth
 func (server *Server) UpdateComment(c *gin.Context) {
 	errList := map[string]string{}
 
 	commentID := c.Param("id")
-	cid, err := strconv.ParseUint(commentID, 10, 32)
+	commentRecord, err := resolveCommentByIdentifier(server.DB, commentID)
 	if err != nil {
-		errList["Invalid_request"] = "Invalid Request"
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status": http.StatusBadRequest,
-			"error":  errList,
-		})
+		if errors.Is(err, errInvalidIdentifier) {
+			errList["Invalid_request"] = "Invalid Request"
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status": http.StatusBadRequest,
+				"error":  errList,
+			})
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			errList["No_comment"] = "No Comment Found"
+			c.JSON(http.StatusNotFound, gin.H{
+				"status": http.StatusNotFound,
+				"error":  errList,
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error finding comment"})
+		}
 		return
 	}
 
@@ -255,7 +318,7 @@ func (server *Server) UpdateComment(c *gin.Context) {
 	}
 
 	origComment := models.Comment{}
-	err = server.DB.Model(models.Comment{}).Where("id = ?", uint(cid)).Take(&origComment).Error
+	err = server.DB.Model(models.Comment{}).Where("id = ?", commentRecord.ID).Take(&origComment).Error
 	if err != nil {
 		errList["No_comment"] = "No Comment Found"
 		c.JSON(http.StatusNotFound, gin.H{
@@ -320,23 +383,60 @@ func (server *Server) UpdateComment(c *gin.Context) {
 		return
 	}
 
+	var username string
+	var userPublicID string
+	var author models.User
+	if err := server.DB.Select("username", "public_id").First(&author, commentUpdated.UserID).Error; err == nil {
+		username = author.Username
+		userPublicID = author.PublicID
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":   http.StatusOK,
-		"response": commentUpdated,
+		"response": CommentDTO{
+			ID:        commentUpdated.PublicID,
+			UserID:    userPublicID,
+			Username:  username,
+			Body:      commentUpdated.Body,
+			CreatedAt: commentUpdated.CreatedAt,
+			UpdatedAt: commentUpdated.UpdatedAt,
+		},
 	})
 }
 
+// DeleteComment godoc
+// @Summary      Delete a comment
+// @Description  Delete a matchup comment (owner only)
+// @Tags         comments
+// @Produce      json
+// @Param        id   path      string  true  "Comment ID"
+// @Success      200  {object}  SimpleMessageResponse
+// @Failure      400  {object}  ErrorResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Router       /comments/{id} [delete]
+// @Security     BearerAuth
 func (server *Server) DeleteComment(c *gin.Context) {
 	errList := map[string]string{}
 
 	commentID := c.Param("id")
-	cid, err := strconv.ParseUint(commentID, 10, 32)
+	commentRecord, err := resolveCommentByIdentifier(server.DB, commentID)
 	if err != nil {
-		errList["Invalid_request"] = "Invalid Request"
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status": http.StatusBadRequest,
-			"error":  errList,
-		})
+		if errors.Is(err, errInvalidIdentifier) {
+			errList["Invalid_request"] = "Invalid Request"
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status": http.StatusBadRequest,
+				"error":  errList,
+			})
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			errList["No_comment"] = "No Comment Found"
+			c.JSON(http.StatusNotFound, gin.H{
+				"status": http.StatusNotFound,
+				"error":  errList,
+			})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error finding comment"})
+		}
 		return
 	}
 
@@ -351,7 +451,7 @@ func (server *Server) DeleteComment(c *gin.Context) {
 	}
 
 	comment := models.Comment{}
-	err = server.DB.Debug().Model(models.Comment{}).Where("id = ?", uint(cid)).Take(&comment).Error
+	err = server.DB.Debug().Model(models.Comment{}).Where("id = ?", commentRecord.ID).Take(&comment).Error
 	if err != nil {
 		errList["No_comment"] = "No Comment Found"
 		c.JSON(http.StatusNotFound, gin.H{

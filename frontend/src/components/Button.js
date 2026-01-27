@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import PropTypes from 'prop-types';
 
 // Use default parameters instead of defaultProps
@@ -11,15 +12,17 @@ const Button = ({
   ...rest
 }) => {
   return (
-    <button
+    <motion.button
       type={type}
       onClick={onClick}
       className={className}
       disabled={disabled}
+      whileHover={disabled ? undefined : { y: -1 }}
+      whileTap={disabled ? undefined : { scale: 0.98 }}
       {...rest}
     >
       {children}
-    </button>
+    </motion.button>
   );
 };
 

@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { motion } from "framer-motion";
 import NavigationBar from "../components/NavigationBar";
 import Button from "../components/Button";
 import BracketView from "../components/BracketView";
 import Comment from "../components/Comment";
+import SkeletonCard from "../components/SkeletonCard";
 import {
   getBracketSummary,
   getBracketComments,
@@ -22,7 +24,7 @@ import useCountdown from "../hooks/useCountdown";
 export default function BracketPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const viewerId = Number(localStorage.getItem("userId") || 0);
+  const viewerId = localStorage.getItem("userId");
 
   const [bracket, setBracket] = useState(null);
   const [matchups, setMatchups] = useState([]);
@@ -33,29 +35,31 @@ export default function BracketPage() {
   const [likesCount, setLikesCount] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
   const [likePending, setLikePending] = useState(false);
-  const [likedMatchupIds, setLikedMatchupIds] = useState(new Set());
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
   const [commentError, setCommentError] = useState(null);
   const [commentPending, setCommentPending] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const loadInFlight = useRef(false);
 
   /* ------------------------------------------------------------------ */
   /* DATA LOADING */
   /* ------------------------------------------------------------------ */
 
-  const loadBracket = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const loadBracket = useCallback(async (options = {}) => {
+    const { silent = false } = options;
+    if (loadInFlight.current) return;
+    loadInFlight.current = true;
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
 
     try {
       const summaryRes = await getBracketSummary(id, viewerId);
       const summary = summaryRes.data?.response ?? summaryRes.data ?? {};
       const bracketData = summary.bracket ?? null;
       const matchupsData = summary.matchups ?? [];
-      const likedIds = Array.isArray(summary.liked_matchup_ids)
-        ? summary.liked_matchup_ids.map((value) => Number(value))
-        : [];
-
       setBracket(bracketData);
       setMatchups(Array.isArray(matchupsData) ? matchupsData : []);
       detectChampion(bracketData, matchupsData);
@@ -63,15 +67,23 @@ export default function BracketPage() {
         Number(bracketData?.likes_count ?? bracketData?.likesCount ?? 0),
       );
       setIsLiked(Boolean(summary.liked_bracket));
-      setLikedMatchupIds(new Set(likedIds));
     } catch (err) {
       console.error("Failed to load bracket", err);
-      setError("We could not load this bracket right now.");
-      setBracket(null);
-      setMatchups([]);
-      setChampion(null);
+      if (!silent) {
+        setError(
+          err?.response?.status === 403
+            ? "Only followers can view this bracket."
+            : "We could not load this bracket right now."
+        );
+        setBracket(null);
+        setMatchups([]);
+        setChampion(null);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
+      loadInFlight.current = false;
     }
   }, [id, viewerId]);
 
@@ -85,6 +97,9 @@ export default function BracketPage() {
       setComments(res.data?.response ?? res.data ?? []);
     } catch (err) {
       console.error("Failed to load bracket comments", err);
+      if (err?.response?.status === 403) {
+        setCommentError("Only followers can view bracket comments.");
+      }
       setComments([]);
     }
   }, [id]);
@@ -108,7 +123,6 @@ export default function BracketPage() {
   useEffect(() => {
     if (!viewerId) {
       setIsLiked(false);
-      setLikedMatchupIds(new Set());
     }
   }, [viewerId]);
 
@@ -125,20 +139,22 @@ export default function BracketPage() {
 
   const roundCountdown = useCountdown(roundEndsAt);
 
-  // When the round timer expires, Dagster will advance it.
-  // We simply refresh after a short delay.
+  // Poll for timer-driven advances so champion + round updates appear without refresh.
   useEffect(() => {
-    if (
-      roundCountdown.isExpired &&
-      bracket?.status === "active"
-    ) {
-      const timeout = setTimeout(() => {
-        loadBracket();
-      }, 3000);
+    if (bracketAdvanceMode !== "timer" || bracket?.status !== "active") return;
 
-      return () => clearTimeout(timeout);
-    }
-  }, [roundCountdown.isExpired, bracket?.status, loadBracket]);
+    const intervalMs = roundCountdown.isExpired ? 3000 : 10000;
+    const interval = setInterval(() => {
+      loadBracket({ silent: true });
+    }, intervalMs);
+
+    return () => clearInterval(interval);
+  }, [
+    bracketAdvanceMode,
+    bracket?.status,
+    roundCountdown.isExpired,
+    loadBracket,
+  ]);
 
   /* ------------------------------------------------------------------ */
   /* CHAMPION DETECTION */
@@ -192,7 +208,10 @@ export default function BracketPage() {
       <div className="bracket-page">
         <NavigationBar />
         <main className="bracket-content">
-          <div className="bracket-status-card">Loading bracket…</div>
+          <div className="bracket-skeleton-grid">
+            <SkeletonCard lines={3} />
+            <SkeletonCard lines={2} />
+          </div>
         </main>
       </div>
     );
@@ -224,7 +243,7 @@ export default function BracketPage() {
   const isOwner =
     currentUser?.id &&
     bracketOwnerId &&
-    Number(currentUser.id) === Number(bracketOwnerId);
+    String(currentUser.id) === String(bracketOwnerId);
 
   const canEdit = isOwner || currentUser?.role === "admin";
 
@@ -261,7 +280,7 @@ export default function BracketPage() {
 
   const handleCommentSubmit = async (e) => {
     e.preventDefault();
-    if (!newComment.trim() || commentPending || bracket?.status === "completed") return;
+    if (!newComment.trim() || commentPending || !viewerId) return;
 
     try {
       setCommentPending(true);
@@ -308,155 +327,177 @@ export default function BracketPage() {
   /* RENDER */
   /* ------------------------------------------------------------------ */
 
+  const sectionMotion = {
+    initial: { opacity: 0, y: 14 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.35 },
+  };
+
   return (
     <div className="bracket-page">
       <NavigationBar />
       <main className="bracket-content">
-        <section className="bracket-hero">
-          <div className="bracket-hero-text">
-            <p className="bracket-overline">Bracket overview</p>
-            <h1>{bracket.title}</h1>
-            <p className="bracket-description">
-              {bracket.description || "No description provided yet."}
-            </p>
+        <motion.section className="bracket-hero-summary" {...sectionMotion}>
+          <p className="bracket-overline">Tournament snapshot</p>
+          <h1>{bracket.title}</h1>
+          <p className="bracket-description">
+            {bracket.description || "No description provided yet."}
+          </p>
 
-            <div className="bracket-meta-row">
-              <div>
-                <span className="bracket-meta-label">Status</span>
-                <p className="bracket-meta-value">
-                  {(bracket.status || "draft").toUpperCase()}
-                </p>
-              </div>
-
-              <div>
-                <span className="bracket-meta-label">Current round</span>
-                <p className="bracket-meta-value">
-                  {bracket.current_round || 1}
-                </p>
-              </div>
+          <div className="bracket-meta-row">
+            <div>
+              <span className="bracket-meta-label">Status</span>
+              <p className="bracket-status-pill">
+                {(bracket.status || "draft").toUpperCase()}
+              </p>
             </div>
 
-            {bracket.status === "active" && roundEndsAt && (
-              <div className="bracket-round-timer">
-                ⏳ Round ends in{" "}
-                <strong>{roundCountdown.formatted}</strong>
-              </div>
-            )}
+            <div>
+              <span className="bracket-meta-label">Current round</span>
+              <p className="bracket-meta-value">
+                {bracket.current_round || 1}
+              </p>
+            </div>
           </div>
 
-          <div className="bracket-hero-actions">
-            <div className="bracket-like-row">
+          {bracket.status === "active" && roundEndsAt && (
+            <div className="bracket-round-timer">
+              ⏳ Round ends in{" "}
+              <strong>{roundCountdown.formatted}</strong>
+            </div>
+          )}
+        </motion.section>
+
+        <motion.section className="bracket-action-bar" {...sectionMotion}>
+          <div className="bracket-action-group">
+            {viewerId ? (
               <button
                 type="button"
                 className={`bracket-like-button ${isLiked ? "is-liked" : ""}`}
                 onClick={handleLikeToggle}
-                disabled={!viewerId || likePending}
+                disabled={likePending}
               >
                 {likePending ? "Updating…" : isLiked ? "Liked" : "Like"}
               </button>
-              <div className="bracket-like-indicator">
-                <span className="bracket-like-count">{likesCount}</span>
-                <span>Likes</span>
-              </div>
+            ) : null}
+            <div className="bracket-like-indicator">
+              <span className="bracket-like-count">{likesCount}</span>
+              <span>Likes</span>
             </div>
+          </div>
 
-            {canEdit && (
-              <>
-                {bracket.status === "draft" && (
-                  <Button onClick={handleActivate} className="bracket-button">
-                    Activate
-                  </Button>
-                )}
+          <div className="bracket-action-group bracket-action-group--center">
+            {canEdit && bracket.status === "draft" && (
+              <Button onClick={handleActivate} className="bracket-button">
+                Activate bracket
+              </Button>
+            )}
 
-                {bracket.status === "active" && (
-                  <Button onClick={handleAdvance} className="bracket-button">
-                    Advance to next round
-                  </Button>
-                )}
+            {canEdit && bracket.status === "active" && (
+              <Button onClick={handleAdvance} className="bracket-button">
+                Advance to next round
+              </Button>
+            )}
 
-                <Button
-                  onClick={handleDelete}
-                  className="bracket-button bracket-button--danger"
-                >
-                  Delete
-                </Button>
-              </>
+            {!canEdit && (
+              <span className="bracket-action-hint">
+                Votes happening now · follow the winners below
+              </span>
             )}
           </div>
-        </section>
 
-        <section className="bracket-section">
+          <div className="bracket-action-group bracket-action-group--right">
+            {canEdit && (
+              <Button
+                onClick={handleDelete}
+                className="bracket-button bracket-button--danger"
+              >
+                Delete
+              </Button>
+            )}
+          </div>
+        </motion.section>
+
+        <motion.section className="bracket-section bracket-section--stage" {...sectionMotion}>
           <header className="bracket-section-header">
-            <h2>Bracket matches</h2>
-            <p>Follow each round as contenders progress.</p>
+            <div>
+              <h2>Bracket matches</h2>
+              <p>Watch each round resolve as winners advance.</p>
+            </div>
           </header>
 
           <BracketView
             matchups={matchups}
             bracket={bracket}
             champion={champion}
-            likedMatchupIds={likedMatchupIds}
           />
-        </section>
+        </motion.section>
 
-        <section className="bracket-section">
-          <header className="bracket-section-header">
-            <h2>Bracket comments</h2>
-            <p>Talk about the bracket as a whole.</p>
+        <motion.section
+          className="bracket-section bracket-section--comments"
+          {...sectionMotion}
+        >
+          <header className="bracket-section-header bracket-section-header--comments">
+            <div>
+              <h2>Comments</h2>
+              <p>Join the debate.</p>
+            </div>
+            <button
+              type="button"
+              className="bracket-comment-toggle"
+              onClick={() => setCommentsOpen((prev) => !prev)}
+            >
+              {commentsOpen ? "Hide" : "Show"}
+            </button>
           </header>
 
-          <div className="bracket-comments">
-            {comments.length === 0 ? (
-              <div className="bracket-comment-empty">No comments yet.</div>
-            ) : (
-              comments.map((comment) => (
-                <Comment
-                  key={comment.id}
-                  comment={comment}
-                  refreshComments={loadComments}
-                  onDelete={deleteBracketComment}
-                />
-              ))
-            )}
-          </div>
+          {commentsOpen && (
+            <>
+              <div className="bracket-comments">
+                {comments.length === 0 ? (
+                  <div className="bracket-comment-empty">No comments yet.</div>
+                ) : (
+                  comments.map((comment) => (
+                    <Comment
+                      key={comment.id}
+                      comment={comment}
+                      refreshComments={loadComments}
+                      onDelete={deleteBracketComment}
+                    />
+                  ))
+                )}
+              </div>
 
-          {!viewerId && (
-            <div className="bracket-inline-hint">
-              Sign in to join the bracket discussion.
-            </div>
+              {viewerId ? (
+                <form className="bracket-comment-form" onSubmit={handleCommentSubmit}>
+                  <label htmlFor="newBracketComment" className="bracket-form-label">
+                    Add a comment
+                  </label>
+                  <textarea
+                    id="newBracketComment"
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    rows={3}
+                    disabled={commentPending}
+                    className="bracket-textarea"
+                  />
+                  {commentError && (
+                    <p className="bracket-inline-error">{commentError}</p>
+                  )}
+                  <div className="bracket-form-actions">
+                    <button
+                      type="submit"
+                      disabled={commentPending}
+                      className="bracket-button bracket-button--ghost"
+                    >
+                      {commentPending ? "Posting…" : "Post comment"}
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+            </>
           )}
-          {bracket?.status === "completed" && (
-            <div className="bracket-inline-hint">
-              Comments are closed for completed brackets.
-            </div>
-          )}
-
-          <form className="bracket-comment-form" onSubmit={handleCommentSubmit}>
-            <label htmlFor="newBracketComment" className="bracket-form-label">
-              Add a comment
-            </label>
-            <textarea
-              id="newBracketComment"
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              rows={3}
-              disabled={commentPending || !viewerId || bracket?.status === "completed"}
-              className="bracket-textarea"
-            />
-            {commentError && (
-              <p className="bracket-inline-error">{commentError}</p>
-            )}
-            <div className="bracket-form-actions">
-              <button
-                type="submit"
-                disabled={commentPending || !viewerId || bracket?.status === "completed"}
-                className="bracket-button bracket-button--ghost"
-              >
-                {commentPending ? "Posting…" : "Post comment"}
-              </button>
-            </div>
-          </form>
-        </section>
+        </motion.section>
       </main>
     </div>
   );

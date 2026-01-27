@@ -32,3 +32,5 @@ api/.DS_Store
 .DS_Store
 orchestration/dagster/
 orchestration/__pycache__
+react-tournament-bracket-0.2.4.tgz
+.pyc
