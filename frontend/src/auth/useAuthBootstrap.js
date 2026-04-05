@@ -21,7 +21,7 @@ export function useAuthBootstrap() {
     getCurrentUser()
       .then((res) => {
         if (!mounted) return;
-        const payload = res?.data?.response || res?.data;
+        const payload = res?.data?.user || res?.data?.response || res?.data;
         if (payload?.id) localStorage.setItem('userId', String(payload.id));
         if (payload?.username) localStorage.setItem('username', String(payload.username));
         if (typeof payload?.is_admin === 'boolean') {

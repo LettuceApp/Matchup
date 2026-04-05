@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"golang.org/x/time/rate"
 )
 
@@ -16,43 +15,12 @@ type visitor struct {
 }
 
 var (
-	// General API visitors
-	visitors   = make(map[string]*visitor)
-	visitorsMu sync.Mutex
-
-	// Stricter visitors for login / password reset
 	loginVisitors   = make(map[string]*visitor)
 	loginVisitorsMu sync.Mutex
 )
 
-// newVisitorLimiter creates a new limiter for general API calls.
-// Example: 1 request/second average, burst of 5.
-func newVisitorLimiter() *rate.Limiter {
-	return rate.NewLimiter(rate.Every(time.Second), 100)
-}
-
-// newLoginVisitorLimiter creates a stricter limiter for auth-sensitive routes.
-// Example: 1 request every 10 seconds on average, burst of 3.
 func newLoginVisitorLimiter() *rate.Limiter {
 	return rate.NewLimiter(rate.Every(10*time.Second), 100)
-}
-
-func getVisitor(ip string) *rate.Limiter {
-	visitorsMu.Lock()
-	defer visitorsMu.Unlock()
-
-	v, exists := visitors[ip]
-	if !exists {
-		limiter := newVisitorLimiter()
-		visitors[ip] = &visitor{
-			limiter:  limiter,
-			lastSeen: time.Now(),
-		}
-		return limiter
-	}
-
-	v.lastSeen = time.Now()
-	return v.limiter
 }
 
 func getLoginVisitor(ip string) *rate.Limiter {
@@ -62,47 +30,26 @@ func getLoginVisitor(ip string) *rate.Limiter {
 	v, exists := loginVisitors[ip]
 	if !exists {
 		limiter := newLoginVisitorLimiter()
-		loginVisitors[ip] = &visitor{
-			limiter:  limiter,
-			lastSeen: time.Now(),
-		}
+		loginVisitors[ip] = &visitor{limiter: limiter, lastSeen: time.Now()}
 		return limiter
 	}
-
 	v.lastSeen = time.Now()
 	return v.limiter
 }
 
-// RateLimitMiddleware applies a simple per-IP rate limit for all routes.
-func RateLimitMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ip := c.ClientIP()
-		limiter := getVisitor(ip)
-
-		if !limiter.Allow() {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-				"error": "Too many requests. Please slow down.",
-			})
-			return
-		}
-
-		c.Next()
-	}
-}
-
 // LoginRateLimitMiddleware applies a stricter per-IP rate limit for auth routes.
-func LoginRateLimitMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ip := c.ClientIP()
-		limiter := getLoginVisitor(ip)
-
-		if !limiter.Allow() {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-				"error": "Too many authentication attempts. Please wait and try again.",
-			})
-			return
-		}
-
-		c.Next()
+func LoginRateLimitMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip := r.RemoteAddr
+			if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+				ip = xff
+			}
+			if !getLoginVisitor(ip).Allow() {
+				http.Error(w, `{"error":"Too many authentication attempts. Please wait and try again."}`, http.StatusTooManyRequests)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
 	}
 }

@@ -20,6 +20,7 @@ import {
   getUserFollowers,
   getUserFollowing,
   updateUserPrivacy,
+  updateUser,
   getUserLikes,
   getUserBracketLikes,
   getMatchup,
@@ -92,7 +93,6 @@ const resolveAvatarUrl = (value) => {
 
 const formatStat = (value) => {
   if (value === null || value === undefined) return '--';
-  if (Number(value) === 0) return '--';
   return value;
 };
 
@@ -137,6 +137,12 @@ const UserProfile = () => {
   const [likedBrackets, setLikedBrackets] = useState([]);
   const [likesLoaded, setLikesLoaded] = useState(false);
 
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [archiveModalTarget, setArchiveModalTarget] = useState(null);
+  const [editBio, setEditBio] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState(null);
+
   useEffect(() => {
     setLikesLoaded(false);
     setLikedMatchups([]);
@@ -160,7 +166,7 @@ const UserProfile = () => {
       try {
         const userRes = await getUser(identifier);
         if (!isMounted) return;
-        const userData = userRes.data.response || userRes.data;
+        const userData = userRes.data.user || userRes.data.response || userRes.data;
         setUser(userData);
         userLookupId = userData?.id || identifier;
       } catch (err) {
@@ -252,12 +258,12 @@ const UserProfile = () => {
 
         const matchupList = matchupResults
           .filter((result) => result.status === 'fulfilled')
-          .map((result) => result.value.data?.response ?? result.value.data)
+          .map((result) => result.value.data?.matchup ?? result.value.data?.response ?? result.value.data)
           .filter(Boolean);
 
         const bracketList = bracketResults
           .filter((result) => result.status === 'fulfilled')
-          .map((result) => result.value.data?.response ?? result.value.data)
+          .map((result) => result.value.data?.bracket ?? result.value.data?.response ?? result.value.data)
           .filter(Boolean);
 
         if (!isMounted) return;
@@ -297,7 +303,7 @@ const UserProfile = () => {
       try {
         const res = await getUserRelationship(targetId);
         if (!isMounted) return;
-        setRelationship(res.data?.response ?? res.data ?? null);
+        setRelationship(res.data?.relationship ?? res.data?.response ?? res.data ?? null);
       } catch (err) {
         console.warn('Relationship unavailable', err);
         if (!isMounted) return;
@@ -402,21 +408,20 @@ const UserProfile = () => {
 
   const handleDeleteBracket = async (bracket) => {
     if (bracket.status === 'active') {
-      alert('Active brackets cannot be deleted.');
+      alert('Active brackets cannot be archived.');
       return;
     }
+    setArchiveModalTarget(bracket);
+  };
 
-    const confirmed = window.confirm('Are you sure you want to archive this bracket?');
-
-    if (!confirmed) return;
-
+  const confirmArchiveBracket = async () => {
+    const bracket = archiveModalTarget;
+    setArchiveModalTarget(null);
     try {
       await archiveBracket(bracket.id);
-
       setBrackets(prev => prev.filter(b => b.id !== bracket.id));
     } catch (err) {
       console.error('Failed to archive bracket', err);
-      alert('Failed to archive bracket.');
     }
   };
 
@@ -428,7 +433,7 @@ const UserProfile = () => {
     (viewerId && profileId && viewerId === profileId) ||
     (viewerUsername &&
       user?.username &&
-      viewerUsername.toLowerCase() === user.username.toLowerCase());
+      user?.username && viewerUsername.toLowerCase() === user.username.toLowerCase());
 
   const matchupEmptyHeading = matchupsError ? 'Matchups unavailable' : 'No matchups yet';
   const matchupEmptyMessage = matchupsError
@@ -508,12 +513,8 @@ const UserProfile = () => {
     const nextValue = !user.is_private;
     try {
       const res = await updateUserPrivacy(profileId, nextValue);
-      const payload = res.data?.response ?? res.data ?? null;
-      if (payload) {
-        setUser(prev => (prev ? { ...prev, ...payload } : payload));
-      } else {
-        setUser(prev => (prev ? { ...prev, is_private: nextValue } : prev));
-      }
+      const payload = res.data?.user ?? res.data?.response ?? res.data ?? null;
+      setUser(prev => (prev ? { ...prev, ...(payload || {}), is_private: nextValue } : prev));
     } catch (err) {
       console.error('Privacy update failed', err);
       setPrivacyError('Unable to update privacy settings.');
@@ -525,11 +526,32 @@ const UserProfile = () => {
   const refreshUserCounts = async () => {
     try {
       const res = await getUser(profileId);
-      const payload = res.data?.response ?? res.data ?? null;
+      const payload = res.data?.user ?? res.data?.response ?? res.data ?? null;
       if (!payload) return;
       setUser(prev => (prev ? { ...prev, ...payload } : payload));
     } catch (err) {
       console.warn('Failed to refresh user counts', err);
+    }
+  };
+
+  const openEditModal = () => {
+    setEditBio(user?.bio ?? user?.Bio ?? '');
+    setEditError(null);
+    setEditModalOpen(true);
+  };
+
+  const handleSaveBio = async () => {
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      const res = await updateUser(profileId, { bio: editBio });
+      const payload = res.data?.user ?? res.data?.response ?? res.data ?? null;
+      if (payload) setUser(prev => (prev ? { ...prev, ...payload } : payload));
+      setEditModalOpen(false);
+    } catch (err) {
+      setEditError(err?.response?.data?.message || err?.response?.data?.error || 'Failed to save bio.');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -582,6 +604,7 @@ const UserProfile = () => {
     setFollowModalOpen(true);
   };
 
+  const displayName = user?.username || user?.name || 'Matchup Fan';
   const bio = user?.bio ?? user?.Bio ?? '';
   const displayBio = bio || (isViewer ? 'Add a short bio to introduce yourself.' : 'No bio yet.');
 
@@ -636,7 +659,7 @@ const UserProfile = () => {
                 <ProfilePic userId={profileId} editable={isViewer} size={96} />
                 <div className="profile-hero-info">
                   <div className="profile-hero-title-row">
-                    <h1>{user.username || user.name || 'Matchup Fan'}</h1>
+                    <h1>{displayName}</h1>
                     {!isViewer && (
                       <div className="profile-follow-row">
                         {relationship?.followed_by && (
@@ -654,7 +677,12 @@ const UserProfile = () => {
                   {progressBadges.length > 0 && (
                     <div className="profile-progress-row">
                       {progressBadges.map((badge) => (
-                        <span key={badge} className="profile-progress-badge">
+                        <span
+                          key={badge}
+                          className="profile-progress-badge"
+                          onClick={badge === 'Complete your profile' ? openEditModal : undefined}
+                          style={badge === 'Complete your profile' ? { cursor: 'pointer' } : undefined}
+                        >
                           {badge}
                         </span>
                       ))}
@@ -704,8 +732,7 @@ const UserProfile = () => {
                     {isViewer && (
                       <Button
                         className="profile-secondary-button"
-                        disabled
-                        title="Profile editing coming soon"
+                        onClick={openEditModal}
                       >
                         Edit profile
                       </Button>
@@ -758,7 +785,7 @@ const UserProfile = () => {
                 <div className="profile-tab-section">
                   <header className="profile-section-header">
                     <div>
-                      <h2>{isViewer ? 'Your Matchups' : `${user.username}'s Matchups`}</h2>
+                      <h2>{isViewer ? 'Your Matchups' : `${displayName}'s Matchups`}</h2>
                       <p>Votes happening now across your latest debates.</p>
                     </div>
                     {isViewer && (
@@ -820,7 +847,7 @@ const UserProfile = () => {
                 <div className="profile-tab-section">
                   <header className="profile-section-header">
                     <div>
-                      <h2>{isViewer ? 'Your Brackets' : `${user.username}'s Brackets`}</h2>
+                      <h2>{isViewer ? 'Your Brackets' : `${displayName}'s Brackets`}</h2>
                       <p>Active brackets and tournament history.</p>
                     </div>
                     {isViewer && (
@@ -1026,6 +1053,53 @@ const UserProfile = () => {
           </>
         )}
       </main>
+
+      {archiveModalTarget && (
+        <div className="edit-profile-overlay" onClick={() => setArchiveModalTarget(null)}>
+          <div className="edit-profile-modal" onClick={(e) => e.stopPropagation()}>
+            <h2 className="edit-profile-title">Archive bracket?</h2>
+            <p style={{ color: 'rgba(226,232,240,0.7)', fontSize: '0.9rem', margin: 0 }}>
+              "{archiveModalTarget.title}" will be archived and removed from your profile.
+            </p>
+            <div className="edit-profile-actions">
+              <Button className="profile-secondary-button" onClick={() => setArchiveModalTarget(null)}>
+                Cancel
+              </Button>
+              <Button className="matchup-danger-button" onClick={confirmArchiveBracket}>
+                Archive
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editModalOpen && (
+        <div className="edit-profile-overlay" onClick={() => setEditModalOpen(false)}>
+          <div className="edit-profile-modal" onClick={(e) => e.stopPropagation()}>
+            <h2 className="edit-profile-title">Edit profile</h2>
+            <label className="edit-profile-label" htmlFor="edit-bio">Bio</label>
+            <textarea
+              id="edit-bio"
+              className="edit-profile-textarea"
+              value={editBio}
+              onChange={(e) => setEditBio(e.target.value)}
+              maxLength={300}
+              rows={4}
+              placeholder="Tell people a little about yourself..."
+            />
+            <div className="edit-profile-char-count">{editBio.length}/300</div>
+            {editError && <div className="edit-profile-error">{editError}</div>}
+            <div className="edit-profile-actions">
+              <Button className="profile-secondary-button" onClick={() => setEditModalOpen(false)} disabled={editSaving}>
+                Cancel
+              </Button>
+              <Button className="profile-primary-button" onClick={handleSaveBio} disabled={editSaving}>
+                {editSaving ? 'Saving...' : 'Save'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <FollowListModal
         isOpen={followModalOpen}

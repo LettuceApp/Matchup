@@ -1,0 +1,42 @@
+syntax = "proto3";
+package auth.v1;
+option go_package = "Matchup/gen/auth/v1;authv1";
+
+service AuthService {
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc ForgotPassword(ForgotPasswordRequest) returns (ForgotPasswordResponse);
+  rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse);
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  string token = 1;
+  string id = 2;
+  string email = 3;
+  string username = 4;
+  bool is_admin = 5;
+  string avatar_path = 6;
+  bool is_private = 7;
+}
+
+message ForgotPasswordRequest {
+  string email = 1;
+}
+
+message ForgotPasswordResponse {
+  string message = 1;
+}
+
+message ResetPasswordRequest {
+  string new_password = 1;
+  string retype_password = 2;
+  string token = 3;
+}
+
+message ResetPasswordResponse {
+  string message = 1;
+}

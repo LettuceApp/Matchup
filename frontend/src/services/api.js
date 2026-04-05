@@ -1,14 +1,16 @@
 // frontend/src/services/api.js
 import axios from "axios";
 
-
 let API_BASE_URL = process.env.REACT_APP_API_BASE;
 
 if (!API_BASE_URL || API_BASE_URL.includes("localhost")) {
   if (window.location.hostname.includes("onrender.com")) {
-    API_BASE_URL = "https://matchup-vhl6.onrender.com/api/v1";
+    API_BASE_URL = "https://matchup-vhl6.onrender.com";
+  } else if (window.location.hostname === "localhost") {
+    API_BASE_URL = "http://localhost:8888";
   } else {
-    API_BASE_URL = "http://localhost:8888/api/v1";
+    // K8s / production: Ingress routes to the API service on the same host
+    API_BASE_URL = "";
   }
 }
 
@@ -16,39 +18,42 @@ console.log("Using API base URL:", API_BASE_URL);
 
 const API = axios.create({
   baseURL: API_BASE_URL,
-  withCredentials: true,
 });
 
-
-// Attach auth token
+// Attach auth token and Connect protocol headers
 API.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  config.headers['Connect-Protocol-Version'] = '1';
   return config;
 });
+
+// Helper: call a ConnectRPC method
+const rpc = (service, method, body = {}) =>
+  API.post(`/${service}/${method}`, body);
 
 // -----------------------------------------
 // AUTH
 // -----------------------------------------
 export const login = async (data) => {
-  const res = await API.post('/login', data);
-  const payload = res?.data?.response || res?.data || {};
+  const res = await rpc('auth.v1.AuthService', 'Login', {
+    email: data.email,
+    password: data.password,
+  });
+  const payload = res?.data || {};
 
   if (payload.token) {
     localStorage.setItem('token', payload.token);
     API.defaults.headers.Authorization = `Bearer ${payload.token}`;
   }
-
   if (payload.id) {
     localStorage.setItem('userId', String(payload.id));
   }
-
   if (payload.username) {
     localStorage.setItem('username', String(payload.username));
   }
-
   if (typeof payload.is_admin === 'boolean') {
     localStorage.setItem('isAdmin', payload.is_admin ? 'true' : 'false');
   } else {
@@ -58,187 +63,261 @@ export const login = async (data) => {
   return payload;
 };
 
-export const forgotPassword = (data) => API.post('/password/forgot', data);
-export const resetPassword = (data) => API.post('/password/reset', data);
+export const forgotPassword = (data) =>
+  rpc('auth.v1.AuthService', 'ForgotPassword', { email: data.email });
 
+export const resetPassword = (data) =>
+  rpc('auth.v1.AuthService', 'ResetPassword', data);
+
+// -----------------------------------------
 // USERS
-export const createUser = (data) => API.post('/users', data);
-export const getUsers = () => API.get('/users');
-export const getUser = (id) => API.get(`/users/${id}`);
-export const updateUser = (id, data) => API.put(`/users/${id}`, data);
+// -----------------------------------------
+export const createUser = (data) =>
+  rpc('user.v1.UserService', 'CreateUser', data);
+
+export const getUsers = () =>
+  rpc('user.v1.UserService', 'ListUsers', {});
+
+export const getUser = (id) =>
+  rpc('user.v1.UserService', 'GetUser', { id });
+
+export const getCurrentUser = () =>
+  rpc('user.v1.UserService', 'GetCurrentUser', {});
+
+export const updateUser = (id, data) =>
+  rpc('user.v1.UserService', 'UpdateUser', { id, ...data });
+
 export const updateUserPrivacy = (id, isPrivate) =>
-  API.patch(`/users/${id}/privacy`, { is_private: isPrivate });
-export const followUser = (id) => API.post(`/users/${id}/follow`);
-export const unfollowUser = (id) => API.delete(`/users/${id}/follow`);
-export const getUserRelationship = (id) => API.get(`/users/${id}/relationship`);
-export const getUserFollowers = (id, params = {}) =>
-  API.get(`/users/${id}/followers`, { params });
-export const getUserFollowing = (id, params = {}) =>
-  API.get(`/users/${id}/following`, { params });
+  rpc('user.v1.UserService', 'UpdateUserPrivacy', { id, is_private: isPrivate });
 
 export const updateUserAvatar = (userId, file) => {
-  const formData = new FormData();
-  formData.append('file', file);
-
-  return API.put(`/users/${userId}/avatar`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        // Strip the data URL prefix to get raw base64
+        const base64 = reader.result.split(',')[1];
+        const res = await rpc('user.v1.UserService', 'UpdateAvatar', {
+          id: userId,
+          avatar_data: base64,
+          content_type: file.type,
+        });
+        resolve(res);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
   });
 };
 
-export const deleteUser = (id) => API.delete(`/users/${id}`);
+export const deleteUser = (id) =>
+  rpc('user.v1.UserService', 'DeleteUser', { id });
 
+export const followUser = (id) =>
+  rpc('user.v1.UserService', 'FollowUser', { id });
+
+export const unfollowUser = (id) =>
+  rpc('user.v1.UserService', 'UnfollowUser', { id });
+
+export const getUserRelationship = (id) =>
+  rpc('user.v1.UserService', 'GetRelationship', { id });
+
+export const getUserFollowers = (id, params = {}) =>
+  rpc('user.v1.UserService', 'GetFollowers', { id, ...params });
+
+export const getUserFollowing = (id, params = {}) =>
+  rpc('user.v1.UserService', 'GetFollowing', { id, ...params });
+
+// -----------------------------------------
 // MATCHUPS
+// -----------------------------------------
 export const getMatchups = (page = 1, limit = 10) =>
-  API.get('/matchups', { params: { page, limit } });
+  rpc('matchup.v1.MatchupService', 'ListMatchups', { page, limit });
 
 export const getUserMatchups = (userId, page = 1, limit = 10) =>
-  API.get(`/users/${userId}/matchups`, { params: { page, limit } });
+  rpc('matchup.v1.MatchupService', 'GetUserMatchups', { user_id: userId, page, limit });
 
-export const getUserMatchup = (userId, matchupId) =>
-  API.get(`/users/${userId}/matchups/${matchupId}`);
+// getUserMatchup kept for back-compat — fetches a single matchup by its id
+export const getUserMatchup = (_userId, matchupId) =>
+  rpc('matchup.v1.MatchupService', 'GetMatchup', { id: matchupId });
+
+export const getMatchup = (id) =>
+  rpc('matchup.v1.MatchupService', 'GetMatchup', { id });
 
 export const createMatchup = (userId, data) =>
-  API.post(`/users/${userId}/matchups`, data);
+  rpc('matchup.v1.MatchupService', 'CreateMatchup', { user_id: userId, ...data });
 
-export const getMatchup = (id) => API.get(`/matchups/${id}`);
-export const updateMatchup = (id, data) => API.put(`/matchups/${id}`, data);
-export const deleteMatchup = (id) => API.delete(`/matchups/${id}`);
+export const updateMatchup = (id, data) =>
+  rpc('matchup.v1.MatchupService', 'UpdateMatchup', { id, ...data });
 
-// MATCHUP ITEMS
-export const incrementMatchupItemVotes = (id) =>
-  API.patch(`/matchup_items/${id}/vote`);
+export const deleteMatchup = (id) =>
+  rpc('matchup.v1.MatchupService', 'DeleteMatchup', { id });
 
-export const deleteMatchupItem = (id) => API.delete(`/matchup_items/${id}`);
-export const updateMatchupItem = (itemId, updatedData) =>
-  API.put(`/matchup_items/${itemId}`, updatedData);
-
-export const addItemToMatchup = (matchupId, itemData) =>
-  API.post(`/matchups/${matchupId}/items`, itemData);
-
-// LIKES
-export const getMatchupLikes = (matchupId) =>
-  API.get(`/matchups/${matchupId}/likes`);
-
-export const likeMatchup = (matchupId) =>
-  API.post(`/matchups/${matchupId}/likes`);
-
-export const unlikeMatchup = (matchupId) =>
-  API.delete(`/matchups/${matchupId}/likes`);
-
-export const getUserLikes = (userId) => API.get(`/users/${userId}/likes`);
-export const getUserMatchupVotes = (userId) => API.get(`/users/${userId}/matchup_votes`);
-
-// BRACKET LIKES
-export const getBracketLikes = (bracketId) =>
-  API.get(`/brackets/${bracketId}/likes`);
-
-export const likeBracket = (bracketId) =>
-  API.post(`/brackets/${bracketId}/likes`);
-
-export const unlikeBracket = (bracketId) =>
-  API.delete(`/brackets/${bracketId}/likes`);
-
-export const getUserBracketLikes = (userId) =>
-  API.get(`/users/${userId}/bracket_likes`);
-
-// COMMENTS
-export const createComment = (matchupId, commentData) =>
-  API.post(`/matchups/${matchupId}/comments`, commentData);
-
-export const getComments = (matchupId) =>
-  API.get(`/matchups/${matchupId}/comments`);
-
-export const getBracketComments = (bracketId) =>
-  API.get(`/brackets/${bracketId}/comments`);
+export const getPopularMatchups = () =>
+  rpc('matchup.v1.MatchupService', 'GetPopularMatchups', {});
 
 export const overrideMatchupWinner = (matchupId, winnerItemId) =>
-  API.post(`/matchups/${matchupId}/override-winner`, {
+  rpc('matchup.v1.MatchupService', 'OverrideMatchupWinner', {
+    id: matchupId,
     winner_item_id: winnerItemId,
   });
 
-export const createBracketComment = (bracketId, commentData) =>
-  API.post(`/brackets/${bracketId}/comments`, commentData);
+export const activateMatchup = (matchupId) =>
+  rpc('matchup.v1.MatchupService', 'ActivateMatchup', { id: matchupId });
+
+export const completeMatchup = (matchupId) =>
+  rpc('matchup.v1.MatchupService', 'CompleteMatchup', { id: matchupId });
+
+// -----------------------------------------
+// MATCHUP ITEMS
+// -----------------------------------------
+export const incrementMatchupItemVotes = (id) =>
+  rpc('matchup.v1.MatchupItemService', 'VoteItem', { id });
+
+export const deleteMatchupItem = (id) =>
+  rpc('matchup.v1.MatchupItemService', 'DeleteItem', { id });
+
+export const updateMatchupItem = (itemId, updatedData) =>
+  rpc('matchup.v1.MatchupItemService', 'UpdateItem', { id: itemId, ...updatedData });
+
+export const addItemToMatchup = (matchupId, itemData) =>
+  rpc('matchup.v1.MatchupItemService', 'AddItem', { matchup_id: matchupId, ...itemData });
+
+export const getUserMatchupVotes = (userId) =>
+  rpc('matchup.v1.MatchupItemService', 'GetUserVotes', { user_id: userId });
+
+// -----------------------------------------
+// LIKES
+// -----------------------------------------
+export const getMatchupLikes = (matchupId) =>
+  rpc('like.v1.LikeService', 'GetLikes', { matchup_id: matchupId });
+
+export const likeMatchup = (matchupId) =>
+  rpc('like.v1.LikeService', 'LikeMatchup', { matchup_id: matchupId });
+
+export const unlikeMatchup = (matchupId) =>
+  rpc('like.v1.LikeService', 'UnlikeMatchup', { matchup_id: matchupId });
+
+export const getUserLikes = (userId) =>
+  rpc('like.v1.LikeService', 'GetUserLikes', { user_id: userId });
+
+// -----------------------------------------
+// BRACKET LIKES
+// -----------------------------------------
+export const getBracketLikes = (bracketId) =>
+  rpc('like.v1.LikeService', 'GetBracketLikes', { bracket_id: bracketId });
+
+export const likeBracket = (bracketId) =>
+  rpc('like.v1.LikeService', 'LikeBracket', { bracket_id: bracketId });
+
+export const unlikeBracket = (bracketId) =>
+  rpc('like.v1.LikeService', 'UnlikeBracket', { bracket_id: bracketId });
+
+export const getUserBracketLikes = (userId) =>
+  rpc('like.v1.LikeService', 'GetUserBracketLikes', { user_id: userId });
+
+// -----------------------------------------
+// COMMENTS
+// -----------------------------------------
+export const getComments = (matchupId) =>
+  rpc('comment.v1.CommentService', 'GetComments', { matchup_id: matchupId });
+
+export const createComment = (matchupId, commentData) =>
+  rpc('comment.v1.CommentService', 'CreateComment', { matchup_id: matchupId, ...commentData });
 
 export const updateComment = (id, commentData) =>
-  API.put(`/comments/${id}`, commentData);
+  rpc('comment.v1.CommentService', 'UpdateComment', { id, ...commentData });
 
-export const deleteComment = (id) => API.delete(`/comments/${id}`);
+export const deleteComment = (id) =>
+  rpc('comment.v1.CommentService', 'DeleteComment', { id });
 
-export const deleteBracketComment = (id) => API.delete(`/bracket_comments/${id}`);
+export const getBracketComments = (bracketId) =>
+  rpc('comment.v1.CommentService', 'GetBracketComments', { bracket_id: bracketId });
 
-// CURRENT USER
-export const getCurrentUser = () => API.get('/me');
+export const createBracketComment = (bracketId, commentData) =>
+  rpc('comment.v1.CommentService', 'CreateBracketComment', { bracket_id: bracketId, ...commentData });
 
-// LEADERBOARD
-export const getPopularMatchups = () => API.get('/matchups/popular');
-export const getPopularBrackets = () => API.get('/brackets/popular');
+export const deleteBracketComment = (id) =>
+  rpc('comment.v1.CommentService', 'DeleteBracketComment', { id });
+
+// -----------------------------------------
+// HOME
+// -----------------------------------------
 export const getHomeSummary = (userId) => {
-  const params = {};
-  if (userId) {
-    params.user_id = userId;
-  }
-  return API.get('/home', { params });
+  const body = {};
+  if (userId) body.user_id = userId;
+  return rpc('home.v1.HomeService', 'GetHomeSummary', body);
 };
 
-// BRACKET
+// -----------------------------------------
+// BRACKETS
+// -----------------------------------------
 export const createBracket = (userId, data) =>
-  API.post(`/users/${userId}/brackets`, data);
+  rpc('bracket.v1.BracketService', 'CreateBracket', { user_id: userId, ...data });
 
 export const getUserBrackets = (userId, params = {}) =>
-  API.get(`/users/${userId}/brackets`, { params });
+  rpc('bracket.v1.BracketService', 'GetUserBrackets', { user_id: userId, ...params });
 
 export const getBracket = (id) =>
-  API.get(`/brackets/${id}`);
+  rpc('bracket.v1.BracketService', 'GetBracket', { id });
 
 export const getBracketMatchups = (id) =>
-  API.get(`/brackets/${id}/matchups`);
+  rpc('bracket.v1.BracketService', 'GetBracketMatchups', { id });
 
 export const getBracketSummary = (id, viewerId) => {
-  const params = {};
-  if (viewerId) {
-    params.viewer_id = viewerId;
-  }
-  return API.get(`/brackets/${id}/summary`, { params });
+  const body = { id };
+  if (viewerId) body.viewer_id = viewerId;
+  return rpc('bracket.v1.BracketService', 'GetBracketSummary', body);
 };
 
 export const attachMatchupToBracket = (bracketId, data) =>
-  API.post(`/brackets/${bracketId}/matchups`, data);
+  rpc('bracket.v1.BracketService', 'AttachMatchup', { bracket_id: bracketId, ...data });
 
 export const updateBracket = (id, data) =>
-  API.put(`/brackets/${id}`, data);
+  rpc('bracket.v1.BracketService', 'UpdateBracket', { id, ...data });
 
 export const advanceBracket = (id) =>
-  API.post(`/brackets/${id}/advance`);
+  rpc('bracket.v1.BracketService', 'AdvanceBracket', { id });
 
 export const archiveBracket = (id) =>
-  API.put(`/brackets/${id}`, { status: "archived" });
-
-export const activateMatchup = (matchupId) =>
-  API.post(`/matchups/${matchupId}/activate`);
-
-
+  rpc('bracket.v1.BracketService', 'UpdateBracket', { id, status: 'archived' });
 
 export const deleteBracket = (id) =>
-  API.delete(`/brackets/${id}`);
+  rpc('bracket.v1.BracketService', 'DeleteBracket', { id });
 
-export const completeMatchup = (matchupId) =>
-  API.post(`/matchups/${matchupId}/complete`);
-
+export const getPopularBrackets = () =>
+  rpc('bracket.v1.BracketService', 'GetPopularBrackets', {});
 
 export const resolveTieAndAdvance = (matchupId, winnerItemId) =>
-  API.post(`/matchups/${matchupId}/resolve-and-advance`, {
+  rpc('bracket.v1.BracketService', 'ResolveTieAndAdvance', {
+    matchup_id: matchupId,
     winner_item_id: winnerItemId,
   });
 
-
-
+// -----------------------------------------
 // ADMIN
-export const adminGetUsers = (params = {}) => API.get('/admin/users', { params });
-export const adminUpdateUserRole = (userId, data) => API.patch(`/admin/users/${userId}/role`, data);
-export const adminDeleteUser = (userId) => API.delete(`/admin/users/${userId}`);
-export const adminGetMatchups = (params = {}) => API.get('/admin/matchups', { params });
-export const adminDeleteMatchup = (matchupId) => API.delete(`/admin/matchups/${matchupId}`);
-export const adminGetBrackets = (params = {}) => API.get('/admin/brackets', { params });
-export const adminDeleteBracket = (bracketId) => API.delete(`/admin/brackets/${bracketId}`);
+// -----------------------------------------
+export const adminGetUsers = (params = {}) =>
+  rpc('admin.v1.AdminService', 'ListUsers', params);
+
+export const adminUpdateUserRole = (userId, data) =>
+  rpc('admin.v1.AdminService', 'UpdateUserRole', { id: userId, ...data });
+
+export const adminDeleteUser = (userId) =>
+  rpc('admin.v1.AdminService', 'DeleteUser', { id: userId });
+
+export const adminGetMatchups = (params = {}) =>
+  rpc('admin.v1.AdminService', 'ListMatchups', params);
+
+export const adminDeleteMatchup = (matchupId) =>
+  rpc('admin.v1.AdminService', 'DeleteMatchup', { id: matchupId });
+
+export const adminGetBrackets = (params = {}) =>
+  rpc('admin.v1.AdminService', 'ListBrackets', params);
+
+export const adminDeleteBracket = (bracketId) =>
+  rpc('admin.v1.AdminService', 'DeleteBracket', { id: bracketId });
 
 export default API;

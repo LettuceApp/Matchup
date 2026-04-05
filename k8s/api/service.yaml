@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: matchup-api
+  namespace: matchup
+spec:
+  type: ClusterIP
+  selector:
+    app: matchup-api
+  ports:
+    - port: 8888
+      targetPort: 8888

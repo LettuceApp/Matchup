@@ -1,0 +1,109 @@
+syntax = "proto3";
+package admin.v1;
+option go_package = "Matchup/gen/admin/v1;adminv1";
+
+import "common/v1/common.proto";
+import "user/v1/user.proto";
+
+service AdminService {
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc UpdateUserRole(UpdateUserRoleRequest) returns (UpdateUserRoleResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+  rpc ListMatchups(ListMatchupsRequest) returns (ListMatchupsResponse);
+  rpc DeleteMatchup(DeleteMatchupRequest) returns (DeleteMatchupResponse);
+  rpc ListBrackets(ListBracketsRequest) returns (ListBracketsResponse);
+  rpc DeleteBracket(DeleteBracketRequest) returns (DeleteBracketResponse);
+}
+
+// AdminMatchupData includes author info for admin views.
+message AdminMatchupData {
+  string id = 1;
+  string title = 2;
+  string content = 3;
+  string author_id = 4;
+  string author_username = 5;
+  repeated common.v1.MatchupItemResponse items = 6;
+  int64 likes_count = 7;
+  string created_at = 8;
+  string updated_at = 9;
+}
+
+// AdminBracketData includes author info for admin views.
+message AdminBracketData {
+  string id = 1;
+  string title = 2;
+  string author_id = 3;
+  string author_username = 4;
+  string status = 5;
+  int32 current_round = 6;
+  int64 likes_count = 7;
+  string created_at = 8;
+  string updated_at = 9;
+}
+
+// ---- Request messages ----
+
+message ListUsersRequest {
+  optional int32 page = 1;
+  optional int32 limit = 2;
+}
+
+message UpdateUserRoleRequest {
+  string id = 1;
+  bool is_admin = 2;
+}
+
+message DeleteUserRequest {
+  string id = 1;
+}
+
+message ListMatchupsRequest {
+  optional int32 page = 1;
+  optional int32 limit = 2;
+}
+
+message DeleteMatchupRequest {
+  string id = 1;
+}
+
+message ListBracketsRequest {
+  optional int32 page = 1;
+  optional int32 limit = 2;
+}
+
+message DeleteBracketRequest {
+  string id = 1;
+}
+
+// ---- Response messages ----
+
+message ListUsersResponse {
+  repeated user.v1.UserProfile users = 1;
+  common.v1.Pagination pagination = 2;
+}
+
+message UpdateUserRoleResponse {
+  user.v1.UserProfile user = 1;
+}
+
+message DeleteUserResponse {
+  string message = 1;
+}
+
+message ListMatchupsResponse {
+  repeated AdminMatchupData matchups = 1;
+  common.v1.Pagination pagination = 2;
+}
+
+message DeleteMatchupResponse {
+  string message = 1;
+}
+
+message ListBracketsResponse {
+  repeated AdminBracketData brackets = 1;
+  common.v1.Pagination pagination = 2;
+}
+
+message DeleteBracketResponse {
+  string message = 1;
+}

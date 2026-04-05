@@ -1,113 +1,120 @@
 package controllers
 
 import (
+	"context"
+	"database/sql"
 	"errors"
 	"strconv"
 	"strings"
 
 	"Matchup/models"
 
-	"gorm.io/gorm"
+	"github.com/jmoiron/sqlx"
 )
 
 var errInvalidIdentifier = errors.New("invalid identifier")
 
-func resolveMatchupByIdentifier(db *gorm.DB, identifier string) (*models.Matchup, error) {
+func resolveMatchupByIdentifier(db sqlx.ExtContext, identifier string) (*models.Matchup, error) {
 	trimmed := strings.TrimSpace(identifier)
 	if trimmed == "" {
 		return nil, errInvalidIdentifier
 	}
 	var matchup models.Matchup
-	if err := db.Where("public_id::text = ?", trimmed).First(&matchup).Error; err == nil {
+	err := sqlx.GetContext(context.Background(), db, &matchup, "SELECT * FROM matchups WHERE public_id::text = $1", trimmed)
+	if err == nil {
 		return &matchup, nil
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+	} else if !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
 	if numericID, err := strconv.ParseUint(trimmed, 10, 32); err == nil {
-		if err := db.First(&matchup, uint(numericID)).Error; err != nil {
+		if err := sqlx.GetContext(context.Background(), db, &matchup, "SELECT * FROM matchups WHERE id = $1", uint(numericID)); err != nil {
 			return nil, err
 		}
 		return &matchup, nil
 	}
-	return nil, gorm.ErrRecordNotFound
+	return nil, sql.ErrNoRows
 }
 
-func resolveBracketByIdentifier(db *gorm.DB, identifier string) (*models.Bracket, error) {
+func resolveBracketByIdentifier(db sqlx.ExtContext, identifier string) (*models.Bracket, error) {
 	trimmed := strings.TrimSpace(identifier)
 	if trimmed == "" {
 		return nil, errInvalidIdentifier
 	}
 	var bracket models.Bracket
-	if err := db.Where("public_id::text = ?", trimmed).First(&bracket).Error; err == nil {
+	err := sqlx.GetContext(context.Background(), db, &bracket, "SELECT * FROM brackets WHERE public_id::text = $1", trimmed)
+	if err == nil {
 		return &bracket, nil
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+	} else if !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
 	if numericID, err := strconv.ParseUint(trimmed, 10, 32); err == nil {
-		if err := db.First(&bracket, uint(numericID)).Error; err != nil {
+		if err := sqlx.GetContext(context.Background(), db, &bracket, "SELECT * FROM brackets WHERE id = $1", uint(numericID)); err != nil {
 			return nil, err
 		}
 		return &bracket, nil
 	}
-	return nil, gorm.ErrRecordNotFound
+	return nil, sql.ErrNoRows
 }
 
-func resolveMatchupItemByIdentifier(db *gorm.DB, identifier string) (*models.MatchupItem, error) {
+func resolveMatchupItemByIdentifier(db sqlx.ExtContext, identifier string) (*models.MatchupItem, error) {
 	trimmed := strings.TrimSpace(identifier)
 	if trimmed == "" {
 		return nil, errInvalidIdentifier
 	}
 	var item models.MatchupItem
-	if err := db.Where("public_id::text = ?", trimmed).First(&item).Error; err == nil {
+	err := sqlx.GetContext(context.Background(), db, &item, "SELECT * FROM matchup_items WHERE public_id::text = $1", trimmed)
+	if err == nil {
 		return &item, nil
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+	} else if !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
 	if numericID, err := strconv.ParseUint(trimmed, 10, 32); err == nil {
-		if err := db.First(&item, uint(numericID)).Error; err != nil {
+		if err := sqlx.GetContext(context.Background(), db, &item, "SELECT * FROM matchup_items WHERE id = $1", uint(numericID)); err != nil {
 			return nil, err
 		}
 		return &item, nil
 	}
-	return nil, gorm.ErrRecordNotFound
+	return nil, sql.ErrNoRows
 }
 
-func resolveCommentByIdentifier(db *gorm.DB, identifier string) (*models.Comment, error) {
+func resolveCommentByIdentifier(db sqlx.ExtContext, identifier string) (*models.Comment, error) {
 	trimmed := strings.TrimSpace(identifier)
 	if trimmed == "" {
 		return nil, errInvalidIdentifier
 	}
 	var comment models.Comment
-	if err := db.Where("public_id::text = ?", trimmed).First(&comment).Error; err == nil {
+	err := sqlx.GetContext(context.Background(), db, &comment, "SELECT * FROM comments WHERE public_id::text = $1", trimmed)
+	if err == nil {
 		return &comment, nil
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+	} else if !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
 	if numericID, err := strconv.ParseUint(trimmed, 10, 32); err == nil {
-		if err := db.First(&comment, uint(numericID)).Error; err != nil {
+		if err := sqlx.GetContext(context.Background(), db, &comment, "SELECT * FROM comments WHERE id = $1", uint(numericID)); err != nil {
 			return nil, err
 		}
 		return &comment, nil
 	}
-	return nil, gorm.ErrRecordNotFound
+	return nil, sql.ErrNoRows
 }
 
-func resolveBracketCommentByIdentifier(db *gorm.DB, identifier string) (*models.BracketComment, error) {
+func resolveBracketCommentByIdentifier(db sqlx.ExtContext, identifier string) (*models.BracketComment, error) {
 	trimmed := strings.TrimSpace(identifier)
 	if trimmed == "" {
 		return nil, errInvalidIdentifier
 	}
 	var comment models.BracketComment
-	if err := db.Where("public_id::text = ?", trimmed).First(&comment).Error; err == nil {
+	err := sqlx.GetContext(context.Background(), db, &comment, "SELECT * FROM bracket_comments WHERE public_id::text = $1", trimmed)
+	if err == nil {
 		return &comment, nil
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+	} else if !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
 	if numericID, err := strconv.ParseUint(trimmed, 10, 32); err == nil {
-		if err := db.First(&comment, uint(numericID)).Error; err != nil {
+		if err := sqlx.GetContext(context.Background(), db, &comment, "SELECT * FROM bracket_comments WHERE id = $1", uint(numericID)); err != nil {
 			return nil, err
 		}
 		return &comment, nil
 	}
-	return nil, gorm.ErrRecordNotFound
+	return nil, sql.ErrNoRows
 }

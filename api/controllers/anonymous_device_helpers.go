@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -9,13 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"Matchup/auth"
 	"Matchup/models"
 
-	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
 	"github.com/twinj/uuid"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 const anonymousDeviceCookieName = "matchup_device_id"
@@ -27,67 +25,29 @@ type voteIdentity struct {
 	AnonID *string
 }
 
-func resolveVoteIdentity(c *gin.Context, db *gorm.DB) (voteIdentity, error) {
-	if token := auth.ExtractToken(c.Request); token != "" {
-		uid, err := auth.ExtractTokenID(c.Request)
-		if err == nil {
-			return voteIdentity{UserID: &uid}, nil
-		}
-	}
-
-	deviceID, err := getOrCreateDeviceID(c, db)
-	if err != nil {
-		return voteIdentity{}, err
-	}
-	return voteIdentity{AnonID: &deviceID}, nil
-}
-
-func getOrCreateDeviceID(c *gin.Context, db *gorm.DB) (string, error) {
-	uaHash := hashFingerprint(c.Request.UserAgent())
-	ipHash := hashFingerprint(c.ClientIP())
-
-	deviceID := ""
-	if cookie, err := c.Cookie(anonymousDeviceCookieName); err == nil && isLikelyUUID(cookie) {
-		deviceID = cookie
-	} else {
-		cutoff := time.Now().Add(-30 * 24 * time.Hour)
-		var existing models.AnonymousDevice
-		if err := db.Where("user_agent_hash = ? AND ip_hash = ? AND last_seen_at >= ?", uaHash, ipHash, cutoff).
-			Order("last_seen_at DESC").
-			First(&existing).Error; err == nil {
-			deviceID = existing.DeviceID
-		}
-	}
-
-	if deviceID == "" {
-		deviceID = uuid.NewV4().String()
-	}
-
-	if err := upsertAnonymousDevice(db, deviceID, uaHash, ipHash); err != nil {
-		return "", err
-	}
-
-	setDeviceCookie(c, deviceID)
-	return deviceID, nil
-}
-
-func upsertAnonymousDevice(db *gorm.DB, deviceID, userAgentHash, ipHash string) error {
+func upsertAnonymousDevice(db sqlx.ExtContext, deviceID, userAgentHash, ipHash string) error {
 	if deviceID == "" {
 		return errors.New("device_id required")
 	}
 	now := time.Now()
-	record := models.AnonymousDevice{
-		DeviceID:      deviceID,
-		UserAgentHash: userAgentHash,
-		IPHash:        ipHash,
-		CreatedAt:     now,
-		LastSeenAt:    now,
+
+	result, err := db.ExecContext(context.Background(),
+		"UPDATE anonymous_devices SET last_seen_at = $1, user_agent_hash = $2, ip_hash = $3 WHERE device_id = $4",
+		now, userAgentHash, ipHash, deviceID)
+	if err != nil {
+		return err
+	}
+	rows, _ := result.RowsAffected()
+	if rows > 0 {
+		return nil
 	}
 
-	return db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "device_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"last_seen_at", "user_agent_hash", "ip_hash"}),
-	}).Create(&record).Error
+	_, err = db.ExecContext(context.Background(),
+		`INSERT INTO anonymous_devices (device_id, user_agent_hash, ip_hash, created_at, last_seen_at)
+		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (device_id) DO UPDATE SET last_seen_at = $5, user_agent_hash = $2, ip_hash = $3`,
+		deviceID, userAgentHash, ipHash, now, now)
+	return err
 }
 
 func hashFingerprint(value string) string {
@@ -100,13 +60,13 @@ func hashFingerprint(value string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func setDeviceCookie(c *gin.Context, deviceID string) {
+func setDeviceCookie(w http.ResponseWriter, deviceID string) {
 	secure := os.Getenv("APP_ENV") == "production"
 	sameSite := http.SameSiteLaxMode
 	if secure {
 		sameSite = http.SameSiteNoneMode
 	}
-	http.SetCookie(c.Writer, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{
 		Name:     anonymousDeviceCookieName,
 		Value:    deviceID,
 		Path:     "/",
@@ -119,4 +79,37 @@ func setDeviceCookie(c *gin.Context, deviceID string) {
 
 func isLikelyUUID(value string) bool {
 	return len(strings.TrimSpace(value)) >= 32
+}
+
+// getOrCreateDeviceIDFromRequest resolves or creates a device ID from an HTTP request.
+func getOrCreateDeviceIDFromRequest(r *http.Request, w http.ResponseWriter, db sqlx.ExtContext) (string, error) {
+	uaHash := hashFingerprint(r.UserAgent())
+	ipHash := hashFingerprint(r.RemoteAddr)
+
+	deviceID := ""
+	if cookie, err := r.Cookie(anonymousDeviceCookieName); err == nil && isLikelyUUID(cookie.Value) {
+		deviceID = cookie.Value
+	} else {
+		cutoff := time.Now().Add(-30 * 24 * time.Hour)
+		var existing models.AnonymousDevice
+		err := sqlx.GetContext(context.Background(), db, &existing,
+			"SELECT * FROM anonymous_devices WHERE user_agent_hash = $1 AND ip_hash = $2 AND last_seen_at >= $3 ORDER BY last_seen_at DESC LIMIT 1",
+			uaHash, ipHash, cutoff)
+		if err == nil {
+			deviceID = existing.DeviceID
+		}
+	}
+
+	if deviceID == "" {
+		deviceID = uuid.NewV4().String()
+	}
+
+	if err := upsertAnonymousDevice(db, deviceID, uaHash, ipHash); err != nil {
+		return "", err
+	}
+
+	if w != nil {
+		setDeviceCookie(w, deviceID)
+	}
+	return deviceID, nil
 }

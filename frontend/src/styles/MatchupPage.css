@@ -1,3 +1,66 @@
+/* ---- Bracket breadcrumb ---- */
+.matchup-bracket-crumb {
+  margin-bottom: 0.75rem;
+}
+
+.matchup-bracket-crumb__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #fb923c;
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+
+.matchup-bracket-crumb__link:hover {
+  color: #fdba74;
+}
+
+/* ---- Cover image ---- */
+.matchup-cover-image {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 7;
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.matchup-cover-image::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 50%, rgba(13, 18, 40, 0.85) 100%);
+  pointer-events: none;
+}
+
+.matchup-cover-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ---- Tags ---- */
+.matchup-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.matchup-tag {
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(249, 115, 22, 0.15);
+  color: #fed7aa;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
 .matchup-page {
   min-height: 100vh;
   width: 100%;
@@ -112,10 +175,23 @@
 
 .matchup-meta {
   display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
   flex-wrap: wrap;
-  gap: 0.75rem 1.5rem;
-  color: rgba(148, 163, 255, 0.88);
-  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+}
+
+.matchup-meta__left {
+  flex: 1;
+  min-width: 0;
+}
+
+.matchup-meta__right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.65rem;
+  flex-shrink: 0;
 }
 
 .matchup-actions {
@@ -149,9 +225,9 @@
 }
 
 .matchup-like-button.is-liked {
-  background: linear-gradient(120deg, #60a5fa, #a855f7);
+  background: linear-gradient(120deg, #f97316, #facc15);
   border-color: transparent;
-  color: #0f172a;
+  color: #111827;
 }
 
 .matchup-like-button:disabled {
@@ -297,6 +373,13 @@
 .matchup-section-header p {
   margin: 0.4rem 0 0;
   color: rgba(226, 232, 240, 0.78);
+}
+
+.matchup-subtitle {
+  margin: 0.25rem 0 0.6rem;
+  font-size: 0.95rem;
+  color: #fb923c;
+  font-weight: 500;
 }
 
 .matchup-header-actions {
@@ -466,8 +549,9 @@
 }
 
 .matchup-readyup-hint {
-  font-size: 0.9rem;
-  color: rgba(226, 232, 240, 0.78);
+  font-size: 0.72rem;
+  color: rgba(148, 163, 184, 0.6);
+  text-align: right;
 }
 
 .matchup-readyup-hint--ok {
@@ -519,12 +603,44 @@
   border-color: rgba(148, 163, 255, 0.6);
 }
 
-.matchup-empty {
-  padding: 1rem 1.2rem;
-  border-radius: 18px;
-  border: 1px dashed rgba(148, 163, 255, 0.35);
-  color: rgba(226, 232, 240, 0.8);
+.matchup-empty-comments {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 2rem;
+  color: rgba(148, 163, 184, 0.7);
+  font-size: 0.9rem;
   text-align: center;
+}
+
+.matchup-empty-comments__icon {
+  font-size: 2rem;
+}
+
+.matchup-empty-comments__arrow {
+  font-size: 1.3rem;
+  color: #fb923c;
+  animation: hint-pulse 2s ease-in-out infinite;
+}
+
+@keyframes hint-pulse {
+  0%, 100% { opacity: 0.6; }
+  50%       { opacity: 1; }
+}
+
+.matchup-danger-zone {
+  padding: 1.5rem 0 1rem;
+  border-top: 1px solid rgba(239, 68, 68, 0.12);
+  display: flex;
+  justify-content: center;
+}
+
+.matchup-readyup-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
 }
 
 .matchup-comment-form {
@@ -550,8 +666,12 @@
   color: #f8fbff;
   padding: 1rem 1.2rem;
   font-size: 1rem;
+  font-family: inherit;
+  min-height: 48px;
+  max-height: 200px;
+  resize: none;
+  overflow-y: auto;
   transition: border-color 200ms ease, box-shadow 200ms ease, transform 200ms ease;
-  resize: vertical;
 }
 
 .matchup-textarea:focus,

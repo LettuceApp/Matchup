@@ -76,6 +76,27 @@
   color: #fee2e2;
 }
 
+.navigation-bar__button--muted {
+  font-size: 0.8rem;
+  opacity: 0.55;
+  padding: 0.5rem 1rem;
+}
+
+.navigation-bar__button--icon {
+  padding: 0.4rem 0.75rem;
+  font-size: 1.15rem;
+  opacity: 0.65;
+  border-color: rgba(148, 163, 255, 0.25);
+  background: transparent;
+}
+
+.navigation-bar__button--muted:hover,
+.navigation-bar__button--muted:focus-visible,
+.navigation-bar__button--icon:hover,
+.navigation-bar__button--icon:focus-visible {
+  opacity: 1;
+}
+
 .navigation-bar__profile {
   display: flex;
   align-items: center;

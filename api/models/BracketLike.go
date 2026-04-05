@@ -1,41 +1,33 @@
 package models
 
 import (
-	"strings"
+	"context"
 	"time"
 
-	"github.com/twinj/uuid"
-	"gorm.io/gorm"
+	"github.com/jmoiron/sqlx"
 )
 
 type BracketLike struct {
-	ID        uint      `gorm:"primary_key;autoIncrement" json:"id"`
-	PublicID  string    `gorm:"type:uuid;uniqueIndex;column:public_id" json:"public_id"`
-	UserID    uint      `gorm:"not null" json:"user_id"`
-	BracketID uint      `gorm:"not null" json:"bracket_id"`
-	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	ID        uint      `db:"id" json:"id"`
+	PublicID  string    `db:"public_id" json:"public_id"`
+	UserID    uint      `db:"user_id" json:"user_id"`
+	BracketID uint      `db:"bracket_id" json:"bracket_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
-func (like *BracketLike) BeforeCreate(tx *gorm.DB) (err error) {
-	if strings.TrimSpace(like.PublicID) == "" {
-		like.PublicID = uuid.NewV4().String()
+func (l *BracketLike) DeleteUserBracketLikes(db sqlx.ExtContext, uid uint) (int64, error) {
+	result, err := db.ExecContext(context.Background(), "DELETE FROM bracket_likes WHERE user_id = $1", uid)
+	if err != nil {
+		return 0, err
 	}
-	return nil
+	return result.RowsAffected()
 }
 
-func (l *BracketLike) DeleteUserBracketLikes(db *gorm.DB, uid uint) (int64, error) {
-	db = db.Where("user_id = ?", uid).Delete(&BracketLike{})
-	if db.Error != nil {
-		return 0, db.Error
+func (l *BracketLike) DeleteBracketLikes(db sqlx.ExtContext, bid uint) (int64, error) {
+	result, err := db.ExecContext(context.Background(), "DELETE FROM bracket_likes WHERE bracket_id = $1", bid)
+	if err != nil {
+		return 0, err
 	}
-	return db.RowsAffected, nil
-}
-
-func (l *BracketLike) DeleteBracketLikes(db *gorm.DB, bid uint) (int64, error) {
-	db = db.Where("bracket_id = ?", bid).Delete(&BracketLike{})
-	if db.Error != nil {
-		return 0, db.Error
-	}
-	return db.RowsAffected, nil
+	return result.RowsAffected()
 }

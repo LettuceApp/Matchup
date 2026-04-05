@@ -1,78 +1,77 @@
 package models
 
 import (
-	"strings"
+	"context"
 	"time"
 
-	"github.com/twinj/uuid"
-	"gorm.io/gorm"
+	appdb "Matchup/db"
+
+	"github.com/jmoiron/sqlx"
 )
 
 type Like struct {
-	ID        uint      `gorm:"primary_key;autoIncrement" json:"id"`
-	PublicID  string    `gorm:"type:uuid;uniqueIndex;column:public_id" json:"public_id"`
-	UserID    uint      `gorm:"not null" json:"user_id"`
-	MatchupID uint      `gorm:"not null" json:"matchup_id"`
-	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	ID        uint      `db:"id" json:"id"`
+	PublicID  string    `db:"public_id" json:"public_id"`
+	UserID    uint      `db:"user_id" json:"user_id"`
+	MatchupID uint      `db:"matchup_id" json:"matchup_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
-func (like *Like) BeforeCreate(tx *gorm.DB) (err error) {
-	if strings.TrimSpace(like.PublicID) == "" {
-		like.PublicID = uuid.NewV4().String()
-	}
-	return nil
-}
+func (like *Like) SaveLike(db sqlx.ExtContext) (*Like, error) {
+	like.PublicID = appdb.GeneratePublicID()
+	like.CreatedAt = time.Now()
+	like.UpdatedAt = time.Now()
 
-func (like *Like) SaveLike(db *gorm.DB) (*Like, error) {
-	err := db.Create(&like).Error
+	query, args, err := appdb.Psql.Insert("likes").
+		Columns("public_id", "user_id", "matchup_id", "created_at", "updated_at").
+		Values(like.PublicID, like.UserID, like.MatchupID, like.CreatedAt, like.UpdatedAt).
+		Suffix("RETURNING *").
+		ToSql()
 	if err != nil {
+		return nil, err
+	}
+	if err := sqlx.GetContext(context.Background(), db, like, query, args...); err != nil {
 		return nil, err
 	}
 	return like, nil
 }
 
-func (l *Like) DeleteLike(db *gorm.DB) (*Like, error) {
-	var err error
-	var deletedLike *Like
-
-	err = db.Where("id = ?", l.ID).First(&l).Error
+func (l *Like) DeleteLike(db sqlx.ExtContext) (*Like, error) {
+	// First fetch the like
+	err := sqlx.GetContext(context.Background(), db, l, "SELECT * FROM likes WHERE id = $1", l.ID)
 	if err != nil {
 		return &Like{}, err
-	} else {
-		// If the like exists, save it in deletedLike and delete it
-		deletedLike = l
-		db = db.Where("id = ?", l.ID).Delete(&Like{})
-		if db.Error != nil {
-			return &Like{}, db.Error
-		}
 	}
-	return deletedLike, nil
+	deletedLike := *l
+	_, err = db.ExecContext(context.Background(), "DELETE FROM likes WHERE id = $1", l.ID)
+	if err != nil {
+		return &Like{}, err
+	}
+	return &deletedLike, nil
 }
 
-func (l *Like) GetLikesInfo(db *gorm.DB, mid uint) (*[]Like, error) {
+func (l *Like) GetLikesInfo(db sqlx.ExtContext, mid uint) (*[]Like, error) {
 	likes := []Like{}
-	err := db.Where("matchup_id = ?", mid).Find(&likes).Error
+	err := sqlx.SelectContext(context.Background(), db, &likes, "SELECT * FROM likes WHERE matchup_id = $1", mid)
 	if err != nil {
 		return &[]Like{}, err
 	}
 	return &likes, err
 }
 
-// When a user is deleted, we also delete the likes that the user had
-func (l *Like) DeleteUserLikes(db *gorm.DB, uid uint) (int64, error) {
-	db = db.Where("user_id = ?", uid).Delete(&Like{})
-	if db.Error != nil {
-		return 0, db.Error
+func (l *Like) DeleteUserLikes(db sqlx.ExtContext, uid uint) (int64, error) {
+	result, err := db.ExecContext(context.Background(), "DELETE FROM likes WHERE user_id = $1", uid)
+	if err != nil {
+		return 0, err
 	}
-	return db.RowsAffected, nil
+	return result.RowsAffected()
 }
 
-// When a matchup is deleted, we also delete the likes that the matchup had
-func (l *Like) DeleteMatchupLikes(db *gorm.DB, mid uint) (int64, error) {
-	db = db.Where("matchup_id = ?", mid).Delete(&Like{})
-	if db.Error != nil {
-		return 0, db.Error
+func (l *Like) DeleteMatchupLikes(db sqlx.ExtContext, mid uint) (int64, error) {
+	result, err := db.ExecContext(context.Background(), "DELETE FROM likes WHERE matchup_id = $1", mid)
+	if err != nil {
+		return 0, err
 	}
-	return db.RowsAffected, nil
+	return result.RowsAffected()
 }

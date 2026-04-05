@@ -1,21 +1,38 @@
 package httpctx
 
-import "github.com/gin-gonic/gin"
+import "context"
 
-// CurrentUserID retrieves the authenticated user ID from Gin context if present.
-func CurrentUserID(c *gin.Context) (uint, bool) {
-	val, exists := c.Get("userID")
-	if !exists {
+type contextKey int
+
+const (
+	userIDKey  contextKey = iota
+	isAdminKey contextKey = iota
+)
+
+// WithUserID stores the authenticated user ID in the context.
+func WithUserID(ctx context.Context, id uint) context.Context {
+	return context.WithValue(ctx, userIDKey, id)
+}
+
+// CurrentUserID retrieves the authenticated user ID from context.
+func CurrentUserID(ctx context.Context) (uint, bool) {
+	val := ctx.Value(userIDKey)
+	if val == nil {
 		return 0, false
 	}
 	uid, ok := val.(uint)
 	return uid, ok
 }
 
-// IsAdminRequest indicates whether the current request is from an admin.
-func IsAdminRequest(c *gin.Context) bool {
-	val, exists := c.Get("isAdmin")
-	if !exists {
+// WithIsAdmin stores the admin flag in the context.
+func WithIsAdmin(ctx context.Context, isAdmin bool) context.Context {
+	return context.WithValue(ctx, isAdminKey, isAdmin)
+}
+
+// IsAdminRequest reports whether the current request is from an admin.
+func IsAdminRequest(ctx context.Context) bool {
+	val := ctx.Value(isAdminKey)
+	if val == nil {
 		return false
 	}
 	isAdmin, ok := val.(bool)

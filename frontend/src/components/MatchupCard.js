@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import MatchupItem from "./MatchupItem";
 import MatchupChart from "./MatchupChart";
-import Comment from "./Comment";
 import { getUserLikes, likeMatchup, unlikeMatchup } from "../services/api";
 
 const MotionLink = motion(Link);
@@ -113,7 +112,7 @@ export default function MatchupCard({
     getUserLikes(viewerId)
       .then((res) => {
         if (!isMounted) return;
-        const likes = res.data?.response ?? res.data ?? [];
+        const likes = res.data?.likes ?? res.data?.response ?? res.data ?? [];
         const liked = Array.isArray(likes)
           ? likes.some(
               (like) => String(like.matchup_id) === String(matchup.id),
@@ -219,7 +218,6 @@ export default function MatchupCard({
       )}
 
       {!isBracket && <MatchupChart matchup={matchup} />}
-      {!isBracket && <Comment matchupId={matchup.id} />}
     </>
   );
 

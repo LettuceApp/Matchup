@@ -12,7 +12,7 @@ import {
 } from "react-icons/fi";
 import NavigationBar from "../components/NavigationBar";
 import Button from "../components/Button";
-import { createBracket } from "../services/api";
+import { createBracket, updateBracket } from "../services/api";
 
 const sizeOptions = [4, 8, 16, 32, 64];
 const advanceModes = [
@@ -141,6 +141,7 @@ const CreateBracketPage = () => {
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activateOnCreate, setActivateOnCreate] = useState(false);
 
   const isLargeSize = size >= 16;
   const groupSize = isLargeSize ? 8 : size;
@@ -347,12 +348,18 @@ const CreateBracketPage = () => {
     setSuccessMessage(null);
     setIsSubmitting(true);
 
+    const parsedTags = tags
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+
     const payload = {
       title: title.trim(),
       description: description.trim(),
       size,
       advance_mode: advanceMode,
       entries: trimmedEntries,
+      tags: parsedTags,
     };
     if (mutualsOnly) {
       payload.visibility = "mutuals";
@@ -363,9 +370,16 @@ const CreateBracketPage = () => {
 
     try {
       const response = await createBracket(authedUserId, payload);
-      const created = response?.data?.response ?? response?.data;
+      const created = response?.data?.bracket ?? response?.data?.response ?? response?.data;
       if (!created?.id) {
         throw new Error("Create bracket response missing id");
+      }
+      if (activateOnCreate) {
+        await updateBracket(created.id, {
+          title: created.title,
+          description: created.description,
+          status: "active",
+        });
       }
       setSuccessMessage("Bracket created! Taking you to the preview...");
       setTimeout(() => {
@@ -590,9 +604,31 @@ const CreateBracketPage = () => {
                     Manual is the default. Switch to timer only if you want rounds to auto-advance.
                   </p>
                   {advanceMode === "timer" && (
-                    <p className="text-xs text-amber-200">
-                      Set the round duration inside Advanced settings before publishing.
-                    </p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="flex flex-col gap-2 text-sm text-slate-200">
+                        Round minutes
+                        <input
+                          type="number"
+                          min="0"
+                          value={roundMinutes}
+                          onChange={(e) => setRoundMinutes(e.target.value)}
+                          className="rounded-2xl border border-slate-700/60 bg-slate-950/50 px-4 py-3 text-base text-slate-100 outline-none transition focus:border-sky-400/70 focus:ring-2 focus:ring-sky-400/20"
+                          placeholder="0"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-2 text-sm text-slate-200">
+                        Round seconds
+                        <input
+                          type="number"
+                          min="0"
+                          max="59"
+                          value={roundSeconds}
+                          onChange={(e) => setRoundSeconds(e.target.value)}
+                          className="rounded-2xl border border-slate-700/60 bg-slate-950/50 px-4 py-3 text-base text-slate-100 outline-none transition focus:border-sky-400/70 focus:ring-2 focus:ring-sky-400/20"
+                          placeholder="0"
+                        />
+                      </label>
+                    </div>
                   )}
                 </motion.div>
               )}
@@ -614,7 +650,7 @@ const CreateBracketPage = () => {
                     </p>
                   </div>
 
-                  {isLargeSize && (
+                  {(
                     <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 p-4">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
@@ -873,6 +909,19 @@ const CreateBracketPage = () => {
                     )}
                   </div>
 
+                  <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-700/60 bg-slate-950/40 p-4">
+                    <input
+                      type="checkbox"
+                      checked={activateOnCreate}
+                      onChange={(e) => setActivateOnCreate(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-sky-400"
+                    />
+                    <span className="flex flex-col gap-1">
+                      <span className="text-sm font-semibold text-slate-100">Start bracket immediately</span>
+                      <span className="text-xs text-slate-400">Bracket goes live as soon as it's created. Leave unchecked to review and activate manually.</span>
+                    </span>
+                  </label>
+
                   {error && <p className="text-sm text-rose-300">{error}</p>}
                   {successMessage && (
                     <p className="text-sm text-emerald-300">{successMessage}</p>
@@ -994,43 +1043,33 @@ const CreateBracketPage = () => {
                       />
                       Mutuals only
                     </label>
-                    {advanceMode === "timer" && (
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <label className="flex flex-col gap-2 text-sm text-slate-200">
-                          Round minutes
-                          <input
-                            type="number"
-                            min="0"
-                            value={roundMinutes}
-                            onChange={(e) => setRoundMinutes(e.target.value)}
-                            className="rounded-xl border border-slate-700/60 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-400/70 focus:ring-2 focus:ring-sky-400/20"
-                            placeholder="60"
-                          />
-                        </label>
-                        <label className="flex flex-col gap-2 text-sm text-slate-200">
-                          Round seconds
-                          <input
-                            type="number"
-                            min="0"
-                            max="59"
-                            value={roundSeconds}
-                            onChange={(e) => setRoundSeconds(e.target.value)}
-                            className="rounded-xl border border-slate-700/60 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-400/70 focus:ring-2 focus:ring-sky-400/20"
-                            placeholder="0"
-                          />
-                        </label>
-                      </div>
-                    )}
-                    <label className="flex flex-col gap-2 text-sm text-slate-200">
-                      Tags or categories (optional)
+                    <div className="flex flex-col gap-2 text-sm text-slate-200">
+                      <span>Tags (optional)</span>
                       <input
                         type="text"
                         value={tags}
                         onChange={(e) => setTags(e.target.value)}
                         className="rounded-xl border border-slate-700/60 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-400/70 focus:ring-2 focus:ring-sky-400/20"
-                        placeholder="Music, sports, pop culture"
+                        placeholder="Music, Sports, Gaming"
                       />
-                    </label>
+                      <div className="flex flex-wrap gap-2">
+                        {["Music", "Sports", "Gaming", "Anime", "Movies/TV", "Other"].map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => {
+                              const current = tags.split(",").map((t) => t.trim()).filter(Boolean);
+                              if (!current.includes(preset)) {
+                                setTags(current.length ? current.join(", ") + ", " + preset : preset);
+                              }
+                            }}
+                            className="rounded-full border border-slate-600/60 bg-slate-900/40 px-3 py-1 text-xs font-semibold text-slate-300 hover:border-sky-400/60 hover:text-sky-200"
+                          >
+                            + {preset}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <label className="flex flex-col gap-2 text-sm text-slate-200">
                       Notes or rules (optional)
                       <textarea

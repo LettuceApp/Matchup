@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import API, { getUser } from '../services/api';
+import { getUser, updateUserAvatar } from '../services/api';
 
 // —– Add these at the top —–
 const S3_BUCKET   = process.env.REACT_APP_S3_BUCKET;
@@ -26,7 +26,7 @@ const ProfilePic = ({ userId, editable = false, size = 80 }) => {
     (async () => {
       try {
         const res  = await getUser(userId);
-        const user = res.data.response || res.data;
+        const user = res.data?.user || res.data?.response || res.data;
         setAvatarKey(user.avatar_path || null);
       } catch (err) {
         console.error('Error fetching user:', err);
@@ -43,16 +43,17 @@ const ProfilePic = ({ userId, editable = false, size = 80 }) => {
     const preview = URL.createObjectURL(file);
     setAvatarKey(preview);  // temporarily treat preview as a full URL
 
-    // Upload to server
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
-      await API.put(`/users/${userId}/avatar`, formData);
-      // Re-fetch the real key
-      const res  = await getUser(userId);
-      const user = res.data.response || res.data;
-      setAvatarKey(user.avatar_path);
+      const uploadRes = await updateUserAvatar(userId, file);
+      const updatedUser = uploadRes?.data?.user || uploadRes?.data?.response || uploadRes?.data;
+      if (updatedUser?.avatar_path) {
+        setAvatarKey(updatedUser.avatar_path);
+      } else {
+        // Re-fetch if the response didn't include avatar_path
+        const res = await getUser(userId);
+        const user = res.data?.user || res.data?.response || res.data;
+        setAvatarKey(user.avatar_path);
+      }
     } catch (err) {
       console.error('Upload error:', err);
       setError('Failed to upload avatar.');

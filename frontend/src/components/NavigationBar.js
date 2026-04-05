@@ -40,7 +40,7 @@ const NavigationBar = () => {
               {localStorage.getItem('isAdmin') === 'true' && (
                 <button
                   type="button"
-                  className="navigation-bar__button"
+                  className="navigation-bar__button navigation-bar__button--muted"
                   onClick={() => navigate('/admin')}
                 >
                   Admin
@@ -48,14 +48,15 @@ const NavigationBar = () => {
               )}
               <button
                 type="button"
-                className="navigation-bar__button navigation-bar__button--ghost"
+                className="navigation-bar__button navigation-bar__button--icon"
                 onClick={handleLogout}
+                title="Logout"
               >
-                Logout
+                ⎋
               </button>
               {userId && (
                 <Link
-                  to={`/users/${username || userId}`}
+                  to={`/users/${(username && username !== 'undefined') ? username : userId}`}
                   className="navigation-bar__profile"
                   aria-label="View profile"
                 >

@@ -1,30 +1,25 @@
 package models
 
 import (
+	"context"
 	"html"
 	"strings"
 	"time"
 
-	"github.com/twinj/uuid"
-	"gorm.io/gorm"
+	appdb "Matchup/db"
+
+	"github.com/jmoiron/sqlx"
 )
 
 type BracketComment struct {
-	ID        uint      `gorm:"primary_key;autoIncrement" json:"id"`
-	PublicID  string    `gorm:"type:uuid;uniqueIndex;column:public_id" json:"public_id"`
-	UserID    uint      `gorm:"not null" json:"user_id"`
-	BracketID uint      `gorm:"not null" json:"bracket_id"`
-	Author    User      `gorm:"foreignKey:UserID" json:"author"`
-	Body      string    `gorm:"text;not null;" json:"body"`
-	CreatedAt time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
-	UpdatedAt time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
-}
-
-func (c *BracketComment) BeforeCreate(tx *gorm.DB) (err error) {
-	if strings.TrimSpace(c.PublicID) == "" {
-		c.PublicID = uuid.NewV4().String()
-	}
-	return nil
+	ID        uint      `db:"id" json:"id"`
+	PublicID  string    `db:"public_id" json:"public_id"`
+	UserID    uint      `db:"user_id" json:"user_id"`
+	BracketID uint      `db:"bracket_id" json:"bracket_id"`
+	Author    User      `db:"-" json:"author"`
+	Body      string    `db:"body" json:"body"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 func (c *BracketComment) Prepare() {
@@ -50,27 +45,60 @@ func (comment *BracketComment) Validate(action string) map[string]string {
 	return errorMessages
 }
 
-func (c *BracketComment) SaveComment(db *gorm.DB) (*BracketComment, error) {
-	if err := db.Create(&c).Error; err != nil {
+func (c *BracketComment) SaveComment(db sqlx.ExtContext) (*BracketComment, error) {
+	c.PublicID = appdb.GeneratePublicID()
+
+	query, args, err := appdb.Psql.Insert("bracket_comments").
+		Columns("public_id", "user_id", "bracket_id", "body", "created_at", "updated_at").
+		Values(c.PublicID, c.UserID, c.BracketID, c.Body, c.CreatedAt, c.UpdatedAt).
+		Suffix("RETURNING *").
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+	if err := sqlx.GetContext(context.Background(), db, c, query, args...); err != nil {
 		return nil, err
 	}
 	return c, nil
 }
 
-func (c *BracketComment) GetComments(db *gorm.DB, bid uint) (*[]BracketComment, error) {
+func (c *BracketComment) GetComments(db sqlx.ExtContext, bid uint) (*[]BracketComment, error) {
 	comments := []BracketComment{}
-	err := db.Preload("Author").Where("bracket_id = ?", bid).
-		Order("created_at desc").Find(&comments).Error
+	err := sqlx.SelectContext(context.Background(), db, &comments,
+		"SELECT * FROM bracket_comments WHERE bracket_id = $1 ORDER BY created_at DESC", bid)
 	if err != nil {
 		return nil, err
+	}
+	// Load authors
+	if len(comments) > 0 {
+		userIDs := make([]uint, len(comments))
+		for i, cm := range comments {
+			userIDs[i] = cm.UserID
+		}
+		query, args, err := sqlx.In("SELECT * FROM users WHERE id IN (?)", userIDs)
+		if err != nil {
+			return nil, err
+		}
+		var users []User
+		if err := sqlx.SelectContext(context.Background(), db, &users, db.Rebind(query), args...); err != nil {
+			return nil, err
+		}
+		userMap := make(map[uint]User, len(users))
+		for _, u := range users {
+			u.ProcessAvatarPath()
+			userMap[u.ID] = u
+		}
+		for i := range comments {
+			comments[i].Author = userMap[comments[i].UserID]
+		}
 	}
 	return &comments, nil
 }
 
-func (c *BracketComment) DeleteAComment(db *gorm.DB) (int64, error) {
-	result := db.Where("id = ?", c.ID).Delete(&BracketComment{})
-	if result.Error != nil {
-		return 0, result.Error
+func (c *BracketComment) DeleteAComment(db sqlx.ExtContext) (int64, error) {
+	result, err := db.ExecContext(context.Background(), "DELETE FROM bracket_comments WHERE id = $1", c.ID)
+	if err != nil {
+		return 0, err
 	}
-	return result.RowsAffected, nil
+	return result.RowsAffected()
 }

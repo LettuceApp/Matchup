@@ -477,3 +477,73 @@
     text-align: center;
   }
 }
+
+/* ---- Edit profile modal ---- */
+.edit-profile-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.edit-profile-modal {
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.edit-profile-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin: 0;
+}
+
+.edit-profile-label {
+  font-size: 0.85rem;
+  color: rgba(226, 232, 240, 0.7);
+}
+
+.edit-profile-textarea {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 0.95rem;
+  padding: 0.6rem 0.75rem;
+  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.edit-profile-textarea:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.edit-profile-char-count {
+  font-size: 0.78rem;
+  color: rgba(226, 232, 240, 0.4);
+  text-align: right;
+}
+
+.edit-profile-error {
+  color: #f87171;
+  font-size: 0.85rem;
+}
+
+.edit-profile-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}

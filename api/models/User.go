@@ -1,33 +1,35 @@
 package models
 
 import (
+	"context"
+	"database/sql"
 	"errors"
 	"html"
 	"log"
-	"os"
 	"strings"
 	"time"
 
+	appdb "Matchup/db"
 	"Matchup/security"
 
 	"github.com/badoux/checkmail"
-	"github.com/twinj/uuid"
-	"gorm.io/gorm"
+	"github.com/jmoiron/sqlx"
 )
 
 type User struct {
-	ID             uint      `gorm:"primary_key;autoIncrement" json:"id"`
-	PublicID       string    `gorm:"type:uuid;uniqueIndex;column:public_id" json:"public_id"`
-	Username       string    `gorm:"size:255;not null;unique" json:"username"`
-	Email          string    `gorm:"size:100;not null;unique" json:"email"`
-	Password       string    `gorm:"size:255;not null" json:"password"`
-	AvatarPath     string    `gorm:"size:255;null;" json:"avatar_path"`
-	IsAdmin        bool      `gorm:"default:false" json:"is_admin"`
-	IsPrivate      bool      `gorm:"not null;default:false" json:"is_private"`
-	FollowersCount int64     `gorm:"not null;default:0" json:"followers_count"`
-	FollowingCount int64     `gorm:"not null;default:0" json:"following_count"`
-	CreatedAt      time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
-	UpdatedAt      time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
+	ID             uint      `db:"id" json:"id"`
+	PublicID       string    `db:"public_id" json:"public_id"`
+	Username       string    `db:"username" json:"username"`
+	Email          string    `db:"email" json:"email"`
+	Password       string    `db:"password" json:"password"`
+	AvatarPath     string    `db:"avatar_path" json:"avatar_path"`
+	Bio            string    `db:"bio" json:"bio"`
+	IsAdmin        bool      `db:"is_admin" json:"is_admin"`
+	IsPrivate      bool      `db:"is_private" json:"is_private"`
+	FollowersCount int64     `db:"followers_count" json:"followers_count"`
+	FollowingCount int64     `db:"following_count" json:"following_count"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
 }
 
 const SeedAdminEmail = "cordelljenkins1914@gmail.com"
@@ -41,15 +43,9 @@ func (u *User) HashPassword() error {
 	return nil
 }
 
-func (u *User) BeforeSave(tx *gorm.DB) (err error) {
-	return u.HashPassword()
-}
-
-func (u *User) BeforeCreate(tx *gorm.DB) (err error) {
-	if strings.TrimSpace(u.PublicID) == "" {
-		u.PublicID = uuid.NewV4().String()
-	}
-	return nil
+// ProcessAvatarPath converts a relative path to S3 URL after query.
+func (u *User) ProcessAvatarPath() {
+	u.AvatarPath = appdb.ProcessAvatarPath(u.AvatarPath)
 }
 
 func (u *User) Prepare() {
@@ -68,24 +64,6 @@ func (u *User) Prepare() {
 
 	u.CreatedAt = time.Now()
 	u.UpdatedAt = time.Now()
-}
-
-func (u *User) AfterFind(tx *gorm.DB) (err error) {
-	if u.AvatarPath == "" || strings.HasPrefix(u.AvatarPath, "http") {
-		return nil
-	}
-	bucket := os.Getenv("S3_BUCKET")  // bucket name only
-	region := os.Getenv("AWS_REGION") // e.g., us-east-2
-	if region == "" {
-		region = "us-east-2"
-	}
-	// If you saved only the filename, add your prefix folder if needed
-	key := u.AvatarPath
-	if !strings.HasPrefix(key, "UserProfilePics/") {
-		key = "UserProfilePics/" + key
-	}
-	u.AvatarPath = "https://" + bucket + ".s3." + region + ".amazonaws.com/" + key
-	return nil
 }
 
 func (u *User) Validate(action string) map[string]string {
@@ -145,99 +123,131 @@ func (u *User) Validate(action string) map[string]string {
 	return errorMessages
 }
 
-func (u *User) SaveUser(db *gorm.DB) (*User, error) {
-	err := db.Create(&u).Error
+func (u *User) SaveUser(db sqlx.ExtContext) (*User, error) {
+	if strings.TrimSpace(u.PublicID) == "" {
+		u.PublicID = appdb.GeneratePublicID()
+	}
+	if err := u.HashPassword(); err != nil {
+		return nil, err
+	}
+
+	query, args, err := appdb.Psql.Insert("users").
+		Columns("public_id", "username", "email", "password", "avatar_path", "is_admin", "is_private", "followers_count", "following_count", "created_at", "updated_at").
+		Values(u.PublicID, u.Username, u.Email, u.Password, u.AvatarPath, u.IsAdmin, u.IsPrivate, u.FollowersCount, u.FollowingCount, u.CreatedAt, u.UpdatedAt).
+		Suffix("RETURNING *").
+		ToSql()
 	if err != nil {
 		return nil, err
 	}
+	if err := sqlx.GetContext(context.Background(), db, u, query, args...); err != nil {
+		return nil, err
+	}
+	u.ProcessAvatarPath()
 	return u, nil
 }
 
-func (u *User) FindAllUsers(db *gorm.DB) (*[]User, error) {
+func (u *User) FindAllUsers(db sqlx.ExtContext) (*[]User, error) {
 	var users []User
-	err := db.Limit(100).Find(&users).Error
+	query, args, err := appdb.Psql.Select("*").From("users").Limit(100).ToSql()
 	if err != nil {
 		return nil, err
+	}
+	if err := sqlx.SelectContext(context.Background(), db, &users, query, args...); err != nil {
+		return nil, err
+	}
+	for i := range users {
+		users[i].ProcessAvatarPath()
 	}
 	return &users, nil
 }
 
-func (u *User) FindUserByID(db *gorm.DB, uid uint) (*User, error) {
+func (u *User) FindUserByID(db sqlx.ExtContext, uid uint) (*User, error) {
 	var user User
-	err := db.Where("id = ?", uid).Take(&user).Error
+	err := sqlx.GetContext(context.Background(), db, &user, "SELECT * FROM users WHERE id = $1", uid)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("User not found")
 		}
 		return nil, err
 	}
+	user.ProcessAvatarPath()
 	return &user, nil
 }
 
-func (u *User) UpdateAUser(db *gorm.DB, uid uint) (*User, error) {
+func (u *User) UpdateAUser(db sqlx.ExtContext, uid uint) (*User, error) {
 	if u.Password != "" {
-		// Hash the password
 		err := u.HashPassword()
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
 
-	err := db.Model(&User{}).Where("id = ?", uid).Updates(map[string]interface{}{
-		"password":   u.Password,
-		"email":      u.Email,
-		"updated_at": time.Now(),
-	}).Error
+	query, args, err := appdb.Psql.Update("users").
+		Set("password", u.Password).
+		Set("email", u.Email).
+		Set("bio", u.Bio).
+		Set("updated_at", time.Now()).
+		Where("id = ?", uid).
+		ToSql()
 	if err != nil {
+		return nil, err
+	}
+	if _, err := db.ExecContext(context.Background(), query, args...); err != nil {
 		return nil, err
 	}
 
-	// Display the updated user
-	err = db.Where("id = ?", uid).Take(&u).Error
+	// Reload updated user
+	err = sqlx.GetContext(context.Background(), db, u, "SELECT * FROM users WHERE id = $1", uid)
 	if err != nil {
 		return nil, err
 	}
+	u.ProcessAvatarPath()
 	return u, nil
 }
 
-func (u *User) UpdateAUserAvatar(db *gorm.DB, uid uint) (*User, error) {
-	err := db.Model(&User{}).Where("id = ?", uid).Updates(map[string]interface{}{
-		"avatar_path": u.AvatarPath,
-		"updated_at":  time.Now(),
-	}).Error
+func (u *User) UpdateAUserAvatar(db sqlx.ExtContext, uid uint) (*User, error) {
+	query, args, err := appdb.Psql.Update("users").
+		Set("avatar_path", u.AvatarPath).
+		Set("updated_at", time.Now()).
+		Where("id = ?", uid).
+		ToSql()
 	if err != nil {
+		return nil, err
+	}
+	if _, err := db.ExecContext(context.Background(), query, args...); err != nil {
 		return nil, err
 	}
 
-	// Display the updated user
-	err = db.Where("id = ?", uid).Take(&u).Error
+	err = sqlx.GetContext(context.Background(), db, u, "SELECT * FROM users WHERE id = $1", uid)
 	if err != nil {
 		return nil, err
 	}
+	u.ProcessAvatarPath()
 	return u, nil
 }
 
-func (u *User) DeleteAUser(db *gorm.DB, uid uint) (int64, error) {
-	result := db.Where("id = ?", uid).Delete(&User{})
-	if result.Error != nil {
-		return 0, result.Error
+func (u *User) DeleteAUser(db sqlx.ExtContext, uid uint) (int64, error) {
+	result, err := db.ExecContext(context.Background(), "DELETE FROM users WHERE id = $1", uid)
+	if err != nil {
+		return 0, err
 	}
-	return result.RowsAffected, nil
+	return result.RowsAffected()
 }
 
-func (u *User) UpdatePassword(db *gorm.DB) error {
-	// Hash the password
+func (u *User) UpdatePassword(db sqlx.ExtContext) error {
 	err := u.HashPassword()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = db.Model(&User{}).Where("email = ?", u.Email).Updates(map[string]interface{}{
-		"password":   u.Password,
-		"updated_at": time.Now(),
-	}).Error
+	query, args, err := appdb.Psql.Update("users").
+		Set("password", u.Password).
+		Set("updated_at", time.Now()).
+		Where("email = ?", u.Email).
+		ToSql()
 	if err != nil {
 		return err
 	}
-	return nil
+	_, err = db.ExecContext(context.Background(), query, args...)
+	return err
 }

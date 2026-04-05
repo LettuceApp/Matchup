@@ -1,26 +1,28 @@
 package controllers
 
 import (
-	"Matchup/models"
+	"context"
 
-	"gorm.io/gorm"
+	"github.com/jmoiron/sqlx"
 )
 
 type idPublicPair struct {
-	ID       uint
-	PublicID string
+	ID       uint   `db:"id"`
+	PublicID string `db:"public_id"`
 }
 
-func loadUserPublicIDMap(db *gorm.DB, ids []uint) map[uint]string {
+func loadPublicIDMap(db sqlx.ExtContext, table string, ids []uint) map[uint]string {
 	if len(ids) == 0 {
 		return map[uint]string{}
 	}
 
+	query, args, err := sqlx.In("SELECT id, public_id FROM "+table+" WHERE id IN (?)", ids)
+	if err != nil {
+		return map[uint]string{}
+	}
+
 	var rows []idPublicPair
-	if err := db.Model(&models.User{}).
-		Select("id", "public_id").
-		Where("id IN ?", ids).
-		Scan(&rows).Error; err != nil {
+	if err := sqlx.SelectContext(context.Background(), db, &rows, db.Rebind(query), args...); err != nil {
 		return map[uint]string{}
 	}
 
@@ -31,62 +33,18 @@ func loadUserPublicIDMap(db *gorm.DB, ids []uint) map[uint]string {
 	return result
 }
 
-func loadMatchupPublicIDMap(db *gorm.DB, ids []uint) map[uint]string {
-	if len(ids) == 0 {
-		return map[uint]string{}
-	}
-
-	var rows []idPublicPair
-	if err := db.Model(&models.Matchup{}).
-		Select("id", "public_id").
-		Where("id IN ?", ids).
-		Scan(&rows).Error; err != nil {
-		return map[uint]string{}
-	}
-
-	result := make(map[uint]string, len(rows))
-	for _, row := range rows {
-		result[row.ID] = row.PublicID
-	}
-	return result
+func loadUserPublicIDMap(db sqlx.ExtContext, ids []uint) map[uint]string {
+	return loadPublicIDMap(db, "users", ids)
 }
 
-func loadBracketPublicIDMap(db *gorm.DB, ids []uint) map[uint]string {
-	if len(ids) == 0 {
-		return map[uint]string{}
-	}
-
-	var rows []idPublicPair
-	if err := db.Model(&models.Bracket{}).
-		Select("id", "public_id").
-		Where("id IN ?", ids).
-		Scan(&rows).Error; err != nil {
-		return map[uint]string{}
-	}
-
-	result := make(map[uint]string, len(rows))
-	for _, row := range rows {
-		result[row.ID] = row.PublicID
-	}
-	return result
+func loadMatchupPublicIDMap(db sqlx.ExtContext, ids []uint) map[uint]string {
+	return loadPublicIDMap(db, "matchups", ids)
 }
 
-func loadMatchupItemPublicIDMap(db *gorm.DB, ids []uint) map[uint]string {
-	if len(ids) == 0 {
-		return map[uint]string{}
-	}
+func loadBracketPublicIDMap(db sqlx.ExtContext, ids []uint) map[uint]string {
+	return loadPublicIDMap(db, "brackets", ids)
+}
 
-	var rows []idPublicPair
-	if err := db.Model(&models.MatchupItem{}).
-		Select("id", "public_id").
-		Where("id IN ?", ids).
-		Scan(&rows).Error; err != nil {
-		return map[uint]string{}
-	}
-
-	result := make(map[uint]string, len(rows))
-	for _, row := range rows {
-		result[row.ID] = row.PublicID
-	}
-	return result
+func loadMatchupItemPublicIDMap(db sqlx.ExtContext, ids []uint) map[uint]string {
+	return loadPublicIDMap(db, "matchup_items", ids)
 }

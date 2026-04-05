@@ -1,0 +1,174 @@
+syntax = "proto3";
+package user.v1;
+option go_package = "Matchup/gen/user/v1;userv1";
+
+service UserService {
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc GetCurrentUser(GetCurrentUserRequest) returns (GetCurrentUserResponse);
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+  rpc UpdateUserPrivacy(UpdateUserPrivacyRequest) returns (UpdateUserPrivacyResponse);
+  rpc UpdateAvatar(UpdateAvatarRequest) returns (UpdateAvatarResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+
+  rpc GetFollowers(GetFollowersRequest) returns (GetFollowersResponse);
+  rpc GetFollowing(GetFollowingRequest) returns (GetFollowingResponse);
+  rpc FollowUser(FollowUserRequest) returns (FollowUserResponse);
+  rpc UnfollowUser(UnfollowUserRequest) returns (UnfollowUserResponse);
+  rpc GetRelationship(GetRelationshipRequest) returns (GetRelationshipResponse);
+}
+
+// UserProfile is the full user object returned from most user endpoints.
+message UserProfile {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  string avatar_path = 4;
+  bool is_admin = 5;
+  bool is_private = 6;
+  int64 followers_count = 7;
+  int64 following_count = 8;
+  string created_at = 9;
+  string updated_at = 10;
+  optional string bio = 11;
+}
+
+// FollowListUser is a user with viewer relationship fields, used in follower/following lists.
+message FollowListUser {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  string avatar_path = 4;
+  bool is_admin = 5;
+  int64 followers_count = 6;
+  int64 following_count = 7;
+  bool viewer_following = 8;
+  bool viewer_followed_by = 9;
+  bool mutual = 10;
+}
+
+message RelationshipResponse {
+  bool following = 1;
+  bool followed_by = 2;
+  bool mutual = 3;
+}
+
+// ---- Request messages ----
+
+message ListUsersRequest {}
+
+message GetUserRequest {
+  string id = 1;
+}
+
+message GetCurrentUserRequest {}
+
+message CreateUserRequest {
+  string username = 1;
+  string email = 2;
+  string password = 3;
+}
+
+message UpdateUserRequest {
+  string id = 1;
+  optional string email = 2;
+  optional string current_password = 3;
+  optional string new_password = 4;
+  optional string bio = 5;
+}
+
+message UpdateUserPrivacyRequest {
+  string id = 1;
+  bool is_private = 2;
+}
+
+message UpdateAvatarRequest {
+  string id = 1;
+  bytes avatar_data = 2;
+  string content_type = 3;
+}
+
+message DeleteUserRequest {
+  string id = 1;
+}
+
+message GetFollowersRequest {
+  string id = 1;
+  optional string cursor = 2;
+  optional int32 limit = 3;
+}
+
+message GetFollowingRequest {
+  string id = 1;
+  optional string cursor = 2;
+  optional int32 limit = 3;
+}
+
+message FollowUserRequest {
+  string id = 1;
+}
+
+message UnfollowUserRequest {
+  string id = 1;
+}
+
+message GetRelationshipRequest {
+  string id = 1;
+}
+
+// ---- Response messages ----
+
+message ListUsersResponse {
+  repeated UserProfile users = 1;
+}
+
+message GetUserResponse {
+  UserProfile user = 1;
+}
+
+message GetCurrentUserResponse {
+  UserProfile user = 1;
+}
+
+message CreateUserResponse {
+  UserProfile user = 1;
+}
+
+message UpdateUserResponse {
+  UserProfile user = 1;
+}
+
+message UpdateUserPrivacyResponse {
+  UserProfile user = 1;
+}
+
+message UpdateAvatarResponse {
+  UserProfile user = 1;
+}
+
+message DeleteUserResponse {
+  string message = 1;
+}
+
+message GetFollowersResponse {
+  repeated FollowListUser users = 1;
+  optional string next_cursor = 2;
+}
+
+message GetFollowingResponse {
+  repeated FollowListUser users = 1;
+  optional string next_cursor = 2;
+}
+
+message FollowUserResponse {
+  string message = 1;
+}
+
+message UnfollowUserResponse {
+  string message = 1;
+}
+
+message GetRelationshipResponse {
+  RelationshipResponse relationship = 1;
+}

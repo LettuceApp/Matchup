@@ -4,87 +4,88 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/gin-gonic/gin"
 )
 
-// helper to reset global state between tests
 func resetLimiters() {
-	visitorsMu.Lock()
-	visitors = make(map[string]*visitor)
-	visitorsMu.Unlock()
-
 	loginVisitorsMu.Lock()
 	loginVisitors = make(map[string]*visitor)
 	loginVisitorsMu.Unlock()
 }
 
-// makeTestRouter creates a Gin engine with a single middleware and a test route.
-func makeTestRouter(mw gin.HandlerFunc) *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-	r.Use(mw)
-	r.GET("/test", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "ok"})
-	})
-	return r
-}
-
-func TestRateLimitMiddleware_AllowsInitialBurst(t *testing.T) {
+func TestLoginRateLimitMiddleware_AllowsInitialRequests(t *testing.T) {
 	resetLimiters()
 
-	// IMPORTANT: call RateLimitMiddleware(), not RateLimitMiddleware
-	router := makeTestRouter(RateLimitMiddleware())
+	handler := LoginRateLimitMiddleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
 
-	// Should allow at least 5 quick requests (burst size)
 	for i := 0; i < 5; i++ {
-		req, _ := http.NewRequest(http.MethodGet, "/test", nil)
-		// IP won't matter much here as long as it's consistent; gin will use RemoteAddr
+		req := httptest.NewRequest(http.MethodPost, "/login", nil)
+		req.RemoteAddr = "192.0.2.1:12345"
 		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
-
+		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusOK {
-			t.Fatalf("expected status 200 on request %d, got %d", i+1, w.Code)
+			t.Fatalf("expected 200 on request %d, got %d", i+1, w.Code)
 		}
-	}
-
-	// 6th request should be rate limited (likely 429)
-	req, _ := http.NewRequest(http.MethodGet, "/test", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	if w.Code != http.StatusTooManyRequests {
-		t.Fatalf("expected status 429 on 6th request, got %d", w.Code)
 	}
 }
 
-func TestLoginRateLimitMiddleware_StricterLimit(t *testing.T) {
+func TestLoginRateLimitMiddleware_BlocksAfterBurst(t *testing.T) {
 	resetLimiters()
 
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-	r.Use(LoginRateLimitMiddleware())
-	r.POST("/login", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "login ok"})
-	})
+	const ip = "192.0.2.2:9999"
+	handler := LoginRateLimitMiddleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
 
-	// First 3 attempts should pass (burst = 3)
-	for i := 0; i < 3; i++ {
-		req, _ := http.NewRequest(http.MethodPost, "/login", nil)
+	// Drain the entire burst (100 tokens).
+	for i := 0; i < 100; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/login", nil)
+		req.RemoteAddr = ip
 		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
+		handler.ServeHTTP(w, req)
 		if w.Code != http.StatusOK {
-			t.Fatalf("expected status 200 on login attempt %d, got %d", i+1, w.Code)
+			t.Fatalf("expected 200 on request %d while draining burst, got %d", i+1, w.Code)
 		}
 	}
 
-	// 4th attempt should be rate limited (429)
-	req, _ := http.NewRequest(http.MethodPost, "/login", nil)
+	// The 101st request must be rejected.
+	req := httptest.NewRequest(http.MethodPost, "/login", nil)
+	req.RemoteAddr = ip
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
+	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusTooManyRequests {
-		t.Fatalf("expected status 429 on 4th login attempt, got %d", w.Code)
+		t.Errorf("expected 429 after burst exhausted, got %d", w.Code)
+	}
+}
+
+func TestLoginRateLimitMiddleware_UsesXForwardedFor(t *testing.T) {
+	resetLimiters()
+
+	handler := LoginRateLimitMiddleware()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// With X-Forwarded-For set, that value should be used as the key.
+	// Drain the burst for the forwarded IP.
+	for i := 0; i < 100; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/login", nil)
+		req.RemoteAddr = "10.0.0.1:1234"
+		req.Header.Set("X-Forwarded-For", "1.2.3.4")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200 on request %d, got %d", i+1, w.Code)
+		}
+	}
+
+	// A request from a different RemoteAddr but same X-Forwarded-For should be rejected.
+	req := httptest.NewRequest(http.MethodPost, "/login", nil)
+	req.RemoteAddr = "10.0.0.2:5678"
+	req.Header.Set("X-Forwarded-For", "1.2.3.4")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("expected 429 for same forwarded IP after burst, got %d", w.Code)
 	}
 }

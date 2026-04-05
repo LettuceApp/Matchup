@@ -12,7 +12,7 @@ const UserProfileRedirect = () => {
       try {
         const res = await getUser(userId);
         if (!mounted) return;
-        const payload = res.data?.response || res.data;
+        const payload = res.data?.user || res.data?.response || res.data;
         const username = payload?.username;
         if (username) {
           navigate(`/users/${username}`, { replace: true });

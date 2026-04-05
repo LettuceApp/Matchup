@@ -1,0 +1,239 @@
+MATCHUP HUB - UNIT TESTS OVERVIEW
+==================================
+37 tests total: 23 Go (backend) + 14 JavaScript (frontend)
+All passing as of 2026-04-04.
+
+
+=======================================================
+FILE 1: api/controllers/matchup_logic_test.go  (20 tests)
+=======================================================
+Tests the pure business logic functions that decide winners and durations.
+No database required — these are standalone math/logic functions.
+
+--- normalizeMatchupDurationSeconds (7 cases) ---
+This function clamps user-supplied durations to a valid range (60s min, 86400s max).
+
+  1. zero becomes default
+     Input: 0  ->  Expect: 86400 (24 hours)
+     Why: A zero duration is treated as "not set", so we fall back to the 24-hour default.
+
+  2. negative becomes default
+     Input: -5  ->  Expect: 86400
+     Why: Negative values are nonsensical; same fallback applies.
+
+  3. below min becomes min
+     Input: 30  ->  Expect: 60 (1 minute)
+     Why: We don't allow matchups shorter than 60 seconds.
+
+  4. at min is unchanged
+     Input: 60  ->  Expect: 60
+     Why: Boundary check — exactly at the minimum should pass through.
+
+  5. above max becomes max
+     Input: 90001  ->  Expect: 86400
+     Why: Can't have a matchup longer than 24 hours.
+
+  6. at max is unchanged
+     Input: 86400  ->  Expect: 86400
+     Why: Boundary check — exactly at the maximum should pass through.
+
+  7. valid passthrough
+     Input: 3600  ->  Expect: 3600
+     Why: A normal 1-hour duration should come out exactly as entered.
+
+
+--- determineMatchupWinner (6 cases) ---
+This is the "ready up" function. The owner presses Ready and this picks the winner.
+It respects a manually selected winner, but requires a clear vote leader if none is set.
+
+  8. no items returns error
+     Setup: matchup with empty items list
+     Expect: error
+     Why: Can't pick a winner from nothing.
+
+  9. explicit winner in items is returned
+     Setup: WinnerItemID points to item 42, items are [42, 43]
+     Expect: returns 42
+     Why: Owner manually overrode the winner — honor that choice.
+
+  10. explicit winner not in items returns error
+      Setup: WinnerItemID = 99, but only item 1 exists
+      Expect: error
+      Why: The selected winner ID is bogus / was deleted. Catch this before writing to DB.
+
+  11. clear vote leader is returned
+      Setup: item 1 has 5 votes, item 2 has 2 votes
+      Expect: returns item 1
+      Why: Normal happy path — most votes wins.
+
+  12. exact two-way tie returns error
+      Setup: item 1 = 3 votes, item 2 = 3 votes
+      Expect: error ("matchup is tied")
+      Why: Owner must break the tie manually before readying up.
+
+  13. three-way tie returns error
+      Setup: items A, B, C each have 2 votes
+      Expect: error
+      Why: Same tie-breaking rule applies regardless of how many are tied.
+
+
+--- determineMatchupWinnerByVotes (4 cases) ---
+Used when a bracket round timer expires. Unlike the above, ties do NOT block —
+the first item with the most votes wins (no owner intervention required).
+
+  14. no items returns error
+      Expect: error
+      Why: Still need at least one item.
+
+  15. single item is returned
+      Setup: one item with 0 votes
+      Expect: that item's ID
+      Why: Only one option — it wins by default.
+
+  16. clear winner by votes
+      Setup: items with [2, 10, 5] votes
+      Expect: returns the item with 10 votes
+      Why: Straightforward highest-vote wins.
+
+  17. tie returns first max item encountered
+      Setup: item 1 = 5 votes, item 2 = 5 votes
+      Expect: returns item 1
+      Why: Timer expiry can't block, so we just take whoever appears first in the list.
+
+
+--- parseSeedValue (7 cases) ---
+Helper that reads the seed number out of a contender's label (e.g. "Seed 4" -> 4).
+Used by the bracket advance logic to break ties by seed.
+
+  18. "Seed 1"  ->  seed=1, found=true
+  19. "Seed 16" ->  seed=16, found=true
+  20. "1"       ->  seed=1, found=true  (bare number works too)
+  21. "42nd"    ->  seed=42, found=true  (stops at first non-digit after number)
+  22. ""        ->  seed=0, found=false
+  23. "abc"     ->  seed=0, found=false
+  24. "Seedless" -> seed=0, found=false  (no digits found)
+
+
+--- determineMatchupWinnerByVotesOrSeed (5 cases) ---
+Also used on bracket timer expiry, but smarter: if there's a tie it looks at seed
+numbers and picks the lower seed (higher-ranked competitor) as the tiebreaker.
+
+  25. clear vote leader is returned
+      Setup: "Seed 3" has 10 votes, "Seed 1" has 2 votes
+      Expect: "Seed 3" wins (votes trump seed ranking)
+      Why: Votes always win if there's a clear leader.
+
+  26. tie resolved by lower seed number
+      Setup: "Seed 4" and "Seed 1" both have 5 votes
+      Expect: "Seed 1" wins
+      Why: In bracket tournaments, lower seed = higher ranking, so Seed 1 wins tiebreaks.
+
+  27. tie with no seed labels returns error
+      Setup: "Alpha" vs "Beta", both 5 votes
+      Expect: error
+      Why: No way to break the tie automatically — needs manual intervention.
+
+  28. tie with one seeded item uses seeded item
+      Setup: "Seed 2" vs "Challenger", both 5 votes
+      Expect: "Seed 2" wins
+      Why: At least one has a seed, so we use it rather than failing.
+
+  29. no items returns error
+      Expect: error
+
+
+=======================================================
+FILE 2: api/middlewares/rate_limit_test.go  (3 tests)
+=======================================================
+Tests the login endpoint rate limiter.
+Each IP gets a bucket of 100 requests, then gets throttled.
+
+  1. AllowsInitialRequests  (pre-existing test)
+     Sends 5 POST /login requests from the same IP.
+     Expects all 5 return HTTP 200.
+     Why: Normal usage should never be blocked.
+
+  2. BlocksAfterBurst  (new)
+     Drains the entire 100-request burst from one IP (all return 200).
+     Then sends the 101st request from the same IP.
+     Expects HTTP 429 (Too Many Requests).
+     Why: This is the actual enforcement check — without it, changing the
+     burst size from 100 to 10000 would go unnoticed.
+
+  3. UsesXForwardedFor  (new)
+     Sends 100 requests with X-Forwarded-For: 1.2.3.4 (different RemoteAddr each time).
+     Then sends a 101st request with the same X-Forwarded-For header.
+     Expects HTTP 429.
+     Why: Behind a load balancer, RemoteAddr is the LB's IP, not the client's.
+     The limiter must key on X-Forwarded-For so real clients can't bypass it
+     by cycling through LB addresses.
+
+
+=======================================================
+FILE 3: frontend/src/__tests__/ConfirmModal.test.js  (7 tests)
+=======================================================
+Tests the shared ConfirmModal component used for all destructive actions
+(delete matchup, delete bracket, archive bracket, ready up, etc.).
+
+  1. renders the message
+     Pass message="Are you sure?" — expect that text to appear in the DOM.
+
+  2. renders the default confirm label
+     Don't pass confirmLabel — expect the button to say "Confirm".
+
+  3. renders a custom confirm label
+     Pass confirmLabel="Remove" — expect the button to say "Remove".
+
+  4. calls onConfirm when confirm button is clicked
+     Wire up a jest mock to onConfirm, click the button, expect mock called once.
+
+  5. calls onCancel when cancel button is clicked
+     Wire up a jest mock to onCancel, click Cancel, expect mock called once.
+
+  6. applies danger class when danger=true
+     Pass danger={true} — expect the confirm button to have class "matchup-danger-button" (red).
+
+  7. applies primary class when danger=false
+     Pass danger={false} — expect the confirm button to have class "profile-primary-button" (normal).
+
+
+=======================================================
+FILE 4: frontend/src/__tests__/useCountdown.test.js  (7 tests)
+=======================================================
+Tests the useCountdown hook that drives the live timer on every matchup and bracket round.
+Uses Jest fake timers so we can control time without actually waiting.
+
+  1. returns null and isExpired=false when targetTime is null
+     Call useCountdown(null) — expect remainingMs=null, isExpired=false, formatted="0:00:00".
+     Why: No end time means "no timer" — should be inert, not expired.
+
+  2. returns 0 and isExpired=true for a past targetTime
+     Pass a timestamp 1 hour in the past.
+     Expect remainingMs=0, isExpired=true.
+     Why: Timer already ran out — should show as expired immediately.
+
+  3. returns positive remainingMs for a future targetTime
+     Pass a timestamp 1 hour from now.
+     Expect remainingMs > 0, isExpired=false.
+     Why: Timer is live — basic sanity check.
+
+  4. formats remaining time correctly
+     Set target to exactly 1 hour + 5 minutes + 3 seconds from now.
+     Expect formatted="1:05:03".
+     Why: The formatted string is what's displayed to users. Padding must be correct.
+
+  5. counts down when the interval fires
+     Start a 10-second timer, advance fake time by 1 second.
+     Expect remainingMs is now less than it was.
+     Why: The interval should be ticking — if it's broken, countdowns never move.
+
+  6. transitions to isExpired after time elapses
+     Start a 2-second timer, advance fake time by 3 seconds.
+     Expect isExpired=true, remainingMs=0.
+     Why: Expiry triggers the "time's up" UI state. Must flip at the right moment.
+
+  7. clears interval when targetTime becomes null
+     Start a 5-second timer, then rerender the hook with targetTime=null.
+     Expect remainingMs=null and isExpired=false.
+     Why: If a matchup is reset or the component unmounts, the interval must be
+     cleaned up — otherwise you get memory leaks and stale state updates.

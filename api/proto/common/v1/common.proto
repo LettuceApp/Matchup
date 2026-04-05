@@ -1,0 +1,24 @@
+syntax = "proto3";
+package common.v1;
+option go_package = "Matchup/gen/common/v1;commonv1";
+
+// UserSummaryResponse is the minimal user shape embedded in matchup/bracket responses.
+message UserSummaryResponse {
+  string id = 1;
+  string username = 2;
+}
+
+// MatchupItemResponse is an item inside a matchup.
+message MatchupItemResponse {
+  string id = 1;
+  string item = 2;
+  int32 votes = 3;
+}
+
+// Pagination is included in paginated list responses.
+message Pagination {
+  int32 page = 1;
+  int32 limit = 2;
+  int64 total = 3;
+  int32 total_pages = 4;
+}

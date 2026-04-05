@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: matchup-frontend
+  namespace: matchup
+  labels:
+    app: matchup-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: matchup-frontend
+  template:
+    metadata:
+      labels:
+        app: matchup-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: matchupacr.azurecr.io/matchup-frontend:v1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 30

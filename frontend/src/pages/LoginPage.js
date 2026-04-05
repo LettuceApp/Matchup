@@ -4,7 +4,7 @@ import { login } from '../services/api';
 import '../styles/LoginPage.css';
 
 const LoginPage = () => {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -18,9 +18,9 @@ const LoginPage = () => {
 
     try {
       setIsSubmitting(true);
-      const payload = await login({ email, password });
+      const payload = await login({ email: identifier, password });
       if (payload?.token && payload?.id) {
-        navigate(from, { replace: true });
+        navigate('/home', { replace: true });
       } else {
         console.error('Token or User ID is missing in response');
         setError('Login failed. Please try again.');
@@ -47,15 +47,15 @@ const LoginPage = () => {
 
         <form onSubmit={handleSubmit} className="login-form">
           <div className="login-field">
-            <label htmlFor="login-email">Email</label>
+            <label htmlFor="login-identifier">Email or Username</label>
             <input
-              id="login-email"
-              type="email"
+              id="login-identifier"
+              type="text"
               className="login-input"
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
+              placeholder="Enter your email or username"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              autoComplete="username"
               required
             />
           </div>

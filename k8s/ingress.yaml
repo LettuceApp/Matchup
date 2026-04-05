@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: matchup-ingress
+  namespace: matchup
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"    # Allows avatar uploads (max 500KB)
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          # ConnectRPC service paths: /{package}.v1.{Service}/{Method}
+          # Regex matches any path starting with a word, dot, v1, dot
+          - path: /[a-z]+\.v1\.[A-Za-z]
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: matchup-api
+                port:
+                  number: 8888
+          # Everything else goes to the frontend
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: matchup-frontend
+                port:
+                  number: 80

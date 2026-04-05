@@ -5,6 +5,8 @@ import { deleteComment } from '../services/api';
 import '../styles/Comment.css';
 
 const Comment = ({ comment, refreshComments, onDelete }) => {
+  if (!comment) return null;
+
   const storedUserId = localStorage.getItem('userId');
   const userId = storedUserId || null;
   const isOwner = userId && String(comment.user_id) === userId;

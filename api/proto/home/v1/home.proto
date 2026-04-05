@@ -1,0 +1,55 @@
+syntax = "proto3";
+package home.v1;
+option go_package = "Matchup/gen/home/v1;homev1";
+
+import "matchup/v1/matchup.proto";
+import "bracket/v1/bracket.proto";
+
+service HomeService {
+  rpc GetHomeSummary(GetHomeSummaryRequest) returns (GetHomeSummaryResponse);
+}
+
+// HomeCreatorData is a creator profile shown on the home feed.
+message HomeCreatorData {
+  string id = 1;
+  string username = 2;
+  string avatar_path = 3;
+  int32 followers_count = 4;
+  int32 following_count = 5;
+  bool is_private = 6;
+  bool viewer_following = 7;
+  bool viewer_followed_by = 8;
+  bool mutual = 9;
+}
+
+// HomeMatchupData is a lightweight matchup entry for the home feed.
+message HomeMatchupData {
+  string id = 1;
+  string title = 2;
+  string author_id = 3;
+  optional string bracket_id = 4;
+  string created_at = 5;
+}
+
+// HomeSummaryData is the full home page response.
+message HomeSummaryData {
+  repeated matchup.v1.PopularMatchupData popular_matchups = 1;
+  repeated bracket.v1.PopularBracketData popular_brackets = 2;
+  double total_engagements = 3;
+  int32 votes_today = 4;
+  int32 active_matchups = 5;
+  int32 active_brackets = 6;
+  repeated HomeMatchupData new_this_week = 7;
+  optional HomeCreatorData top_creator = 8;
+  repeated HomeCreatorData creators_to_follow = 9;
+}
+
+// ---- Request messages ----
+
+message GetHomeSummaryRequest {}
+
+// ---- Response messages ----
+
+message GetHomeSummaryResponse {
+  HomeSummaryData summary = 1;
+}

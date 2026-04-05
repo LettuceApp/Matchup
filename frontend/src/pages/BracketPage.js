@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import NavigationBar from "../components/NavigationBar";
+import ConfirmModal from "../components/ConfirmModal";
 import Button from "../components/Button";
 import BracketView from "../components/BracketView";
 import Comment from "../components/Comment";
@@ -37,9 +38,12 @@ export default function BracketPage() {
   const [likePending, setLikePending] = useState(false);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmModal, setConfirmModal] = useState(null);
   const [commentError, setCommentError] = useState(null);
   const [commentPending, setCommentPending] = useState(false);
-  const [commentsOpen, setCommentsOpen] = useState(false);
+
   const loadInFlight = useRef(false);
 
   /* ------------------------------------------------------------------ */
@@ -57,7 +61,7 @@ export default function BracketPage() {
 
     try {
       const summaryRes = await getBracketSummary(id, viewerId);
-      const summary = summaryRes.data?.response ?? summaryRes.data ?? {};
+      const summary = summaryRes.data?.summary ?? summaryRes.data?.response ?? summaryRes.data ?? {};
       const bracketData = summary.bracket ?? null;
       const matchupsData = summary.matchups ?? [];
       setBracket(bracketData);
@@ -94,7 +98,8 @@ export default function BracketPage() {
   const loadComments = useCallback(async () => {
     try {
       const res = await getBracketComments(id);
-      setComments(res.data?.response ?? res.data ?? []);
+      const raw = res.data?.comments ?? res.data?.response ?? res.data;
+      setComments(Array.isArray(raw) ? raw : []);
     } catch (err) {
       console.error("Failed to load bracket comments", err);
       if (err?.response?.status === 403) {
@@ -112,7 +117,7 @@ export default function BracketPage() {
     const loadMe = async () => {
       try {
         const res = await getCurrentUser();
-        setCurrentUser(res.data?.response ?? res.data ?? null);
+        setCurrentUser(res.data?.user ?? res.data?.response ?? res.data ?? null);
       } catch (err) {
         console.warn("Unable to load current user", err);
       }
@@ -245,23 +250,27 @@ export default function BracketPage() {
     bracketOwnerId &&
     String(currentUser.id) === String(bracketOwnerId);
 
-  const canEdit = isOwner || currentUser?.role === "admin";
+  const canEdit = isOwner || currentUser?.is_admin === true;
 
   /* ------------------------------------------------------------------ */
   /* ACTIONS */
   /* ------------------------------------------------------------------ */
 
-  const handleActivate = async () => {
+  const handleActivate = () => {
     if (!bracket) return;
-    if (!window.confirm("Activate this bracket?")) return;
-
-    await updateBracket(bracket.id, {
-      title: bracket.title,
-      description: bracket.description,
-      status: "active",
+    setConfirmModal({
+      message: 'Activate this bracket?',
+      confirmLabel: 'Activate',
+      danger: false,
+      onConfirm: async () => {
+        await updateBracket(bracket.id, {
+          title: bracket.title,
+          description: bracket.description,
+          status: "active",
+        });
+        await loadBracket();
+      },
     });
-
-    await loadBracket();
   };
 
   const handleAdvance = async () => {
@@ -272,10 +281,17 @@ export default function BracketPage() {
 
   const handleDelete = async () => {
     if (!bracket) return;
-    if (!window.confirm("Delete this bracket?")) return;
-
-    await deleteBracket(bracket.id);
-    navigate("/home");
+    try {
+      setIsDeleting(true);
+      await deleteBracket(bracket.id);
+      const authorSlug = bracket?.author?.username ?? bracket?.author_id ?? bracket?.authorId;
+      navigate(authorSlug ? `/users/${authorSlug}` : "/home");
+    } catch (err) {
+      console.error(err);
+      setError("Unable to delete bracket.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleCommentSubmit = async (e) => {
@@ -409,13 +425,33 @@ export default function BracketPage() {
           <div className="bracket-action-group bracket-action-group--right">
             {canEdit && (
               <Button
-                onClick={handleDelete}
+                onClick={() => setDeleteModalOpen(true)}
+                disabled={isDeleting}
                 className="bracket-button bracket-button--danger"
               >
-                Delete
+                {isDeleting ? "Deleting…" : "Delete"}
               </Button>
             )}
           </div>
+
+          {deleteModalOpen && (
+            <div className="edit-profile-overlay" onClick={() => setDeleteModalOpen(false)}>
+              <div className="edit-profile-modal" onClick={(e) => e.stopPropagation()}>
+                <h2 className="edit-profile-title">Delete bracket?</h2>
+                <p style={{ color: 'rgba(226,232,240,0.7)', fontSize: '0.9rem', margin: 0 }}>
+                  This will delete the bracket and all its matchups. This can't be undone.
+                </p>
+                <div className="edit-profile-actions">
+                  <Button className="bracket-button" onClick={() => setDeleteModalOpen(false)} disabled={isDeleting}>
+                    Cancel
+                  </Button>
+                  <Button className="bracket-button bracket-button--danger" onClick={() => { setDeleteModalOpen(false); handleDelete(); }} disabled={isDeleting}>
+                    {isDeleting ? 'Deleting…' : 'Delete'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </motion.section>
 
         <motion.section className="bracket-section bracket-section--stage" {...sectionMotion}>
@@ -442,63 +478,62 @@ export default function BracketPage() {
               <h2>Comments</h2>
               <p>Join the debate.</p>
             </div>
-            <button
-              type="button"
-              className="bracket-comment-toggle"
-              onClick={() => setCommentsOpen((prev) => !prev)}
-            >
-              {commentsOpen ? "Hide" : "Show"}
-            </button>
           </header>
 
-          {commentsOpen && (
-            <>
-              <div className="bracket-comments">
-                {comments.length === 0 ? (
-                  <div className="bracket-comment-empty">No comments yet.</div>
-                ) : (
-                  comments.map((comment) => (
-                    <Comment
-                      key={comment.id}
-                      comment={comment}
-                      refreshComments={loadComments}
-                      onDelete={deleteBracketComment}
-                    />
-                  ))
-                )}
-              </div>
+          <div className="bracket-comments">
+            {comments.length === 0 ? (
+              <div className="bracket-comment-empty">No comments yet.</div>
+            ) : (
+              comments.map((comment) => (
+                <Comment
+                  key={comment.id}
+                  comment={comment}
+                  refreshComments={loadComments}
+                  onDelete={deleteBracketComment}
+                />
+              ))
+            )}
+          </div>
 
-              {viewerId ? (
-                <form className="bracket-comment-form" onSubmit={handleCommentSubmit}>
-                  <label htmlFor="newBracketComment" className="bracket-form-label">
-                    Add a comment
-                  </label>
-                  <textarea
-                    id="newBracketComment"
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    rows={3}
-                    disabled={commentPending}
-                    className="bracket-textarea"
-                  />
-                  {commentError && (
-                    <p className="bracket-inline-error">{commentError}</p>
-                  )}
-                  <div className="bracket-form-actions">
-                    <button
-                      type="submit"
-                      disabled={commentPending}
-                      className="bracket-button bracket-button--ghost"
-                    >
-                      {commentPending ? "Posting…" : "Post comment"}
-                    </button>
-                  </div>
-                </form>
-              ) : null}
-            </>
-          )}
+          {viewerId ? (
+            <form className="bracket-comment-form" onSubmit={handleCommentSubmit}>
+              <label htmlFor="newBracketComment" className="bracket-form-label">
+                Add a comment
+              </label>
+              <textarea
+                id="newBracketComment"
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                rows={3}
+                disabled={commentPending}
+                className="bracket-textarea"
+              />
+              {commentError && (
+                <p className="bracket-inline-error">{commentError}</p>
+              )}
+              <div className="bracket-form-actions">
+                <button
+                  type="submit"
+                  disabled={commentPending}
+                  className="bracket-button bracket-button--ghost"
+                >
+                  {commentPending ? "Posting…" : "Post comment"}
+                </button>
+              </div>
+            </form>
+          ) : null}
         </motion.section>
       </main>
+
+      {confirmModal && (
+        <ConfirmModal
+          message={confirmModal.message}
+          confirmLabel={confirmModal.confirmLabel}
+          danger={confirmModal.danger}
+          onConfirm={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
     </div>
   );
 }

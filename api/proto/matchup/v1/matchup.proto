@@ -1,0 +1,248 @@
+syntax = "proto3";
+package matchup.v1;
+option go_package = "Matchup/gen/matchup/v1;matchupv1";
+
+import "common/v1/common.proto";
+
+service MatchupService {
+  rpc ListMatchups(ListMatchupsRequest) returns (ListMatchupsResponse);
+  rpc GetMatchup(GetMatchupRequest) returns (GetMatchupResponse);
+  rpc GetPopularMatchups(GetPopularMatchupsRequest) returns (GetPopularMatchupsResponse);
+  rpc GetUserMatchups(GetUserMatchupsRequest) returns (GetUserMatchupsResponse);
+  rpc CreateMatchup(CreateMatchupRequest) returns (CreateMatchupResponse);
+  rpc UpdateMatchup(UpdateMatchupRequest) returns (UpdateMatchupResponse);
+  rpc DeleteMatchup(DeleteMatchupRequest) returns (DeleteMatchupResponse);
+  rpc OverrideMatchupWinner(OverrideMatchupWinnerRequest) returns (OverrideMatchupWinnerResponse);
+  rpc CompleteMatchup(CompleteMatchupRequest) returns (CompleteMatchupResponse);
+  rpc ReadyUpMatchup(ReadyUpMatchupRequest) returns (ReadyUpMatchupResponse);
+  rpc ActivateMatchup(ActivateMatchupRequest) returns (ActivateMatchupResponse);
+}
+
+service MatchupItemService {
+  rpc AddItem(AddItemRequest) returns (AddItemResponse);
+  rpc UpdateItem(UpdateItemRequest) returns (UpdateItemResponse);
+  rpc DeleteItem(DeleteItemRequest) returns (DeleteItemResponse);
+  rpc VoteItem(VoteItemRequest) returns (VoteItemResponse);
+  rpc GetUserVotes(GetUserVotesRequest) returns (GetUserVotesResponse);
+}
+
+// MatchupData is the full matchup object returned from most matchup endpoints.
+message MatchupData {
+  string id = 1;
+  string title = 2;
+  string content = 3;
+  string author_id = 4;
+  common.v1.UserSummaryResponse author = 5;
+  repeated common.v1.MatchupItemResponse items = 6;
+  repeated CommentData comments = 7;
+  int32 likes_count = 8;
+  string created_at = 9;
+  string updated_at = 10;
+  optional string bracket_id = 11;
+  optional int32 round = 12;
+  optional int32 seed = 13;
+  string status = 14;
+  string end_mode = 15;
+  int32 duration_seconds = 16;
+  optional string start_time = 17;
+  optional string end_time = 18;
+  optional string winner_item_id = 19;
+  optional string image_url = 20;
+  repeated string tags = 21;
+}
+
+// CommentData is a comment embedded inside a matchup response.
+message CommentData {
+  string id = 1;
+  string user_id = 2;
+  string username = 3;
+  string body = 4;
+  string created_at = 5;
+  string updated_at = 6;
+}
+
+// PopularMatchupData is a lightweight matchup used in the popular feed.
+message PopularMatchupData {
+  string id = 1;
+  string title = 2;
+  string author_id = 3;
+  optional string bracket_id = 4;
+  optional string bracket_author_id = 5;
+  optional int32 round = 6;
+  optional int32 current_round = 7;
+  int32 votes = 8;
+  int32 likes = 9;
+  int32 comments = 10;
+  double engagement_score = 11;
+  int32 rank = 12;
+}
+
+// MatchupVoteData is a single vote record.
+message MatchupVoteData {
+  string id = 1;
+  optional string user_id = 2;
+  string matchup_id = 3;
+  string matchup_item_id = 4;
+  string created_at = 5;
+}
+
+// ---- Request messages ----
+
+message ListMatchupsRequest {
+  optional int32 page = 1;
+  optional int32 limit = 2;
+}
+
+message GetMatchupRequest {
+  string id = 1;
+}
+
+message GetPopularMatchupsRequest {}
+
+message GetUserMatchupsRequest {
+  string user_id = 1;
+  optional int32 page = 2;
+  optional int32 limit = 3;
+}
+
+message MatchupItemCreate {
+  string item = 1;
+}
+
+message CreateMatchupRequest {
+  string user_id = 1;
+  string title = 2;
+  optional string content = 3;
+  repeated MatchupItemCreate items = 4;
+  optional string end_mode = 5;
+  optional int32 duration_seconds = 6;
+  optional string bracket_id = 7;
+  optional int32 round = 8;
+  optional int32 seed = 9;
+  repeated string tags = 10;
+  optional bytes image_data = 11;
+  optional string image_content_type = 12;
+}
+
+message UpdateMatchupRequest {
+  string id = 1;
+  optional string title = 2;
+  optional string content = 3;
+  repeated string tags = 4;
+}
+
+message DeleteMatchupRequest {
+  string id = 1;
+}
+
+message OverrideMatchupWinnerRequest {
+  string id = 1;
+  string winner_item_id = 2;
+}
+
+message CompleteMatchupRequest {
+  string id = 1;
+}
+
+message ReadyUpMatchupRequest {
+  string id = 1;
+}
+
+message ActivateMatchupRequest {
+  string id = 1;
+}
+
+message AddItemRequest {
+  string matchup_id = 1;
+  string item = 2;
+}
+
+message UpdateItemRequest {
+  string id = 1;
+  string item = 2;
+}
+
+message DeleteItemRequest {
+  string id = 1;
+}
+
+message VoteItemRequest {
+  string id = 1;
+  optional string anon_id = 2;
+}
+
+message GetUserVotesRequest {
+  string user_id = 1;
+}
+
+// ---- Response messages ----
+
+message ListMatchupsResponse {
+  repeated MatchupData matchups = 1;
+  common.v1.Pagination pagination = 2;
+}
+
+message GetMatchupResponse {
+  MatchupData matchup = 1;
+}
+
+message GetPopularMatchupsResponse {
+  repeated PopularMatchupData matchups = 1;
+}
+
+message GetUserMatchupsResponse {
+  repeated MatchupData matchups = 1;
+  common.v1.Pagination pagination = 2;
+}
+
+message CreateMatchupResponse {
+  MatchupData matchup = 1;
+}
+
+message UpdateMatchupResponse {
+  MatchupData matchup = 1;
+}
+
+message DeleteMatchupResponse {
+  string message = 1;
+}
+
+message OverrideMatchupWinnerResponse {
+  string message = 1;
+  string winner_item_id = 2;
+}
+
+message CompleteMatchupResponse {
+  string message = 1;
+  string status = 2;
+  string winner_item_id = 3;
+}
+
+message ReadyUpMatchupResponse {
+  MatchupData matchup = 1;
+}
+
+message ActivateMatchupResponse {
+  MatchupData matchup = 1;
+}
+
+message AddItemResponse {
+  common.v1.MatchupItemResponse item = 1;
+}
+
+message UpdateItemResponse {
+  common.v1.MatchupItemResponse item = 1;
+}
+
+message DeleteItemResponse {
+  string message = 1;
+}
+
+message VoteItemResponse {
+  common.v1.MatchupItemResponse item = 1;
+  bool already_voted = 2;
+}
+
+message GetUserVotesResponse {
+  repeated MatchupVoteData votes = 1;
+}

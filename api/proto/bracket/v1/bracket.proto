@@ -1,0 +1,187 @@
+syntax = "proto3";
+package bracket.v1;
+option go_package = "Matchup/gen/bracket/v1;bracketv1";
+
+import "matchup/v1/matchup.proto";
+
+service BracketService {
+  rpc GetPopularBrackets(GetPopularBracketsRequest) returns (GetPopularBracketsResponse);
+  rpc GetBracket(GetBracketRequest) returns (GetBracketResponse);
+  rpc GetBracketSummary(GetBracketSummaryRequest) returns (GetBracketSummaryResponse);
+  rpc GetUserBrackets(GetUserBracketsRequest) returns (GetUserBracketsResponse);
+  rpc GetBracketMatchups(GetBracketMatchupsRequest) returns (GetBracketMatchupsResponse);
+  rpc CreateBracket(CreateBracketRequest) returns (CreateBracketResponse);
+  rpc UpdateBracket(UpdateBracketRequest) returns (UpdateBracketResponse);
+  rpc DeleteBracket(DeleteBracketRequest) returns (DeleteBracketResponse);
+  rpc AttachMatchup(AttachMatchupRequest) returns (AttachMatchupResponse);
+  rpc DetachMatchup(DetachMatchupRequest) returns (DetachMatchupResponse);
+  rpc AdvanceBracket(AdvanceBracketRequest) returns (AdvanceBracketResponse);
+  rpc ResolveTieAndAdvance(ResolveTieAndAdvanceRequest) returns (ResolveTieAndAdvanceResponse);
+  rpc InternalAdvanceBracket(InternalAdvanceBracketRequest) returns (InternalAdvanceBracketResponse);
+}
+
+// BracketData is the full bracket object.
+message BracketData {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  string author_id = 4;
+  int32 size = 5;
+  string status = 6;
+  int32 current_round = 7;
+  string advance_mode = 8;
+  int32 round_duration_seconds = 9;
+  optional string round_started_at = 10;
+  optional string round_ends_at = 11;
+  int32 likes_count = 12;
+  repeated string tags = 13;
+}
+
+// PopularBracketData is a lightweight bracket used in the popular feed.
+message PopularBracketData {
+  string id = 1;
+  string title = 2;
+  string author_id = 3;
+  int32 current_round = 4;
+  int32 size = 5;
+  int32 votes = 6;
+  int32 likes = 7;
+  int32 comments = 8;
+  double engagement_score = 9;
+  int32 rank = 10;
+}
+
+// BracketSummaryData combines a bracket, its matchups, and like state.
+message BracketSummaryData {
+  BracketData bracket = 1;
+  repeated matchup.v1.MatchupData matchups = 2;
+  repeated string liked_matchup_ids = 3;
+  bool liked_bracket = 4;
+}
+
+// ---- Request messages ----
+
+message GetPopularBracketsRequest {}
+
+message GetBracketRequest {
+  string id = 1;
+}
+
+message GetBracketSummaryRequest {
+  string id = 1;
+}
+
+message GetUserBracketsRequest {
+  string user_id = 1;
+}
+
+message GetBracketMatchupsRequest {
+  string id = 1;
+}
+
+message CreateBracketRequest {
+  string user_id = 1;
+  string title = 2;
+  optional string description = 3;
+  int32 size = 4;
+  optional string advance_mode = 5;
+  optional int32 duration_minutes = 6;
+  optional int32 round_duration_seconds = 7;
+  optional string visibility = 8;
+  repeated string entries = 9;
+  repeated string tags = 10;
+}
+
+message UpdateBracketRequest {
+  string id = 1;
+  optional string title = 2;
+  optional string description = 3;
+  optional string status = 4;
+  optional string advance_mode = 5;
+  optional int32 duration_minutes = 6;
+  optional int32 round_duration_seconds = 7;
+}
+
+message DeleteBracketRequest {
+  string id = 1;
+}
+
+message AttachMatchupRequest {
+  string bracket_id = 1;
+  string matchup_id = 2;
+  int32 round = 3;
+  optional int32 seed = 4;
+}
+
+message DetachMatchupRequest {
+  string matchup_id = 1;
+}
+
+message AdvanceBracketRequest {
+  string id = 1;
+}
+
+message ResolveTieAndAdvanceRequest {
+  string matchup_id = 1;
+  string winner_item_id = 2;
+}
+
+message InternalAdvanceBracketRequest {
+  string id = 1;
+}
+
+// ---- Response messages ----
+
+message GetPopularBracketsResponse {
+  repeated PopularBracketData brackets = 1;
+}
+
+message GetBracketResponse {
+  BracketData bracket = 1;
+}
+
+message GetBracketSummaryResponse {
+  BracketSummaryData summary = 1;
+}
+
+message GetUserBracketsResponse {
+  repeated BracketData brackets = 1;
+}
+
+message GetBracketMatchupsResponse {
+  repeated matchup.v1.MatchupData matchups = 1;
+}
+
+message CreateBracketResponse {
+  BracketData bracket = 1;
+}
+
+message UpdateBracketResponse {
+  BracketData bracket = 1;
+}
+
+message DeleteBracketResponse {
+  string message = 1;
+}
+
+message AttachMatchupResponse {
+  matchup.v1.MatchupData matchup = 1;
+}
+
+message DetachMatchupResponse {
+  string message = 1;
+}
+
+message AdvanceBracketResponse {
+  BracketData bracket = 1;
+  string message = 2;
+}
+
+message ResolveTieAndAdvanceResponse {
+  BracketData bracket = 1;
+  string message = 2;
+}
+
+message InternalAdvanceBracketResponse {
+  string message = 1;
+}

@@ -1,17 +1,23 @@
 package models
 
 import (
+	"context"
 	"html"
-
 	"strings"
+	"time"
 
-	"gorm.io/gorm"
+	appdb "Matchup/db"
+
+	"github.com/jmoiron/sqlx"
 )
 
 type ResetPassword struct {
-	gorm.Model
-	Email string `gorm:"size:100;not null;" json:"email"`
-	Token string `gorm:"size:255;not null;" json:"token"`
+	ID        uint       `db:"id" json:"id"`
+	CreatedAt time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time  `db:"updated_at" json:"updated_at"`
+	DeletedAt *time.Time `db:"deleted_at" json:"deleted_at,omitempty"`
+	Email     string     `db:"email" json:"email"`
+	Token     string     `db:"token" json:"token"`
 }
 
 func (resetPassword *ResetPassword) Prepare() {
@@ -19,20 +25,28 @@ func (resetPassword *ResetPassword) Prepare() {
 	resetPassword.Email = html.EscapeString(strings.TrimSpace(resetPassword.Email))
 }
 
-func (resetPassword *ResetPassword) SaveDatails(db *gorm.DB) (*ResetPassword, error) {
-	var err = db.Debug().Create(&resetPassword).Error
+func (resetPassword *ResetPassword) SaveDatails(db sqlx.ExtContext) (*ResetPassword, error) {
+	resetPassword.CreatedAt = time.Now()
+	resetPassword.UpdatedAt = time.Now()
+
+	query, args, err := appdb.Psql.Insert("reset_passwords").
+		Columns("email", "token", "created_at", "updated_at").
+		Values(resetPassword.Email, resetPassword.Token, resetPassword.CreatedAt, resetPassword.UpdatedAt).
+		Suffix("RETURNING *").
+		ToSql()
 	if err != nil {
+		return &ResetPassword{}, err
+	}
+	if err := sqlx.GetContext(context.Background(), db, resetPassword, query, args...); err != nil {
 		return &ResetPassword{}, err
 	}
 	return resetPassword, nil
 }
 
-func (resetPassword *ResetPassword) DeleteDetails(db *gorm.DB) (int64, error) {
-
-	db = db.Model(&ResetPassword{}).Where("id = ?", resetPassword.ID).Take(&ResetPassword{}).Delete(&ResetPassword{})
-
-	if db.Error != nil {
-		return 0, db.Error
+func (resetPassword *ResetPassword) DeleteDetails(db sqlx.ExtContext) (int64, error) {
+	result, err := db.ExecContext(context.Background(), "DELETE FROM reset_passwords WHERE id = $1", resetPassword.ID)
+	if err != nil {
+		return 0, err
 	}
-	return db.RowsAffected, nil
+	return result.RowsAffected()
 }

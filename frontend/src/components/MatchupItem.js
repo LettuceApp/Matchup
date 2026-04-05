@@ -18,10 +18,11 @@ const MatchupItem = ({
   totalVotes = null,
   showVoteBar = false,
   isLeading = false,
+  isVoted = false,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [itemName, setItemName] = useState(item.item ?? item.name ?? '');
-  const [votes, setVotes] = useState(item.votes ?? 0);
+  const [votes, setVotes] = useState(Number(item.votes ?? 0));
   const [votePending, setVotePending] = useState(false);
 
   useEffect(() => {
@@ -57,7 +58,7 @@ const MatchupItem = ({
     try {
       setVotePending(true);
       const res = await incrementMatchupItemVotes(item.id);
-      const payload = res?.data?.response ?? res?.data ?? {};
+      const payload = res?.data?.item ?? res?.data?.response ?? res?.data ?? {};
       const updatedVotes = payload?.votes ?? payload?.Votes;
       if (typeof updatedVotes === 'number') {
         setVotes(Number(updatedVotes));
@@ -69,6 +70,8 @@ const MatchupItem = ({
       }
     } catch (err) {
       console.error('Unable to register vote', err);
+      const msg = err?.response?.data?.message || err?.response?.data?.error || 'Unable to register vote. Please try again.';
+      alert(msg);
     } finally {
       setVotePending(false);
     }
@@ -87,6 +90,7 @@ const MatchupItem = ({
     isWinner ? 'matchup-item--winner' : '',
     isLeading ? 'matchup-item--leading' : '',
     hasWinner && !isWinner ? 'matchup-item--loser' : '',
+    isVoted ? 'matchup-item--voted' : '',
   ]
     .filter(Boolean)
     .join(' ');

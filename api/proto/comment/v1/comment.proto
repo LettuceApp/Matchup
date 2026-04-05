@@ -1,0 +1,96 @@
+syntax = "proto3";
+package comment.v1;
+option go_package = "Matchup/gen/comment/v1;commentv1";
+
+service CommentService {
+  rpc GetComments(GetCommentsRequest) returns (GetCommentsResponse);
+  rpc CreateComment(CreateCommentRequest) returns (CreateCommentResponse);
+  rpc UpdateComment(UpdateCommentRequest) returns (UpdateCommentResponse);
+  rpc DeleteComment(DeleteCommentRequest) returns (DeleteCommentResponse);
+  rpc GetBracketComments(GetBracketCommentsRequest) returns (GetBracketCommentsResponse);
+  rpc CreateBracketComment(CreateBracketCommentRequest) returns (CreateBracketCommentResponse);
+  rpc DeleteBracketComment(DeleteBracketCommentRequest) returns (DeleteBracketCommentResponse);
+}
+
+// CommentData is a matchup comment.
+message CommentData {
+  string id = 1;
+  string user_id = 2;
+  string username = 3;
+  string body = 4;
+  string created_at = 5;
+  string updated_at = 6;
+}
+
+// BracketCommentData is a bracket comment.
+message BracketCommentData {
+  string id = 1;
+  string user_id = 2;
+  string username = 3;
+  string body = 4;
+  string created_at = 5;
+  string updated_at = 6;
+}
+
+// ---- Request messages ----
+
+message GetCommentsRequest {
+  string matchup_id = 1;
+}
+
+message CreateCommentRequest {
+  string matchup_id = 1;
+  string body = 2;
+}
+
+message UpdateCommentRequest {
+  string id = 1;
+  string body = 2;
+}
+
+message DeleteCommentRequest {
+  string id = 1;
+}
+
+message GetBracketCommentsRequest {
+  string bracket_id = 1;
+}
+
+message CreateBracketCommentRequest {
+  string bracket_id = 1;
+  string body = 2;
+}
+
+message DeleteBracketCommentRequest {
+  string id = 1;
+}
+
+// ---- Response messages ----
+
+message GetCommentsResponse {
+  repeated CommentData comments = 1;
+}
+
+message CreateCommentResponse {
+  CommentData comment = 1;
+}
+
+message UpdateCommentResponse {
+  CommentData comment = 1;
+}
+
+message DeleteCommentResponse {
+  string message = 1;
+}
+
+message GetBracketCommentsResponse {
+  repeated BracketCommentData comments = 1;
+}
+
+message CreateBracketCommentResponse {
+  BracketCommentData comment = 1;
+}
+
+message DeleteBracketCommentResponse {
+  string message = 1;
+}

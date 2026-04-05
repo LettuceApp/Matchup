@@ -1,30 +1,25 @@
 package models
 
 import (
+	"context"
 	"html"
 	"strings"
 	"time"
 
-	"github.com/twinj/uuid"
-	"gorm.io/gorm"
+	appdb "Matchup/db"
+
+	"github.com/jmoiron/sqlx"
 )
 
 type Comment struct {
-	ID        uint      `gorm:"primary_key;autoIncrement" json:"id"`
-	PublicID  string    `gorm:"type:uuid;uniqueIndex;column:public_id" json:"public_id"`
-	UserID    uint      `gorm:"not null" json:"user_id"`
-	MatchupID uint      `gorm:"not null" json:"matchup_id"`
-	Author    User      `gorm:"foreignKey:UserID" json:"author"`
-	Body      string    `gorm:"text;not null;" json:"body"`
-	CreatedAt time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
-	UpdatedAt time.Time `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
-}
-
-func (c *Comment) BeforeCreate(tx *gorm.DB) (err error) {
-	if strings.TrimSpace(c.PublicID) == "" {
-		c.PublicID = uuid.NewV4().String()
-	}
-	return nil
+	ID        uint      `db:"id" json:"id"`
+	PublicID  string    `db:"public_id" json:"public_id"`
+	UserID    uint      `db:"user_id" json:"user_id"`
+	MatchupID uint      `db:"matchup_id" json:"matchup_id"`
+	Author    User      `db:"-" json:"author"`
+	Body      string    `db:"body" json:"body"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 func (c *Comment) Prepare() {
@@ -50,55 +45,86 @@ func (comment *Comment) Validate(action string) map[string]string {
 	return errorMessages
 }
 
-func (c *Comment) SaveComment(db *gorm.DB) (*Comment, error) {
-	err := db.Create(&c).Error
+func (c *Comment) SaveComment(db sqlx.ExtContext) (*Comment, error) {
+	c.PublicID = appdb.GeneratePublicID()
+
+	query, args, err := appdb.Psql.Insert("comments").
+		Columns("public_id", "user_id", "matchup_id", "body", "created_at", "updated_at").
+		Values(c.PublicID, c.UserID, c.MatchupID, c.Body, c.CreatedAt, c.UpdatedAt).
+		Suffix("RETURNING *").
+		ToSql()
 	if err != nil {
+		return nil, err
+	}
+	if err := sqlx.GetContext(context.Background(), db, c, query, args...); err != nil {
 		return nil, err
 	}
 	return c, nil
 }
 
-func (c *Comment) GetComments(db *gorm.DB, mid uint) (*[]Comment, error) {
+func (c *Comment) GetComments(db sqlx.ExtContext, mid uint) (*[]Comment, error) {
 	comments := []Comment{}
-	// Preload the comment author's information so the username is available
-	err := db.Preload("Author").Where("matchup_id = ?", mid).
-		Order("created_at desc").Find(&comments).Error
+	err := sqlx.SelectContext(context.Background(), db, &comments,
+		"SELECT * FROM comments WHERE matchup_id = $1 ORDER BY created_at DESC", mid)
 	if err != nil {
 		return nil, err
+	}
+	// Load authors
+	if len(comments) > 0 {
+		userIDs := make([]uint, len(comments))
+		for i, cm := range comments {
+			userIDs[i] = cm.UserID
+		}
+		query, args, err := sqlx.In("SELECT * FROM users WHERE id IN (?)", userIDs)
+		if err != nil {
+			return nil, err
+		}
+		var users []User
+		if err := sqlx.SelectContext(context.Background(), db, &users, db.Rebind(query), args...); err != nil {
+			return nil, err
+		}
+		userMap := make(map[uint]User, len(users))
+		for _, u := range users {
+			u.ProcessAvatarPath()
+			userMap[u.ID] = u
+		}
+		for i := range comments {
+			comments[i].Author = userMap[comments[i].UserID]
+		}
 	}
 	return &comments, nil
 }
 
-func (c *Comment) UpdateAComment(db *gorm.DB) (*Comment, error) {
-	err := db.Model(&Comment{}).Where("id = ?", c.ID).Updates(map[string]interface{}{"body": c.Body, "updated_at": time.Now()}).Error
+func (c *Comment) UpdateAComment(db sqlx.ExtContext) (*Comment, error) {
+	_, err := db.ExecContext(context.Background(),
+		"UPDATE comments SET body = $1, updated_at = $2 WHERE id = $3",
+		c.Body, time.Now(), c.ID)
 	if err != nil {
 		return nil, err
 	}
 	return c, nil
 }
 
-func (c *Comment) DeleteAComment(db *gorm.DB) (int64, error) {
-	result := db.Where("id = ?", c.ID).Delete(&Comment{})
-	if result.Error != nil {
-		return 0, result.Error
+func (c *Comment) DeleteAComment(db sqlx.ExtContext) (int64, error) {
+	result, err := db.ExecContext(context.Background(), "DELETE FROM comments WHERE id = $1", c.ID)
+	if err != nil {
+		return 0, err
 	}
-	return result.RowsAffected, nil
+	return result.RowsAffected()
 }
 
-// When a user is deleted, we also delete the comments that the user had
-func (c *Comment) DeleteUserComments(db *gorm.DB, uid uint) (int64, error) {
-	result := db.Where("user_id = ?", uid).Delete(&Comment{})
-	if result.Error != nil {
-		return 0, result.Error
+func (c *Comment) DeleteUserComments(db sqlx.ExtContext, uid uint) (int64, error) {
+	result, err := db.ExecContext(context.Background(), "DELETE FROM comments WHERE user_id = $1", uid)
+	if err != nil {
+		return 0, err
 	}
-	return result.RowsAffected, nil
+	return result.RowsAffected()
 }
 
-// When a matchup is deleted, we also delete the comments that the matchup had
-func (c *Comment) DeleteMatchupComments(db *gorm.DB, mid uint) (int64, error) {
-	result := db.Where("matchup_id = ?", mid).Delete(&Comment{})
-	if result.Error != nil {
-		return 0, result.Error
+func (c *Comment) DeleteMatchupComments(db sqlx.ExtContext, mid uint) (int64, error) {
+	result, err := db.ExecContext(context.Background(), "DELETE FROM comments WHERE matchup_id = $1", mid)
+	if err != nil {
+		return 0, err
 	}
-	return result.RowsAffected, nil
+	return result.RowsAffected()
 }

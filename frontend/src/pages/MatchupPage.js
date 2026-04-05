@@ -4,6 +4,7 @@ import NavigationBar from "../components/NavigationBar";
 import MatchupItem from "../components/MatchupItem";
 import Comment from "../components/Comment";
 import Button from "../components/Button";
+import ConfirmModal from "../components/ConfirmModal";
 import SkeletonCard from "../components/SkeletonCard";
 import {
   getMatchup,
@@ -37,7 +38,7 @@ const MatchupPage = () => {
   const [isLiked, setIsLiked] = useState(false);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
-  const [commentsOpen, setCommentsOpen] = useState(false);
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [commentError, setCommentError] = useState(null);
@@ -46,6 +47,9 @@ const MatchupPage = () => {
   const [readyPending, setReadyPending] = useState(false);
   const [activatePending, setActivatePending] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [confirmModal, setConfirmModal] = useState(null); // { message, confirmLabel, danger, onConfirm }
+  const [votedItemId, setVotedItemId] = useState(null);
 
   /* ------------------------------------------------------------------ */
   /* DATA LOADING */
@@ -56,25 +60,26 @@ const MatchupPage = () => {
     let matchupData;
     try {
       const res = await getMatchup(id);
-      matchupData = res.data?.response ?? res.data;
+      matchupData = res.data?.matchup ?? res.data?.response ?? res.data;
     } catch (e) {
       if (e?.response?.status === 403) {
         throw e;
       }
       // fallback for older setups
       const res = await getUserMatchup(uid, id);
-      matchupData = res.data?.response ?? res.data;
+      matchupData = res.data?.matchup ?? res.data?.response ?? res.data;
     }
 
     setMatchup(matchupData);
 
     const commentsRes = await getComments(id);
-    setComments(commentsRes.data.response ?? commentsRes.data ?? []);
+    const rawComments = commentsRes.data?.comments ?? commentsRes.data?.response ?? commentsRes.data;
+    setComments(Array.isArray(rawComments) ? rawComments : []);
 
     // ✅ Likes should represent the logged-in viewer, not the UID in the URL
     if (viewerId) {
       const likesRes = await getUserLikes(viewerId);
-      const likes = likesRes.data.response ?? likesRes.data ?? [];
+      const likes = likesRes.data?.likes ?? likesRes.data?.response ?? likesRes.data ?? [];
       const liked = Array.isArray(likes)
         ? likes.some((l) => String(l.matchup_id) === String(id))
         : false;
@@ -83,11 +88,11 @@ const MatchupPage = () => {
       setIsLiked(false);
     }
 
-    setLikesCount(matchupData.likes_count ?? matchupData.likesCount ?? 0);
+    setLikesCount(Number(matchupData.likes_count ?? matchupData.likesCount ?? 0));
 
     if (matchupData.bracket_id) {
       const b = await getBracket(matchupData.bracket_id);
-      setBracket(b.data.response ?? b.data);
+      setBracket(b.data?.bracket ?? b.data?.response ?? b.data);
     } else {
       setBracket(null);
     }
@@ -114,10 +119,17 @@ const MatchupPage = () => {
   }, [loadMatchup]);
 
   useEffect(() => {
+    if (matchup?.title) {
+      document.title = `${matchup.title} | Matchup Hub`;
+      return () => { document.title = 'Matchup Hub'; };
+    }
+  }, [matchup?.title]);
+
+  useEffect(() => {
     async function loadMe() {
       try {
         const res = await getCurrentUser();
-        setCurrentUser(res.data.response ?? res.data);
+        setCurrentUser(res.data?.user ?? res.data?.response ?? res.data);
       } catch (err) {
         console.warn("Unable to load current user", err);
       }
@@ -155,9 +167,9 @@ const MatchupPage = () => {
   /* PERMISSIONS + LOCKS */
   /* ------------------------------------------------------------------ */
 
-  const isOwner = viewerId && matchup?.author_id && viewerId === matchup.author_id;
+  const isOwner = currentUser?.id && matchup?.author_id && currentUser.id === matchup.author_id;
 
-  const isAdmin = (currentUser?.role ?? currentUser?.Role) === "admin";
+  const isAdmin = currentUser?.is_admin === true;
 
   const canManageBracket = isBracketMatchup && (isOwner || isAdmin);
   const showBracketActivate =
@@ -169,13 +181,14 @@ const MatchupPage = () => {
     Number(matchupRound) === Number(bracket?.current_round ?? bracket?.currentRound);
 
   const isVotingLocked =
-    matchupExpired ||
-    (!isBracketMatchup && !isOpenStatus) ||
-    (isBracketMatchup &&
-      (!bracket ||
-        bracket.status !== "active" ||
-        Number(matchupRound) !==
-          Number(bracket?.current_round ?? bracket?.currentRound)));
+    !isOwner && (
+      matchupExpired ||
+      (!isBracketMatchup && !isOpenStatus) ||
+      (isBracketMatchup &&
+        (!bracket ||
+          bracket.status !== "active" ||
+          Number(matchupRound) !==
+            Number(bracket?.current_round ?? bracket?.currentRound))));
 
   const interactionLocked =
     matchupExpired ||
@@ -211,8 +224,10 @@ const MatchupPage = () => {
 
   const winnerItemId =
     winnerItemIdRaw !== null && winnerItemIdRaw !== undefined
-      ? Number(winnerItemIdRaw)
+      ? winnerItemIdRaw
       : null;
+
+  const displayWinnerId = isReady ? winnerItemId : null;
 
   useEffect(() => {
     hasRefreshedAfterExpiry.current = false;
@@ -281,8 +296,6 @@ const MatchupPage = () => {
       return;
     }
 
-    if (!window.confirm("Delete this matchup?")) return;
-
     try {
       setIsDeleting(true);
       await deleteMatchup(matchup.id);
@@ -314,7 +327,7 @@ const MatchupPage = () => {
       }
     } catch (err) {
       console.error(err);
-      setError("Unable to update like.");
+      setError(err?.response?.data?.message || err?.response?.data?.error || "Unable to update like.");
     } finally {
       setLikePending(false);
     }
@@ -338,56 +351,68 @@ const MatchupPage = () => {
     }
   };
 
-  const handleOverrideWinner = async (winnerId) => {
+  const handleOverrideWinner = (winnerId) => {
     if (!canOverrideWinner) return;
-
-    // If tie-after-expiry in active round, confirm that winner selection will advance
     const msg = isTieAfterExpiryInActiveRound
       ? "Select this winner? You can still change it until the round advances."
       : "Override votes and select this winner?";
-
-    if (!window.confirm(msg)) return;
-
-    try {
-      await overrideMatchupWinner(matchup.id, winnerId);
-      await refreshMatchup();
-    } catch (err) {
-      console.error(err);
-      setError("Failed to select winner.");
-    }
+    setConfirmModal({
+      message: msg,
+      confirmLabel: 'Confirm',
+      danger: false,
+      onConfirm: async () => {
+        try {
+          await overrideMatchupWinner(matchup.id, winnerId);
+          await refreshMatchup();
+        } catch (err) {
+          console.error(err);
+          setError("Failed to select winner.");
+        }
+      },
+    });
   };
 
-  const handleReadyUp = async () => {
+  const handleReadyUp = () => {
     if (!readyEnabled || readyPending) return;
-
     const promptMessage = isReady ? "Undo ready?" : "Ready up and lock the winner?";
-    if (!window.confirm(promptMessage)) return;
-
-    try {
-      setReadyPending(true);
-      await completeMatchup(matchup.id);
-      await refreshMatchup();
-    } catch (err) {
-      console.error(err);
-      setError("Could not update matchup readiness.");
-    } finally {
-      setReadyPending(false);
-    }
+    setConfirmModal({
+      message: promptMessage,
+      confirmLabel: isReady ? 'Undo' : 'Ready up',
+      danger: false,
+      onConfirm: async () => {
+        try {
+          setReadyPending(true);
+          await completeMatchup(matchup.id);
+          await refreshMatchup();
+        } catch (err) {
+          console.error(err);
+          setError("Could not update matchup readiness.");
+        } finally {
+          setReadyPending(false);
+        }
+      },
+    });
   };
 
-  const handleActivateMatchup = async () => {
+  const handleActivateMatchup = () => {
     if (!canActivate) return;
-    if (!window.confirm("Activate this matchup?")) return;
-    try {
-      setActivatePending(true);
-      await activateMatchup(matchup.id);
-      await refreshMatchup();
-    } catch (err) {
-      console.error(err);
-      setError("Unable to activate matchup.");
-    } finally {
-      setActivatePending(false);
-    }
+    setConfirmModal({
+      message: 'Activate this matchup?',
+      confirmLabel: 'Activate',
+      danger: false,
+      onConfirm: async () => {
+        try {
+          setActivatePending(true);
+          await activateMatchup(matchup.id);
+          await refreshMatchup();
+        } catch (err) {
+          console.error(err);
+          setError("Unable to activate matchup.");
+        } finally {
+          setActivatePending(false);
+        }
+      },
+    });
   };
 
   /* ------------------------------------------------------------------ */
@@ -437,78 +462,31 @@ const MatchupPage = () => {
           </div>
         )}
 
-        <section className="matchup-section matchup-section--status">
-          <div className="matchup-status-row">
-            <div className="matchup-status-pill">
-              Status: <strong>{matchupStatus || "unknown"}</strong>
-            </div>
-
-            {isTieAfterExpiryInActiveRound && (
-              <div className="matchup-status-banner matchup-status-banner--warning">
-                ⚠️ Voting ended in a tie. The owner must choose a winner before the round can advance.
-              </div>
-            )}
-
-            {matchupEndsAt && !matchupExpired && (
-              <div className="matchup-status-pill matchup-status-pill--timer">
-                ⏳ Time remaining: <strong>{countdown.formatted}</strong>
-              </div>
-            )}
-
-            {matchupExpired && (
-              <div className="matchup-status-pill matchup-status-pill--locked">
-                ⛔ Voting closed
-              </div>
-            )}
-          </div>
-
-          <div className="matchup-status-toolbar">
-            <div className="matchup-actions">
-              {viewerId ? (
-                <button
-                  type="button"
-                  className={`matchup-like-button ${isLiked ? "is-liked" : ""}`}
-                  onClick={handleLikeToggle}
-                  disabled={!canLike || likePending}
-                >
-                  {likePending ? "Updating…" : isLiked ? "Liked" : "Like"}
-                </button>
-              ) : null}
-              <div className="matchup-like-indicator">
-                <span className="matchup-like-count">{likesCount}</span>
-                <span>Likes</span>
-              </div>
-            </div>
-
-            <div className="matchup-status-actions">
-              {canReadyUp && (
-                <Button
-                  onClick={handleReadyUp}
-                  disabled={!readyEnabled || readyPending}
-                  className={`matchup-readyup-button ${
-                    isReady ? "matchup-readyup-button--armed" : ""
-                  }`}
-                >
-                  {readyPending ? (isReady ? "Unlocking…" : "Locking…") : isReady ? "Undo Ready" : "Ready up"}
-                </Button>
-              )}
-
-              {canActivate && (
-                <Button
-                  onClick={handleActivateMatchup}
-                  disabled={activatePending}
-                  className="matchup-readyup-button"
-                >
-                  {activatePending ? "Activating…" : "Activate matchup"}
-                </Button>
-              )}
-            </div>
-          </div>
-        </section>
-
         <section className="matchup-section">
-          <header className="matchup-section-header matchup-section-header--stacked">
-            <div>
+          {matchup.image_url && (
+            <div className="matchup-cover-image">
+              <img src={matchup.image_url} alt={matchup.title} />
+            </div>
+          )}
+
+          {Array.isArray(matchup.tags) && matchup.tags.length > 0 && (
+            <div className="matchup-tags">
+              {matchup.tags.map((tag) => (
+                <span key={tag} className="matchup-tag">{tag}</span>
+              ))}
+            </div>
+          )}
+
+          {isBracketMatchup && bracket && (
+            <div className="matchup-bracket-crumb">
+              <Link to={`/brackets/${matchup.bracket_id}`} className="matchup-bracket-crumb__link">
+                ← {bracket.title || "Back to bracket"}
+              </Link>
+            </div>
+          )}
+
+          <div className="matchup-meta">
+            <div className="matchup-meta__left">
               <h2>
                 Matchup{" "}
                 {!isBracketMatchup && (
@@ -523,15 +501,77 @@ const MatchupPage = () => {
                   </>
                 )}
               </h2>
-              <p>Tap a contender to cast your vote.</p>
+              <p className="matchup-subtitle">🗳 Tap a contender to cast your vote.</p>
+              <div className="matchup-status-row">
+                <div className="matchup-status-pill">
+                  Status: <strong>{matchupStatus || "unknown"}</strong>
+                </div>
+                {matchupEndsAt && !matchupExpired && (
+                  <div className="matchup-status-pill matchup-status-pill--timer">
+                    ⏳ <strong>{countdown.formatted}</strong>
+                  </div>
+                )}
+                {matchupExpired && (
+                  <div className="matchup-status-pill matchup-status-pill--locked">
+                    ⛔ Voting closed
+                  </div>
+                )}
+              </div>
+              {isTieAfterExpiryInActiveRound && (
+                <div className="matchup-status-banner matchup-status-banner--warning">
+                  ⚠️ Voting ended in a tie. The owner must choose a winner before the round can advance.
+                </div>
+              )}
             </div>
 
-            <div className="matchup-header-actions">
+            <div className="matchup-meta__right">
+              <div className="matchup-actions">
+                {viewerId ? (
+                  <button
+                    type="button"
+                    className={`matchup-like-button ${isLiked ? "is-liked" : ""}`}
+                    onClick={handleLikeToggle}
+                    disabled={!canLike || likePending}
+                  >
+                    {likePending ? "Updating…" : isLiked ? "❤️ Liked" : "♡ Like"}
+                  </button>
+                ) : null}
+                <div className="matchup-like-indicator">
+                  <span className="matchup-like-count">{likesCount}</span>
+                  <span>Likes</span>
+                </div>
+              </div>
+
+              {canReadyUp && (
+                <div className="matchup-readyup-group">
+                  <Button
+                    onClick={handleReadyUp}
+                    disabled={!readyEnabled || readyPending}
+                    title="Mark this matchup as complete and reveal the winner"
+                    className={`matchup-readyup-button ${isReady ? "matchup-readyup-button--armed" : ""}`}
+                  >
+                    {readyPending ? (isReady ? "Unlocking…" : "Locking…") : isReady ? "Undo Ready" : "Ready up"}
+                  </Button>
+                  <span className="matchup-readyup-hint">Closes voting &amp; reveals winner</span>
+                </div>
+              )}
+
+              {canActivate && (
+                <Button
+                  onClick={handleActivateMatchup}
+                  disabled={activatePending}
+                  className="matchup-readyup-button"
+                >
+                  {activatePending ? "Activating…" : "Activate matchup"}
+                </Button>
+              )}
+
               {isVotingLocked && (
                 <span className="matchup-badge matchup-badge--locked">
                   Voting locked
                 </span>
               )}
+
               {canOverrideWinner && items.length > 0 && (
                 <details ref={winnerMenuRef} className="matchup-winner-menu">
                   <summary className="matchup-winner-summary" aria-label="Winner options">
@@ -546,9 +586,7 @@ const MatchupPage = () => {
                         <button
                           key={`winner-${item.id}`}
                           type="button"
-                          className={`matchup-winner-option ${
-                            isSelected ? "is-selected" : ""
-                          }`}
+                          className={`matchup-winner-option ${isSelected ? "is-selected" : ""}`}
                           onClick={() => {
                             handleOverrideWinner(item.id);
                             if (winnerMenuRef.current) {
@@ -564,7 +602,7 @@ const MatchupPage = () => {
                 </details>
               )}
             </div>
-          </header>
+          </div>
 
           <div className="matchup-items">
             {items.map((item) => (
@@ -573,13 +611,13 @@ const MatchupPage = () => {
                 item={item}
                 totalVotes={totalVotes}
                 showVoteBar
-                isWinner={winnerItemId === item.id}
+                isWinner={displayWinnerId === item.id}
                 isLeading={
-                  winnerItemId === null &&
+                  displayWinnerId === null &&
                   leadingVotes !== null &&
                   Number(item?.votes ?? item?.Votes ?? 0) === Number(leadingVotes)
                 }
-                hasWinner={winnerItemId !== null}
+                hasWinner={displayWinnerId !== null}
                 allowEdit={
                   isOwner &&
                   (!isBracketMatchup || bracket?.status === "draft")
@@ -589,23 +627,12 @@ const MatchupPage = () => {
                 canOverrideWinner={canOverrideWinner}
                 disabled={isVotingLocked}
                 onOverrideWinner={() => handleOverrideWinner(item.id)}
-                onVote={refreshMatchup}
+                onVote={() => { setVotedItemId(item.id); return refreshMatchup(); }}
                 isOwner={isOwner}
+                isVoted={votedItemId === item.id}
               />
             ))}
           </div>
-
-          {isOwner && !isBracketMatchup && (
-            <div style={{ marginTop: 16 }}>
-              <Button
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="matchup-danger-button"
-              >
-                {isDeleting ? "Deleting…" : "Delete matchup"}
-              </Button>
-            </div>
-          )}
         </section>
 
         <section className="matchup-section matchup-section--comments">
@@ -614,56 +641,95 @@ const MatchupPage = () => {
               <h2>Comments</h2>
               <p>Join the debate.</p>
             </div>
-            <button
-              type="button"
-              className="matchup-comment-toggle"
-              onClick={() => setCommentsOpen((prev) => !prev)}
-            >
-              {commentsOpen ? "Hide" : "Show"}
-            </button>
           </header>
 
-          {commentsOpen && (
-            <>
-              <div className="matchup-comments">
-                {comments.length === 0 ? (
-                  <div className="matchup-empty">No comments yet.</div>
-                ) : (
-                  comments.map((comment) => (
-                    <Comment key={comment.id} comment={comment} />
-                  ))
-                )}
+          <div className="matchup-comments">
+            {!Array.isArray(comments) || comments.length === 0 ? (
+              <div className="matchup-empty-comments">
+                <span className="matchup-empty-comments__icon">💬</span>
+                <p>Be the first to share your take!</p>
+                <span className="matchup-empty-comments__arrow">↓</span>
               </div>
+            ) : (
+              comments.filter(Boolean).map((comment) => (
+                <Comment key={comment.id} comment={comment} />
+              ))
+            )}
+          </div>
 
-              {viewerId ? (
-                <form className="matchup-comment-form" onSubmit={handleCommentSubmit}>
-                  <label htmlFor="newComment" className="matchup-form-label">
-                    Add a comment
-                  </label>
-                  <textarea
-                    id="newComment"
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    rows={3}
-                    disabled={commentPending || !canComment}
-                    className="matchup-textarea"
-                  />
-                  {commentError && <p className="matchup-inline-error">{commentError}</p>}
-                  <div className="matchup-form-actions">
-                    <button
-                      type="submit"
-                      disabled={commentPending || !canComment}
-                      className="matchup-primary-button"
-                    >
-                      {commentPending ? "Posting…" : "Post comment"}
-                    </button>
-                  </div>
-                </form>
-              ) : null}
-            </>
-          )}
+          {viewerId ? (
+            <form className="matchup-comment-form" onSubmit={handleCommentSubmit}>
+              <label htmlFor="newComment" className="matchup-form-label">
+                Add a comment
+              </label>
+              <textarea
+                id="newComment"
+                value={newComment}
+                onChange={(e) => {
+                  setNewComment(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = e.target.scrollHeight + 'px';
+                }}
+                rows={1}
+                disabled={commentPending || !canComment}
+                className="matchup-textarea"
+                placeholder="Share your take…"
+              />
+              {commentError && <p className="matchup-inline-error">{commentError}</p>}
+              <div className="matchup-form-actions">
+                <button
+                  type="submit"
+                  disabled={commentPending || !canComment}
+                  className="matchup-primary-button"
+                >
+                  {commentPending ? "Posting…" : "Post comment"}
+                </button>
+              </div>
+            </form>
+          ) : null}
         </section>
+
+        {isOwner && !isBracketMatchup && (
+          <div className="matchup-danger-zone">
+            <Button
+              onClick={() => setDeleteModalOpen(true)}
+              disabled={isDeleting}
+              className="matchup-danger-button"
+            >
+              {isDeleting ? "Deleting…" : "Delete matchup"}
+            </Button>
+          </div>
+        )}
+
+        {deleteModalOpen && (
+          <div className="edit-profile-overlay" onClick={() => setDeleteModalOpen(false)}>
+            <div className="edit-profile-modal" onClick={(e) => e.stopPropagation()}>
+              <h2 className="edit-profile-title">Delete matchup?</h2>
+              <p style={{ color: 'rgba(226,232,240,0.7)', fontSize: '0.9rem', margin: 0 }}>
+                This can't be undone.
+              </p>
+              <div className="edit-profile-actions">
+                <Button className="profile-secondary-button" onClick={() => setDeleteModalOpen(false)} disabled={isDeleting}>
+                  Cancel
+                </Button>
+                <Button className="matchup-danger-button" onClick={() => { setDeleteModalOpen(false); handleDelete(); }} disabled={isDeleting}>
+                  {isDeleting ? 'Deleting…' : 'Delete'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
+
+      {confirmModal && (
+        <ConfirmModal
+          message={confirmModal.message}
+          confirmLabel={confirmModal.confirmLabel}
+          danger={confirmModal.danger}
+          onConfirm={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
     </div>
   );
 };

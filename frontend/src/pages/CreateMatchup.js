@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { FiChevronDown } from "react-icons/fi";
 import NavigationBar from "../components/NavigationBar";
 import Button from "../components/Button";
+import ConfirmModal from "../components/ConfirmModal";
 import { createMatchup } from "../services/api";
 
 const CreateMatchup = () => {
@@ -20,11 +21,14 @@ const CreateMatchup = () => {
   const [content, setContent] = useState("");
   const [items, setItems] = useState([{ item: "" }, { item: "" }]);
   const [endMode, setEndMode] = useState("manual");
-  const [durationMinutes, setDurationMinutes] = useState(60);
+  const [durationMinutes, setDurationMinutes] = useState(5);
+  const [confirmLive, setConfirmLive] = useState(false);
   const [durationSeconds, setDurationSeconds] = useState(0);
   const [mutualsOnly, setMutualsOnly] = useState(false);
   const [tags, setTags] = useState("");
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [advancedOpen, setAdvancedOpen] = useState(true);
   const [showPreview, setShowPreview] = useState(true);
   const [touchedItems, setTouchedItems] = useState([false, false]);
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
@@ -101,13 +105,25 @@ const CreateMatchup = () => {
     return "";
   }, [allInputsFilled, authedUserId, content, filledItems.length, isSubmitting, minItems, title]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     setAttemptedSubmit(true);
     if (isCreateDisabled) return;
+    if (endMode === "timer") {
+      setConfirmLive(true);
+    } else {
+      doCreate();
+    }
+  };
 
+  const doCreate = async () => {
     setError(null);
     setSuccessMessage(null);
+
+    const parsedTags = tags
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
 
     const matchupData = {
       title: title.trim(),
@@ -115,6 +131,7 @@ const CreateMatchup = () => {
       items: sanitizedItems,
       status: "draft",
       end_mode: endMode,
+      tags: parsedTags,
     };
     if (mutualsOnly) {
       matchupData.visibility = "mutuals";
@@ -128,13 +145,25 @@ const CreateMatchup = () => {
       matchupData.duration_seconds = totalSeconds;
     }
 
+    // Encode image as base64 if provided
+    if (imageFile) {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(imageFile);
+      });
+      matchupData.image_data = base64;
+      matchupData.image_content_type = imageFile.type;
+    }
+
     try {
       setIsSubmitting(true);
       setError(null);
 
       const response = await createMatchup(authedUserId, matchupData);
 
-      const created = response?.data?.response ?? response?.data;
+      const created = response?.data?.matchup ?? response?.data?.response ?? response?.data;
       if (!created?.id) {
         throw new Error("Create matchup response missing id");
       }
@@ -356,8 +385,21 @@ const CreateMatchup = () => {
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -6 }}
                             transition={{ duration: 0.2 }}
-                            className="grid gap-3 sm:grid-cols-2"
+                            className="flex flex-col gap-3"
                           >
+                            <div className="flex flex-wrap gap-2">
+                              {[[1,0,'1 min'],[5,0,'5 min'],[10,0,'10 min'],[30,0,'30 min']].map(([m,s,label]) => (
+                                <button
+                                  key={label}
+                                  type="button"
+                                  onClick={() => { setDurationMinutes(m); setDurationSeconds(s); }}
+                                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${durationMinutes === m && durationSeconds === s ? 'border-amber-400/80 bg-amber-400/20 text-amber-200' : 'border-slate-600/60 bg-slate-950/40 text-slate-300 hover:border-slate-400/60'}`}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-2">
                             <div className="flex flex-col gap-2">
                               <label className="text-xs font-semibold text-slate-300">
                                 Minutes
@@ -396,6 +438,7 @@ const CreateMatchup = () => {
                                 required
                               />
                             </div>
+                            </div>
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -418,11 +461,57 @@ const CreateMatchup = () => {
                           type="text"
                           value={tags}
                           onChange={(e) => setTags(e.target.value)}
-                          placeholder="Pop culture, sports, music"
+                          placeholder="Music, Sports, Gaming"
                           className="w-full rounded-2xl border border-slate-600/70 bg-slate-950/60 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400/60"
                           whileFocus={{ scale: 1.01 }}
                           transition={focusTransition}
                         />
+                        <div className="flex flex-wrap gap-2">
+                          {["Music", "Sports", "Gaming", "Anime", "Movies/TV", "Other"].map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => {
+                                const current = tags.split(",").map((t) => t.trim()).filter(Boolean);
+                                if (!current.includes(preset)) {
+                                  setTags(current.length ? current.join(", ") + ", " + preset : preset);
+                                }
+                              }}
+                              className="rounded-full border border-slate-600/60 bg-slate-950/40 px-3 py-1 text-xs font-semibold text-slate-300 hover:border-amber-400/60 hover:text-amber-200"
+                            >
+                              + {preset}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2">
+                        <label className="text-sm font-semibold text-slate-100">
+                          Cover image (optional)
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (!file) return;
+                            setImageFile(file);
+                            setImagePreview(URL.createObjectURL(file));
+                          }}
+                          className="w-full rounded-2xl border border-slate-600/70 bg-slate-950/60 px-4 py-3 text-sm text-slate-300 file:mr-3 file:rounded-full file:border-0 file:bg-amber-400/20 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-amber-200"
+                        />
+                        {imagePreview && (
+                          <div className="relative w-full overflow-hidden rounded-2xl border border-slate-600/60" style={{ height: 140 }}>
+                            <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => { setImageFile(null); setImagePreview(null); }}
+                              className="absolute right-2 top-2 rounded-full bg-slate-900/80 px-2 py-1 text-xs font-semibold text-slate-200 hover:bg-rose-500/60"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </motion.div>
@@ -526,6 +615,15 @@ const CreateMatchup = () => {
           </motion.aside>
         </section>
       </main>
+
+      {confirmLive && (
+        <ConfirmModal
+          message={`Your matchup will go live with a ${durationMinutes}m ${durationSeconds}s timer the moment it's created. Ready to publish?`}
+          confirmLabel="Go live"
+          onConfirm={() => { setConfirmLive(false); doCreate(); }}
+          onCancel={() => setConfirmLive(false)}
+        />
+      )}
     </div>
   );
 };

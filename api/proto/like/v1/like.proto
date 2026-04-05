@@ -1,0 +1,98 @@
+syntax = "proto3";
+package like.v1;
+option go_package = "Matchup/gen/like/v1;likev1";
+
+service LikeService {
+  rpc GetLikes(GetLikesRequest) returns (GetLikesResponse);
+  rpc LikeMatchup(LikeMatchupRequest) returns (LikeMatchupResponse);
+  rpc UnlikeMatchup(UnlikeMatchupRequest) returns (UnlikeMatchupResponse);
+  rpc GetUserLikes(GetUserLikesRequest) returns (GetUserLikesResponse);
+  rpc GetBracketLikes(GetBracketLikesRequest) returns (GetBracketLikesResponse);
+  rpc GetUserBracketLikes(GetUserBracketLikesRequest) returns (GetUserBracketLikesResponse);
+  rpc LikeBracket(LikeBracketRequest) returns (LikeBracketResponse);
+  rpc UnlikeBracket(UnlikeBracketRequest) returns (UnlikeBracketResponse);
+}
+
+// LikeData is a single matchup like record.
+message LikeData {
+  string id = 1;
+  string user_id = 2;
+  string matchup_id = 3;
+  string created_at = 4;
+}
+
+// BracketLikeData is a single bracket like record.
+message BracketLikeData {
+  string id = 1;
+  string user_id = 2;
+  string bracket_id = 3;
+  string created_at = 4;
+}
+
+// ---- Request messages ----
+
+message GetLikesRequest {
+  string matchup_id = 1;
+}
+
+message LikeMatchupRequest {
+  string matchup_id = 1;
+}
+
+message UnlikeMatchupRequest {
+  string matchup_id = 1;
+}
+
+message GetUserLikesRequest {
+  string user_id = 1;
+}
+
+message GetBracketLikesRequest {
+  string bracket_id = 1;
+}
+
+message GetUserBracketLikesRequest {
+  string user_id = 1;
+}
+
+message LikeBracketRequest {
+  string bracket_id = 1;
+}
+
+message UnlikeBracketRequest {
+  string bracket_id = 1;
+}
+
+// ---- Response messages ----
+
+message GetLikesResponse {
+  repeated LikeData likes = 1;
+}
+
+message LikeMatchupResponse {
+  LikeData like = 1;
+}
+
+message UnlikeMatchupResponse {
+  string message = 1;
+}
+
+message GetUserLikesResponse {
+  repeated LikeData likes = 1;
+}
+
+message GetBracketLikesResponse {
+  repeated BracketLikeData likes = 1;
+}
+
+message GetUserBracketLikesResponse {
+  repeated BracketLikeData likes = 1;
+}
+
+message LikeBracketResponse {
+  BracketLikeData like = 1;
+}
+
+message UnlikeBracketResponse {
+  string message = 1;
+}

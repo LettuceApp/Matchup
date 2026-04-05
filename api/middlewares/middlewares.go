@@ -2,70 +2,47 @@ package middlewares
 
 import (
 	"Matchup/auth"
-	"Matchup/models"
+	httpctx "Matchup/utils/httpctx"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
+	"github.com/jmoiron/sqlx"
 )
 
-func TokenAuthMiddleware(db *gorm.DB) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		userID, err := auth.ExtractTokenID(c.Request)
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-			c.Abort()
-			return
-		}
-
-		var user models.User
-		if err := db.Select("id", "is_admin").First(&user, userID).Error; err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-			c.Abort()
-			return
-		}
-
-		c.Set("userID", userID)
-		c.Set("isAdmin", user.IsAdmin)
-		c.Next()
+// SoftJWTMiddleware tries to extract a JWT and inject the user ID into context, but never rejects.
+// Used on public routes that want optional viewer context (e.g., for showing like/follow state).
+func SoftJWTMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if uid, err := auth.ExtractTokenID(r); err == nil {
+				r = r.WithContext(httpctx.WithUserID(r.Context(), uid))
+			}
+			next.ServeHTTP(w, r)
+		})
 	}
 }
 
-func CORSMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-
-		allowedOrigins := []string{
-			"http://localhost:3000",
-			"http://127.0.0.1:3000",
-			"https://matchup-uud5.onrender.com", // frontend
-			"https://matchup-vhl6.onrender.com", // backend (needed for some browsers)
-		}
-
-		origin := c.Request.Header.Get("Origin")
-
-		// Default: no origin allowed
-		allowOrigin := ""
-
-		for _, o := range allowedOrigins {
-			if origin == o {
-				allowOrigin = o
-				break
+// TokenAuthMiddleware validates the JWT token and injects userID + isAdmin into the request context.
+func TokenAuthMiddleware(db *sqlx.DB) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userID, err := auth.ExtractTokenID(r)
+			if err != nil {
+				http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
+				return
 			}
-		}
 
-		if allowOrigin != "" {
-			c.Writer.Header().Set("Access-Control-Allow-Origin", allowOrigin)
-		}
+			var user struct {
+				ID      uint `db:"id"`
+				IsAdmin bool `db:"is_admin"`
+			}
+			if err := db.GetContext(r.Context(), &user, "SELECT id, is_admin FROM users WHERE id = $1", userID); err != nil {
+				http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
+				return
+			}
 
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(200)
-			return
-		}
-
-		c.Next()
+			ctx := httpctx.WithUserID(r.Context(), userID)
+			ctx = httpctx.WithIsAdmin(ctx, user.IsAdmin)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
 	}
 }

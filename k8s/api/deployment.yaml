@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: matchup-api
+  namespace: matchup
+  labels:
+    app: matchup-api
+spec:
+  replicas: 1                    # Stateless — scale up to 2-3 later if needed
+  selector:
+    matchLabels:
+      app: matchup-api
+  template:
+    metadata:
+      labels:
+        app: matchup-api
+    spec:
+      containers:
+        - name: api
+          image: matchupacr.azurecr.io/matchup-api:v1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8888
+          envFrom:
+            - configMapRef:
+                name: matchup-config       # DB_HOST, DB_PORT, API_PORT, etc.
+            - secretRef:
+                name: matchup-secrets      # DB_USER, DB_PASSWORD, API_SECRET, etc.
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: matchup-secrets
+                  key: AWS_ACCESS_KEY_ID_ENV
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: matchup-secrets
+                  key: AWS_SECRET_ACCESS_KEY_ENV
+            - name: AWS_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: matchup-secrets
+                  key: AWS_REGION_ENV
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8888
+            initialDelaySeconds: 10        # Give time for DB migration on first boot
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8888
+            initialDelaySeconds: 30
+            periodSeconds: 30

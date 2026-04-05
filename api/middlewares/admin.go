@@ -1,20 +1,20 @@
 package middlewares
 
 import (
+	httpctx "Matchup/utils/httpctx"
 	"net/http"
-
-	"github.com/gin-gonic/gin"
 )
 
-// AdminOnlyMiddleware ensures that the incoming request is authenticated and belongs to an admin user.
-func AdminOnlyMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		isAdmin, _ := c.Get("isAdmin")
-		if adminFlag, ok := isAdmin.(bool); ok && adminFlag {
-			c.Next()
-			return
-		}
-
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Forbidden"})
+// AdminOnlyMiddleware ensures the authenticated user is an admin.
+// Must be used after TokenAuthMiddleware.
+func AdminOnlyMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !httpctx.IsAdminRequest(r.Context()) {
+				http.Error(w, `{"error":"Forbidden"}`, http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
 	}
 }

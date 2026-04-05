@@ -24,7 +24,10 @@ const RegisterPage = () => {
       const payload = await login({ email, password });
 
       if (payload?.token && payload?.id) {
-        navigate(from, { replace: true });
+        const dest = payload.username
+          ? `/users/${payload.username}`
+          : '/home';
+        navigate(dest, { replace: true });
       } else {
         setError('We could not complete registration. Please try again.');
       }

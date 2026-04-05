@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import NavigationBar from '../components/NavigationBar';
+import ConfirmModal from '../components/ConfirmModal';
 import {
   adminGetUsers,
   adminUpdateUserRole,
@@ -35,6 +36,7 @@ const AdminDashboard = () => {
   const [matchupError, setMatchupError] = useState(null);
   const [bracketError, setBracketError] = useState(null);
   const [actionMessage, setActionMessage] = useState('');
+  const [confirmModal, setConfirmModal] = useState(null);
 
   const navigate = useNavigate();
 
@@ -191,78 +193,71 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDeleteUser = async (user) => {
+  const handleDeleteUser = (user) => {
     setActionMessage('');
-    if (!window.confirm(`Delete ${user.username}? This cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      await adminDeleteUser(user.id);
-      setActionMessage('User deleted.');
-      fetchUsers();
-      fetchMatchups();
-      fetchBrackets();
-    } catch (err) {
-      const status = err?.response?.status;
-      if (status === 401) {
-        handleUnauthorized();
-        return;
-      }
-      if (status === 403) {
-        handleAdminAccessLost();
-        return;
-      }
-      setActionMessage('Unable to delete user.');
-    }
+    setConfirmModal({
+      message: `Delete ${user.username}? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await adminDeleteUser(user.id);
+          setActionMessage('User deleted.');
+          fetchUsers();
+          fetchMatchups();
+          fetchBrackets();
+        } catch (err) {
+          const status = err?.response?.status;
+          if (status === 401) { handleUnauthorized(); return; }
+          if (status === 403) { handleAdminAccessLost(); return; }
+          setActionMessage('Unable to delete user.');
+        }
+      },
+    });
   };
 
-  const handleDeleteMatchup = async (matchupId) => {
+  const handleDeleteMatchup = (matchupId) => {
     setActionMessage('');
-    if (!window.confirm('Delete this matchup? This cannot be undone.')) {
-      return;
-    }
-    try {
-      await adminDeleteMatchup(matchupId);
-      setActionMessage('Matchup deleted.');
-      fetchMatchups();
-    } catch (err) {
-      const status = err?.response?.status;
-      if (status === 401) {
-        handleUnauthorized();
-        return;
-      }
-      if (status === 403) {
-        handleAdminAccessLost();
-        return;
-      }
-      setActionMessage('Unable to delete matchup.');
-    }
+    setConfirmModal({
+      message: 'Delete this matchup? This cannot be undone.',
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await adminDeleteMatchup(matchupId);
+          setActionMessage('Matchup deleted.');
+          fetchMatchups();
+        } catch (err) {
+          const status = err?.response?.status;
+          if (status === 401) { handleUnauthorized(); return; }
+          if (status === 403) { handleAdminAccessLost(); return; }
+          setActionMessage('Unable to delete matchup.');
+        }
+      },
+    });
   };
 
-  const handleDeleteBracket = async (bracketId) => {
+  const handleDeleteBracket = (bracketId) => {
     setActionMessage('');
-    if (!window.confirm('Delete this bracket and all associated matchups?')) {
-      return;
-    }
+    setConfirmModal({
+      message: 'Delete this bracket and all associated matchups?',
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
 
-    try {
-      await adminDeleteBracket(bracketId);
-      setActionMessage('Bracket deleted.');
-      fetchBrackets();
-      fetchMatchups();
-    } catch (err) {
-      const status = err?.response?.status;
-      if (status === 401) {
-        handleUnauthorized();
-        return;
-      }
-      if (status === 403) {
-        handleAdminAccessLost();
-        return;
-      }
-      setActionMessage('Unable to delete bracket.');
-    }
+        try {
+          await adminDeleteBracket(bracketId);
+          setActionMessage('Bracket deleted.');
+          fetchBrackets();
+          fetchMatchups();
+        } catch (err) {
+          const status = err?.response?.status;
+          if (status === 401) { handleUnauthorized(); return; }
+          if (status === 403) { handleAdminAccessLost(); return; }
+          setActionMessage('Unable to delete bracket.');
+        }
+      },
+    });
   };
 
   const renderPagination = (pagination, page, setPage) => {
@@ -524,6 +519,16 @@ const AdminDashboard = () => {
           )}
         </section>
       </main>
+
+      {confirmModal && (
+        <ConfirmModal
+          message={confirmModal.message}
+          confirmLabel={confirmModal.confirmLabel}
+          danger={confirmModal.danger}
+          onConfirm={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
     </div>
   );
 };

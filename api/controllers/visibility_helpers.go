@@ -1,13 +1,12 @@
 package controllers
 
 import (
-	"net/http"
+	"context"
 
-	"Matchup/auth"
 	"Matchup/models"
+	httpctx "Matchup/utils/httpctx"
 
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
+	"github.com/jmoiron/sqlx"
 )
 
 const (
@@ -24,25 +23,23 @@ func normalizeVisibility(value string) string {
 	}
 }
 
-func optionalViewerID(c *gin.Context) (uint, bool) {
-	uid, err := auth.ExtractTokenID(c.Request)
-	if err != nil {
-		return 0, false
-	}
-	return uid, true
+// optionalViewerFromCtx returns the viewer ID from context (set by SoftJWTMiddleware or TokenAuthMiddleware).
+func optionalViewerFromCtx(ctx context.Context) (uint, bool) {
+	return httpctx.CurrentUserID(ctx)
 }
 
-func isFollower(db *gorm.DB, followerID, followedID uint) (bool, error) {
+func isFollower(db sqlx.ExtContext, followerID, followedID uint) (bool, error) {
 	var count int64
-	if err := db.Model(&models.Follow{}).
-		Where("follower_id = ? AND followed_id = ?", followerID, followedID).
-		Count(&count).Error; err != nil {
+	err := sqlx.GetContext(context.Background(), db, &count,
+		"SELECT COUNT(*) FROM follows WHERE follower_id = $1 AND followed_id = $2",
+		followerID, followedID)
+	if err != nil {
 		return false, err
 	}
 	return count > 0, nil
 }
 
-func isMutual(db *gorm.DB, aID, bID uint) (bool, error) {
+func isMutual(db sqlx.ExtContext, aID, bID uint) (bool, error) {
 	fwd, err := isFollower(db, aID, bID)
 	if err != nil || !fwd {
 		return false, err
@@ -54,7 +51,7 @@ func isMutual(db *gorm.DB, aID, bID uint) (bool, error) {
 	return rev, nil
 }
 
-func canViewUserContent(db *gorm.DB, viewerID uint, hasViewer bool, owner *models.User, visibility string, isAdmin bool) (bool, string, error) {
+func canViewUserContent(db sqlx.ExtContext, viewerID uint, hasViewer bool, owner *models.User, visibility string, isAdmin bool) (bool, string, error) {
 	if owner == nil {
 		return false, "followers", nil
 	}
@@ -97,8 +94,4 @@ func visibilityErrorMessage(reason string) string {
 		return "This content is only visible to mutual followers"
 	}
 	return "This content is only visible to followers"
-}
-
-func respondVisibilityDenied(c *gin.Context, reason string) {
-	c.JSON(http.StatusForbidden, gin.H{"error": visibilityErrorMessage(reason)})
 }

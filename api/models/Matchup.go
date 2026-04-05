@@ -1,59 +1,50 @@
 package models
 
 import (
+	"context"
 	"errors"
 	"html"
 	"strings"
 	"time"
 
-	"github.com/twinj/uuid"
-	"gorm.io/gorm"
+	appdb "Matchup/db"
+
+	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 type Matchup struct {
-	ID              uint          `gorm:"primary_key;autoIncrement" json:"id"`
-	PublicID        string        `gorm:"type:uuid;uniqueIndex;column:public_id" json:"public_id"`
-	Title           string        `gorm:"size:255;not null" json:"title"`
-	Content         string        `gorm:"text;not null;" json:"content"`
-	Author          User          `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
-	AuthorID        uint          `gorm:"not null" json:"author_id"`
-	Items           []MatchupItem `gorm:"foreignKey:MatchupID;constraint:OnDelete:CASCADE" json:"items"`
-	Comments        []Comment     `gorm:"foreignKey:MatchupID" json:"comments"`
-	CreatedAt       time.Time     `gorm:"default:CURRENT_TIMESTAMP" json:"created_at"`
-	UpdatedAt       time.Time     `gorm:"default:CURRENT_TIMESTAMP" json:"updated_at"`
-	Status          string        `gorm:"size:20;not null;default:'published'" json:"status"`
-	EndMode         string        `gorm:"size:20;not null;default:'manual'" json:"end_mode"`
-	DurationSeconds int           `gorm:"not null;default:0" json:"duration_seconds"`
-	BracketID       *uint         `gorm:"index" json:"bracket_id,omitempty"`
-	Round           *int          `json:"round,omitempty"`
-	Seed            *int          `json:"seed,omitempty"`
-	WinnerItemID    *uint         `json:"winner_item_id"`
-	StartTime       *time.Time    `json:"start_time,omitempty"`
-	EndTime         *time.Time    `json:"end_time,omitempty"`
-	Visibility      string        `gorm:"size:20;not null;default:'public'" json:"visibility"`
-}
-
-func (m *Matchup) BeforeCreate(tx *gorm.DB) (err error) {
-	if strings.TrimSpace(m.PublicID) == "" {
-		m.PublicID = uuid.NewV4().String()
-	}
-	return nil
+	ID              uint          `db:"id" json:"id"`
+	PublicID        string        `db:"public_id" json:"public_id"`
+	Title           string        `db:"title" json:"title"`
+	Content         string        `db:"content" json:"content"`
+	Author          User          `db:"-" json:"-"`
+	AuthorID        uint          `db:"author_id" json:"author_id"`
+	Items           []MatchupItem `db:"-" json:"items"`
+	Comments        []Comment     `db:"-" json:"comments"`
+	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
+	Status          string        `db:"status" json:"status"`
+	EndMode         string        `db:"end_mode" json:"end_mode"`
+	DurationSeconds int           `db:"duration_seconds" json:"duration_seconds"`
+	BracketID       *uint         `db:"bracket_id" json:"bracket_id,omitempty"`
+	Round           *int          `db:"round" json:"round,omitempty"`
+	Seed            *int          `db:"seed" json:"seed,omitempty"`
+	WinnerItemID    *uint         `db:"winner_item_id" json:"winner_item_id"`
+	StartTime       *time.Time    `db:"start_time" json:"start_time,omitempty"`
+	EndTime         *time.Time    `db:"end_time" json:"end_time,omitempty"`
+	Visibility      string        `db:"visibility" json:"visibility"`
+	ImagePath       string        `db:"image_path" json:"image_path"`
+	Tags            pq.StringArray `db:"tags" json:"tags"`
 }
 
 type MatchupItem struct {
-	ID        uint    `gorm:"primary_key;autoIncrement" json:"id"`
-	PublicID  string  `gorm:"type:uuid;uniqueIndex;column:public_id" json:"public_id"`
-	Matchup   Matchup `gorm:"constraint:OnDelete:CASCADE" json:"-"`
-	MatchupID uint    `gorm:"not null;index" json:"matchup_id"`
-	Item      string  `json:"item"`
-	Votes     int     `json:"votes"`
-}
-
-func (m *MatchupItem) BeforeCreate(tx *gorm.DB) (err error) {
-	if strings.TrimSpace(m.PublicID) == "" {
-		m.PublicID = uuid.NewV4().String()
-	}
-	return nil
+	ID        uint    `db:"id" json:"id"`
+	PublicID  string  `db:"public_id" json:"public_id"`
+	Matchup   Matchup `db:"-" json:"-"`
+	MatchupID uint    `db:"matchup_id" json:"matchup_id"`
+	Item      string  `db:"item" json:"item"`
+	Votes     int     `db:"votes" json:"votes"`
 }
 
 func (m *Matchup) Prepare() {
@@ -90,62 +81,93 @@ func (m *Matchup) Validate() map[string]string {
 	return errorMessages
 }
 
-func (m *Matchup) SaveMatchup(db *gorm.DB) (*Matchup, error) {
-	// Create the Matchup record
-	if err := db.Create(m).Error; err != nil {
+func (m *Matchup) SaveMatchup(db sqlx.ExtContext) (*Matchup, error) {
+	if strings.TrimSpace(m.PublicID) == "" {
+		m.PublicID = appdb.GeneratePublicID()
+	}
+
+	if m.Tags == nil {
+		m.Tags = pq.StringArray{}
+	}
+	query, args, err := appdb.Psql.Insert("matchups").
+		Columns("public_id", "title", "content", "author_id", "status", "end_mode", "duration_seconds", "bracket_id", "round", "seed", "winner_item_id", "start_time", "end_time", "visibility", "image_path", "tags", "created_at", "updated_at").
+		Values(m.PublicID, m.Title, m.Content, m.AuthorID, m.Status, m.EndMode, m.DurationSeconds, m.BracketID, m.Round, m.Seed, m.WinnerItemID, m.StartTime, m.EndTime, m.Visibility, m.ImagePath, m.Tags, m.CreatedAt, m.UpdatedAt).
+		Suffix("RETURNING *").
+		ToSql()
+	if err != nil {
+		return nil, err
+	}
+	if err := sqlx.GetContext(context.Background(), db, m, query, args...); err != nil {
 		return nil, err
 	}
 
-	// Save the MatchupItems
+	// Save items
 	for i, item := range m.Items {
-		// If the item's ID is empty, set the MatchupID and create the item
 		if item.ID == 0 {
-			m.Items[i].MatchupID = m.ID // Set the MatchupID to the ID of the Matchup instance
-			if err := db.Create(&m.Items[i]).Error; err != nil {
+			m.Items[i].MatchupID = m.ID
+			if strings.TrimSpace(m.Items[i].PublicID) == "" {
+				m.Items[i].PublicID = appdb.GeneratePublicID()
+			}
+			q, a, err := appdb.Psql.Insert("matchup_items").
+				Columns("public_id", "matchup_id", "item", "votes").
+				Values(m.Items[i].PublicID, m.Items[i].MatchupID, m.Items[i].Item, m.Items[i].Votes).
+				Suffix("RETURNING *").
+				ToSql()
+			if err != nil {
+				return nil, err
+			}
+			if err := sqlx.GetContext(context.Background(), db, &m.Items[i], q, a...); err != nil {
 				return nil, err
 			}
 		}
 	}
 
-	// Load the author association after creating the matchup.
-	if err := db.Model(m).Association("Author").Find(&m.Author); err != nil {
+	// Load author
+	if err := sqlx.GetContext(context.Background(), db, &m.Author, "SELECT * FROM users WHERE id = $1", m.AuthorID); err != nil {
 		return nil, err
 	}
-
-	// Load the items association after creating the matchup.
-	if err := db.Model(m).Association("Items").Find(&m.Items); err != nil {
-		return nil, err
-	}
+	m.Author.ProcessAvatarPath()
 
 	return m, nil
 }
-func (m *Matchup) FindAllMatchups(db *gorm.DB) ([]Matchup, error) {
-	var err error
+
+func (m *Matchup) FindAllMatchups(db sqlx.ExtContext) ([]Matchup, error) {
 	matchups := []Matchup{}
-	err = db.Preload("Author").Preload("Items").Find(&matchups).Error
+	err := sqlx.SelectContext(context.Background(), db, &matchups, "SELECT * FROM matchups")
 	if err != nil {
+		return []Matchup{}, err
+	}
+	if err := loadMatchupAssociations(db, matchups); err != nil {
 		return []Matchup{}, err
 	}
 	return matchups, nil
 }
 
-func (m *Matchup) FindMatchupByID(db *gorm.DB, id uint) (*Matchup, error) {
-	err := db.Preload("Author").Where("id = ?", id).First(&m).Error
+func (m *Matchup) FindMatchupByID(db sqlx.ExtContext, id uint) (*Matchup, error) {
+	err := sqlx.GetContext(context.Background(), db, m, "SELECT * FROM matchups WHERE id = $1", id)
 	if err != nil {
 		return nil, err
 	}
+	if err := sqlx.GetContext(context.Background(), db, &m.Author, "SELECT * FROM users WHERE id = $1", m.AuthorID); err != nil {
+		return nil, err
+	}
+	m.Author.ProcessAvatarPath()
 	return m, nil
 }
 
-func (m *Matchup) UpdateMatchup(db *gorm.DB) (*Matchup, error) {
-	var err error
-	err = db.Model(&Matchup{}).Where("id = ?", m.ID).Updates(Matchup{Title: m.Title, Content: m.Content, UpdatedAt: time.Now()}).Error
+func (m *Matchup) UpdateMatchup(db sqlx.ExtContext) (*Matchup, error) {
+	_, err := db.ExecContext(context.Background(),
+		"UPDATE matchups SET title = $1, content = $2, updated_at = $3 WHERE id = $4",
+		m.Title, m.Content, time.Now(), m.ID)
 	if err != nil {
 		return &Matchup{}, err
 	}
+
 	for i, item := range m.Items {
-		item.MatchupID = m.ID // Set the matchup_id
-		err := db.Model(&MatchupItem{}).Where("id = ?", item.ID).Save(&item).Error
+		item.MatchupID = m.ID
+		_, err := db.ExecContext(context.Background(),
+			"UPDATE matchup_items SET matchup_id = $1, item = $2, votes = $3 WHERE id = $4",
+			item.MatchupID, item.Item, item.Votes, item.ID)
 		if err != nil {
 			return &Matchup{}, err
 		}
@@ -153,62 +175,70 @@ func (m *Matchup) UpdateMatchup(db *gorm.DB) (*Matchup, error) {
 	}
 
 	if m.ID != 0 {
-		err = db.Model(&User{}).Where("id = ?", m.AuthorID).Take(&m.Author).Error
+		err = sqlx.GetContext(context.Background(), db, &m.Author, "SELECT * FROM users WHERE id = $1", m.AuthorID)
 		if err != nil {
 			return &Matchup{}, err
 		}
+		m.Author.ProcessAvatarPath()
 	}
 	return m, nil
 }
 
-func (m *Matchup) DeleteMatchup(db *gorm.DB, id uint) (int64, error) {
-	result := db.Delete(&Matchup{}, id)
-	if result.Error != nil {
-		return 0, result.Error
+func (m *Matchup) DeleteMatchup(db sqlx.ExtContext, id uint) (int64, error) {
+	result, err := db.ExecContext(context.Background(), "DELETE FROM matchups WHERE id = $1", id)
+	if err != nil {
+		return 0, err
 	}
-	return result.RowsAffected, nil
+	return result.RowsAffected()
 }
-func (m *Matchup) FindUserMatchups(db *gorm.DB, uid uint) (*[]Matchup, error) {
+
+func (m *Matchup) FindUserMatchups(db sqlx.ExtContext, uid uint) (*[]Matchup, error) {
 	var matchups []Matchup
-	result := db.Preload("Author").Preload("Items").Where("author_id = ?", uid).Limit(100).Order("created_at desc").Find(&matchups)
-	if result.Error != nil {
-		return nil, result.Error
+	err := sqlx.SelectContext(context.Background(), db, &matchups,
+		"SELECT * FROM matchups WHERE author_id = $1 ORDER BY created_at DESC LIMIT 100", uid)
+	if err != nil {
+		return nil, err
+	}
+	if err := loadMatchupAssociations(db, matchups); err != nil {
+		return nil, err
 	}
 	return &matchups, nil
 }
 
-// When a user is deleted, we also delete the matchups that the user had
-func (m *Matchup) DeleteUserMatchups(db *gorm.DB, uid uint) (int64, error) {
-	result := db.Where("author_id = ?", uid).Delete(&Matchup{})
-	if result.Error != nil {
-		return 0, result.Error
+func (m *Matchup) DeleteUserMatchups(db sqlx.ExtContext, uid uint) (int64, error) {
+	result, err := db.ExecContext(context.Background(), "DELETE FROM matchups WHERE author_id = $1", uid)
+	if err != nil {
+		return 0, err
 	}
-	return result.RowsAffected, nil
+	return result.RowsAffected()
 }
 
-func (m *MatchupItem) IncrementVotes(db *gorm.DB) error {
-	// Increment votes directly and return error if any
-	return db.Model(&MatchupItem{}).Where("id = ?", m.ID).UpdateColumn("votes", gorm.Expr("votes + ?", 1)).Error
+func (m *MatchupItem) IncrementVotes(db sqlx.ExtContext) error {
+	_, err := db.ExecContext(context.Background(),
+		"UPDATE matchup_items SET votes = votes + 1 WHERE id = $1", m.ID)
+	return err
 }
 
-func (m *Matchup) GetComments(db *gorm.DB) (*[]Comment, error) {
+func (m *Matchup) GetComments(db sqlx.ExtContext) (*[]Comment, error) {
 	comments := []Comment{}
-	err := db.Debug().Model(&Comment{}).Where("matchup_id = ?", m.ID).Order("created_at desc").Find(&comments).Error
+	err := sqlx.SelectContext(context.Background(), db, &comments,
+		"SELECT * FROM comments WHERE matchup_id = $1 ORDER BY created_at DESC", m.ID)
 	if err != nil {
 		return &[]Comment{}, err
 	}
 	return &comments, nil
 }
 
-func FindMatchupsByBracket(db *gorm.DB, bracketID uint) ([]Matchup, error) {
+func FindMatchupsByBracket(db sqlx.ExtContext, bracketID uint) ([]Matchup, error) {
 	var matchups []Matchup
-	err := db.
-		Where("bracket_id = ?", bracketID).
-		Order("round ASC, seed ASC, created_at ASC").
-		Preload("Author").
-		Preload("Items").
-		Find(&matchups).Error
-
+	err := sqlx.SelectContext(context.Background(), db, &matchups,
+		"SELECT * FROM matchups WHERE bracket_id = $1 ORDER BY round ASC, seed ASC, created_at ASC", bracketID)
+	if err != nil {
+		return nil, err
+	}
+	if err := loadMatchupAssociations(db, matchups); err != nil {
+		return nil, err
+	}
 	return matchups, err
 }
 
@@ -253,7 +283,7 @@ func (m *Matchup) HasTie() bool {
 	return true
 }
 
-func FindBracketRounds(db *gorm.DB, bracketID uint) (map[int][]Matchup, error) {
+func FindBracketRounds(db sqlx.ExtContext, bracketID uint) (map[int][]Matchup, error) {
 	matchups, err := FindMatchupsByBracket(db, bracketID)
 	if err != nil {
 		return nil, err
@@ -270,4 +300,64 @@ func FindBracketRounds(db *gorm.DB, bracketID uint) (map[int][]Matchup, error) {
 	}
 
 	return rounds, nil
+}
+
+// loadMatchupAssociations batch-loads Author and Items for a slice of matchups.
+func loadMatchupAssociations(db sqlx.ExtContext, matchups []Matchup) error {
+	if len(matchups) == 0 {
+		return nil
+	}
+
+	// Collect IDs
+	matchupIDs := make([]uint, len(matchups))
+	authorIDs := make([]uint, 0, len(matchups))
+	authorIDSet := make(map[uint]bool)
+	for i, m := range matchups {
+		matchupIDs[i] = m.ID
+		if !authorIDSet[m.AuthorID] {
+			authorIDSet[m.AuthorID] = true
+			authorIDs = append(authorIDs, m.AuthorID)
+		}
+	}
+
+	// Load authors
+	authorMap := make(map[uint]User)
+	if len(authorIDs) > 0 {
+		query, args, err := sqlx.In("SELECT * FROM users WHERE id IN (?)", authorIDs)
+		if err != nil {
+			return err
+		}
+		var authors []User
+		if err := sqlx.SelectContext(context.Background(), db, &authors, db.Rebind(query), args...); err != nil {
+			return err
+		}
+		for _, a := range authors {
+			a.ProcessAvatarPath()
+			authorMap[a.ID] = a
+		}
+	}
+
+	// Load items
+	itemMap := make(map[uint][]MatchupItem)
+	if len(matchupIDs) > 0 {
+		query, args, err := sqlx.In("SELECT * FROM matchup_items WHERE matchup_id IN (?)", matchupIDs)
+		if err != nil {
+			return err
+		}
+		var items []MatchupItem
+		if err := sqlx.SelectContext(context.Background(), db, &items, db.Rebind(query), args...); err != nil {
+			return err
+		}
+		for _, item := range items {
+			itemMap[item.MatchupID] = append(itemMap[item.MatchupID], item)
+		}
+	}
+
+	// Attach
+	for i := range matchups {
+		matchups[i].Author = authorMap[matchups[i].AuthorID]
+		matchups[i].Items = itemMap[matchups[i].ID]
+	}
+
+	return nil
 }
