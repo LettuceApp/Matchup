@@ -30,7 +30,13 @@ node_modules/
 .DS_Store
 api/.DS_Store
 .DS_Store
-orchestration/dagster/
-orchestration/__pycache__
+.claude/
 react-tournament-bracket-0.2.4.tgz
 .pyc
+.DS_Store
+api/go.mod
+api/go.sum
+docs/reports/matchup-cicd-and-tests.pdf
+.gitignore
+docs/reports/matchup-integration-and-cleanup.pdf
+docs/reports/matchup-scaling-changes.pdf
