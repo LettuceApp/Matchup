@@ -42,6 +42,8 @@ message HomeSummaryData {
   repeated HomeMatchupData new_this_week = 7;
   optional HomeCreatorData top_creator = 8;
   repeated HomeCreatorData creators_to_follow = 9;
+  repeated matchup.v1.PopularMatchupData trending_matchups = 10;
+  repeated matchup.v1.PopularMatchupData most_played_matchups = 11;
 }
 
 // ---- Request messages ----

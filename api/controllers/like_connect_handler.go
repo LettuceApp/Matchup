@@ -18,12 +18,18 @@ import (
 )
 
 // LikeHandler implements likev1connect.LikeServiceHandler.
-type LikeHandler struct{ DB *sqlx.DB }
+type LikeHandler struct {
+	DB     *sqlx.DB
+	ReadDB *sqlx.DB
+}
 
 var _ likev1connect.LikeServiceHandler = (*LikeHandler)(nil)
 
 func (h *LikeHandler) GetLikes(ctx context.Context, req *connect.Request[likev1.GetLikesRequest]) (*connect.Response[likev1.GetLikesResponse], error) {
-	matchup, err := resolveMatchupByIdentifier(h.DB, req.Msg.MatchupId)
+	// Pure-read RPC — safe to serve from the replica.
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
+	matchup, err := resolveMatchupByIdentifier(db, req.Msg.MatchupId)
 	if err != nil {
 		if errors.Is(err, errInvalidIdentifier) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid matchup ID"))
@@ -32,16 +38,16 @@ func (h *LikeHandler) GetLikes(ctx context.Context, req *connect.Request[likev1.
 	}
 
 	var m models.Matchup
-	if err := sqlx.GetContext(ctx, h.DB, &m, "SELECT * FROM matchups WHERE id = $1", matchup.ID); err != nil {
+	if err := sqlx.GetContext(ctx, db, &m, "SELECT * FROM matchups WHERE id = $1", matchup.ID); err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("matchup not found"))
 	}
-	if err := sqlx.GetContext(ctx, h.DB, &m.Author, "SELECT * FROM users WHERE id = $1", m.AuthorID); err != nil {
+	if err := sqlx.GetContext(ctx, db, &m.Author, "SELECT * FROM users WHERE id = $1", m.AuthorID); err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("matchup not found"))
 	}
 	m.Author.ProcessAvatarPath()
 
 	viewerID, hasViewer := optionalViewerFromCtx(ctx)
-	allowed, reason, err := canViewUserContent(h.DB, viewerID, hasViewer, &m.Author, m.Visibility, httpctx.IsAdminRequest(ctx))
+	allowed, reason, err := canViewUserContent(db, viewerID, hasViewer, &m.Author, m.Visibility, httpctx.IsAdminRequest(ctx))
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -51,7 +57,7 @@ func (h *LikeHandler) GetLikes(ctx context.Context, req *connect.Request[likev1.
 
 	var likes []models.Like
 	like := models.Like{}
-	ls, err := like.GetLikesInfo(h.DB, matchup.ID)
+	ls, err := like.GetLikesInfo(db, matchup.ID)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -63,8 +69,8 @@ func (h *LikeHandler) GetLikes(ctx context.Context, req *connect.Request[likev1.
 		userIDs = append(userIDs, l.UserID)
 		matchupIDs = append(matchupIDs, l.MatchupID)
 	}
-	userPublicIDs := loadUserPublicIDMap(h.DB, userIDs)
-	matchupPublicIDs := loadMatchupPublicIDMap(h.DB, matchupIDs)
+	userPublicIDs := loadUserPublicIDMap(db, userIDs)
+	matchupPublicIDs := loadMatchupPublicIDMap(db, matchupIDs)
 
 	protos := make([]*likev1.LikeData, len(likes))
 	for i, l := range likes {
@@ -153,7 +159,9 @@ func (h *LikeHandler) LikeMatchup(ctx context.Context, req *connect.Request[like
 
 	userPublicID := resolveUserPublicID(h.DB, nil, uid)
 	matchupPublicID := matchupRecord.PublicID
-	return connect.NewResponse(&likev1.LikeMatchupResponse{Like: likeToProto(like, userPublicID, matchupPublicID)}), nil
+	resp := connect.NewResponse(&likev1.LikeMatchupResponse{Like: likeToProto(like, userPublicID, matchupPublicID)})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *LikeHandler) UnlikeMatchup(ctx context.Context, req *connect.Request[likev1.UnlikeMatchupRequest]) (*connect.Response[likev1.UnlikeMatchupResponse], error) {
@@ -183,24 +191,29 @@ func (h *LikeHandler) UnlikeMatchup(ctx context.Context, req *connect.Request[li
 		}
 		invalidateHomeSummaryCache(m.AuthorID)
 	}
-	return connect.NewResponse(&likev1.UnlikeMatchupResponse{Message: "matchup unliked"}), nil
+	resp := connect.NewResponse(&likev1.UnlikeMatchupResponse{Message: "matchup unliked"})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *LikeHandler) GetUserLikes(ctx context.Context, req *connect.Request[likev1.GetUserLikesRequest]) (*connect.Response[likev1.GetUserLikesResponse], error) {
-	user, err := resolveUserByIdentifier(h.DB, req.Msg.UserId)
+	// Pure-read RPC — safe to serve from the replica.
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
+	user, err := resolveUserByIdentifier(db, req.Msg.UserId)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("user not found"))
 	}
 	var likes []models.Like
-	if err := sqlx.SelectContext(ctx, h.DB, &likes, "SELECT * FROM likes WHERE user_id = $1", user.ID); err != nil {
+	if err := sqlx.SelectContext(ctx, db, &likes, "SELECT * FROM likes WHERE user_id = $1", user.ID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	matchupIDs := make([]uint, 0, len(likes))
 	for _, l := range likes {
 		matchupIDs = append(matchupIDs, l.MatchupID)
 	}
-	userPublicIDs := loadUserPublicIDMap(h.DB, []uint{user.ID})
-	matchupPublicIDs := loadMatchupPublicIDMap(h.DB, matchupIDs)
+	userPublicIDs := loadUserPublicIDMap(db, []uint{user.ID})
+	matchupPublicIDs := loadMatchupPublicIDMap(db, matchupIDs)
 	protos := make([]*likev1.LikeData, len(likes))
 	for i, l := range likes {
 		protos[i] = likeToProto(l, userPublicIDs[l.UserID], matchupPublicIDs[l.MatchupID])
@@ -209,21 +222,24 @@ func (h *LikeHandler) GetUserLikes(ctx context.Context, req *connect.Request[lik
 }
 
 func (h *LikeHandler) GetBracketLikes(ctx context.Context, req *connect.Request[likev1.GetBracketLikesRequest]) (*connect.Response[likev1.GetBracketLikesResponse], error) {
-	bracketRecord, err := resolveBracketByIdentifier(h.DB, req.Msg.BracketId)
+	// Pure-read RPC — safe to serve from the replica.
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
+	bracketRecord, err := resolveBracketByIdentifier(db, req.Msg.BracketId)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("bracket not found"))
 	}
 	var bracket models.Bracket
-	if err := sqlx.GetContext(ctx, h.DB, &bracket, "SELECT * FROM brackets WHERE id = $1", bracketRecord.ID); err != nil {
+	if err := sqlx.GetContext(ctx, db, &bracket, "SELECT * FROM brackets WHERE id = $1", bracketRecord.ID); err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("bracket not found"))
 	}
-	if err := sqlx.GetContext(ctx, h.DB, &bracket.Author, "SELECT * FROM users WHERE id = $1", bracket.AuthorID); err != nil {
+	if err := sqlx.GetContext(ctx, db, &bracket.Author, "SELECT * FROM users WHERE id = $1", bracket.AuthorID); err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("bracket not found"))
 	}
 	bracket.Author.ProcessAvatarPath()
 
 	viewerID, hasViewer := optionalViewerFromCtx(ctx)
-	allowed, reason, err := canViewUserContent(h.DB, viewerID, hasViewer, &bracket.Author, bracket.Visibility, httpctx.IsAdminRequest(ctx))
+	allowed, reason, err := canViewUserContent(db, viewerID, hasViewer, &bracket.Author, bracket.Visibility, httpctx.IsAdminRequest(ctx))
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -232,14 +248,14 @@ func (h *LikeHandler) GetBracketLikes(ctx context.Context, req *connect.Request[
 	}
 
 	var likes []models.BracketLike
-	if err := sqlx.SelectContext(ctx, h.DB, &likes, "SELECT * FROM bracket_likes WHERE bracket_id = $1", bracketRecord.ID); err != nil {
+	if err := sqlx.SelectContext(ctx, db, &likes, "SELECT * FROM bracket_likes WHERE bracket_id = $1", bracketRecord.ID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	userIDs := make([]uint, 0, len(likes))
 	for _, l := range likes {
 		userIDs = append(userIDs, l.UserID)
 	}
-	userPublicIDs := loadUserPublicIDMap(h.DB, userIDs)
+	userPublicIDs := loadUserPublicIDMap(db, userIDs)
 	protos := make([]*likev1.BracketLikeData, len(likes))
 	for i, l := range likes {
 		protos[i] = bracketLikeToProto(l, userPublicIDs[l.UserID], bracketRecord.PublicID)
@@ -248,19 +264,22 @@ func (h *LikeHandler) GetBracketLikes(ctx context.Context, req *connect.Request[
 }
 
 func (h *LikeHandler) GetUserBracketLikes(ctx context.Context, req *connect.Request[likev1.GetUserBracketLikesRequest]) (*connect.Response[likev1.GetUserBracketLikesResponse], error) {
-	user, err := resolveUserByIdentifier(h.DB, req.Msg.UserId)
+	// Pure-read RPC — safe to serve from the replica.
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
+	user, err := resolveUserByIdentifier(db, req.Msg.UserId)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("user not found"))
 	}
 	var likes []models.BracketLike
-	if err := sqlx.SelectContext(ctx, h.DB, &likes, "SELECT * FROM bracket_likes WHERE user_id = $1", user.ID); err != nil {
+	if err := sqlx.SelectContext(ctx, db, &likes, "SELECT * FROM bracket_likes WHERE user_id = $1", user.ID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	bracketIDs := make([]uint, 0, len(likes))
 	for _, l := range likes {
 		bracketIDs = append(bracketIDs, l.BracketID)
 	}
-	bracketPublicIDs := loadBracketPublicIDMap(h.DB, bracketIDs)
+	bracketPublicIDs := loadBracketPublicIDMap(db, bracketIDs)
 	protos := make([]*likev1.BracketLikeData, len(likes))
 	for i, l := range likes {
 		protos[i] = bracketLikeToProto(l, user.PublicID, bracketPublicIDs[l.BracketID])
@@ -318,7 +337,9 @@ func (h *LikeHandler) LikeBracket(ctx context.Context, req *connect.Request[like
 	invalidateHomeSummaryCache(bracket.AuthorID)
 
 	userPublicID := resolveUserPublicID(h.DB, nil, uid)
-	return connect.NewResponse(&likev1.LikeBracketResponse{Like: bracketLikeToProto(like, userPublicID, bracketRecord.PublicID)}), nil
+	resp := connect.NewResponse(&likev1.LikeBracketResponse{Like: bracketLikeToProto(like, userPublicID, bracketRecord.PublicID)})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *LikeHandler) UnlikeBracket(ctx context.Context, req *connect.Request[likev1.UnlikeBracketRequest]) (*connect.Response[likev1.UnlikeBracketResponse], error) {
@@ -345,5 +366,7 @@ func (h *LikeHandler) UnlikeBracket(ctx context.Context, req *connect.Request[li
 		invalidateBracketSummaryCache(bracket.ID)
 		invalidateHomeSummaryCache(bracket.AuthorID)
 	}
-	return connect.NewResponse(&likev1.UnlikeBracketResponse{Message: "bracket unliked"}), nil
+	resp := connect.NewResponse(&likev1.UnlikeBracketResponse{Message: "bracket unliked"})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }

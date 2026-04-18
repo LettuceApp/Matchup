@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"Matchup/controllers"
 	appdb "Matchup/db"
 	"Matchup/migrations"
+	"Matchup/scheduler"
 
 	"github.com/joho/godotenv"
 )
@@ -59,6 +61,21 @@ func Run() {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
+	}
+
+	// Local-dev convenience: run the scheduler in-process when
+	// EMBED_SCHEDULER=true so snapshots refresh without needing to run
+	// cmd/cron/main.go in a separate terminal. Production keeps the
+	// scheduler in its own K8s pod (cmd/cron/main.go) so this is off by
+	// default.
+	if strings.EqualFold(os.Getenv("EMBED_SCHEDULER"), "true") {
+		sched := scheduler.New(&server)
+		go func() {
+			log.Println("embedded scheduler: starting")
+			if err := sched.Run(context.Background()); err != nil {
+				log.Printf("embedded scheduler exited: %v", err)
+			}
+		}()
 	}
 
 	log.Printf("Starting server on port %s\n", port)

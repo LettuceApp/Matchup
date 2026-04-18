@@ -211,18 +211,20 @@ func (x *HomeMatchupData) GetCreatedAt() string {
 
 // HomeSummaryData is the full home page response.
 type HomeSummaryData struct {
-	state            protoimpl.MessageState    `protogen:"open.v1"`
-	PopularMatchups  []*v1.PopularMatchupData  `protobuf:"bytes,1,rep,name=popular_matchups,json=popularMatchups,proto3" json:"popular_matchups,omitempty"`
-	PopularBrackets  []*v11.PopularBracketData `protobuf:"bytes,2,rep,name=popular_brackets,json=popularBrackets,proto3" json:"popular_brackets,omitempty"`
-	TotalEngagements float64                   `protobuf:"fixed64,3,opt,name=total_engagements,json=totalEngagements,proto3" json:"total_engagements,omitempty"`
-	VotesToday       int32                     `protobuf:"varint,4,opt,name=votes_today,json=votesToday,proto3" json:"votes_today,omitempty"`
-	ActiveMatchups   int32                     `protobuf:"varint,5,opt,name=active_matchups,json=activeMatchups,proto3" json:"active_matchups,omitempty"`
-	ActiveBrackets   int32                     `protobuf:"varint,6,opt,name=active_brackets,json=activeBrackets,proto3" json:"active_brackets,omitempty"`
-	NewThisWeek      []*HomeMatchupData        `protobuf:"bytes,7,rep,name=new_this_week,json=newThisWeek,proto3" json:"new_this_week,omitempty"`
-	TopCreator       *HomeCreatorData          `protobuf:"bytes,8,opt,name=top_creator,json=topCreator,proto3,oneof" json:"top_creator,omitempty"`
-	CreatorsToFollow []*HomeCreatorData        `protobuf:"bytes,9,rep,name=creators_to_follow,json=creatorsToFollow,proto3" json:"creators_to_follow,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state              protoimpl.MessageState    `protogen:"open.v1"`
+	PopularMatchups    []*v1.PopularMatchupData  `protobuf:"bytes,1,rep,name=popular_matchups,json=popularMatchups,proto3" json:"popular_matchups,omitempty"`
+	PopularBrackets    []*v11.PopularBracketData `protobuf:"bytes,2,rep,name=popular_brackets,json=popularBrackets,proto3" json:"popular_brackets,omitempty"`
+	TotalEngagements   float64                   `protobuf:"fixed64,3,opt,name=total_engagements,json=totalEngagements,proto3" json:"total_engagements,omitempty"`
+	VotesToday         int32                     `protobuf:"varint,4,opt,name=votes_today,json=votesToday,proto3" json:"votes_today,omitempty"`
+	ActiveMatchups     int32                     `protobuf:"varint,5,opt,name=active_matchups,json=activeMatchups,proto3" json:"active_matchups,omitempty"`
+	ActiveBrackets     int32                     `protobuf:"varint,6,opt,name=active_brackets,json=activeBrackets,proto3" json:"active_brackets,omitempty"`
+	NewThisWeek        []*HomeMatchupData        `protobuf:"bytes,7,rep,name=new_this_week,json=newThisWeek,proto3" json:"new_this_week,omitempty"`
+	TopCreator         *HomeCreatorData          `protobuf:"bytes,8,opt,name=top_creator,json=topCreator,proto3,oneof" json:"top_creator,omitempty"`
+	CreatorsToFollow   []*HomeCreatorData        `protobuf:"bytes,9,rep,name=creators_to_follow,json=creatorsToFollow,proto3" json:"creators_to_follow,omitempty"`
+	TrendingMatchups   []*v1.PopularMatchupData  `protobuf:"bytes,10,rep,name=trending_matchups,json=trendingMatchups,proto3" json:"trending_matchups,omitempty"`
+	MostPlayedMatchups []*v1.PopularMatchupData  `protobuf:"bytes,11,rep,name=most_played_matchups,json=mostPlayedMatchups,proto3" json:"most_played_matchups,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *HomeSummaryData) Reset() {
@@ -314,6 +316,20 @@ func (x *HomeSummaryData) GetTopCreator() *HomeCreatorData {
 func (x *HomeSummaryData) GetCreatorsToFollow() []*HomeCreatorData {
 	if x != nil {
 		return x.CreatorsToFollow
+	}
+	return nil
+}
+
+func (x *HomeSummaryData) GetTrendingMatchups() []*v1.PopularMatchupData {
+	if x != nil {
+		return x.TrendingMatchups
+	}
+	return nil
+}
+
+func (x *HomeSummaryData) GetMostPlayedMatchups() []*v1.PopularMatchupData {
+	if x != nil {
+		return x.MostPlayedMatchups
 	}
 	return nil
 }
@@ -423,7 +439,7 @@ const file_home_v1_home_proto_rawDesc = "" +
 	"bracket_id\x18\x04 \x01(\tH\x00R\tbracketId\x88\x01\x01\x12\x1d\n" +
 	"\n" +
 	"created_at\x18\x05 \x01(\tR\tcreatedAtB\r\n" +
-	"\v_bracket_id\"\x9d\x04\n" +
+	"\v_bracket_id\"\xbc\x05\n" +
 	"\x0fHomeSummaryData\x12I\n" +
 	"\x10popular_matchups\x18\x01 \x03(\v2\x1e.matchup.v1.PopularMatchupDataR\x0fpopularMatchups\x12I\n" +
 	"\x10popular_brackets\x18\x02 \x03(\v2\x1e.bracket.v1.PopularBracketDataR\x0fpopularBrackets\x12+\n" +
@@ -435,7 +451,10 @@ const file_home_v1_home_proto_rawDesc = "" +
 	"\rnew_this_week\x18\a \x03(\v2\x18.home.v1.HomeMatchupDataR\vnewThisWeek\x12>\n" +
 	"\vtop_creator\x18\b \x01(\v2\x18.home.v1.HomeCreatorDataH\x00R\n" +
 	"topCreator\x88\x01\x01\x12F\n" +
-	"\x12creators_to_follow\x18\t \x03(\v2\x18.home.v1.HomeCreatorDataR\x10creatorsToFollowB\x0e\n" +
+	"\x12creators_to_follow\x18\t \x03(\v2\x18.home.v1.HomeCreatorDataR\x10creatorsToFollow\x12K\n" +
+	"\x11trending_matchups\x18\n" +
+	" \x03(\v2\x1e.matchup.v1.PopularMatchupDataR\x10trendingMatchups\x12P\n" +
+	"\x14most_played_matchups\x18\v \x03(\v2\x1e.matchup.v1.PopularMatchupDataR\x12mostPlayedMatchupsB\x0e\n" +
 	"\f_top_creator\"\x17\n" +
 	"\x15GetHomeSummaryRequest\"L\n" +
 	"\x16GetHomeSummaryResponse\x122\n" +
@@ -471,14 +490,16 @@ var file_home_v1_home_proto_depIdxs = []int32{
 	1, // 2: home.v1.HomeSummaryData.new_this_week:type_name -> home.v1.HomeMatchupData
 	0, // 3: home.v1.HomeSummaryData.top_creator:type_name -> home.v1.HomeCreatorData
 	0, // 4: home.v1.HomeSummaryData.creators_to_follow:type_name -> home.v1.HomeCreatorData
-	2, // 5: home.v1.GetHomeSummaryResponse.summary:type_name -> home.v1.HomeSummaryData
-	3, // 6: home.v1.HomeService.GetHomeSummary:input_type -> home.v1.GetHomeSummaryRequest
-	4, // 7: home.v1.HomeService.GetHomeSummary:output_type -> home.v1.GetHomeSummaryResponse
-	7, // [7:8] is the sub-list for method output_type
-	6, // [6:7] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	5, // 5: home.v1.HomeSummaryData.trending_matchups:type_name -> matchup.v1.PopularMatchupData
+	5, // 6: home.v1.HomeSummaryData.most_played_matchups:type_name -> matchup.v1.PopularMatchupData
+	2, // 7: home.v1.GetHomeSummaryResponse.summary:type_name -> home.v1.HomeSummaryData
+	3, // 8: home.v1.HomeService.GetHomeSummary:input_type -> home.v1.GetHomeSummaryRequest
+	4, // 9: home.v1.HomeService.GetHomeSummary:output_type -> home.v1.GetHomeSummaryResponse
+	9, // [9:10] is the sub-list for method output_type
+	8, // [8:9] is the sub-list for method input_type
+	8, // [8:8] is the sub-list for extension type_name
+	8, // [8:8] is the sub-list for extension extendee
+	0, // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_home_v1_home_proto_init() }

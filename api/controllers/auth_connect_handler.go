@@ -2,15 +2,19 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"strings"
 
 	"Matchup/auth"
+	"Matchup/cache"
 	appdb "Matchup/db"
 	authv1 "Matchup/gen/auth/v1"
 	"Matchup/gen/auth/v1/authv1connect"
+	"Matchup/jobs"
+	"Matchup/jobs/handlers"
 	"Matchup/mailer"
 	"Matchup/models"
 	"Matchup/security"
@@ -90,6 +94,28 @@ func (h *AuthHandler) ForgotPassword(ctx context.Context, req *connect.Request[a
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
+	// Static success message — we never wait for Sendgrid before
+	// responding. The user sees a fast 200 regardless of email
+	// provider latency.
+	const successMessage = "Success, Please click on the link provided in your email"
+
+	// Hand the actual SendGrid call off to the worker. If Redis is
+	// unavailable (e.g. local dev without `cache` configured), fall
+	// back to the synchronous path so password resets still work.
+	payload, marshalErr := json.Marshal(handlers.EmailJob{
+		Kind:  handlers.EmailKindResetPassword,
+		To:    resetDetails.Email,
+		Token: resetDetails.Token,
+	})
+	if marshalErr == nil && cache.Client != nil {
+		if err := jobs.Enqueue(ctx, handlers.EmailQueue, payload); err == nil {
+			return connect.NewResponse(&authv1.ForgotPasswordResponse{Message: successMessage}), nil
+		} else {
+			log.Printf("forgot password: enqueue failed, falling back to inline send: %v", err)
+		}
+	}
+
+	// Inline fallback — keeps dev environments without Redis working.
 	response, err := mailer.SendMail.SendResetPassword(
 		resetDetails.Email,
 		os.Getenv("SENDGRID_FROM"),

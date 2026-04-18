@@ -1,0 +1,144 @@
+# =============================================================
+# Postgres read replica (streaming replication)
+# =============================================================
+# Why a StatefulSet (not a Deployment): PG14 standby needs a
+# stable per-pod data dir, and the init container's pg_basebackup
+# only runs when that dir is empty. A Deployment + RWO PVC would
+# fight reschedules; a StatefulSet ties pod-0 to claim-0
+# permanently.
+#
+# How initialization works:
+#   1. The init container `bootstrap` checks whether
+#      /var/lib/postgresql/data/pgdata/PG_VERSION exists.
+#   2. If absent, it runs `pg_basebackup` against the primary
+#      service, fetching a full base backup + WAL stream into the
+#      empty PGDATA. It also writes `standby.signal` and
+#      configures `primary_conninfo` so the main container starts
+#      as a hot standby.
+#   3. The main `postgres` container then starts normally — it
+#      sees standby.signal and enters recovery mode.
+#
+# To recover after a primary fail-over you would delete the
+# replica PVC and let pod-0 reinitialize from the new primary.
+#
+# Deliberately uses the same image, resources, and probes as the
+# primary — this is a hot read replica, not a degraded copy.
+# =============================================================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-replica
+  namespace: matchup
+  labels:
+    app: postgres
+    role: replica
+spec:
+  serviceName: postgres-replica
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+      role: replica
+  template:
+    metadata:
+      labels:
+        app: postgres
+        role: replica
+    spec:
+      initContainers:
+        - name: bootstrap
+          image: postgres:14
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: matchup-secrets
+                  key: REPLICATION_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              if [ -s "$PGDATA/PG_VERSION" ]; then
+                echo "PGDATA already initialized; skipping pg_basebackup"
+                exit 0
+              fi
+              echo "Bootstrapping standby from primary…"
+              # The PVC may have a stray lost+found from the filesystem
+              # init — pg_basebackup refuses to run if the target dir is
+              # non-empty.
+              mkdir -p "$PGDATA"
+              find "$PGDATA" -mindepth 1 -delete
+              until pg_isready -h postgres -U replicator; do
+                echo "waiting for primary…"
+                sleep 2
+              done
+              pg_basebackup \
+                -h postgres \
+                -U replicator \
+                -D "$PGDATA" \
+                -Fp -Xs -P -R
+              # -R writes standby.signal + primary_conninfo into
+              # postgresql.auto.conf, so no extra setup is needed.
+              chmod 700 "$PGDATA"
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+      containers:
+        - name: postgres
+          image: postgres:14
+          ports:
+            - containerPort: 5432
+          # Skip POSTGRES_USER / POSTGRES_DB env vars — those tell the
+          # entrypoint to run initdb, which we already bypassed via
+          # pg_basebackup. We just need the standby to come up and stream.
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          readinessProbe:
+            exec:
+              # Standby is "ready" once it accepts connections.
+              # pg_isready returns 0 even in recovery mode.
+              command: ["pg_isready", "-h", "127.0.0.1"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-h", "127.0.0.1"]
+            initialDelaySeconds: 60
+            periodSeconds: 30
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: managed-csi
+        resources:
+          requests:
+            storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-replica
+  namespace: matchup
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+    role: replica
+  ports:
+    - port: 5432
+      targetPort: 5432

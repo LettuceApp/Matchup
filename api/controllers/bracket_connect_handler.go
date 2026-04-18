@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"time"
 
+	"Matchup/cache"
 	bracketv1 "Matchup/gen/bracket/v1"
 	"Matchup/gen/bracket/v1/bracketv1connect"
 	matchupv1 "Matchup/gen/matchup/v1"
@@ -19,20 +21,60 @@ import (
 	"github.com/lib/pq"
 )
 
+// tryAdvanceIfExpired is the request-path "safety net" advance. Unlike
+// the scheduler (which runs every 10s), this fires only when a reader
+// notices a bracket's round is overdue. Two layers of defense prevent
+// this from creating lock contention with the scheduler or other readers:
+//
+//  1. Cheap in-memory pre-check on the bracket struct already loaded —
+//     eliminates 99%+ of calls without touching the DB or Redis.
+//  2. Redis SETNX distributed lock — only one goroutine per bracket
+//     enters the expensive FOR UPDATE path. The 30s TTL acts as a
+//     cooldown between attempts.
+func (h *BracketHandler) tryAdvanceIfExpired(ctx context.Context, bracket *models.Bracket) {
+	if bracket.Status != "active" ||
+		bracket.AdvanceMode != "timer" ||
+		bracket.RoundEndsAt == nil ||
+		time.Now().Before(*bracket.RoundEndsAt) {
+		return
+	}
+
+	if cache.Client != nil {
+		lockKey := fmt.Sprintf("advance_lock:%d", bracket.ID)
+		ok, _ := cache.Client.SetNX(ctx, lockKey, "1", 30*time.Second).Result()
+		if !ok {
+			return
+		}
+		// Don't defer Del — let the key expire so there's a cooldown.
+	}
+
+	s := &Server{DB: h.DB}
+	if _, err := s.advanceBracketInternal(h.DB, bracket); err != nil {
+		log.Printf("tryAdvanceIfExpired bracket %d: %v", bracket.ID, err)
+		if cache.Client != nil {
+			cache.Client.Del(ctx, fmt.Sprintf("advance_lock:%d", bracket.ID))
+		}
+	}
+}
+
 var _ bracketv1connect.BracketServiceHandler = (*BracketHandler)(nil)
 
 // BracketHandler implements bracketv1connect.BracketServiceHandler.
 type BracketHandler struct {
-	DB *sqlx.DB
+	DB     *sqlx.DB
+	ReadDB *sqlx.DB
 }
 
 func (h *BracketHandler) GetPopularBrackets(ctx context.Context, req *connect.Request[bracketv1.GetPopularBracketsRequest]) (*connect.Response[bracketv1.GetPopularBracketsResponse], error) {
+	// Pure-read RPC — safe to serve from the replica.
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
 	const limit = 5
 	viewerID, hasViewer := optionalViewerFromCtx(ctx)
 	isAdmin := httpctx.IsAdminRequest(ctx)
 
 	var rows []popularBracketRow
-	if err := sqlx.SelectContext(ctx, h.DB, &rows,
+	if err := sqlx.SelectContext(ctx, db, &rows,
 		"SELECT * FROM popular_brackets_snapshot ORDER BY rank ASC LIMIT $1", limit); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -44,21 +86,25 @@ func (h *BracketHandler) GetPopularBrackets(ctx context.Context, req *connect.Re
 		authorIDs = append(authorIDs, row.AuthorID)
 	}
 
-	bracketPublicIDs := loadBracketPublicIDMap(h.DB, bracketIDs)
-	authorPublicIDs := loadUserPublicIDMap(h.DB, authorIDs)
+	bracketPublicIDs := loadBracketPublicIDMap(db, bracketIDs)
+	authorPublicIDs := loadUserPublicIDMap(db, authorIDs)
+
+	bracketsMap := getBracketsByIDs(db, bracketIDs)
+	authorsMap := getUsersByIDs(db, authorIDs)
 
 	var protoBrackets []*bracketv1.PopularBracketData
 	for i := range rows {
-		var bracket models.Bracket
-		if err := sqlx.GetContext(ctx, h.DB, &bracket, "SELECT * FROM brackets WHERE id = $1", rows[i].ID); err != nil {
+		bracket, ok := bracketsMap[rows[i].ID]
+		if !ok {
 			continue
 		}
-		if err := sqlx.GetContext(ctx, h.DB, &bracket.Author, "SELECT * FROM users WHERE id = $1", bracket.AuthorID); err != nil {
+		author, ok := authorsMap[bracket.AuthorID]
+		if !ok {
 			continue
 		}
-		bracket.Author.ProcessAvatarPath()
+		bracket.Author = *author
 
-		allowed, _, err := canViewUserContent(h.DB, viewerID, hasViewer, &bracket.Author, bracket.Visibility, isAdmin)
+		allowed, _, err := canViewUserContent(db, viewerID, hasViewer, &bracket.Author, bracket.Visibility, isAdmin)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
@@ -66,22 +112,19 @@ func (h *BracketHandler) GetPopularBrackets(ctx context.Context, req *connect.Re
 			continue
 		}
 
-		var likesCount int64
-		_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM bracket_likes WHERE bracket_id = $1", bracket.ID)
-		var commentsCount int64
-		_ = sqlx.GetContext(ctx, h.DB, &commentsCount, "SELECT COUNT(*) FROM bracket_comments WHERE bracket_id = $1", bracket.ID)
-
 		dto := PopularBracketDTO{
 			ID:              bracketPublicIDs[rows[i].ID],
 			Title:           rows[i].Title,
 			AuthorID:        authorPublicIDs[rows[i].AuthorID],
+			AuthorUsername:  bracket.Author.Username,
 			CurrentRound:    rows[i].CurrentRound,
 			Size:            bracket.Size,
 			Votes:           0,
-			Likes:           likesCount,
-			Comments:        commentsCount,
+			Likes:           int64(bracket.LikesCount),
+			Comments:        int64(bracket.CommentsCount),
 			EngagementScore: rows[i].EngagementScore,
 			Rank:            rows[i].Rank,
+			CreatedAt:       rfc3339(bracket.CreatedAt),
 		}
 		protoBrackets = append(protoBrackets, popularBracketToProto(dto))
 	}
@@ -117,22 +160,13 @@ func (h *BracketHandler) GetBracket(ctx context.Context, req *connect.Request[br
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New(visibilityErrorMessage(reason)))
 	}
 
-	if found.Status == "active" &&
-		found.AdvanceMode == "timer" &&
-		found.RoundEndsAt != nil &&
-		!time.Now().Before(*found.RoundEndsAt) {
-		s := &Server{DB: h.DB}
-		if _, err := s.advanceBracketInternal(h.DB, found); err != nil {
-			log.Printf("auto advance bracket %d: %v", found.ID, err)
-		} else if refreshed, err := bracket.FindBracketByID(h.DB, found.ID); err == nil {
-			found = refreshed
-		}
+	h.tryAdvanceIfExpired(ctx, found)
+	// Re-read to reflect any advance that just occurred.
+	if refreshed, err := bracket.FindBracketByID(h.DB, found.ID); err == nil {
+		found = refreshed
 	}
 
-	var likesCount int64
-	_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM bracket_likes WHERE bracket_id = $1", found.ID)
-	found.LikesCount = likesCount
-
+	// LikesCount is loaded from the row directly via FindBracketByID (migration 006).
 	return connect.NewResponse(&bracketv1.GetBracketResponse{
 		Bracket: bracketToProto(h.DB, found),
 	}), nil
@@ -166,15 +200,7 @@ func (h *BracketHandler) GetBracketSummary(ctx context.Context, req *connect.Req
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New(visibilityErrorMessage(reason)))
 	}
 
-	if bracket.Status == "active" &&
-		bracket.AdvanceMode == "timer" &&
-		bracket.RoundEndsAt != nil &&
-		!time.Now().Before(*bracket.RoundEndsAt) {
-		s := &Server{DB: h.DB}
-		if _, err := s.advanceBracketInternal(h.DB, &bracket); err != nil {
-			log.Printf("auto advance bracket %d: %v", bracket.ID, err)
-		}
-	}
+	h.tryAdvanceIfExpired(ctx, &bracket)
 
 	matchups, err := models.FindMatchupsByBracket(h.DB, bracketRecord.ID)
 	if err != nil {
@@ -185,10 +211,13 @@ func (h *BracketHandler) GetBracketSummary(ctx context.Context, req *connect.Req
 			log.Printf("dedupe bracket matchup %d: %v", matchups[i].ID, err)
 		}
 	}
+	// Live vote counts: merge any pending Redis deltas before mapping
+	// the matchup items into the proto response. One MGET covers every
+	// item across every matchup in the bracket.
+	applyVoteDeltasToMatchups(ctx, matchups)
 
 	likedMatchupIDs := []uint{}
 	likedBracket := false
-	var bracketLikesCount int64
 
 	if viewerID > 0 {
 		if err := sqlx.SelectContext(ctx, h.DB, &likedMatchupIDs,
@@ -204,15 +233,12 @@ func (h *BracketHandler) GetBracketSummary(ctx context.Context, req *connect.Req
 		}
 		likedBracket = count > 0
 	}
-	_ = sqlx.GetContext(ctx, h.DB, &bracketLikesCount, "SELECT COUNT(*) FROM bracket_likes WHERE bracket_id = $1", bracketRecord.ID)
-	bracket.LikesCount = bracketLikesCount
+	// bracket.LikesCount comes directly from the row (migration 006).
 
 	var protoMatchups []*matchupv1.MatchupData
 	matchupPublicIDs := make(map[uint]string, len(matchups))
 	for i := range matchups {
-		var likesCount int64
-		_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM likes WHERE matchup_id = $1", matchups[i].ID)
-		protoMatchups = append(protoMatchups, matchupToProto(h.DB, &matchups[i], nil, likesCount))
+		protoMatchups = append(protoMatchups, matchupToProto(h.DB, &matchups[i], nil))
 		matchupPublicIDs[matchups[i].ID] = matchups[i].PublicID
 	}
 
@@ -234,14 +260,17 @@ func (h *BracketHandler) GetBracketSummary(ctx context.Context, req *connect.Req
 }
 
 func (h *BracketHandler) GetUserBrackets(ctx context.Context, req *connect.Request[bracketv1.GetUserBracketsRequest]) (*connect.Response[bracketv1.GetUserBracketsResponse], error) {
-	owner, err := resolveUserByIdentifier(h.DB, req.Msg.UserId)
+	// Pure-read RPC — safe to serve from the replica.
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
+	owner, err := resolveUserByIdentifier(db, req.Msg.UserId)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("user not found"))
 	}
 
 	viewerID, hasViewer := optionalViewerFromCtx(ctx)
 	isAdmin := httpctx.IsAdminRequest(ctx)
-	allowed, reason, err := canViewUserContent(h.DB, viewerID, hasViewer, owner, visibilityPublic, isAdmin)
+	allowed, reason, err := canViewUserContent(db, viewerID, hasViewer, owner, visibilityPublic, isAdmin)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -249,30 +278,57 @@ func (h *BracketHandler) GetUserBrackets(ctx context.Context, req *connect.Reque
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New(visibilityErrorMessage(reason)))
 	}
 
-	var bracket models.Bracket
-	brackets, err := bracket.FindUserBrackets(h.DB, owner.ID)
-	if err != nil {
+	page := int(req.Msg.GetPage())
+	if page < 1 {
+		page = 1
+	}
+	limit := int(req.Msg.GetLimit())
+	if limit < 1 || limit > 100 {
+		limit = 12
+	}
+	offset := (page - 1) * limit
+
+	var total int64
+	if err := sqlx.GetContext(ctx, db, &total, "SELECT COUNT(*) FROM brackets WHERE author_id = $1", owner.ID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
+	var brackets []models.Bracket
+	if err := sqlx.SelectContext(ctx, db, &brackets,
+		"SELECT * FROM brackets WHERE author_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+		owner.ID, limit, offset); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Load author once for all brackets (all share the same owner)
+	if len(brackets) > 0 {
+		var author models.User
+		if err := sqlx.GetContext(ctx, db, &author, "SELECT * FROM users WHERE id = $1", owner.ID); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+		author.ProcessAvatarPath()
+		for i := range brackets {
+			brackets[i].Author = author
+		}
+	}
+
+	// LikesCount lives on the row (migration 006).
 	var protoBrackets []*bracketv1.BracketData
-	for i := range *brackets {
-		b := &(*brackets)[i]
-		allowed, _, err := canViewUserContent(h.DB, viewerID, hasViewer, owner, b.Visibility, isAdmin)
+	for i := range brackets {
+		b := &brackets[i]
+		allowed, _, err := canViewUserContent(db, viewerID, hasViewer, owner, b.Visibility, isAdmin)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
 		if !allowed {
 			continue
 		}
-		var likesCount int64
-		_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM bracket_likes WHERE bracket_id = $1", b.ID)
-		b.LikesCount = likesCount
-		protoBrackets = append(protoBrackets, bracketToProto(h.DB, b))
+		protoBrackets = append(protoBrackets, bracketToProto(db, b))
 	}
 
 	return connect.NewResponse(&bracketv1.GetUserBracketsResponse{
-		Brackets: protoBrackets,
+		Brackets:   protoBrackets,
+		Pagination: paginationToProto(page, limit, total),
 	}), nil
 }
 
@@ -302,18 +358,30 @@ func (h *BracketHandler) GetBracketMatchups(ctx context.Context, req *connect.Re
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New(visibilityErrorMessage(reason)))
 	}
 
-	if found.Status == "active" &&
-		found.AdvanceMode == "timer" &&
-		found.RoundEndsAt != nil &&
-		!time.Now().Before(*found.RoundEndsAt) {
-		s := &Server{DB: h.DB}
-		if _, err := s.advanceBracketInternal(h.DB, found); err != nil {
-			log.Printf("auto advance bracket %d: %v", found.ID, err)
-		}
+	h.tryAdvanceIfExpired(ctx, found)
+
+	page := int(req.Msg.GetPage())
+	if page < 1 {
+		page = 1
+	}
+	pageLimit := int(req.Msg.GetLimit())
+	if pageLimit < 1 || pageLimit > 100 {
+		pageLimit = 12
+	}
+	offset := (page - 1) * pageLimit
+
+	var total int64
+	if err := sqlx.GetContext(ctx, h.DB, &total, "SELECT COUNT(*) FROM matchups WHERE bracket_id = $1", bracketRecord.ID); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	matchups, err := models.FindMatchupsByBracket(h.DB, bracketRecord.ID)
-	if err != nil {
+	var matchups []models.Matchup
+	if err := sqlx.SelectContext(ctx, h.DB, &matchups,
+		"SELECT * FROM matchups WHERE bracket_id = $1 ORDER BY round ASC, seed ASC, created_at ASC LIMIT $2 OFFSET $3",
+		bracketRecord.ID, pageLimit, offset); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if err := models.LoadMatchupAssociations(h.DB, matchups); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	for i := range matchups {
@@ -321,16 +389,18 @@ func (h *BracketHandler) GetBracketMatchups(ctx context.Context, req *connect.Re
 			log.Printf("dedupe bracket matchup %d: %v", matchups[i].ID, err)
 		}
 	}
+	// Merge live vote deltas before serializing — one MGET per response.
+	applyVoteDeltasToMatchups(ctx, matchups)
 
+	// LikesCount lives on each matchup row (migration 006).
 	protoMatchups := make([]*matchupv1.MatchupData, 0, len(matchups))
 	for i := range matchups {
-		var likesCount int64
-		_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM likes WHERE matchup_id = $1", matchups[i].ID)
-		protoMatchups = append(protoMatchups, matchupToProto(h.DB, &matchups[i], nil, likesCount))
+		protoMatchups = append(protoMatchups, matchupToProto(h.DB, &matchups[i], nil))
 	}
 
 	return connect.NewResponse(&bracketv1.GetBracketMatchupsResponse{
-		Matchups: protoMatchups,
+		Matchups:   protoMatchups,
+		Pagination: paginationToProto(page, pageLimit, total),
 	}), nil
 }
 
@@ -390,9 +460,11 @@ func (h *BracketHandler) CreateBracket(ctx context.Context, req *connect.Request
 
 	generateFullBracket(h.DB, *newBracket, req.Msg.Entries)
 
-	return connect.NewResponse(&bracketv1.CreateBracketResponse{
+	resp := connect.NewResponse(&bracketv1.CreateBracketResponse{
 		Bracket: bracketToProto(h.DB, newBracket),
-	}), nil
+	})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *BracketHandler) UpdateBracket(ctx context.Context, req *connect.Request[bracketv1.UpdateBracketRequest]) (*connect.Response[bracketv1.UpdateBracketResponse], error) {
@@ -474,9 +546,11 @@ func (h *BracketHandler) UpdateBracket(ctx context.Context, req *connect.Request
 
 	invalidateBracketSummaryCache(bracket.ID)
 
-	return connect.NewResponse(&bracketv1.UpdateBracketResponse{
+	resp := connect.NewResponse(&bracketv1.UpdateBracketResponse{
 		Bracket: bracketToProto(h.DB, updated),
-	}), nil
+	})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *BracketHandler) DeleteBracket(ctx context.Context, req *connect.Request[bracketv1.DeleteBracketRequest]) (*connect.Response[bracketv1.DeleteBracketResponse], error) {
@@ -510,7 +584,9 @@ func (h *BracketHandler) DeleteBracket(ctx context.Context, req *connect.Request
 	}
 	invalidateBracketSummaryCache(bracket.ID)
 
-	return connect.NewResponse(&bracketv1.DeleteBracketResponse{Message: "bracket deleted"}), nil
+	resp := connect.NewResponse(&bracketv1.DeleteBracketResponse{Message: "bracket deleted"})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *BracketHandler) AttachMatchup(ctx context.Context, req *connect.Request[bracketv1.AttachMatchupRequest]) (*connect.Response[bracketv1.AttachMatchupResponse], error) {
@@ -599,12 +675,16 @@ func (h *BracketHandler) AttachMatchup(ctx context.Context, req *connect.Request
 	}
 	reloaded.Author.ProcessAvatarPath()
 
-	var likesCount int64
-	_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM likes WHERE matchup_id = $1", reloaded.ID)
+	// reloaded.LikesCount comes from the row (migration 006).
+	if content, err := models.LoadMatchupContent(h.DB, reloaded.ID); err == nil {
+		reloaded.Content = content
+	}
 
-	return connect.NewResponse(&bracketv1.AttachMatchupResponse{
-		Matchup: matchupToProto(h.DB, &reloaded, nil, likesCount),
-	}), nil
+	resp := connect.NewResponse(&bracketv1.AttachMatchupResponse{
+		Matchup: matchupToProto(h.DB, &reloaded, nil),
+	})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *BracketHandler) DetachMatchup(ctx context.Context, req *connect.Request[bracketv1.DetachMatchupRequest]) (*connect.Response[bracketv1.DetachMatchupResponse], error) {
@@ -643,7 +723,9 @@ func (h *BracketHandler) DetachMatchup(ctx context.Context, req *connect.Request
 		invalidateBracketSummaryCache(*previousBracketID)
 	}
 
-	return connect.NewResponse(&bracketv1.DetachMatchupResponse{Message: "matchup detached"}), nil
+	resp := connect.NewResponse(&bracketv1.DetachMatchupResponse{Message: "matchup detached"})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *BracketHandler) AdvanceBracket(ctx context.Context, req *connect.Request[bracketv1.AdvanceBracketRequest]) (*connect.Response[bracketv1.AdvanceBracketResponse], error) {
@@ -680,14 +762,13 @@ func (h *BracketHandler) AdvanceBracket(ctx context.Context, req *connect.Reques
 	}
 	invalidateBracketSummaryCache(bracket.ID)
 
-	var likesCount int64
-	_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM bracket_likes WHERE bracket_id = $1", bracket.ID)
-	bracket.LikesCount = likesCount
-
-	return connect.NewResponse(&bracketv1.AdvanceBracketResponse{
+	// LikesCount lives on the bracket row (migration 006).
+	resp := connect.NewResponse(&bracketv1.AdvanceBracketResponse{
 		Bracket: bracketToProto(h.DB, &bracket),
 		Message: "bracket advanced successfully",
-	}), nil
+	})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *BracketHandler) ResolveTieAndAdvance(ctx context.Context, req *connect.Request[bracketv1.ResolveTieAndAdvanceRequest]) (*connect.Response[bracketv1.ResolveTieAndAdvanceResponse], error) {
@@ -755,14 +836,13 @@ func (h *BracketHandler) ResolveTieAndAdvance(ctx context.Context, req *connect.
 		log.Printf("advanceBracketInternal after resolve-tie: %v", err)
 	}
 
-	var likesCount int64
-	_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM bracket_likes WHERE bracket_id = $1", bracket.ID)
-	bracket.LikesCount = likesCount
-
-	return connect.NewResponse(&bracketv1.ResolveTieAndAdvanceResponse{
+	// LikesCount lives on the bracket row (migration 006).
+	resp := connect.NewResponse(&bracketv1.ResolveTieAndAdvanceResponse{
 		Bracket: bracketToProto(h.DB, &bracket),
 		Message: "tie resolved and bracket advanced",
-	}), nil
+	})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *BracketHandler) InternalAdvanceBracket(ctx context.Context, req *connect.Request[bracketv1.InternalAdvanceBracketRequest]) (*connect.Response[bracketv1.InternalAdvanceBracketResponse], error) {
@@ -795,7 +875,9 @@ func (h *BracketHandler) InternalAdvanceBracket(ctx context.Context, req *connec
 	}
 	invalidateBracketSummaryCache(bracket.ID)
 
-	return connect.NewResponse(&bracketv1.InternalAdvanceBracketResponse{
+	resp := connect.NewResponse(&bracketv1.InternalAdvanceBracketResponse{
 		Message: "bracket advanced successfully",
-	}), nil
+	})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }

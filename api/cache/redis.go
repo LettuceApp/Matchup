@@ -11,6 +11,13 @@ import (
 
 var Client *redis.Client
 
+// VoteDeltaKeyPrefix is the Redis key prefix for buffered vote-count
+// deltas. The producer (controllers.VoteItem) writes keys as
+// "votes:item:<id>"; the consumer (handlers.RunFlushVotes) SCANs them.
+// Defined here so both packages import a single source of truth without
+// either one depending on the other.
+const VoteDeltaKeyPrefix = "votes:item:"
+
 // InitFromEnv initializes Redis for Render, Valkey Cloud, or local dev.
 func InitFromEnv() error {
 
@@ -20,6 +27,8 @@ func InitFromEnv() error {
 		if err != nil {
 			return fmt.Errorf("failed to parse REDIS_URL: %w", err)
 		}
+		opt.PoolSize = 10
+		opt.MinIdleConns = 2
 
 		// DO NOT ENABLE TLS — internal Redis uses redis:// (no TLS)
 		Client = redis.NewClient(opt)
@@ -32,6 +41,8 @@ func InitFromEnv() error {
 			if err != nil {
 				return fmt.Errorf("failed to parse VALKEY_URL: %w", err)
 			}
+			opt.PoolSize = 10
+			opt.MinIdleConns = 2
 
 			// TLS is only used for rediss:// URLs
 			Client = redis.NewClient(opt)
@@ -46,9 +57,11 @@ func InitFromEnv() error {
 		}
 
 		Client = redis.NewClient(&redis.Options{
-			Addr:     addr,
-			Username: os.Getenv("REDIS_USERNAME"),
-			Password: os.Getenv("REDIS_PASSWORD"),
+			Addr:         addr,
+			Username:     os.Getenv("REDIS_USERNAME"),
+			Password:     os.Getenv("REDIS_PASSWORD"),
+			PoolSize:     10,
+			MinIdleConns: 2,
 		})
 	}
 

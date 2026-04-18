@@ -3,7 +3,6 @@ package controllers
 import (
 	"context"
 	"log"
-	"time"
 
 	bracketv1 "Matchup/gen/bracket/v1"
 	homev1 "Matchup/gen/home/v1"
@@ -20,21 +19,20 @@ var _ homev1connect.HomeServiceHandler = (*HomeHandler)(nil)
 
 // HomeHandler implements homev1connect.HomeServiceHandler.
 type HomeHandler struct {
-	DB *sqlx.DB
+	DB     *sqlx.DB
+	ReadDB *sqlx.DB
 }
 
 func (h *HomeHandler) GetHomeSummary(ctx context.Context, req *connect.Request[homev1.GetHomeSummaryRequest]) (*connect.Response[homev1.GetHomeSummaryResponse], error) {
+	db := dbForRead(ctx, h.DB, h.ReadDB)
 	viewerID, hasViewer := optionalViewerFromCtx(ctx)
 	isAdmin := httpctx.IsAdminRequest(ctx)
 
-	// Popular matchups
+	// Popular matchups — read from materialized view (migration 007).
 	popularMatchupRows := []popularMatchupRow{}
-	if err := sqlx.SelectContext(ctx, h.DB, &popularMatchupRows,
+	if err := sqlx.SelectContext(ctx, db, &popularMatchupRows,
 		"SELECT * FROM popular_matchups_snapshot ORDER BY rank ASC LIMIT 5"); err != nil {
-		if !isMissingRelation(err, "popular_matchups_snapshot") {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
-		log.Printf("popular matchups snapshot missing: %v", err)
+		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
 	matchupIDs := make([]uint, 0, len(popularMatchupRows))
@@ -51,22 +49,29 @@ func (h *HomeHandler) GetHomeSummary(ctx context.Context, req *connect.Request[h
 			matchupBracketAuthorIDs = append(matchupBracketAuthorIDs, *row.BracketAuthorID)
 		}
 	}
-	matchupPublicIDs := loadMatchupPublicIDMap(h.DB, matchupIDs)
-	matchupAuthorPublicIDs := loadUserPublicIDMap(h.DB, matchupAuthorIDs)
-	matchupBracketPublicIDs := loadBracketPublicIDMap(h.DB, matchupBracketIDs)
-	matchupBracketAuthorPublicIDs := loadUserPublicIDMap(h.DB, matchupBracketAuthorIDs)
+	matchupPublicIDs := loadMatchupPublicIDMap(db, matchupIDs)
+	matchupAuthorPublicIDs := loadUserPublicIDMap(db, matchupAuthorIDs)
+	matchupBracketPublicIDs := loadBracketPublicIDMap(db, matchupBracketIDs)
+	matchupBracketAuthorPublicIDs := loadUserPublicIDMap(db, matchupBracketAuthorIDs)
+
+	homeMatchupsMap := getMatchupsByIDs(db, matchupIDs)
+	homeMatchupAuthorsMap := getUsersByIDs(db, matchupAuthorIDs)
 
 	var protoPopularMatchups []*matchupv1.PopularMatchupData
 	for i := range popularMatchupRows {
-		var matchup models.Matchup
-		if err := sqlx.GetContext(ctx, h.DB, &matchup, "SELECT * FROM matchups WHERE id = $1", popularMatchupRows[i].ID); err != nil {
+		matchup, ok := homeMatchupsMap[popularMatchupRows[i].ID]
+		if !ok {
 			continue
 		}
-		if err := sqlx.GetContext(ctx, h.DB, &matchup.Author, "SELECT * FROM users WHERE id = $1", matchup.AuthorID); err != nil {
+		if matchup.Status != "active" && matchup.Status != "published" {
 			continue
 		}
-		matchup.Author.ProcessAvatarPath()
-		allowed, _, err := canViewUserContent(h.DB, viewerID, hasViewer, &matchup.Author, matchup.Visibility, isAdmin)
+		author, ok := homeMatchupAuthorsMap[matchup.AuthorID]
+		if !ok {
+			continue
+		}
+		matchup.Author = *author
+		allowed, _, err := canViewUserContent(db, viewerID, hasViewer, &matchup.Author, matchup.Visibility, isAdmin)
 		if err != nil {
 			log.Printf("home summary visibility error: %v", err)
 			continue
@@ -90,6 +95,7 @@ func (h *HomeHandler) GetHomeSummary(ctx context.Context, req *connect.Request[h
 			ID:              matchupPublicIDs[popularMatchupRows[i].ID],
 			Title:           popularMatchupRows[i].Title,
 			AuthorID:        matchupAuthorPublicIDs[popularMatchupRows[i].AuthorID],
+			AuthorUsername:  matchup.Author.Username,
 			BracketID:       bracketID,
 			BracketAuthorID: bracketAuthorID,
 			Round:           popularMatchupRows[i].Round,
@@ -99,44 +105,213 @@ func (h *HomeHandler) GetHomeSummary(ctx context.Context, req *connect.Request[h
 			Comments:        popularMatchupRows[i].Comments,
 			EngagementScore: popularMatchupRows[i].EngagementScore,
 			Rank:            popularMatchupRows[i].Rank,
+			CreatedAt:       rfc3339(matchup.CreatedAt),
 		}
 		protoPopularMatchups = append(protoPopularMatchups, popularMatchupToProto(dto))
 	}
 
-	// Popular brackets — prefer snapshot, fall back to direct table query
-	popularBracketRows := []popularBracketRow{}
-	snapshotErr := sqlx.SelectContext(ctx, h.DB, &popularBracketRows,
-		"SELECT * FROM popular_brackets_snapshot ORDER BY rank ASC LIMIT 12")
-	if snapshotErr != nil {
-		if !isMissingRelation(snapshotErr, "popular_brackets_snapshot") {
-			return nil, connect.NewError(connect.CodeInternal, snapshotErr)
+	// Trending matchups — hourly engagement from materialized view (migration 010).
+	trendingMatchupRows := []popularMatchupRow{}
+	if err := sqlx.SelectContext(ctx, db, &trendingMatchupRows,
+		"SELECT * FROM trending_matchups_snapshot ORDER BY rank ASC LIMIT 9"); err != nil {
+		// Non-fatal — view may not exist yet on older DBs.
+		log.Printf("home summary trending_matchups_snapshot: %v", err)
+	}
+
+	var protoTrendingMatchups []*matchupv1.PopularMatchupData
+	if len(trendingMatchupRows) > 0 {
+		trendingIDs := make([]uint, 0, len(trendingMatchupRows))
+		trendingAuthorIDs := make([]uint, 0, len(trendingMatchupRows))
+		trendingBracketIDs := make([]uint, 0, len(trendingMatchupRows))
+		trendingBracketAuthorIDs := make([]uint, 0, len(trendingMatchupRows))
+		for _, row := range trendingMatchupRows {
+			trendingIDs = append(trendingIDs, row.ID)
+			trendingAuthorIDs = append(trendingAuthorIDs, row.AuthorID)
+			if row.BracketID != nil {
+				trendingBracketIDs = append(trendingBracketIDs, *row.BracketID)
+			}
+			if row.BracketAuthorID != nil {
+				trendingBracketAuthorIDs = append(trendingBracketAuthorIDs, *row.BracketAuthorID)
+			}
 		}
-		log.Printf("popular brackets snapshot missing, using direct query: %v", snapshotErr)
+		trendingPublicIDs := loadMatchupPublicIDMap(db, trendingIDs)
+		trendingAuthorPublicIDs := loadUserPublicIDMap(db, trendingAuthorIDs)
+		trendingBracketPublicIDs := loadBracketPublicIDMap(db, trendingBracketIDs)
+		trendingBracketAuthorPublicIDs := loadUserPublicIDMap(db, trendingBracketAuthorIDs)
+
+		trendingMatchupsMap := getMatchupsByIDs(db, trendingIDs)
+		trendingAuthorsMap := getUsersByIDs(db, trendingAuthorIDs)
+
+		for i := range trendingMatchupRows {
+			matchup, ok := trendingMatchupsMap[trendingMatchupRows[i].ID]
+			if !ok {
+				continue
+			}
+			if matchup.Status != "active" && matchup.Status != "published" {
+				continue
+			}
+			author, ok := trendingAuthorsMap[matchup.AuthorID]
+			if !ok {
+				continue
+			}
+			matchup.Author = *author
+			allowed, _, err := canViewUserContent(db, viewerID, hasViewer, &matchup.Author, matchup.Visibility, isAdmin)
+			if err != nil {
+				log.Printf("home summary trending visibility error: %v", err)
+				continue
+			}
+			if !allowed {
+				continue
+			}
+			var tBracketID *string
+			if trendingMatchupRows[i].BracketID != nil {
+				if id := trendingBracketPublicIDs[*trendingMatchupRows[i].BracketID]; id != "" {
+					tBracketID = &id
+				}
+			}
+			var tBracketAuthorID *string
+			if trendingMatchupRows[i].BracketAuthorID != nil {
+				if id := trendingBracketAuthorPublicIDs[*trendingMatchupRows[i].BracketAuthorID]; id != "" {
+					tBracketAuthorID = &id
+				}
+			}
+			dto := PopularMatchupDTO{
+				ID:              trendingPublicIDs[trendingMatchupRows[i].ID],
+				Title:           trendingMatchupRows[i].Title,
+				AuthorID:        trendingAuthorPublicIDs[trendingMatchupRows[i].AuthorID],
+				AuthorUsername:  matchup.Author.Username,
+				BracketID:       tBracketID,
+				BracketAuthorID: tBracketAuthorID,
+				Round:           trendingMatchupRows[i].Round,
+				CurrentRound:    trendingMatchupRows[i].CurrentRound,
+				Votes:           trendingMatchupRows[i].Votes,
+				Likes:           trendingMatchupRows[i].Likes,
+				Comments:        trendingMatchupRows[i].Comments,
+				EngagementScore: trendingMatchupRows[i].EngagementScore,
+				Rank:            trendingMatchupRows[i].Rank,
+				CreatedAt:       rfc3339(matchup.CreatedAt),
+			}
+			protoTrendingMatchups = append(protoTrendingMatchups, popularMatchupToProto(dto))
+		}
+	}
+
+	// Most-played matchups — hourly votes from materialized view (migration 011).
+	mostPlayedRows := []popularMatchupRow{}
+	if err := sqlx.SelectContext(ctx, db, &mostPlayedRows,
+		"SELECT * FROM most_played_snapshot ORDER BY rank ASC LIMIT 9"); err != nil {
+		// Non-fatal — view may not exist yet on older DBs.
+		log.Printf("home summary most_played_snapshot: %v", err)
+	}
+
+	var protoMostPlayedMatchups []*matchupv1.PopularMatchupData
+	if len(mostPlayedRows) > 0 {
+		mpIDs := make([]uint, 0, len(mostPlayedRows))
+		mpAuthorIDs := make([]uint, 0, len(mostPlayedRows))
+		mpBracketIDs := make([]uint, 0, len(mostPlayedRows))
+		mpBracketAuthorIDs := make([]uint, 0, len(mostPlayedRows))
+		for _, row := range mostPlayedRows {
+			mpIDs = append(mpIDs, row.ID)
+			mpAuthorIDs = append(mpAuthorIDs, row.AuthorID)
+			if row.BracketID != nil {
+				mpBracketIDs = append(mpBracketIDs, *row.BracketID)
+			}
+			if row.BracketAuthorID != nil {
+				mpBracketAuthorIDs = append(mpBracketAuthorIDs, *row.BracketAuthorID)
+			}
+		}
+		mpPublicIDs := loadMatchupPublicIDMap(db, mpIDs)
+		mpAuthorPublicIDs := loadUserPublicIDMap(db, mpAuthorIDs)
+		mpBracketPublicIDs := loadBracketPublicIDMap(db, mpBracketIDs)
+		mpBracketAuthorPublicIDs := loadUserPublicIDMap(db, mpBracketAuthorIDs)
+
+		mpMatchupsMap := getMatchupsByIDs(db, mpIDs)
+		mpAuthorsMap := getUsersByIDs(db, mpAuthorIDs)
+
+		for i := range mostPlayedRows {
+			matchup, ok := mpMatchupsMap[mostPlayedRows[i].ID]
+			if !ok {
+				continue
+			}
+			if matchup.Status != "active" && matchup.Status != "published" {
+				continue
+			}
+			author, ok := mpAuthorsMap[matchup.AuthorID]
+			if !ok {
+				continue
+			}
+			matchup.Author = *author
+			allowed, _, err := canViewUserContent(db, viewerID, hasViewer, &matchup.Author, matchup.Visibility, isAdmin)
+			if err != nil {
+				log.Printf("home summary most-played visibility error: %v", err)
+				continue
+			}
+			if !allowed {
+				continue
+			}
+			var mpBracketID *string
+			if mostPlayedRows[i].BracketID != nil {
+				if id := mpBracketPublicIDs[*mostPlayedRows[i].BracketID]; id != "" {
+					mpBracketID = &id
+				}
+			}
+			var mpBracketAuthorID *string
+			if mostPlayedRows[i].BracketAuthorID != nil {
+				if id := mpBracketAuthorPublicIDs[*mostPlayedRows[i].BracketAuthorID]; id != "" {
+					mpBracketAuthorID = &id
+				}
+			}
+			dto := PopularMatchupDTO{
+				ID:              mpPublicIDs[mostPlayedRows[i].ID],
+				Title:           mostPlayedRows[i].Title,
+				AuthorID:        mpAuthorPublicIDs[mostPlayedRows[i].AuthorID],
+				AuthorUsername:  matchup.Author.Username,
+				BracketID:       mpBracketID,
+				BracketAuthorID: mpBracketAuthorID,
+				Round:           mostPlayedRows[i].Round,
+				CurrentRound:    mostPlayedRows[i].CurrentRound,
+				Votes:           mostPlayedRows[i].Votes,
+				Likes:           mostPlayedRows[i].Likes,
+				Comments:        mostPlayedRows[i].Comments,
+				EngagementScore: mostPlayedRows[i].EngagementScore,
+				Rank:            mostPlayedRows[i].Rank,
+				CreatedAt:       rfc3339(matchup.CreatedAt),
+			}
+			protoMostPlayedMatchups = append(protoMostPlayedMatchups, popularMatchupToProto(dto))
+		}
+	}
+
+	// Popular brackets — read from materialized view (migration 007).
+	popularBracketRows := []popularBracketRow{}
+	if err := sqlx.SelectContext(ctx, db, &popularBracketRows,
+		"SELECT * FROM popular_brackets_snapshot ORDER BY rank ASC LIMIT 12"); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
 	var protoPopularBrackets []*bracketv1.PopularBracketData
-
 	if len(popularBracketRows) > 0 {
-		// Use snapshot path
 		bracketIDs := make([]uint, 0, len(popularBracketRows))
 		bracketAuthorIDs := make([]uint, 0, len(popularBracketRows))
 		for _, row := range popularBracketRows {
 			bracketIDs = append(bracketIDs, row.ID)
 			bracketAuthorIDs = append(bracketAuthorIDs, row.AuthorID)
 		}
-		bracketPublicIDs := loadBracketPublicIDMap(h.DB, bracketIDs)
-		bracketAuthorPublicIDs := loadUserPublicIDMap(h.DB, bracketAuthorIDs)
+		bracketPublicIDs := loadBracketPublicIDMap(db, bracketIDs)
+		bracketAuthorPublicIDs := loadUserPublicIDMap(db, bracketAuthorIDs)
+
+		snapshotBracketsMap := getBracketsByIDs(db, bracketIDs)
+		snapshotAuthorsMap := getUsersByIDs(db, bracketAuthorIDs)
 
 		for i := range popularBracketRows {
-			var bracket models.Bracket
-			if err := sqlx.GetContext(ctx, h.DB, &bracket, "SELECT * FROM brackets WHERE id = $1", popularBracketRows[i].ID); err != nil {
+			bracket, ok := snapshotBracketsMap[popularBracketRows[i].ID]
+			if !ok {
 				continue
 			}
-			if err := sqlx.GetContext(ctx, h.DB, &bracket.Author, "SELECT * FROM users WHERE id = $1", bracket.AuthorID); err != nil {
+			author, ok := snapshotAuthorsMap[bracket.AuthorID]
+			if !ok {
 				continue
 			}
-			bracket.Author.ProcessAvatarPath()
-			allowed, _, err := canViewUserContent(h.DB, viewerID, hasViewer, &bracket.Author, bracket.Visibility, isAdmin)
+			bracket.Author = *author
+			allowed, _, err := canViewUserContent(db, viewerID, hasViewer, &bracket.Author, bracket.Visibility, isAdmin)
 			if err != nil {
 				log.Printf("home summary visibility error: %v", err)
 				continue
@@ -144,88 +319,43 @@ func (h *HomeHandler) GetHomeSummary(ctx context.Context, req *connect.Request[h
 			if !allowed || bracket.Status != "active" {
 				continue
 			}
-			var likesCount int64
-			_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM bracket_likes WHERE bracket_id = $1", bracket.ID)
-			var commentsCount int64
-			_ = sqlx.GetContext(ctx, h.DB, &commentsCount, "SELECT COUNT(*) FROM bracket_comments WHERE bracket_id = $1", bracket.ID)
 			dto := PopularBracketDTO{
 				ID:              bracketPublicIDs[popularBracketRows[i].ID],
 				Title:           popularBracketRows[i].Title,
 				AuthorID:        bracketAuthorPublicIDs[popularBracketRows[i].AuthorID],
+				AuthorUsername:  bracket.Author.Username,
 				CurrentRound:    popularBracketRows[i].CurrentRound,
 				Size:            bracket.Size,
 				Votes:           0,
-				Likes:           likesCount,
-				Comments:        commentsCount,
+				Likes:           int64(bracket.LikesCount),
+				Comments:        int64(bracket.CommentsCount),
 				EngagementScore: popularBracketRows[i].EngagementScore,
 				Rank:            popularBracketRows[i].Rank,
-			}
-			protoPopularBrackets = append(protoPopularBrackets, popularBracketToProto(dto))
-		}
-	} else {
-		// Fallback: query brackets table directly, most recent first
-		var fallbackBrackets []models.Bracket
-		_ = sqlx.SelectContext(ctx, h.DB, &fallbackBrackets,
-			`SELECT b.* FROM brackets b
-			 JOIN users u ON u.id = b.author_id
-			 WHERE b.status IN ('active', 'completed', 'draft')
-			 ORDER BY b.created_at DESC LIMIT 12`)
-		bracketIDs := make([]uint, 0, len(fallbackBrackets))
-		for i := range fallbackBrackets {
-			bracketIDs = append(bracketIDs, fallbackBrackets[i].ID)
-		}
-		bracketPublicIDs := loadBracketPublicIDMap(h.DB, bracketIDs)
-
-		for i := range fallbackBrackets {
-			b := &fallbackBrackets[i]
-			if err := sqlx.GetContext(ctx, h.DB, &b.Author, "SELECT * FROM users WHERE id = $1", b.AuthorID); err != nil {
-				continue
-			}
-			b.Author.ProcessAvatarPath()
-			allowed, _, err := canViewUserContent(h.DB, viewerID, hasViewer, &b.Author, b.Visibility, isAdmin)
-			if err != nil || !allowed {
-				continue
-			}
-			var likesCount int64
-			_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM bracket_likes WHERE bracket_id = $1", b.ID)
-			var commentsCount int64
-			_ = sqlx.GetContext(ctx, h.DB, &commentsCount, "SELECT COUNT(*) FROM bracket_comments WHERE bracket_id = $1", b.ID)
-			authorPublicID := loadUserPublicIDMap(h.DB, []uint{b.AuthorID})[b.AuthorID]
-			dto := PopularBracketDTO{
-				ID:       bracketPublicIDs[b.ID],
-				Title:    b.Title,
-				AuthorID: authorPublicID,
-				Size:     b.Size,
-				Likes:    likesCount,
-				Comments: commentsCount,
+				CreatedAt:       rfc3339(bracket.CreatedAt),
 			}
 			protoPopularBrackets = append(protoPopularBrackets, popularBracketToProto(dto))
 		}
 	}
 
-	// Stats snapshot
+	// Stats snapshot — single-row materialized view (migration 007).
 	votesToday := int64(0)
 	activeMatchups := int64(0)
 	activeBrackets := int64(0)
 	var summarySnapshot HomeSummarySnapshot
-	if err := sqlx.GetContext(ctx, h.DB, &summarySnapshot, "SELECT * FROM home_summary_snapshot LIMIT 1"); err == nil {
+	if err := sqlx.GetContext(ctx, db, &summarySnapshot,
+		"SELECT votes_today, active_matchups, active_brackets FROM home_summary_snapshot LIMIT 1"); err == nil {
 		votesToday = summarySnapshot.VotesToday
 		activeMatchups = summarySnapshot.ActiveMatchups
 		activeBrackets = summarySnapshot.ActiveBrackets
-	} else if !isMissingRelation(err, "home_summary_snapshot") {
-		log.Printf("home summary snapshot error: %v", err)
 	} else {
-		voteCutoff := time.Now().Add(-24 * time.Hour)
-		_ = sqlx.GetContext(ctx, h.DB, &votesToday, "SELECT COUNT(*) FROM matchup_votes WHERE created_at >= $1", voteCutoff)
-		_ = sqlx.GetContext(ctx, h.DB, &activeMatchups,
-			"SELECT COUNT(*) FROM matchups WHERE status IN ($1, $2)", matchupStatusActive, matchupStatusPublished)
-		_ = sqlx.GetContext(ctx, h.DB, &activeBrackets, "SELECT COUNT(*) FROM brackets WHERE status = $1", "active")
+		log.Printf("home summary snapshot error: %v", err)
 	}
 
 	// Total engagements for viewer
 	totalEngagements := 0.0
 	if hasViewer && viewerID > 0 {
-		s := &Server{DB: h.DB}
+		// calculateUserEngagement is read-only — safe to point at ReadDB.
+		s := &Server{DB: db}
 		if total, err := s.calculateUserEngagement(viewerID); err == nil {
 			totalEngagements = total
 		} else {
@@ -233,12 +363,13 @@ func (h *HomeHandler) GetHomeSummary(ctx context.Context, req *connect.Request[h
 		}
 	}
 
-	// New this week
+	// New this week — read from materialized view (migration 007).
 	var protoNewThisWeek []*homev1.HomeMatchupData
 	var newThisWeekSnapshots []HomeMatchupSnapshot
-	newThisWeekErr := sqlx.SelectContext(ctx, h.DB, &newThisWeekSnapshots,
-		"SELECT * FROM home_new_this_week_snapshot ORDER BY rank ASC LIMIT 6")
-	if newThisWeekErr == nil && len(newThisWeekSnapshots) > 0 {
+	if err := sqlx.SelectContext(ctx, db, &newThisWeekSnapshots,
+		"SELECT * FROM home_new_this_week_snapshot ORDER BY rank ASC LIMIT 6"); err != nil {
+		log.Printf("home summary new_this_week snapshot: %v", err)
+	} else if len(newThisWeekSnapshots) > 0 {
 		authorIDs := make([]uint, 0, len(newThisWeekSnapshots))
 		authorSeen := map[uint]struct{}{}
 		for _, m := range newThisWeekSnapshots {
@@ -255,9 +386,9 @@ func (h *HomeHandler) GetHomeSummary(ctx context.Context, req *connect.Request[h
 		if len(authorIDs) > 0 {
 			query, args, err := sqlx.In("SELECT * FROM users WHERE id IN (?)", authorIDs)
 			if err == nil {
-				query = h.DB.Rebind(query)
+				query = db.Rebind(query)
 				var authors []models.User
-				if err := sqlx.SelectContext(ctx, h.DB, &authors, query, args...); err == nil {
+				if err := sqlx.SelectContext(ctx, db, &authors, query, args...); err == nil {
 					for _, a := range authors {
 						authorMap[a.ID] = a
 					}
@@ -274,8 +405,8 @@ func (h *HomeHandler) GetHomeSummary(ctx context.Context, req *connect.Request[h
 				snapshotBracketIDs = append(snapshotBracketIDs, *m.BracketID)
 			}
 		}
-		snapshotMatchupPublicIDs := loadMatchupPublicIDMap(h.DB, snapshotMatchupIDs)
-		snapshotBracketPublicIDs := loadBracketPublicIDMap(h.DB, snapshotBracketIDs)
+		snapshotMatchupPublicIDs := loadMatchupPublicIDMap(db, snapshotMatchupIDs)
+		snapshotBracketPublicIDs := loadBracketPublicIDMap(db, snapshotBracketIDs)
 
 		for _, m := range newThisWeekSnapshots {
 			author, ok := authorMap[m.AuthorID]
@@ -286,7 +417,7 @@ func (h *HomeHandler) GetHomeSummary(ctx context.Context, req *connect.Request[h
 			if visibility == "" {
 				visibility = "public"
 			}
-			allowed, _, err := canViewUserContent(h.DB, viewerID, hasViewer, &author, visibility, isAdmin)
+			allowed, _, err := canViewUserContent(db, viewerID, hasViewer, &author, visibility, isAdmin)
 			if err != nil {
 				log.Printf("home summary visibility error: %v", err)
 				continue
@@ -308,61 +439,18 @@ func (h *HomeHandler) GetHomeSummary(ctx context.Context, req *connect.Request[h
 				CreatedAt: rfc3339(m.CreatedAt),
 			})
 		}
-	} else if newThisWeekErr != nil && !isMissingRelation(newThisWeekErr, "home_new_this_week_snapshot") {
-		log.Printf("home summary new_this_week snapshot: %v", newThisWeekErr)
-	} else {
-		recentCutoff := time.Now().Add(-7 * 24 * time.Hour)
-		var recentMatchups []models.Matchup
-		if err := sqlx.SelectContext(ctx, h.DB, &recentMatchups,
-			"SELECT * FROM matchups WHERE created_at >= $1 AND bracket_id IS NULL ORDER BY created_at DESC LIMIT 6",
-			recentCutoff); err == nil {
-			recentAuthorIDs := make([]uint, len(recentMatchups))
-			for i, m := range recentMatchups {
-				recentAuthorIDs[i] = m.AuthorID
-			}
-			recentAuthorMap := map[uint]models.User{}
-			if len(recentAuthorIDs) > 0 {
-				query, args, err := sqlx.In("SELECT * FROM users WHERE id IN (?)", recentAuthorIDs)
-				if err == nil {
-					query = h.DB.Rebind(query)
-					var authors []models.User
-					if err := sqlx.SelectContext(ctx, h.DB, &authors, query, args...); err == nil {
-						for _, a := range authors {
-							a.ProcessAvatarPath()
-							recentAuthorMap[a.ID] = a
-						}
-					}
-				}
-			}
-			for i := range recentMatchups {
-				if author, ok := recentAuthorMap[recentMatchups[i].AuthorID]; ok {
-					recentMatchups[i].Author = author
-				}
-			}
-			for _, m := range recentMatchups {
-				allowed, _, err := canViewUserContent(h.DB, viewerID, hasViewer, &m.Author, m.Visibility, isAdmin)
-				if err != nil || !allowed {
-					continue
-				}
-				protoNewThisWeek = append(protoNewThisWeek, &homev1.HomeMatchupData{
-					Id:       m.PublicID,
-					Title:    m.Title,
-					AuthorId: m.Author.PublicID,
-					CreatedAt: rfc3339(m.CreatedAt),
-				})
-			}
-		}
 	}
 
-	// Creators to follow
+	// Creators to follow — read from materialized view (migration 007).
 	creatorIDs := []uint{}
 	followingMap := map[uint]bool{}
 	followedByMap := map[uint]bool{}
 
 	var creatorSnapshots []HomeCreatorSnapshot
-	creatorsErr := sqlx.SelectContext(ctx, h.DB, &creatorSnapshots,
-		"SELECT * FROM home_creators_snapshot ORDER BY rank ASC LIMIT 10")
-	if creatorsErr == nil {
+	if err := sqlx.SelectContext(ctx, db, &creatorSnapshots,
+		"SELECT * FROM home_creators_snapshot ORDER BY rank ASC LIMIT 10"); err != nil {
+		log.Printf("home summary creators snapshot: %v", err)
+	} else {
 		for _, creator := range creatorSnapshots {
 			if creator.ID == 0 {
 				continue
@@ -372,42 +460,18 @@ func (h *HomeHandler) GetHomeSummary(ctx context.Context, req *connect.Request[h
 			}
 			creatorIDs = append(creatorIDs, creator.ID)
 		}
-	} else if !isMissingRelation(creatorsErr, "home_creators_snapshot") {
-		log.Printf("home summary creators snapshot: %v", creatorsErr)
-	} else {
-		creatorQuery := "SELECT id, username, avatar_path, followers_count, following_count, is_private FROM users WHERE is_admin = false"
-		creatorArgs := []interface{}{}
-		if hasViewer && viewerID > 0 {
-			creatorQuery += " AND id <> $1"
-			creatorArgs = append(creatorArgs, viewerID)
-		}
-		creatorQuery += " ORDER BY followers_count DESC, id ASC LIMIT 5"
-		var creatorUsers []models.User
-		if err := sqlx.SelectContext(ctx, h.DB, &creatorUsers, creatorQuery, creatorArgs...); err == nil {
-			for _, c := range creatorUsers {
-				creatorIDs = append(creatorIDs, c.ID)
-			}
-			creatorSnapshots = make([]HomeCreatorSnapshot, 0, len(creatorUsers))
-			for _, c := range creatorUsers {
-				creatorSnapshots = append(creatorSnapshots, HomeCreatorSnapshot{
-					ID: c.ID, Username: c.Username, AvatarPath: c.AvatarPath,
-					FollowersCount: c.FollowersCount, FollowingCount: c.FollowingCount,
-					IsPrivate: c.IsPrivate,
-				})
-			}
-		}
 	}
 
 	if hasViewer && viewerID > 0 && len(creatorIDs) > 0 {
 		var followingIDs []uint
-		if err := sqlx.SelectContext(ctx, h.DB, &followingIDs,
+		if err := sqlx.SelectContext(ctx, db, &followingIDs,
 			"SELECT followed_id FROM follows WHERE follower_id = $1", viewerID); err == nil {
 			for _, id := range followingIDs {
 				followingMap[id] = true
 			}
 		}
 		var followerIDs []uint
-		if err := sqlx.SelectContext(ctx, h.DB, &followerIDs,
+		if err := sqlx.SelectContext(ctx, db, &followerIDs,
 			"SELECT follower_id FROM follows WHERE followed_id = $1", viewerID); err == nil {
 			for _, id := range followerIDs {
 				followedByMap[id] = true
@@ -415,7 +479,7 @@ func (h *HomeHandler) GetHomeSummary(ctx context.Context, req *connect.Request[h
 		}
 	}
 
-	creatorPublicIDs := loadUserPublicIDMap(h.DB, creatorIDs)
+	creatorPublicIDs := loadUserPublicIDMap(db, creatorIDs)
 	var protoCreators []*homev1.HomeCreatorData
 	for _, creator := range creatorSnapshots {
 		if creator.ID == 0 {
@@ -454,6 +518,8 @@ func (h *HomeHandler) GetHomeSummary(ctx context.Context, req *connect.Request[h
 		NewThisWeek:      protoNewThisWeek,
 		TopCreator:       topCreator,
 		CreatorsToFollow: protoCreators,
+		TrendingMatchups:    protoTrendingMatchups,
+		MostPlayedMatchups: protoMostPlayedMatchups,
 	}
 
 	return connect.NewResponse(&homev1.GetHomeSummaryResponse{Summary: summary}), nil

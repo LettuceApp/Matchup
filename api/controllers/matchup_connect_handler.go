@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -19,23 +18,29 @@ import (
 	"Matchup/utils/fileformat"
 	httpctx "Matchup/utils/httpctx"
 
-	aws2 "github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/lib/pq"
 	"connectrpc.com/connect"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 var _ matchupv1connect.MatchupServiceHandler = (*MatchupHandler)(nil)
 
 // MatchupHandler implements matchupv1connect.MatchupServiceHandler.
 type MatchupHandler struct {
-	DB *sqlx.DB
+	DB     *sqlx.DB
+	ReadDB *sqlx.DB
+	// S3Client is the process-wide singleton populated in
+	// initializeConnectRoutes. CreateMatchup uses this for image
+	// uploads instead of building a per-request client.
+	S3Client *s3.Client
 }
 
 func (h *MatchupHandler) ListMatchups(ctx context.Context, req *connect.Request[matchupv1.ListMatchupsRequest]) (*connect.Response[matchupv1.ListMatchupsResponse], error) {
+	// Reads run on the replica; the per-row auto-finalize side effect still
+	// goes to the primary because it writes (see h.DB usage below).
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
 	page := int(req.Msg.GetPage())
 	if page < 1 {
 		page = 1
@@ -50,13 +55,14 @@ func (h *MatchupHandler) ListMatchups(ctx context.Context, req *connect.Request[
 	offset := (page - 1) * limit
 
 	var total int64
-	if err := sqlx.GetContext(ctx, h.DB, &total, "SELECT COUNT(*) FROM matchups"); err != nil {
+	if err := sqlx.GetContext(ctx, db, &total,
+		"SELECT COUNT(*) FROM matchups WHERE status IN ('active', 'published')"); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
 	var matchups []models.Matchup
-	if err := sqlx.SelectContext(ctx, h.DB, &matchups,
-		"SELECT * FROM matchups ORDER BY created_at DESC LIMIT $1 OFFSET $2", limit, offset); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err := sqlx.SelectContext(ctx, db, &matchups,
+		"SELECT * FROM matchups WHERE status IN ('active', 'published') ORDER BY created_at DESC LIMIT $1 OFFSET $2", limit, offset); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
@@ -69,18 +75,22 @@ func (h *MatchupHandler) ListMatchups(ctx context.Context, req *connect.Request[
 		}
 
 		itemQuery, itemArgs, _ := sqlx.In("SELECT * FROM matchup_items WHERE matchup_id IN (?)", matchupIDs)
-		itemQuery = h.DB.Rebind(itemQuery)
+		itemQuery = db.Rebind(itemQuery)
 		var allItems []models.MatchupItem
-		_ = sqlx.SelectContext(ctx, h.DB, &allItems, itemQuery, itemArgs...)
+		_ = sqlx.SelectContext(ctx, db, &allItems, itemQuery, itemArgs...)
+		// Merge live vote deltas from Redis before fanning the items
+		// out to per-matchup buckets — once they're copied into the
+		// map, mutating the originals no longer propagates.
+		applyVoteDeltasToItems(ctx, allItems)
 		itemsByMatchup := make(map[uint][]models.MatchupItem)
 		for _, item := range allItems {
 			itemsByMatchup[item.MatchupID] = append(itemsByMatchup[item.MatchupID], item)
 		}
 
 		authorQuery, authorArgs, _ := sqlx.In("SELECT * FROM users WHERE id IN (?)", authorIDs)
-		authorQuery = h.DB.Rebind(authorQuery)
+		authorQuery = db.Rebind(authorQuery)
 		var authors []models.User
-		_ = sqlx.SelectContext(ctx, h.DB, &authors, authorQuery, authorArgs...)
+		_ = sqlx.SelectContext(ctx, db, &authors, authorQuery, authorArgs...)
 		authorMap := make(map[uint]models.User)
 		for _, a := range authors {
 			a.ProcessAvatarPath()
@@ -95,30 +105,28 @@ func (h *MatchupHandler) ListMatchups(ctx context.Context, req *connect.Request[
 		}
 	}
 
+	listMatchupIDs := make([]uint, len(matchups))
+	for i := range matchups {
+		listMatchupIDs[i] = matchups[i].ID
+	}
+	// LikesCount lives on each matchup row (migration 006).
+	listComments := getMatchupCommentsByMatchupIDs(db, listMatchupIDs)
+
 	var protoMatchups []*matchupv1.MatchupData
 	for i := range matchups {
 		m := &matchups[i]
-		allowed, _, err := canViewUserContent(h.DB, viewerID, hasViewer, &m.Author, m.Visibility, isAdmin)
+		allowed, _, err := canViewUserContent(db, viewerID, hasViewer, &m.Author, m.Visibility, isAdmin)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
 		if !allowed {
 			continue
 		}
+		// Write path — must hit the primary.
 		if err := finalizeStandaloneMatchupIfExpiredStandalone(h.DB, m); err != nil {
 			log.Printf("auto finalize matchup %d: %v", m.ID, err)
 		}
-
-		var likesCount int64
-		_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM likes WHERE matchup_id = $1", m.ID)
-
-		comment := models.Comment{}
-		comments, err := comment.GetComments(h.DB, m.ID)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
-
-		protoMatchups = append(protoMatchups, matchupToProto(h.DB, m, *comments, likesCount))
+		protoMatchups = append(protoMatchups, matchupToProto(db, m, listComments[m.ID]))
 	}
 
 	return connect.NewResponse(&matchupv1.ListMatchupsResponse{
@@ -145,10 +153,17 @@ func (h *MatchupHandler) GetMatchup(ctx context.Context, req *connect.Request[ma
 		}
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+	// Detail view — pull content from the side table.
+	if content, err := models.LoadMatchupContent(h.DB, matchup.ID); err == nil {
+		matchup.Content = content
+	}
 	if err := sqlx.SelectContext(ctx, h.DB, &matchup.Items,
 		"SELECT * FROM matchup_items WHERE matchup_id = $1 ORDER BY id ASC", matchup.ID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+	// Merge any pending Redis vote deltas onto the freshly-loaded items
+	// so the detail view shows live counts, not flush-lagged ones.
+	applyVoteDeltasToItems(ctx, matchup.Items)
 	if err := sqlx.GetContext(ctx, h.DB, &matchup.Author,
 		"SELECT * FROM users WHERE id = $1", matchup.AuthorID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -171,9 +186,7 @@ func (h *MatchupHandler) GetMatchup(ctx context.Context, req *connect.Request[ma
 		log.Printf("auto finalize matchup %d: %v", matchup.ID, err)
 	}
 
-	var likesCount int64
-	_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM likes WHERE matchup_id = $1", matchup.ID)
-
+	// matchup.LikesCount comes from the row (migration 006).
 	comment := models.Comment{}
 	comments, err := comment.GetComments(h.DB, matchup.ID)
 	if err != nil {
@@ -181,17 +194,20 @@ func (h *MatchupHandler) GetMatchup(ctx context.Context, req *connect.Request[ma
 	}
 
 	return connect.NewResponse(&matchupv1.GetMatchupResponse{
-		Matchup: matchupToProto(h.DB, &matchup, *comments, likesCount),
+		Matchup: matchupToProto(h.DB, &matchup, *comments),
 	}), nil
 }
 
 func (h *MatchupHandler) GetPopularMatchups(ctx context.Context, req *connect.Request[matchupv1.GetPopularMatchupsRequest]) (*connect.Response[matchupv1.GetPopularMatchupsResponse], error) {
+	// Pure-read RPC — safe to serve from the replica.
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
 	const limit = 5
 	viewerID, hasViewer := optionalViewerFromCtx(ctx)
 	isAdmin := httpctx.IsAdminRequest(ctx)
 
 	var rows []popularMatchupRow
-	if err := sqlx.SelectContext(ctx, h.DB, &rows,
+	if err := sqlx.SelectContext(ctx, db, &rows,
 		"SELECT * FROM popular_matchups_snapshot ORDER BY rank ASC LIMIT $1", limit); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -211,23 +227,27 @@ func (h *MatchupHandler) GetPopularMatchups(ctx context.Context, req *connect.Re
 		}
 	}
 
-	matchupPublicIDs := loadMatchupPublicIDMap(h.DB, matchupIDs)
-	authorPublicIDs := loadUserPublicIDMap(h.DB, authorIDs)
-	bracketPublicIDs := loadBracketPublicIDMap(h.DB, bracketIDs)
-	bracketAuthorPublicIDs := loadUserPublicIDMap(h.DB, bracketAuthorIDs)
+	matchupPublicIDs := loadMatchupPublicIDMap(db, matchupIDs)
+	authorPublicIDs := loadUserPublicIDMap(db, authorIDs)
+	bracketPublicIDs := loadBracketPublicIDMap(db, bracketIDs)
+	bracketAuthorPublicIDs := loadUserPublicIDMap(db, bracketAuthorIDs)
+
+	popularMatchupsMap := getMatchupsByIDs(db, matchupIDs)
+	popularAuthorsMap := getUsersByIDs(db, authorIDs)
 
 	var protoMatchups []*matchupv1.PopularMatchupData
 	for i := range rows {
-		var matchup models.Matchup
-		if err := sqlx.GetContext(ctx, h.DB, &matchup, "SELECT * FROM matchups WHERE id = $1", rows[i].ID); err != nil {
+		matchup, ok := popularMatchupsMap[rows[i].ID]
+		if !ok {
 			continue
 		}
-		if err := sqlx.GetContext(ctx, h.DB, &matchup.Author, "SELECT * FROM users WHERE id = $1", matchup.AuthorID); err != nil {
+		author, ok := popularAuthorsMap[matchup.AuthorID]
+		if !ok {
 			continue
 		}
-		matchup.Author.ProcessAvatarPath()
+		matchup.Author = *author
 
-		allowed, _, err := canViewUserContent(h.DB, viewerID, hasViewer, &matchup.Author, matchup.Visibility, isAdmin)
+		allowed, _, err := canViewUserContent(db, viewerID, hasViewer, &matchup.Author, matchup.Visibility, isAdmin)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
@@ -252,6 +272,7 @@ func (h *MatchupHandler) GetPopularMatchups(ctx context.Context, req *connect.Re
 			ID:              matchupPublicIDs[rows[i].ID],
 			Title:           rows[i].Title,
 			AuthorID:        authorPublicIDs[rows[i].AuthorID],
+			AuthorUsername:  matchup.Author.Username,
 			BracketID:       bracketID,
 			BracketAuthorID: bracketAuthorID,
 			Round:           rows[i].Round,
@@ -261,6 +282,7 @@ func (h *MatchupHandler) GetPopularMatchups(ctx context.Context, req *connect.Re
 			Comments:        rows[i].Comments,
 			EngagementScore: rows[i].EngagementScore,
 			Rank:            rows[i].Rank,
+			CreatedAt:       rfc3339(matchup.CreatedAt),
 		}
 		protoMatchups = append(protoMatchups, popularMatchupToProto(dto))
 	}
@@ -271,14 +293,18 @@ func (h *MatchupHandler) GetPopularMatchups(ctx context.Context, req *connect.Re
 }
 
 func (h *MatchupHandler) GetUserMatchups(ctx context.Context, req *connect.Request[matchupv1.GetUserMatchupsRequest]) (*connect.Response[matchupv1.GetUserMatchupsResponse], error) {
-	owner, err := resolveUserByIdentifier(h.DB, req.Msg.UserId)
+	// Reads run on the replica; the per-row auto-finalize side effect still
+	// goes to the primary because it writes (see h.DB usage below).
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
+	owner, err := resolveUserByIdentifier(db, req.Msg.UserId)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("user not found"))
 	}
 
 	viewerID, hasViewer := optionalViewerFromCtx(ctx)
 	isAdmin := httpctx.IsAdminRequest(ctx)
-	allowed, reason, err := canViewUserContent(h.DB, viewerID, hasViewer, owner, visibilityPublic, isAdmin)
+	allowed, reason, err := canViewUserContent(db, viewerID, hasViewer, owner, visibilityPublic, isAdmin)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -297,13 +323,13 @@ func (h *MatchupHandler) GetUserMatchups(ctx context.Context, req *connect.Reque
 	offset := (page - 1) * limit
 
 	var total int64
-	if err := sqlx.GetContext(ctx, h.DB, &total,
+	if err := sqlx.GetContext(ctx, db, &total,
 		"SELECT COUNT(*) FROM matchups WHERE author_id = $1", owner.ID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
 	var matchups []models.Matchup
-	if err := sqlx.SelectContext(ctx, h.DB, &matchups,
+	if err := sqlx.SelectContext(ctx, db, &matchups,
 		"SELECT * FROM matchups WHERE author_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
 		owner.ID, limit, offset); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -317,9 +343,12 @@ func (h *MatchupHandler) GetUserMatchups(ctx context.Context, req *connect.Reque
 		}
 
 		itemQuery, itemArgs, _ := sqlx.In("SELECT * FROM matchup_items WHERE matchup_id IN (?)", matchupIDs)
-		itemQuery = h.DB.Rebind(itemQuery)
+		itemQuery = db.Rebind(itemQuery)
 		var allItems []models.MatchupItem
-		_ = sqlx.SelectContext(ctx, h.DB, &allItems, itemQuery, itemArgs...)
+		_ = sqlx.SelectContext(ctx, db, &allItems, itemQuery, itemArgs...)
+		// Merge live Redis vote deltas before bucketing — copies into
+		// the per-matchup map are detached from this slice.
+		applyVoteDeltasToItems(ctx, allItems)
 		itemsByMatchup := make(map[uint][]models.MatchupItem)
 		for _, item := range allItems {
 			itemsByMatchup[item.MatchupID] = append(itemsByMatchup[item.MatchupID], item)
@@ -329,30 +358,28 @@ func (h *MatchupHandler) GetUserMatchups(ctx context.Context, req *connect.Reque
 		}
 	}
 
+	userMatchupIDs := make([]uint, len(matchups))
+	for i := range matchups {
+		userMatchupIDs[i] = matchups[i].ID
+	}
+	// LikesCount lives on each matchup row (migration 006).
+	userComments := getMatchupCommentsByMatchupIDs(db, userMatchupIDs)
+
 	var protoMatchups []*matchupv1.MatchupData
 	for i := range matchups {
 		m := &matchups[i]
-		allowed, _, err := canViewUserContent(h.DB, viewerID, hasViewer, owner, m.Visibility, isAdmin)
+		allowed, _, err := canViewUserContent(db, viewerID, hasViewer, owner, m.Visibility, isAdmin)
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
 		if !allowed {
 			continue
 		}
+		// Write path — must hit the primary.
 		if err := finalizeStandaloneMatchupIfExpiredStandalone(h.DB, m); err != nil {
 			log.Printf("auto finalize matchup %d: %v", m.ID, err)
 		}
-
-		comment := models.Comment{}
-		comments, err := comment.GetComments(h.DB, m.ID)
-		if err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
-
-		var likesCount int64
-		_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM likes WHERE matchup_id = $1", m.ID)
-
-		protoMatchups = append(protoMatchups, matchupToProto(h.DB, m, *comments, likesCount))
+		protoMatchups = append(protoMatchups, matchupToProto(db, m, userComments[m.ID]))
 	}
 
 	return connect.NewResponse(&matchupv1.GetUserMatchupsResponse{
@@ -429,52 +456,25 @@ func (h *MatchupHandler) CreateMatchup(ctx context.Context, req *connect.Request
 		if !strings.HasPrefix(fileType, "image/") {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("not an image"))
 		}
-		var ext string
-		switch fileType {
-		case "image/png":
-			ext = ".png"
-		case "image/gif":
-			ext = ".gif"
-		case "image/webp":
-			ext = ".webp"
-		default:
-			ext = ".jpg"
-		}
-		filePath := fileformat.UniqueFormat("matchup" + ext)
-		key := "MatchupImages/" + filePath
+		// All variants are JPEG-encoded by resizeAndUpload, so the canonical
+		// filename stored in the DB always carries a .jpg extension regardless
+		// of the original upload format. fileType is already validated above.
+		_ = fileType
+		filePath := fileformat.UniqueFormat("matchup.jpg")
+		keyBase := "MatchupImages/" + filePath
 
 		rawBucket := os.Getenv("S3_BUCKET")
 		bucketName := strings.SplitN(rawBucket, "/", 2)[0]
-		region := os.Getenv("AWS_REGION")
-		if region == "" {
-			region = "us-east-2"
+
+		if h.S3Client == nil {
+			return nil, connect.NewError(connect.CodeUnavailable, errors.New("upload service unavailable"))
 		}
-		var s3cfg aws2.Config
-		accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
-		secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-		sessionToken := os.Getenv("AWS_SESSION_TOKEN")
-		var cfgErr error
-		if accessKey != "" && secretKey != "" {
-			s3cfg, cfgErr = config.LoadDefaultConfig(context.TODO(),
-				config.WithRegion(region),
-				config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, sessionToken)),
-			)
-		} else {
-			s3cfg, cfgErr = config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
-		}
-		if cfgErr != nil {
-			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("AWS configuration error: %w", cfgErr))
-		}
-		s3Client := s3.NewFromConfig(s3cfg)
-		size := int64(len(buf))
-		if _, uploadErr := s3Client.PutObject(context.TODO(), &s3.PutObjectInput{
-			Bucket:        aws2.String(bucketName),
-			Key:           aws2.String(key),
-			Body:          bytes.NewReader(buf),
-			ContentLength: aws2.Int64(size),
-			ContentType:   aws2.String(fileType),
-		}); uploadErr != nil {
-			log.Printf("S3 upload failed: %v", uploadErr)
+
+		// resizeAndUpload decodes once, resizes to thumb/medium/full and
+		// uploads each variant to S3. The function applies its own 30s
+		// timeout, so we just hand it the request context.
+		if _, uploadErr := resizeAndUpload(ctx, h.S3Client, bucketName, keyBase, buf); uploadErr != nil {
+			log.Printf("S3 resize/upload failed: %v", uploadErr)
 			return nil, connect.NewError(connect.CodeInternal, errors.New("failed to upload image"))
 		}
 		matchup.ImagePath = filePath
@@ -542,12 +542,12 @@ func (h *MatchupHandler) CreateMatchup(ctx context.Context, req *connect.Request
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	var likesCount int64
-	_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM likes WHERE matchup_id = $1", matchupCreated.ID)
-
-	return connect.NewResponse(&matchupv1.CreateMatchupResponse{
-		Matchup: matchupToProto(h.DB, matchupCreated, *comments, likesCount),
-	}), nil
+	// matchupCreated.LikesCount comes from the row (migration 006); zero on a fresh insert.
+	resp := connect.NewResponse(&matchupv1.CreateMatchupResponse{
+		Matchup: matchupToProto(h.DB, matchupCreated, *comments),
+	})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *MatchupHandler) UpdateMatchup(ctx context.Context, req *connect.Request[matchupv1.UpdateMatchupRequest]) (*connect.Response[matchupv1.UpdateMatchupResponse], error) {
@@ -580,7 +580,8 @@ func (h *MatchupHandler) UpdateMatchup(ctx context.Context, req *connect.Request
 	if req.Msg.Title != nil {
 		existing.Title = *req.Msg.Title
 	}
-	if req.Msg.Content != nil {
+	contentChanged := req.Msg.Content != nil
+	if contentChanged {
 		existing.Content = *req.Msg.Content
 	}
 	existing.UpdatedAt = time.Now()
@@ -590,14 +591,22 @@ func (h *MatchupHandler) UpdateMatchup(ctx context.Context, req *connect.Request
 	}
 
 	if _, err := h.DB.ExecContext(ctx,
-		"UPDATE matchups SET title = $1, content = $2, updated_at = $3 WHERE id = $4",
-		existing.Title, existing.Content, existing.UpdatedAt, existing.ID); err != nil {
+		"UPDATE matchups SET title = $1, updated_at = $2 WHERE id = $3",
+		existing.Title, existing.UpdatedAt, existing.ID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if contentChanged {
+		if err := models.SaveMatchupContent(h.DB, existing.ID, existing.Content); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
 	}
 
 	var updated models.Matchup
 	if err := sqlx.GetContext(ctx, h.DB, &updated, "SELECT * FROM matchups WHERE id = $1", existing.ID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if content, err := models.LoadMatchupContent(h.DB, updated.ID); err == nil {
+		updated.Content = content
 	}
 	if err := sqlx.SelectContext(ctx, h.DB, &updated.Items,
 		"SELECT * FROM matchup_items WHERE matchup_id = $1 ORDER BY id ASC", updated.ID); err != nil {
@@ -614,12 +623,12 @@ func (h *MatchupHandler) UpdateMatchup(ctx context.Context, req *connect.Request
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	var likesCount int64
-	_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM likes WHERE matchup_id = $1", updated.ID)
-
-	return connect.NewResponse(&matchupv1.UpdateMatchupResponse{
-		Matchup: matchupToProto(h.DB, &updated, *comments, likesCount),
-	}), nil
+	// updated.LikesCount comes from the row (migration 006).
+	resp := connect.NewResponse(&matchupv1.UpdateMatchupResponse{
+		Matchup: matchupToProto(h.DB, &updated, *comments),
+	})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *MatchupHandler) DeleteMatchup(ctx context.Context, req *connect.Request[matchupv1.DeleteMatchupRequest]) (*connect.Response[matchupv1.DeleteMatchupResponse], error) {
@@ -653,7 +662,9 @@ func (h *MatchupHandler) DeleteMatchup(ctx context.Context, req *connect.Request
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	return connect.NewResponse(&matchupv1.DeleteMatchupResponse{Message: "matchup deleted"}), nil
+	resp := connect.NewResponse(&matchupv1.DeleteMatchupResponse{Message: "matchup deleted"})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *MatchupHandler) OverrideMatchupWinner(ctx context.Context, req *connect.Request[matchupv1.OverrideMatchupWinnerRequest]) (*connect.Response[matchupv1.OverrideMatchupWinnerResponse], error) {
@@ -727,10 +738,12 @@ func (h *MatchupHandler) OverrideMatchupWinner(ctx context.Context, req *connect
 		invalidateBracketSummaryCache(*matchup.BracketID)
 	}
 
-	return connect.NewResponse(&matchupv1.OverrideMatchupWinnerResponse{
+	resp := connect.NewResponse(&matchupv1.OverrideMatchupWinnerResponse{
 		Message:      "winner selected",
 		WinnerItemId: winnerPublicIDOut,
-	}), nil
+	})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *MatchupHandler) CompleteMatchup(ctx context.Context, req *connect.Request[matchupv1.CompleteMatchupRequest]) (*connect.Response[matchupv1.CompleteMatchupResponse], error) {
@@ -786,10 +799,12 @@ func (h *MatchupHandler) CompleteMatchup(ctx context.Context, req *connect.Reque
 		if matchup.BracketID != nil {
 			invalidateBracketSummaryCache(*matchup.BracketID)
 		}
-		return connect.NewResponse(&matchupv1.CompleteMatchupResponse{
+		resp := connect.NewResponse(&matchupv1.CompleteMatchupResponse{
 			Message: "matchup reopened",
 			Status:  matchupStatusActive,
-		}), nil
+		})
+		setReadPrimaryCookie(resp.Header())
+		return resp, nil
 	}
 
 	winnerID, err := determineMatchupWinner(&matchup)
@@ -820,11 +835,13 @@ func (h *MatchupHandler) CompleteMatchup(ctx context.Context, req *connect.Reque
 		winnerPublicID = resolveMatchupItemPublicID(h.DB, winnerID)
 	}
 
-	return connect.NewResponse(&matchupv1.CompleteMatchupResponse{
+	resp := connect.NewResponse(&matchupv1.CompleteMatchupResponse{
 		Message:      "matchup completed",
 		Status:       matchup.Status,
 		WinnerItemId: winnerPublicID,
-	}), nil
+	})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *MatchupHandler) ReadyUpMatchup(ctx context.Context, req *connect.Request[matchupv1.ReadyUpMatchupRequest]) (*connect.Response[matchupv1.ReadyUpMatchupResponse], error) {
@@ -874,12 +891,16 @@ func (h *MatchupHandler) ReadyUpMatchup(ctx context.Context, req *connect.Reques
 	}
 
 	matchup.Status = matchupStatusCompleted
-	var likesCount int64
-	_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM likes WHERE matchup_id = $1", matchup.ID)
+	// matchup.LikesCount comes from the row (migration 006).
+	if content, err := models.LoadMatchupContent(h.DB, matchup.ID); err == nil {
+		matchup.Content = content
+	}
 
-	return connect.NewResponse(&matchupv1.ReadyUpMatchupResponse{
-		Matchup: matchupToProto(h.DB, &matchup, nil, likesCount),
-	}), nil
+	resp := connect.NewResponse(&matchupv1.ReadyUpMatchupResponse{
+		Matchup: matchupToProto(h.DB, &matchup, nil),
+	})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *MatchupHandler) ActivateMatchup(ctx context.Context, req *connect.Request[matchupv1.ActivateMatchupRequest]) (*connect.Response[matchupv1.ActivateMatchupResponse], error) {
@@ -947,12 +968,16 @@ func (h *MatchupHandler) ActivateMatchup(ctx context.Context, req *connect.Reque
 	}
 	updated.Author.ProcessAvatarPath()
 
-	var likesCount int64
-	_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM likes WHERE matchup_id = $1", updated.ID)
+	// updated.LikesCount comes from the row (migration 006).
+	if content, err := models.LoadMatchupContent(h.DB, updated.ID); err == nil {
+		updated.Content = content
+	}
 
-	return connect.NewResponse(&matchupv1.ActivateMatchupResponse{
-		Matchup: matchupToProto(h.DB, &updated, nil, likesCount),
-	}), nil
+	resp := connect.NewResponse(&matchupv1.ActivateMatchupResponse{
+		Matchup: matchupToProto(h.DB, &updated, nil),
+	})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 // finalizeStandaloneMatchupIfExpiredStandalone is the non-Server-method version

@@ -465,7 +465,8 @@ const MatchupPage = () => {
         <section className="matchup-section">
           {matchup.image_url && (
             <div className="matchup-cover-image">
-              <img src={matchup.image_url} alt={matchup.title} />
+              {/* Cover hero is above the fold — keep eager-loaded but async-decoded */}
+              <img src={matchup.image_url} alt={matchup.title} decoding="async" />
             </div>
           )}
 

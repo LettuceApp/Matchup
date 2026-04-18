@@ -5,11 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
 
 	"Matchup/auth"
+	"Matchup/cache"
 	appdb "Matchup/db"
 	matchupv1 "Matchup/gen/matchup/v1"
 	"Matchup/gen/matchup/v1/matchupv1connect"
@@ -22,7 +24,10 @@ import (
 )
 
 // MatchupItemHandler implements matchupv1connect.MatchupItemServiceHandler.
-type MatchupItemHandler struct{ DB *sqlx.DB }
+type MatchupItemHandler struct {
+	DB     *sqlx.DB
+	ReadDB *sqlx.DB
+}
 
 var _ matchupv1connect.MatchupItemServiceHandler = (*MatchupItemHandler)(nil)
 
@@ -139,6 +144,14 @@ func (h *MatchupItemHandler) VoteItem(ctx context.Context, req *connect.Request[
 		return nil, connect.NewError(connect.CodeInternal, voteErr)
 	}
 
+	// Track item-id deltas to apply to the Redis vote buffer once the
+	// matchup_votes write commits. Doing the cache writes outside the
+	// DB transaction means a Redis outage can never roll back a vote
+	// — the vote row is the source of truth, the buffer is just a
+	// performance optimization.
+	var voteIncrItemID uint
+	var voteDecrItemID uint
+
 	if voteErr == nil {
 		// Vote exists on same item — already voted
 		if existingVote.MatchupItemPublicID == item.PublicID {
@@ -146,12 +159,19 @@ func (h *MatchupItemHandler) VoteItem(ctx context.Context, req *connect.Request[
 			if err := sqlx.GetContext(ctx, h.DB, &updatedItem, "SELECT * FROM matchup_items WHERE id = $1", item.ID); err != nil {
 				return nil, connect.NewError(connect.CodeInternal, err)
 			}
-			return connect.NewResponse(&matchupv1.VoteItemResponse{
-				Item:        matchupItemToProto(updatedItem),
+			// Even on a no-op, surface any pending Redis delta so
+			// the response matches what other endpoints would show.
+			applyVoteDeltaToItem(ctx, &updatedItem)
+			resp := connect.NewResponse(&matchupv1.VoteItemResponse{
+				Item:         matchupItemToProto(updatedItem),
 				AlreadyVoted: true,
-			}), nil
+			})
+			setReadPrimaryCookie(resp.Header())
+			return resp, nil
 		}
-		// Switch vote
+		// Switch vote — only the matchup_votes pointer move stays
+		// in-transaction. The matchup_items counter changes happen
+		// in Redis after commit (see below).
 		tx, err := h.DB.Beginx()
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
@@ -162,20 +182,17 @@ func (h *MatchupItemHandler) VoteItem(ctx context.Context, req *connect.Request[
 		if err := sqlx.GetContext(ctx, tx, &prevItem, "SELECT * FROM matchup_items WHERE public_id = $1", existingVote.MatchupItemPublicID); err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
-		if _, err := tx.ExecContext(ctx, "UPDATE matchup_items SET votes = CASE WHEN votes > 0 THEN votes - 1 ELSE 0 END WHERE id = $1", prevItem.ID); err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
-		if _, err := tx.ExecContext(ctx, "UPDATE matchup_items SET votes = votes + 1 WHERE id = $1", item.ID); err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
 		if _, err := tx.ExecContext(ctx, "UPDATE matchup_votes SET matchup_item_public_id = $1 WHERE id = $2", item.PublicID, existingVote.ID); err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
 		if err := tx.Commit(); err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
+		voteDecrItemID = prevItem.ID
+		voteIncrItemID = item.ID
 	} else {
-		// New vote
+		// New vote — only the matchup_votes INSERT stays in the
+		// transaction. The counter increment lives in Redis.
 		tx, err := h.DB.Beginx()
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
@@ -199,11 +216,48 @@ func (h *MatchupItemHandler) VoteItem(ctx context.Context, req *connect.Request[
 			}
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
-		if _, err := tx.ExecContext(ctx, "UPDATE matchup_items SET votes = votes + 1 WHERE id = $1", item.ID); err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
 		if err := tx.Commit(); err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+		voteIncrItemID = item.ID
+	}
+
+	// Apply the buffered counter changes in Redis. Failures here are
+	// logged but never returned — the source-of-truth row in
+	// matchup_votes is already committed, and the flush worker can
+	// reconstruct any missing deltas later.
+	if cache.Client != nil {
+		if voteIncrItemID != 0 {
+			key := voteDeltaKey(voteIncrItemID)
+			if err := cache.Client.Incr(ctx, key).Err(); err != nil {
+				log.Printf("vote: redis incr failed for item %d: %v", voteIncrItemID, err)
+			}
+			// Safety-net TTL: under volatile-lru, only keys with a TTL
+			// are eviction-eligible. The flush worker zeros these every
+			// 5s, so the TTL is a belt-and-suspenders guard against
+			// stale keys pinning memory if the flush worker is behind.
+			cache.Client.Expire(ctx, key, 2*time.Hour)
+		}
+		if voteDecrItemID != 0 {
+			key := voteDeltaKey(voteDecrItemID)
+			if err := cache.Client.Decr(ctx, key).Err(); err != nil {
+				log.Printf("vote: redis decr failed for item %d: %v", voteDecrItemID, err)
+			}
+			cache.Client.Expire(ctx, key, 2*time.Hour)
+		}
+	} else {
+		// Redis unavailable — fall back to direct DB writes so the
+		// counts don't drift. This is the dev path; production
+		// always has Redis.
+		if voteIncrItemID != 0 {
+			if _, err := h.DB.ExecContext(ctx, "UPDATE matchup_items SET votes = votes + 1 WHERE id = $1", voteIncrItemID); err != nil {
+				return nil, connect.NewError(connect.CodeInternal, err)
+			}
+		}
+		if voteDecrItemID != 0 {
+			if _, err := h.DB.ExecContext(ctx, "UPDATE matchup_items SET votes = GREATEST(votes - 1, 0) WHERE id = $1", voteDecrItemID); err != nil {
+				return nil, connect.NewError(connect.CodeInternal, err)
+			}
 		}
 	}
 
@@ -211,12 +265,18 @@ func (h *MatchupItemHandler) VoteItem(ctx context.Context, req *connect.Request[
 	if err := sqlx.GetContext(ctx, h.DB, &updatedItem, "SELECT * FROM matchup_items WHERE id = $1", item.ID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+	// Merge any pending Redis delta so the response shows the live
+	// count, not the (possibly stale) DB row.
+	applyVoteDeltaToItem(ctx, &updatedItem)
+
 	if item.Matchup.BracketID != nil {
 		invalidateBracketSummaryCache(*item.Matchup.BracketID)
 	}
 	invalidateHomeSummaryCache(item.Matchup.AuthorID)
 
-	return connect.NewResponse(&matchupv1.VoteItemResponse{Item: matchupItemToProto(updatedItem)}), nil
+	resp := connect.NewResponse(&matchupv1.VoteItemResponse{Item: matchupItemToProto(updatedItem)})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *MatchupItemHandler) AddItem(ctx context.Context, req *connect.Request[matchupv1.AddItemRequest]) (*connect.Response[matchupv1.AddItemResponse], error) {
@@ -252,7 +312,9 @@ func (h *MatchupItemHandler) AddItem(ctx context.Context, req *connect.Request[m
 	if m.BracketID != nil {
 		invalidateBracketSummaryCache(*m.BracketID)
 	}
-	return connect.NewResponse(&matchupv1.AddItemResponse{Item: matchupItemToProto(item)}), nil
+	resp := connect.NewResponse(&matchupv1.AddItemResponse{Item: matchupItemToProto(item)})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *MatchupItemHandler) UpdateItem(ctx context.Context, req *connect.Request[matchupv1.UpdateItemRequest]) (*connect.Response[matchupv1.UpdateItemResponse], error) {
@@ -277,7 +339,9 @@ func (h *MatchupItemHandler) UpdateItem(ctx context.Context, req *connect.Reques
 	if err := sqlx.GetContext(ctx, h.DB, itemRecord, "SELECT * FROM matchup_items WHERE id = $1", itemRecord.ID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return connect.NewResponse(&matchupv1.UpdateItemResponse{Item: matchupItemToProto(*itemRecord)}), nil
+	resp := connect.NewResponse(&matchupv1.UpdateItemResponse{Item: matchupItemToProto(*itemRecord)})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *MatchupItemHandler) DeleteItem(ctx context.Context, req *connect.Request[matchupv1.DeleteItemRequest]) (*connect.Response[matchupv1.DeleteItemResponse], error) {
@@ -302,16 +366,21 @@ func (h *MatchupItemHandler) DeleteItem(ctx context.Context, req *connect.Reques
 	if m.BracketID != nil {
 		invalidateBracketSummaryCache(*m.BracketID)
 	}
-	return connect.NewResponse(&matchupv1.DeleteItemResponse{Message: "item deleted"}), nil
+	resp := connect.NewResponse(&matchupv1.DeleteItemResponse{Message: "item deleted"})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *MatchupItemHandler) GetUserVotes(ctx context.Context, req *connect.Request[matchupv1.GetUserVotesRequest]) (*connect.Response[matchupv1.GetUserVotesResponse], error) {
-	user, err := resolveUserByIdentifier(h.DB, req.Msg.UserId)
+	// Pure-read RPC — safe to serve from the replica.
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
+	user, err := resolveUserByIdentifier(db, req.Msg.UserId)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("user not found"))
 	}
 	var votes []models.MatchupVote
-	if err := sqlx.SelectContext(ctx, h.DB, &votes, "SELECT * FROM matchup_votes WHERE user_id = $1", user.ID); err != nil {
+	if err := sqlx.SelectContext(ctx, db, &votes, "SELECT * FROM matchup_votes WHERE user_id = $1", user.ID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	protos := make([]*matchupv1.MatchupVoteData, len(votes))

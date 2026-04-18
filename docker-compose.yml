@@ -56,52 +56,19 @@ services:
     volumes:
       - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
-  dagster-daemon:
+  cron:
     build:
-      context: ./orchestration
+      context: ./api
       dockerfile: Dockerfile
-    container_name: matchup-dagster-daemon
+    container_name: matchup-cron
     env_file:
       - .env
-    environment:
-      DAGSTER_HOME: /opt/dagster
-      DAGSTER_PG_USERNAME: ${DB_USER}
-      DAGSTER_PG_PASSWORD: ${DB_PASSWORD}
-      DAGSTER_PG_HOST: postgres
-      DAGSTER_PG_DB: ${DB_NAME}
-      DAGSTER_PG_PORT: 5432
-    volumes:
-      - ./orchestration:/app
-      - ./orchestration/dagster:/opt/dagster
-    command: ["dagster-daemon", "run", "--workspace", "/app/workspace.yaml"]
-
+    # Same image as the API, different entrypoint. Replaces the former
+    # Dagster orchestration stack — see api/scheduler and api/cmd/cron.
+    entrypoint: ["./cron"]
     depends_on:
       - postgres
-    networks:
-      - matchup
-
-  dagster-webserver:
-    build:
-      context: ./orchestration
-      dockerfile: Dockerfile
-    container_name: matchup-dagster-webserver
-    env_file:
-      - .env
-    environment:
-      DAGSTER_HOME: /opt/dagster
-      DAGSTER_PG_USERNAME: ${DB_USER}
-      DAGSTER_PG_PASSWORD: ${DB_PASSWORD}
-      DAGSTER_PG_HOST: postgres
-      DAGSTER_PG_DB: ${DB_NAME}
-      DAGSTER_PG_PORT: 5432
-    volumes:
-      - ./orchestration:/app
-      - ./orchestration/dagster:/opt/dagster
-    ports:
-      - "3001:3001"
-    command: ["dagster-webserver", "--workspace", "/app/workspace.yaml", "-h", "0.0.0.0", "-p", "3001"]
-    depends_on:
-      - postgres
+      - redis
     networks:
       - matchup
 

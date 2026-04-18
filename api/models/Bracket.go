@@ -38,8 +38,9 @@ type Bracket struct {
 
 	Tags pq.StringArray `db:"tags" json:"tags"`
 
-	// Computed at runtime — not in DB
-	LikesCount int64 `db:"-" json:"likes_count"`
+	// Denormalized counters maintained by triggers (migration 006).
+	LikesCount    int `db:"likes_count" json:"likes_count"`
+	CommentsCount int `db:"comments_count" json:"comments_count"`
 
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`

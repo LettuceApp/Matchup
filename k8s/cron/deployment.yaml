@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: matchup-cron
+  namespace: matchup
+  labels:
+    app: matchup-cron
+spec:
+  # Keep at exactly 1 replica. Every workload is safe under concurrent
+  # execution (bracket advance uses SELECT FOR UPDATE; SQL jobs are
+  # idempotent), but there's no benefit to running the scheduler twice
+  # and it doubles the "every minute" refresh load for no reason. If
+  # you do scale up, add a Redis-based leader lock before you do.
+  replicas: 1
+  strategy:
+    # Recreate avoids two schedulers briefly overlapping during a rolling
+    # update — we'd rather have a few seconds of no scheduler than two
+    # concurrent schedulers triggering duplicate work.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: matchup-cron
+  template:
+    metadata:
+      labels:
+        app: matchup-cron
+    spec:
+      containers:
+        - name: cron
+          image: matchupacr.azurecr.io/matchup-api:v1
+          imagePullPolicy: Always
+          # Same image as the API — just a different ENTRYPOINT override.
+          # Dockerfile produces ./server (API), ./worker (background
+          # jobs), and ./cron (this scheduler). Keeps the build pipeline
+          # to a single image.
+          command: ["./cron"]
+          envFrom:
+            - configMapRef:
+                name: matchup-config
+            - secretRef:
+                name: matchup-secrets
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: matchup-secrets
+                  key: AWS_ACCESS_KEY_ID_ENV
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: matchup-secrets
+                  key: AWS_SECRET_ACCESS_KEY_ENV
+            - name: AWS_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: matchup-secrets
+                  key: AWS_REGION_ENV
+          resources:
+            requests:
+              cpu: 20m
+              memory: 48Mi
+            limits:
+              cpu: 200m
+              memory: 192Mi
+          # No liveness probe endpoint — cron is not an HTTP server. If
+          # the process deadlocks, K8s will restart it on its own when
+          # the main.go blocking Run call returns or panics. For
+          # per-workload monitoring, check the container logs.

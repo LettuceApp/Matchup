@@ -20,15 +20,35 @@ spec:
           image: redis:7-alpine
           ports:
             - containerPort: 6379
-          command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
-          # maxmemory caps RAM usage; allkeys-lru evicts least-recently-used keys when full
+          command:
+            - redis-server
+            - --maxmemory
+            - 256mb
+            - --maxmemory-policy
+            # volatile-lru only evicts keys that have a TTL set. This
+            # protects job queues (no TTL) and rate-limit keys from being
+            # silently evicted under memory pressure. Vote delta keys get
+            # a 2-hour safety-net TTL from the vote handler so they remain
+            # evictable when memory is tight — the flush worker zeros them
+            # every 5s anyway.
+            - volatile-lru
+            # AOF persistence — survives pod restarts so vote deltas and
+            # queued jobs are not lost. fsync every second is the standard
+            # trade-off between durability and throughput.
+            - --appendonly
+            - "yes"
+            - --appendfsync
+            - everysec
           resources:
             requests:
               cpu: 50m
-              memory: 64Mi
+              memory: 256Mi
             limits:
               cpu: 100m
-              memory: 128Mi
+              memory: 512Mi
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
           readinessProbe:
             exec:
               command: ["redis-cli", "ping"]
@@ -39,3 +59,7 @@ spec:
               command: ["redis-cli", "ping"]
             initialDelaySeconds: 15
             periodSeconds: 30
+      volumes:
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: redis-data

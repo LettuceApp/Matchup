@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"log"
@@ -17,22 +16,28 @@ import (
 	"Matchup/utils/fileformat"
 	httpctx "Matchup/utils/httpctx"
 
-	aws2 "github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"connectrpc.com/connect"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jmoiron/sqlx"
 )
 
 // UserHandler implements userv1connect.UserServiceHandler.
-type UserHandler struct{ DB *sqlx.DB }
+type UserHandler struct {
+	DB     *sqlx.DB
+	ReadDB *sqlx.DB
+	// S3Client is the process-wide singleton populated in
+	// initializeConnectRoutes. Avatar uploads use this directly instead
+	// of building a fresh client per request — see Server.S3Client.
+	S3Client *s3.Client
+}
 
 var _ userv1connect.UserServiceHandler = (*UserHandler)(nil)
 
 func (h *UserHandler) ListUsers(ctx context.Context, req *connect.Request[userv1.ListUsersRequest]) (*connect.Response[userv1.ListUsersResponse], error) {
+	// Pure-read RPC — safe to serve from the replica.
+	db := dbForRead(ctx, h.DB, h.ReadDB)
 	var user models.User
-	users, err := user.FindAllUsers(h.DB)
+	users, err := user.FindAllUsers(db)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -45,7 +50,8 @@ func (h *UserHandler) ListUsers(ctx context.Context, req *connect.Request[userv1
 }
 
 func (h *UserHandler) GetUser(ctx context.Context, req *connect.Request[userv1.GetUserRequest]) (*connect.Response[userv1.GetUserResponse], error) {
-	user, err := resolveUserByIdentifier(h.DB, req.Msg.Id)
+	// Pure-read RPC — safe to serve from the replica.
+	user, err := resolveUserByIdentifier(dbForRead(ctx, h.DB, h.ReadDB), req.Msg.Id)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("user not found"))
 	}
@@ -57,8 +63,9 @@ func (h *UserHandler) GetCurrentUser(ctx context.Context, req *connect.Request[u
 	if !ok {
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("unauthorized"))
 	}
+	// Pure-read RPC — safe to serve from the replica.
 	var u models.User
-	found, err := u.FindUserByID(h.DB, uid)
+	found, err := u.FindUserByID(dbForRead(ctx, h.DB, h.ReadDB), uid)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("user not found"))
 	}
@@ -93,7 +100,9 @@ func (h *UserHandler) CreateUser(ctx context.Context, req *connect.Request[userv
 		}
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return connect.NewResponse(&userv1.CreateUserResponse{User: userToProto(created)}), nil
+	resp := connect.NewResponse(&userv1.CreateUserResponse{User: userToProto(created)})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *UserHandler) UpdateUser(ctx context.Context, req *connect.Request[userv1.UpdateUserRequest]) (*connect.Response[userv1.UpdateUserResponse], error) {
@@ -140,7 +149,9 @@ func (h *UserHandler) UpdateUser(ctx context.Context, req *connect.Request[userv
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return connect.NewResponse(&userv1.UpdateUserResponse{User: userToProto(updated)}), nil
+	resp := connect.NewResponse(&userv1.UpdateUserResponse{User: userToProto(updated)})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *UserHandler) UpdateUserPrivacy(ctx context.Context, req *connect.Request[userv1.UpdateUserPrivacyRequest]) (*connect.Response[userv1.UpdateUserPrivacyResponse], error) {
@@ -156,7 +167,9 @@ func (h *UserHandler) UpdateUserPrivacy(ctx context.Context, req *connect.Reques
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	user.IsPrivate = req.Msg.IsPrivate
-	return connect.NewResponse(&userv1.UpdateUserPrivacyResponse{User: userToProto(user)}), nil
+	resp := connect.NewResponse(&userv1.UpdateUserPrivacyResponse{User: userToProto(user)})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *UserHandler) UpdateAvatar(ctx context.Context, req *connect.Request[userv1.UpdateAvatarRequest]) (*connect.Response[userv1.UpdateAvatarResponse], error) {
@@ -181,56 +194,29 @@ func (h *UserHandler) UpdateAvatar(ctx context.Context, req *connect.Request[use
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("not an image"))
 	}
 
-	var ext string
-	switch fileType {
-	case "image/png":
-		ext = ".png"
-	case "image/gif":
-		ext = ".gif"
-	case "image/webp":
-		ext = ".webp"
-	default:
-		ext = ".jpg"
-	}
-	filePath := fileformat.UniqueFormat("avatar" + ext)
-	key := "UserProfilePics/" + filePath
+	// All variants are JPEG-encoded by resizeAndUpload, so the canonical
+	// filename stored in the DB always carries a .jpg extension regardless
+	// of the original upload format. fileType (used for the input bytes)
+	// still drives content sniffing for the validation above.
+	_ = fileType
+	filePath := fileformat.UniqueFormat("avatar.jpg")
+	keyBase := "UserProfilePics/" + filePath
 
 	rawBucket := os.Getenv("S3_BUCKET")
 	bucketName := strings.SplitN(rawBucket, "/", 2)[0]
 	if bucketName == "" {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("server configuration error"))
 	}
-	region := os.Getenv("AWS_REGION")
-	if region == "" {
-		region = "us-east-2"
+
+	if h.S3Client == nil {
+		return nil, connect.NewError(connect.CodeUnavailable, fmt.Errorf("upload service unavailable"))
 	}
 
-	var cfg aws2.Config
-	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
-	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-	sessionToken := os.Getenv("AWS_SESSION_TOKEN")
-	if accessKey != "" && secretKey != "" {
-		cfg, err = config.LoadDefaultConfig(context.TODO(),
-			config.WithRegion(region),
-			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, sessionToken)),
-		)
-	} else {
-		cfg, err = config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
-	}
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("AWS configuration error: %w", err))
-	}
-
-	s3Client := s3.NewFromConfig(cfg)
-	size := int64(len(buf))
-	if _, err := s3Client.PutObject(context.TODO(), &s3.PutObjectInput{
-		Bucket:        aws2.String(bucketName),
-		Key:           aws2.String(key),
-		Body:          bytes.NewReader(buf),
-		ContentLength: aws2.Int64(size),
-		ContentType:   aws2.String(fileType),
-	}); err != nil {
-		log.Printf("S3 upload failed: %v", err)
+	// resizeAndUpload decodes once, resizes to thumb/medium/full and uploads
+	// each variant to S3. The function applies its own 30s timeout, so we
+	// just hand it the request context.
+	if _, err := resizeAndUpload(ctx, h.S3Client, bucketName, keyBase, buf); err != nil {
+		log.Printf("S3 resize/upload failed: %v", err)
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to upload image"))
 	}
 
@@ -240,7 +226,9 @@ func (h *UserHandler) UpdateAvatar(ctx context.Context, req *connect.Request[use
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("cannot save image"))
 	}
 	updatedUser.AvatarPath = appdb.ProcessAvatarPath(filePath)
-	return connect.NewResponse(&userv1.UpdateAvatarResponse{User: userToProto(updatedUser)}), nil
+	resp := connect.NewResponse(&userv1.UpdateAvatarResponse{User: userToProto(updatedUser)})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *UserHandler) DeleteUser(ctx context.Context, req *connect.Request[userv1.DeleteUserRequest]) (*connect.Response[userv1.DeleteUserResponse], error) {
@@ -269,11 +257,16 @@ func (h *UserHandler) DeleteUser(ctx context.Context, req *connect.Request[userv
 	if err := tx.Commit(); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return connect.NewResponse(&userv1.DeleteUserResponse{Message: "user deleted"}), nil
+	resp := connect.NewResponse(&userv1.DeleteUserResponse{Message: "user deleted"})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *UserHandler) GetFollowers(ctx context.Context, req *connect.Request[userv1.GetFollowersRequest]) (*connect.Response[userv1.GetFollowersResponse], error) {
-	target, err := resolveUserByIdentifier(h.DB, req.Msg.Id)
+	// Pure-read RPC — safe to serve from the replica.
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
+	target, err := resolveUserByIdentifier(db, req.Msg.Id)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("user not found"))
 	}
@@ -292,13 +285,13 @@ func (h *UserHandler) GetFollowers(ctx context.Context, req *connect.Request[use
 	}
 
 	// fetchFollowRows is a Server method — use standalone query here
-	rows, err := fetchFollowRowsStandalone(h.DB, "follows.followed_id = $1", []interface{}{target.ID}, "users.id = follows.follower_id", limit, cursor)
+	rows, err := fetchFollowRowsStandalone(db, "follows.followed_id = $1", []interface{}{target.ID}, "users.id = follows.follower_id", limit, cursor)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
 	viewerID, hasViewer := optionalViewerFromCtx(ctx)
-	followingMap, followedByMap, err := loadViewerRelationships(h.DB, viewerID, hasViewer, rows)
+	followingMap, followedByMap, err := loadViewerRelationships(db, viewerID, hasViewer, rows)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -314,7 +307,10 @@ func (h *UserHandler) GetFollowers(ctx context.Context, req *connect.Request[use
 }
 
 func (h *UserHandler) GetFollowing(ctx context.Context, req *connect.Request[userv1.GetFollowingRequest]) (*connect.Response[userv1.GetFollowingResponse], error) {
-	target, err := resolveUserByIdentifier(h.DB, req.Msg.Id)
+	// Pure-read RPC — safe to serve from the replica.
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
+	target, err := resolveUserByIdentifier(db, req.Msg.Id)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("user not found"))
 	}
@@ -332,13 +328,13 @@ func (h *UserHandler) GetFollowing(ctx context.Context, req *connect.Request[use
 		cursor = c
 	}
 
-	rows, err := fetchFollowRowsStandalone(h.DB, "follows.follower_id = $1", []interface{}{target.ID}, "users.id = follows.followed_id", limit, cursor)
+	rows, err := fetchFollowRowsStandalone(db, "follows.follower_id = $1", []interface{}{target.ID}, "users.id = follows.followed_id", limit, cursor)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
 	viewerID, hasViewer := optionalViewerFromCtx(ctx)
-	followingMap, followedByMap, err := loadViewerRelationships(h.DB, viewerID, hasViewer, rows)
+	followingMap, followedByMap, err := loadViewerRelationships(db, viewerID, hasViewer, rows)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -387,7 +383,9 @@ func (h *UserHandler) FollowUser(ctx context.Context, req *connect.Request[userv
 	if err := tx.Commit(); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return connect.NewResponse(&userv1.FollowUserResponse{Message: "user followed"}), nil
+	resp := connect.NewResponse(&userv1.FollowUserResponse{Message: "user followed"})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *UserHandler) UnfollowUser(ctx context.Context, req *connect.Request[userv1.UnfollowUserRequest]) (*connect.Response[userv1.UnfollowUserResponse], error) {
@@ -424,7 +422,9 @@ func (h *UserHandler) UnfollowUser(ctx context.Context, req *connect.Request[use
 	if err := tx.Commit(); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return connect.NewResponse(&userv1.UnfollowUserResponse{Message: "user unfollowed"}), nil
+	resp := connect.NewResponse(&userv1.UnfollowUserResponse{Message: "user unfollowed"})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 func (h *UserHandler) GetRelationship(ctx context.Context, req *connect.Request[userv1.GetRelationshipRequest]) (*connect.Response[userv1.GetRelationshipResponse], error) {
@@ -432,7 +432,10 @@ func (h *UserHandler) GetRelationship(ctx context.Context, req *connect.Request[
 	if !ok {
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("unauthorized"))
 	}
-	target, err := resolveUserByIdentifier(h.DB, req.Msg.Id)
+	// Pure-read RPC — safe to serve from the replica.
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
+	target, err := resolveUserByIdentifier(db, req.Msg.Id)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("user not found"))
 	}
@@ -446,7 +449,7 @@ func (h *UserHandler) GetRelationship(ctx context.Context, req *connect.Request[
 		Following  bool `db:"following"`
 		FollowedBy bool `db:"followed_by"`
 	}
-	if err := sqlx.GetContext(ctx, h.DB, &rel,
+	if err := sqlx.GetContext(ctx, db, &rel,
 		`SELECT
 			EXISTS(SELECT 1 FROM follows WHERE follower_id = $1 AND followed_id = $2) AS following,
 			EXISTS(SELECT 1 FROM follows WHERE follower_id = $3 AND followed_id = $4) AS followed_by`,

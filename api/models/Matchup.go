@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"html"
 	"strings"
@@ -17,7 +18,9 @@ type Matchup struct {
 	ID              uint          `db:"id" json:"id"`
 	PublicID        string        `db:"public_id" json:"public_id"`
 	Title           string        `db:"title" json:"title"`
-	Content         string        `db:"content" json:"content"`
+	// Content lives in matchup_details (split out in migration 005). Transient on this struct;
+	// loaded via LoadMatchupContent / saved via SaveMatchupContent.
+	Content         string        `db:"-" json:"content"`
 	Author          User          `db:"-" json:"-"`
 	AuthorID        uint          `db:"author_id" json:"author_id"`
 	Items           []MatchupItem `db:"-" json:"items"`
@@ -36,6 +39,9 @@ type Matchup struct {
 	Visibility      string        `db:"visibility" json:"visibility"`
 	ImagePath       string        `db:"image_path" json:"image_path"`
 	Tags            pq.StringArray `db:"tags" json:"tags"`
+	// Denormalized counters maintained by triggers (migration 006).
+	LikesCount      int           `db:"likes_count" json:"likes_count"`
+	CommentsCount   int           `db:"comments_count" json:"comments_count"`
 }
 
 type MatchupItem struct {
@@ -45,6 +51,59 @@ type MatchupItem struct {
 	MatchupID uint    `db:"matchup_id" json:"matchup_id"`
 	Item      string  `db:"item" json:"item"`
 	Votes     int     `db:"votes" json:"votes"`
+}
+
+// MatchupDetails holds the large `content` body, separated from `matchups`
+// (vertical hot/cold split — migration 005). Read on demand for detail views;
+// not loaded for list/feed paths so row fetches stay narrow.
+type MatchupDetails struct {
+	MatchupID uint   `db:"matchup_id" json:"matchup_id"`
+	Content   string `db:"content" json:"content"`
+}
+
+// LoadMatchupContent fetches the content body for a single matchup.
+// Returns "" without error when no row exists (e.g. matchup created before backfill).
+func LoadMatchupContent(db sqlx.ExtContext, matchupID uint) (string, error) {
+	var content string
+	err := sqlx.GetContext(context.Background(), db, &content,
+		"SELECT content FROM matchup_details WHERE matchup_id = $1", matchupID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", err
+	}
+	return content, nil
+}
+
+// SaveMatchupContent upserts the content body for a matchup.
+func SaveMatchupContent(db sqlx.ExtContext, matchupID uint, content string) error {
+	_, err := db.ExecContext(context.Background(),
+		`INSERT INTO matchup_details (matchup_id, content) VALUES ($1, $2)
+		 ON CONFLICT (matchup_id) DO UPDATE SET content = EXCLUDED.content`,
+		matchupID, content)
+	return err
+}
+
+// LoadMatchupContents batch-loads content for many matchups, keyed by matchup ID.
+// Use this when an admin/edit view needs content for multiple matchups at once.
+func LoadMatchupContents(db sqlx.ExtContext, matchupIDs []uint) (map[uint]string, error) {
+	out := make(map[uint]string, len(matchupIDs))
+	if len(matchupIDs) == 0 {
+		return out, nil
+	}
+	query, args, err := sqlx.In("SELECT matchup_id, content FROM matchup_details WHERE matchup_id IN (?)", matchupIDs)
+	if err != nil {
+		return nil, err
+	}
+	var rows []MatchupDetails
+	if err := sqlx.SelectContext(context.Background(), db, &rows, db.Rebind(query), args...); err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		out[r.MatchupID] = r.Content
+	}
+	return out, nil
 }
 
 func (m *Matchup) Prepare() {
@@ -70,10 +129,6 @@ func (m *Matchup) Validate() map[string]string {
 		err = errors.New("required title")
 		errorMessages["Required_title"] = err.Error()
 	}
-	if m.Content == "" {
-		err = errors.New("required content")
-		errorMessages["Required_content"] = err.Error()
-	}
 	if m.AuthorID == 0 {
 		err = errors.New("required author")
 		errorMessages["Required_author"] = err.Error()
@@ -90,14 +145,20 @@ func (m *Matchup) SaveMatchup(db sqlx.ExtContext) (*Matchup, error) {
 		m.Tags = pq.StringArray{}
 	}
 	query, args, err := appdb.Psql.Insert("matchups").
-		Columns("public_id", "title", "content", "author_id", "status", "end_mode", "duration_seconds", "bracket_id", "round", "seed", "winner_item_id", "start_time", "end_time", "visibility", "image_path", "tags", "created_at", "updated_at").
-		Values(m.PublicID, m.Title, m.Content, m.AuthorID, m.Status, m.EndMode, m.DurationSeconds, m.BracketID, m.Round, m.Seed, m.WinnerItemID, m.StartTime, m.EndTime, m.Visibility, m.ImagePath, m.Tags, m.CreatedAt, m.UpdatedAt).
+		Columns("public_id", "title", "author_id", "status", "end_mode", "duration_seconds", "bracket_id", "round", "seed", "winner_item_id", "start_time", "end_time", "visibility", "image_path", "tags", "created_at", "updated_at").
+		Values(m.PublicID, m.Title, m.AuthorID, m.Status, m.EndMode, m.DurationSeconds, m.BracketID, m.Round, m.Seed, m.WinnerItemID, m.StartTime, m.EndTime, m.Visibility, m.ImagePath, m.Tags, m.CreatedAt, m.UpdatedAt).
 		Suffix("RETURNING *").
 		ToSql()
 	if err != nil {
 		return nil, err
 	}
+	// Capture content separately because GetContext won't repopulate the transient field.
+	contentBody := m.Content
 	if err := sqlx.GetContext(context.Background(), db, m, query, args...); err != nil {
+		return nil, err
+	}
+	m.Content = contentBody
+	if err := SaveMatchupContent(db, m.ID, contentBody); err != nil {
 		return nil, err
 	}
 
@@ -137,7 +198,7 @@ func (m *Matchup) FindAllMatchups(db sqlx.ExtContext) ([]Matchup, error) {
 	if err != nil {
 		return []Matchup{}, err
 	}
-	if err := loadMatchupAssociations(db, matchups); err != nil {
+	if err := LoadMatchupAssociations(db, matchups); err != nil {
 		return []Matchup{}, err
 	}
 	return matchups, nil
@@ -157,9 +218,12 @@ func (m *Matchup) FindMatchupByID(db sqlx.ExtContext, id uint) (*Matchup, error)
 
 func (m *Matchup) UpdateMatchup(db sqlx.ExtContext) (*Matchup, error) {
 	_, err := db.ExecContext(context.Background(),
-		"UPDATE matchups SET title = $1, content = $2, updated_at = $3 WHERE id = $4",
-		m.Title, m.Content, time.Now(), m.ID)
+		"UPDATE matchups SET title = $1, updated_at = $2 WHERE id = $3",
+		m.Title, time.Now(), m.ID)
 	if err != nil {
+		return &Matchup{}, err
+	}
+	if err := SaveMatchupContent(db, m.ID, m.Content); err != nil {
 		return &Matchup{}, err
 	}
 
@@ -199,7 +263,7 @@ func (m *Matchup) FindUserMatchups(db sqlx.ExtContext, uid uint) (*[]Matchup, er
 	if err != nil {
 		return nil, err
 	}
-	if err := loadMatchupAssociations(db, matchups); err != nil {
+	if err := LoadMatchupAssociations(db, matchups); err != nil {
 		return nil, err
 	}
 	return &matchups, nil
@@ -236,7 +300,7 @@ func FindMatchupsByBracket(db sqlx.ExtContext, bracketID uint) ([]Matchup, error
 	if err != nil {
 		return nil, err
 	}
-	if err := loadMatchupAssociations(db, matchups); err != nil {
+	if err := LoadMatchupAssociations(db, matchups); err != nil {
 		return nil, err
 	}
 	return matchups, err
@@ -302,8 +366,8 @@ func FindBracketRounds(db sqlx.ExtContext, bracketID uint) (map[int][]Matchup, e
 	return rounds, nil
 }
 
-// loadMatchupAssociations batch-loads Author and Items for a slice of matchups.
-func loadMatchupAssociations(db sqlx.ExtContext, matchups []Matchup) error {
+// LoadMatchupAssociations batch-loads Author and Items for a slice of matchups.
+func LoadMatchupAssociations(db sqlx.ExtContext, matchups []Matchup) error {
 	if len(matchups) == 0 {
 		return nil
 	}

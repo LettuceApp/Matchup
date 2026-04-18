@@ -16,13 +16,19 @@ import (
 )
 
 // CommentHandler implements commentv1connect.CommentServiceHandler.
-type CommentHandler struct{ DB *sqlx.DB }
+type CommentHandler struct {
+	DB     *sqlx.DB
+	ReadDB *sqlx.DB
+}
 
 var _ commentv1connect.CommentServiceHandler = (*CommentHandler)(nil)
 
 // GetComments returns all comments for a matchup.
 func (h *CommentHandler) GetComments(ctx context.Context, req *connect.Request[commentv1.GetCommentsRequest]) (*connect.Response[commentv1.GetCommentsResponse], error) {
-	matchupRecord, err := resolveMatchupByIdentifier(h.DB, req.Msg.MatchupId)
+	// Pure-read RPC — safe to serve from the replica.
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
+	matchupRecord, err := resolveMatchupByIdentifier(db, req.Msg.MatchupId)
 	if err != nil {
 		if errors.Is(err, errInvalidIdentifier) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid matchup id"))
@@ -34,16 +40,16 @@ func (h *CommentHandler) GetComments(ctx context.Context, req *connect.Request[c
 	}
 
 	matchup := models.Matchup{}
-	if err := sqlx.GetContext(ctx, h.DB, &matchup, "SELECT * FROM matchups WHERE id = $1", matchupRecord.ID); err != nil {
+	if err := sqlx.GetContext(ctx, db, &matchup, "SELECT * FROM matchups WHERE id = $1", matchupRecord.ID); err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("matchup not found"))
 	}
-	if err := sqlx.GetContext(ctx, h.DB, &matchup.Author, "SELECT * FROM users WHERE id = $1", matchup.AuthorID); err != nil {
+	if err := sqlx.GetContext(ctx, db, &matchup.Author, "SELECT * FROM users WHERE id = $1", matchup.AuthorID); err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("matchup not found"))
 	}
 	matchup.Author.ProcessAvatarPath()
 
 	viewerID, hasViewer := optionalViewerFromCtx(ctx)
-	allowed, reason, err := canViewUserContent(h.DB, viewerID, hasViewer, &matchup.Author, matchup.Visibility, httpctx.IsAdminRequest(ctx))
+	allowed, reason, err := canViewUserContent(db, viewerID, hasViewer, &matchup.Author, matchup.Visibility, httpctx.IsAdminRequest(ctx))
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("unable to check matchup visibility"))
 	}
@@ -52,7 +58,7 @@ func (h *CommentHandler) GetComments(ctx context.Context, req *connect.Request[c
 	}
 
 	comments := []models.Comment{}
-	if err := sqlx.SelectContext(ctx, h.DB, &comments,
+	if err := sqlx.SelectContext(ctx, db, &comments,
 		"SELECT * FROM comments WHERE matchup_id = $1 ORDER BY created_at DESC", matchupRecord.ID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("unable to retrieve comments"))
 	}
@@ -65,9 +71,9 @@ func (h *CommentHandler) GetComments(ctx context.Context, req *connect.Request[c
 		}
 		query, args, err := sqlx.In("SELECT * FROM users WHERE id IN (?)", authorIDs)
 		if err == nil {
-			query = h.DB.Rebind(query)
+			query = db.Rebind(query)
 			var authors []models.User
-			if err := sqlx.SelectContext(ctx, h.DB, &authors, query, args...); err == nil {
+			if err := sqlx.SelectContext(ctx, db, &authors, query, args...); err == nil {
 				authorMap := make(map[uint]models.User, len(authors))
 				for _, a := range authors {
 					a.ProcessAvatarPath()
@@ -84,7 +90,7 @@ func (h *CommentHandler) GetComments(ctx context.Context, req *connect.Request[c
 
 	protos := make([]*commentv1.CommentData, len(comments))
 	for i, c := range comments {
-		protos[i] = commentToProto(h.DB, c)
+		protos[i] = commentToProto(db, c)
 	}
 
 	return connect.NewResponse(&commentv1.GetCommentsResponse{Comments: protos}), nil
@@ -170,9 +176,11 @@ func (h *CommentHandler) CreateComment(ctx context.Context, req *connect.Request
 
 	invalidateHomeSummaryCache(matchup.AuthorID)
 
-	return connect.NewResponse(&commentv1.CreateCommentResponse{
+	resp := connect.NewResponse(&commentv1.CreateCommentResponse{
 		Comment: commentToProto(h.DB, *commentCreated),
-	}), nil
+	})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 // UpdateComment updates the body of a matchup comment.
@@ -228,9 +236,11 @@ func (h *CommentHandler) UpdateComment(ctx context.Context, req *connect.Request
 		commentUpdated.Author = author
 	}
 
-	return connect.NewResponse(&commentv1.UpdateCommentResponse{
+	resp := connect.NewResponse(&commentv1.UpdateCommentResponse{
 		Comment: commentToProto(h.DB, *commentUpdated),
-	}), nil
+	})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 // DeleteComment deletes a matchup comment.
@@ -272,12 +282,17 @@ func (h *CommentHandler) DeleteComment(ctx context.Context, req *connect.Request
 		invalidateHomeSummaryCache(matchup.AuthorID)
 	}
 
-	return connect.NewResponse(&commentv1.DeleteCommentResponse{Message: "comment deleted"}), nil
+	resp := connect.NewResponse(&commentv1.DeleteCommentResponse{Message: "comment deleted"})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 // GetBracketComments returns all comments for a bracket.
 func (h *CommentHandler) GetBracketComments(ctx context.Context, req *connect.Request[commentv1.GetBracketCommentsRequest]) (*connect.Response[commentv1.GetBracketCommentsResponse], error) {
-	bracketRecord, err := resolveBracketByIdentifier(h.DB, req.Msg.BracketId)
+	// Pure-read RPC — safe to serve from the replica.
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
+	bracketRecord, err := resolveBracketByIdentifier(db, req.Msg.BracketId)
 	if err != nil {
 		if errors.Is(err, errInvalidIdentifier) {
 			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid bracket id"))
@@ -289,16 +304,16 @@ func (h *CommentHandler) GetBracketComments(ctx context.Context, req *connect.Re
 	}
 
 	bracket := models.Bracket{}
-	if err := sqlx.GetContext(ctx, h.DB, &bracket, "SELECT * FROM brackets WHERE id = $1", bracketRecord.ID); err != nil {
+	if err := sqlx.GetContext(ctx, db, &bracket, "SELECT * FROM brackets WHERE id = $1", bracketRecord.ID); err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("bracket not found"))
 	}
-	if err := sqlx.GetContext(ctx, h.DB, &bracket.Author, "SELECT * FROM users WHERE id = $1", bracket.AuthorID); err != nil {
+	if err := sqlx.GetContext(ctx, db, &bracket.Author, "SELECT * FROM users WHERE id = $1", bracket.AuthorID); err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("bracket not found"))
 	}
 	bracket.Author.ProcessAvatarPath()
 
 	viewerID, hasViewer := optionalViewerFromCtx(ctx)
-	allowed, reason, err := canViewUserContent(h.DB, viewerID, hasViewer, &bracket.Author, bracket.Visibility, httpctx.IsAdminRequest(ctx))
+	allowed, reason, err := canViewUserContent(db, viewerID, hasViewer, &bracket.Author, bracket.Visibility, httpctx.IsAdminRequest(ctx))
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("unable to check bracket visibility"))
 	}
@@ -307,7 +322,7 @@ func (h *CommentHandler) GetBracketComments(ctx context.Context, req *connect.Re
 	}
 
 	comments := []models.BracketComment{}
-	if err := sqlx.SelectContext(ctx, h.DB, &comments,
+	if err := sqlx.SelectContext(ctx, db, &comments,
 		"SELECT * FROM bracket_comments WHERE bracket_id = $1 ORDER BY created_at DESC", bracketRecord.ID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("unable to retrieve comments"))
 	}
@@ -320,9 +335,9 @@ func (h *CommentHandler) GetBracketComments(ctx context.Context, req *connect.Re
 		}
 		query, args, err := sqlx.In("SELECT * FROM users WHERE id IN (?)", authorIDs)
 		if err == nil {
-			query = h.DB.Rebind(query)
+			query = db.Rebind(query)
 			var authors []models.User
-			if err := sqlx.SelectContext(ctx, h.DB, &authors, query, args...); err == nil {
+			if err := sqlx.SelectContext(ctx, db, &authors, query, args...); err == nil {
 				authorMap := make(map[uint]models.User, len(authors))
 				for _, a := range authors {
 					a.ProcessAvatarPath()
@@ -339,7 +354,7 @@ func (h *CommentHandler) GetBracketComments(ctx context.Context, req *connect.Re
 
 	protos := make([]*commentv1.BracketCommentData, len(comments))
 	for i, c := range comments {
-		protos[i] = bracketCommentToProto(h.DB, c)
+		protos[i] = bracketCommentToProto(db, c)
 	}
 
 	return connect.NewResponse(&commentv1.GetBracketCommentsResponse{Comments: protos}), nil
@@ -405,9 +420,11 @@ func (h *CommentHandler) CreateBracketComment(ctx context.Context, req *connect.
 
 	invalidateHomeSummaryCache(bracket.AuthorID)
 
-	return connect.NewResponse(&commentv1.CreateBracketCommentResponse{
+	resp := connect.NewResponse(&commentv1.CreateBracketCommentResponse{
 		Comment: bracketCommentToProto(h.DB, *commentCreated),
-	}), nil
+	})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }
 
 // DeleteBracketComment deletes a bracket comment.
@@ -449,5 +466,7 @@ func (h *CommentHandler) DeleteBracketComment(ctx context.Context, req *connect.
 		invalidateHomeSummaryCache(bracket.AuthorID)
 	}
 
-	return connect.NewResponse(&commentv1.DeleteBracketCommentResponse{Message: "comment deleted"}), nil
+	resp := connect.NewResponse(&commentv1.DeleteBracketCommentResponse{Message: "comment deleted"})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
 }

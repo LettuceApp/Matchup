@@ -5,6 +5,7 @@ metadata:
   namespace: matchup
   labels:
     app: postgres
+    role: primary
 spec:
   replicas: 1                    # Postgres can't run multi-replica without clustering
   strategy:
@@ -12,16 +13,28 @@ spec:
   selector:
     matchLabels:
       app: postgres
+      role: primary
   template:
     metadata:
       labels:
         app: postgres
+        role: primary
     spec:
       containers:
         - name: postgres
           image: postgres:14
           ports:
             - containerPort: 5432
+          # Override the entrypoint command so postgres picks up our
+          # ConfigMap-mounted postgresql.conf and pg_hba.conf. The official
+          # image's docker-entrypoint.sh runs initdb on first boot before
+          # exec'ing the command below, so init scripts in
+          # /docker-entrypoint-initdb.d/ still fire.
+          args:
+            - "-c"
+            - "config_file=/etc/postgresql/postgresql.conf"
+            - "-c"
+            - "hba_file=/etc/postgresql/pg_hba.conf"
           env:
             - name: POSTGRES_USER
               valueFrom:
@@ -35,10 +48,24 @@ spec:
                   key: DB_PASSWORD
             - name: POSTGRES_DB
               value: "matchup"
+            - name: REPLICATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: matchup-secrets
+                  key: REPLICATION_PASSWORD
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
               subPath: pgdata         # Avoids "lost+found" issue on Azure disks
+            - name: postgres-config
+              mountPath: /etc/postgresql/postgresql.conf
+              subPath: postgresql.conf
+            - name: postgres-config
+              mountPath: /etc/postgresql/pg_hba.conf
+              subPath: pg_hba.conf
+            - name: postgres-init
+              mountPath: /docker-entrypoint-initdb.d/init-replication-user.sh
+              subPath: init-replication-user.sh
           resources:
             requests:
               cpu: 250m
@@ -60,3 +87,18 @@ spec:
         - name: postgres-data
           persistentVolumeClaim:
             claimName: postgres-pvc
+        - name: postgres-config
+          configMap:
+            name: postgres-config
+            items:
+              - key: postgresql.conf
+                path: postgresql.conf
+              - key: pg_hba.conf
+                path: pg_hba.conf
+        - name: postgres-init
+          configMap:
+            name: postgres-config
+            defaultMode: 0755
+            items:
+              - key: init-replication-user.sh
+                path: init-replication-user.sh

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import {
   BrowserRouter,
   Routes,
@@ -6,25 +7,51 @@ import {
   useLocation,
 } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
+// Eager — these are reachable on first paint and would just delay the spinner
+// if lazy-loaded. HomePage is the default landing route; Login/Register are
+// the unauth landing; UserProfileRedirect is a tiny redirect-only stub.
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-import MatchupPage from './pages/MatchupPage';
-import CreateMatchup from './pages/CreateMatchup';
-import UserProfile from './pages/UserProfile';
 import UserProfileRedirect from './pages/UserProfileRedirect';
-import AdminDashboard from './pages/AdminDashboard';
-import CreateBracketPage from './pages/CreateBracketPage';
-import BracketPage from './pages/BracketPage';
 import { RequireAuth, RedirectIfAuth, RequireAdmin } from './auth/guards';
 import { useAuthBootstrap } from './auth/useAuthBootstrap';
 import PageTransition from './components/PageTransition';
+
+// Lazy — these import heavy libraries (react-tournament-bracket, recharts,
+// markdown editors) that the home page user may never reach. Each becomes
+// its own webpack chunk and is downloaded on first navigation to that route.
+const MatchupPage = lazy(() => import('./pages/MatchupPage'));
+const CreateMatchup = lazy(() => import('./pages/CreateMatchup'));
+const UserProfile = lazy(() => import('./pages/UserProfile'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const CreateBracketPage = lazy(() => import('./pages/CreateBracketPage'));
+const BracketPage = lazy(() => import('./pages/BracketPage'));
+
+// Tiny inline fallback shown while a lazy chunk is downloading. Kept inline
+// rather than importing a heavyweight spinner so the fallback itself never
+// triggers another chunk load.
+const RouteFallback = () => (
+  <div
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '60vh',
+      color: '#888',
+      fontSize: 14,
+    }}
+  >
+    Loading…
+  </div>
+);
 
 const AppRoutes = () => {
   const location = useLocation();
 
   return (
     <AnimatePresence mode="wait">
+      <Suspense fallback={<RouteFallback />}>
       <Routes location={location} key={location.pathname}>
         <Route
           path="/"
@@ -136,6 +163,7 @@ const AppRoutes = () => {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </AnimatePresence>
   );
 };

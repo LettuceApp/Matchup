@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import NavigationBar from "../components/NavigationBar";
 import ConfirmModal from "../components/ConfirmModal";
@@ -144,22 +144,18 @@ export default function BracketPage() {
 
   const roundCountdown = useCountdown(roundEndsAt);
 
-  // Poll for timer-driven advances so champion + round updates appear without refresh.
+  // Listen for server-sent bracket advance events to refresh without polling.
   useEffect(() => {
-    if (bracketAdvanceMode !== "timer" || bracket?.status !== "active") return;
+    if (bracketAdvanceMode !== "timer" || bracket?.status !== "active" || !bracket?.id) return;
 
-    const intervalMs = roundCountdown.isExpired ? 3000 : 10000;
-    const interval = setInterval(() => {
-      loadBracket({ silent: true });
-    }, intervalMs);
+    const es = new EventSource(`/brackets/${bracket.id}/events`);
+    es.onmessage = (e) => {
+      if (e.data === "advance") loadBracket({ silent: true });
+    };
+    es.onerror = () => es.close();
 
-    return () => clearInterval(interval);
-  }, [
-    bracketAdvanceMode,
-    bracket?.status,
-    roundCountdown.isExpired,
-    loadBracket,
-  ]);
+    return () => es.close();
+  }, [bracketAdvanceMode, bracket?.status, bracket?.id, loadBracket]);
 
   /* ------------------------------------------------------------------ */
   /* CHAMPION DETECTION */
@@ -354,7 +350,20 @@ export default function BracketPage() {
       <NavigationBar />
       <main className="bracket-content">
         <motion.section className="bracket-hero-summary" {...sectionMotion}>
-          <p className="bracket-overline">Tournament snapshot</p>
+          <p className="bracket-overline">
+            Tournament snapshot
+            {(bracket.author?.username || bracket.author_username) && (
+              <>
+                {" · by "}
+                <Link
+                  to={`/users/${bracket.author?.username || bracket.author_id}`}
+                  className="bracket-author-link"
+                >
+                  {bracket.author?.username || bracket.author_username}
+                </Link>
+              </>
+            )}
+          </p>
           <h1>{bracket.title}</h1>
           <p className="bracket-description">
             {bracket.description || "No description provided yet."}

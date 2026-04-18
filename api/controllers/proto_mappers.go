@@ -93,7 +93,7 @@ func paginationToProto(page, limit int, total int64) *commonv1.Pagination {
 
 // ---- matchup protos ----
 
-func matchupToProto(db sqlx.ExtContext, matchup *models.Matchup, comments []models.Comment, likesCount int64) *matchupv1.MatchupData {
+func matchupToProto(db sqlx.ExtContext, matchup *models.Matchup, comments []models.Comment) *matchupv1.MatchupData {
 	items := make([]*commonv1.MatchupItemResponse, len(matchup.Items))
 	for i, item := range matchup.Items {
 		items[i] = matchupItemToProto(item)
@@ -160,7 +160,7 @@ func matchupToProto(db sqlx.ExtContext, matchup *models.Matchup, comments []mode
 		Author:          &commonv1.UserSummaryResponse{Id: authorID, Username: matchup.Author.Username},
 		Items:           items,
 		Comments:        commentProtos,
-		LikesCount:      int32(likesCount),
+		LikesCount:      int32(matchup.LikesCount),
 		CreatedAt:       rfc3339(matchup.CreatedAt),
 		UpdatedAt:       rfc3339(matchup.UpdatedAt),
 		BracketId:       bracketPublicID,
@@ -191,6 +191,7 @@ func popularMatchupToProto(dto PopularMatchupDTO) *matchupv1.PopularMatchupData 
 		Id:              dto.ID,
 		Title:           dto.Title,
 		AuthorId:        dto.AuthorID,
+		AuthorUsername:  dto.AuthorUsername,
 		BracketId:       dto.BracketID,
 		BracketAuthorId: dto.BracketAuthorID,
 		Round:           round,
@@ -200,6 +201,7 @@ func popularMatchupToProto(dto PopularMatchupDTO) *matchupv1.PopularMatchupData 
 		Comments:        int32(dto.Comments),
 		EngagementScore: dto.EngagementScore,
 		Rank:            int32(dto.Rank),
+		CreatedAt:       dto.CreatedAt,
 	}
 }
 
@@ -231,6 +233,7 @@ func bracketToProto(db sqlx.ExtContext, bracket *models.Bracket) *bracketv1.Brac
 		Title:                bracket.Title,
 		Description:          bracket.Description,
 		AuthorId:             authorID,
+		Author:               &commonv1.UserSummaryResponse{Id: authorID, Username: bracket.Author.Username},
 		Size:                 int32(bracket.Size),
 		Status:               bracket.Status,
 		CurrentRound:         int32(bracket.CurrentRound),
@@ -248,6 +251,7 @@ func popularBracketToProto(dto PopularBracketDTO) *bracketv1.PopularBracketData 
 		Id:              dto.ID,
 		Title:           dto.Title,
 		AuthorId:        dto.AuthorID,
+		AuthorUsername:  dto.AuthorUsername,
 		CurrentRound:    int32(dto.CurrentRound),
 		Size:            int32(dto.Size),
 		Votes:           int32(dto.Votes),
@@ -255,6 +259,7 @@ func popularBracketToProto(dto PopularBracketDTO) *bracketv1.PopularBracketData 
 		Comments:        int32(dto.Comments),
 		EngagementScore: dto.EngagementScore,
 		Rank:            int32(dto.Rank),
+		CreatedAt:       dto.CreatedAt,
 	}
 }
 
@@ -306,7 +311,7 @@ func bracketLikeToProto(like models.BracketLike, userPublicID, bracketPublicID s
 
 // ---- admin protos ----
 
-func adminMatchupToProto(db sqlx.ExtContext, matchup *models.Matchup, likesCount int64) *adminv1.AdminMatchupData {
+func adminMatchupToProto(db sqlx.ExtContext, matchup *models.Matchup) *adminv1.AdminMatchupData {
 	items := make([]*commonv1.MatchupItemResponse, len(matchup.Items))
 	for i, item := range matchup.Items {
 		items[i] = matchupItemToProto(item)
@@ -323,13 +328,13 @@ func adminMatchupToProto(db sqlx.ExtContext, matchup *models.Matchup, likesCount
 		AuthorId:       authorID,
 		AuthorUsername: authorUsername,
 		Items:          items,
-		LikesCount:     likesCount,
+		LikesCount:     int64(matchup.LikesCount),
 		CreatedAt:      rfc3339(matchup.CreatedAt),
 		UpdatedAt:      rfc3339(matchup.UpdatedAt),
 	}
 }
 
-func adminBracketToProto(bracket *models.Bracket, likesCount int64, authorUsername string) *adminv1.AdminBracketData {
+func adminBracketToProto(bracket *models.Bracket, authorUsername string) *adminv1.AdminBracketData {
 	return &adminv1.AdminBracketData{
 		Id:             bracket.PublicID,
 		Title:          bracket.Title,
@@ -337,7 +342,7 @@ func adminBracketToProto(bracket *models.Bracket, likesCount int64, authorUserna
 		AuthorUsername: authorUsername,
 		Status:         bracket.Status,
 		CurrentRound:   int32(bracket.CurrentRound),
-		LikesCount:     likesCount,
+		LikesCount:     int64(bracket.LikesCount),
 		CreatedAt:      rfc3339(bracket.CreatedAt),
 		UpdatedAt:      rfc3339(bracket.UpdatedAt),
 	}

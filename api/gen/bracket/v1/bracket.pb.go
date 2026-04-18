@@ -7,7 +7,8 @@
 package bracketv1
 
 import (
-	v1 "Matchup/gen/matchup/v1"
+	v1 "Matchup/gen/common/v1"
+	v11 "Matchup/gen/matchup/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -24,20 +25,21 @@ const (
 
 // BracketData is the full bracket object.
 type BracketData struct {
-	state                protoimpl.MessageState `protogen:"open.v1"`
-	Id                   string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Title                string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
-	Description          string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	AuthorId             string                 `protobuf:"bytes,4,opt,name=author_id,json=authorId,proto3" json:"author_id,omitempty"`
-	Size                 int32                  `protobuf:"varint,5,opt,name=size,proto3" json:"size,omitempty"`
-	Status               string                 `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
-	CurrentRound         int32                  `protobuf:"varint,7,opt,name=current_round,json=currentRound,proto3" json:"current_round,omitempty"`
-	AdvanceMode          string                 `protobuf:"bytes,8,opt,name=advance_mode,json=advanceMode,proto3" json:"advance_mode,omitempty"`
-	RoundDurationSeconds int32                  `protobuf:"varint,9,opt,name=round_duration_seconds,json=roundDurationSeconds,proto3" json:"round_duration_seconds,omitempty"`
-	RoundStartedAt       *string                `protobuf:"bytes,10,opt,name=round_started_at,json=roundStartedAt,proto3,oneof" json:"round_started_at,omitempty"`
-	RoundEndsAt          *string                `protobuf:"bytes,11,opt,name=round_ends_at,json=roundEndsAt,proto3,oneof" json:"round_ends_at,omitempty"`
-	LikesCount           int32                  `protobuf:"varint,12,opt,name=likes_count,json=likesCount,proto3" json:"likes_count,omitempty"`
-	Tags                 []string               `protobuf:"bytes,13,rep,name=tags,proto3" json:"tags,omitempty"`
+	state                protoimpl.MessageState  `protogen:"open.v1"`
+	Id                   string                  `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Title                string                  `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Description          string                  `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	AuthorId             string                  `protobuf:"bytes,4,opt,name=author_id,json=authorId,proto3" json:"author_id,omitempty"`
+	Size                 int32                   `protobuf:"varint,5,opt,name=size,proto3" json:"size,omitempty"`
+	Status               string                  `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
+	CurrentRound         int32                   `protobuf:"varint,7,opt,name=current_round,json=currentRound,proto3" json:"current_round,omitempty"`
+	AdvanceMode          string                  `protobuf:"bytes,8,opt,name=advance_mode,json=advanceMode,proto3" json:"advance_mode,omitempty"`
+	RoundDurationSeconds int32                   `protobuf:"varint,9,opt,name=round_duration_seconds,json=roundDurationSeconds,proto3" json:"round_duration_seconds,omitempty"`
+	RoundStartedAt       *string                 `protobuf:"bytes,10,opt,name=round_started_at,json=roundStartedAt,proto3,oneof" json:"round_started_at,omitempty"`
+	RoundEndsAt          *string                 `protobuf:"bytes,11,opt,name=round_ends_at,json=roundEndsAt,proto3,oneof" json:"round_ends_at,omitempty"`
+	LikesCount           int32                   `protobuf:"varint,12,opt,name=likes_count,json=likesCount,proto3" json:"likes_count,omitempty"`
+	Tags                 []string                `protobuf:"bytes,13,rep,name=tags,proto3" json:"tags,omitempty"`
+	Author               *v1.UserSummaryResponse `protobuf:"bytes,14,opt,name=author,proto3" json:"author,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -163,6 +165,13 @@ func (x *BracketData) GetTags() []string {
 	return nil
 }
 
+func (x *BracketData) GetAuthor() *v1.UserSummaryResponse {
+	if x != nil {
+		return x.Author
+	}
+	return nil
+}
+
 // PopularBracketData is a lightweight bracket used in the popular feed.
 type PopularBracketData struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
@@ -176,6 +185,8 @@ type PopularBracketData struct {
 	Comments        int32                  `protobuf:"varint,8,opt,name=comments,proto3" json:"comments,omitempty"`
 	EngagementScore float64                `protobuf:"fixed64,9,opt,name=engagement_score,json=engagementScore,proto3" json:"engagement_score,omitempty"`
 	Rank            int32                  `protobuf:"varint,10,opt,name=rank,proto3" json:"rank,omitempty"`
+	AuthorUsername  string                 `protobuf:"bytes,11,opt,name=author_username,json=authorUsername,proto3" json:"author_username,omitempty"`
+	CreatedAt       string                 `protobuf:"bytes,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -280,11 +291,25 @@ func (x *PopularBracketData) GetRank() int32 {
 	return 0
 }
 
+func (x *PopularBracketData) GetAuthorUsername() string {
+	if x != nil {
+		return x.AuthorUsername
+	}
+	return ""
+}
+
+func (x *PopularBracketData) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
 // BracketSummaryData combines a bracket, its matchups, and like state.
 type BracketSummaryData struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Bracket         *BracketData           `protobuf:"bytes,1,opt,name=bracket,proto3" json:"bracket,omitempty"`
-	Matchups        []*v1.MatchupData      `protobuf:"bytes,2,rep,name=matchups,proto3" json:"matchups,omitempty"`
+	Matchups        []*v11.MatchupData     `protobuf:"bytes,2,rep,name=matchups,proto3" json:"matchups,omitempty"`
 	LikedMatchupIds []string               `protobuf:"bytes,3,rep,name=liked_matchup_ids,json=likedMatchupIds,proto3" json:"liked_matchup_ids,omitempty"`
 	LikedBracket    bool                   `protobuf:"varint,4,opt,name=liked_bracket,json=likedBracket,proto3" json:"liked_bracket,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -328,7 +353,7 @@ func (x *BracketSummaryData) GetBracket() *BracketData {
 	return nil
 }
 
-func (x *BracketSummaryData) GetMatchups() []*v1.MatchupData {
+func (x *BracketSummaryData) GetMatchups() []*v11.MatchupData {
 	if x != nil {
 		return x.Matchups
 	}
@@ -476,6 +501,8 @@ func (x *GetBracketSummaryRequest) GetId() string {
 type GetUserBracketsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Page          *int32                 `protobuf:"varint,2,opt,name=page,proto3,oneof" json:"page,omitempty"`
+	Limit         *int32                 `protobuf:"varint,3,opt,name=limit,proto3,oneof" json:"limit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -517,9 +544,25 @@ func (x *GetUserBracketsRequest) GetUserId() string {
 	return ""
 }
 
+func (x *GetUserBracketsRequest) GetPage() int32 {
+	if x != nil && x.Page != nil {
+		return *x.Page
+	}
+	return 0
+}
+
+func (x *GetUserBracketsRequest) GetLimit() int32 {
+	if x != nil && x.Limit != nil {
+		return *x.Limit
+	}
+	return 0
+}
+
 type GetBracketMatchupsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Page          *int32                 `protobuf:"varint,2,opt,name=page,proto3,oneof" json:"page,omitempty"`
+	Limit         *int32                 `protobuf:"varint,3,opt,name=limit,proto3,oneof" json:"limit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -559,6 +602,20 @@ func (x *GetBracketMatchupsRequest) GetId() string {
 		return x.Id
 	}
 	return ""
+}
+
+func (x *GetBracketMatchupsRequest) GetPage() int32 {
+	if x != nil && x.Page != nil {
+		return *x.Page
+	}
+	return 0
+}
+
+func (x *GetBracketMatchupsRequest) GetLimit() int32 {
+	if x != nil && x.Limit != nil {
+		return *x.Limit
+	}
+	return 0
 }
 
 type CreateBracketRequest struct {
@@ -1200,6 +1257,7 @@ func (x *GetBracketSummaryResponse) GetSummary() *BracketSummaryData {
 type GetUserBracketsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Brackets      []*BracketData         `protobuf:"bytes,1,rep,name=brackets,proto3" json:"brackets,omitempty"`
+	Pagination    *v1.Pagination         `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1241,9 +1299,17 @@ func (x *GetUserBracketsResponse) GetBrackets() []*BracketData {
 	return nil
 }
 
+func (x *GetUserBracketsResponse) GetPagination() *v1.Pagination {
+	if x != nil {
+		return x.Pagination
+	}
+	return nil
+}
+
 type GetBracketMatchupsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Matchups      []*v1.MatchupData      `protobuf:"bytes,1,rep,name=matchups,proto3" json:"matchups,omitempty"`
+	Matchups      []*v11.MatchupData     `protobuf:"bytes,1,rep,name=matchups,proto3" json:"matchups,omitempty"`
+	Pagination    *v1.Pagination         `protobuf:"bytes,2,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1278,9 +1344,16 @@ func (*GetBracketMatchupsResponse) Descriptor() ([]byte, []int) {
 	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{20}
 }
 
-func (x *GetBracketMatchupsResponse) GetMatchups() []*v1.MatchupData {
+func (x *GetBracketMatchupsResponse) GetMatchups() []*v11.MatchupData {
 	if x != nil {
 		return x.Matchups
+	}
+	return nil
+}
+
+func (x *GetBracketMatchupsResponse) GetPagination() *v1.Pagination {
+	if x != nil {
+		return x.Pagination
 	}
 	return nil
 }
@@ -1419,7 +1492,7 @@ func (x *DeleteBracketResponse) GetMessage() string {
 
 type AttachMatchupResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Matchup       *v1.MatchupData        `protobuf:"bytes,1,opt,name=matchup,proto3" json:"matchup,omitempty"`
+	Matchup       *v11.MatchupData       `protobuf:"bytes,1,opt,name=matchup,proto3" json:"matchup,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1454,7 +1527,7 @@ func (*AttachMatchupResponse) Descriptor() ([]byte, []int) {
 	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{24}
 }
 
-func (x *AttachMatchupResponse) GetMatchup() *v1.MatchupData {
+func (x *AttachMatchupResponse) GetMatchup() *v11.MatchupData {
 	if x != nil {
 		return x.Matchup
 	}
@@ -1658,7 +1731,7 @@ var File_bracket_v1_bracket_proto protoreflect.FileDescriptor
 const file_bracket_v1_bracket_proto_rawDesc = "" +
 	"\n" +
 	"\x18bracket/v1/bracket.proto\x12\n" +
-	"bracket.v1\x1a\x18matchup/v1/matchup.proto\"\xd0\x03\n" +
+	"bracket.v1\x1a\x18matchup/v1/matchup.proto\x1a\x16common/v1/common.proto\"\x88\x04\n" +
 	"\vBracketData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12 \n" +
@@ -1674,9 +1747,10 @@ const file_bracket_v1_bracket_proto_rawDesc = "" +
 	"\rround_ends_at\x18\v \x01(\tH\x01R\vroundEndsAt\x88\x01\x01\x12\x1f\n" +
 	"\vlikes_count\x18\f \x01(\x05R\n" +
 	"likesCount\x12\x12\n" +
-	"\x04tags\x18\r \x03(\tR\x04tagsB\x13\n" +
+	"\x04tags\x18\r \x03(\tR\x04tags\x126\n" +
+	"\x06author\x18\x0e \x01(\v2\x1e.common.v1.UserSummaryResponseR\x06authorB\x13\n" +
 	"\x11_round_started_atB\x10\n" +
-	"\x0e_round_ends_at\"\x97\x02\n" +
+	"\x0e_round_ends_at\"\xdf\x02\n" +
 	"\x12PopularBracketData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x1b\n" +
@@ -1688,7 +1762,10 @@ const file_bracket_v1_bracket_proto_rawDesc = "" +
 	"\bcomments\x18\b \x01(\x05R\bcomments\x12)\n" +
 	"\x10engagement_score\x18\t \x01(\x01R\x0fengagementScore\x12\x12\n" +
 	"\x04rank\x18\n" +
-	" \x01(\x05R\x04rank\"\xcd\x01\n" +
+	" \x01(\x05R\x04rank\x12'\n" +
+	"\x0fauthor_username\x18\v \x01(\tR\x0eauthorUsername\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\f \x01(\tR\tcreatedAt\"\xcd\x01\n" +
 	"\x12BracketSummaryData\x121\n" +
 	"\abracket\x18\x01 \x01(\v2\x17.bracket.v1.BracketDataR\abracket\x123\n" +
 	"\bmatchups\x18\x02 \x03(\v2\x17.matchup.v1.MatchupDataR\bmatchups\x12*\n" +
@@ -1698,11 +1775,19 @@ const file_bracket_v1_bracket_proto_rawDesc = "" +
 	"\x11GetBracketRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"*\n" +
 	"\x18GetBracketSummaryRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"1\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"x\n" +
 	"\x16GetUserBracketsRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\"+\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x17\n" +
+	"\x04page\x18\x02 \x01(\x05H\x00R\x04page\x88\x01\x01\x12\x19\n" +
+	"\x05limit\x18\x03 \x01(\x05H\x01R\x05limit\x88\x01\x01B\a\n" +
+	"\x05_pageB\b\n" +
+	"\x06_limit\"r\n" +
 	"\x19GetBracketMatchupsRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\xc6\x03\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
+	"\x04page\x18\x02 \x01(\x05H\x00R\x04page\x88\x01\x01\x12\x19\n" +
+	"\x05limit\x18\x03 \x01(\x05H\x01R\x05limit\x88\x01\x01B\a\n" +
+	"\x05_pageB\b\n" +
+	"\x06_limit\"\xc6\x03\n" +
 	"\x14CreateBracketRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12%\n" +
@@ -1762,11 +1847,17 @@ const file_bracket_v1_bracket_proto_rawDesc = "" +
 	"\x12GetBracketResponse\x121\n" +
 	"\abracket\x18\x01 \x01(\v2\x17.bracket.v1.BracketDataR\abracket\"U\n" +
 	"\x19GetBracketSummaryResponse\x128\n" +
-	"\asummary\x18\x01 \x01(\v2\x1e.bracket.v1.BracketSummaryDataR\asummary\"N\n" +
+	"\asummary\x18\x01 \x01(\v2\x1e.bracket.v1.BracketSummaryDataR\asummary\"\x85\x01\n" +
 	"\x17GetUserBracketsResponse\x123\n" +
-	"\bbrackets\x18\x01 \x03(\v2\x17.bracket.v1.BracketDataR\bbrackets\"Q\n" +
+	"\bbrackets\x18\x01 \x03(\v2\x17.bracket.v1.BracketDataR\bbrackets\x125\n" +
+	"\n" +
+	"pagination\x18\x02 \x01(\v2\x15.common.v1.PaginationR\n" +
+	"pagination\"\x88\x01\n" +
 	"\x1aGetBracketMatchupsResponse\x123\n" +
-	"\bmatchups\x18\x01 \x03(\v2\x17.matchup.v1.MatchupDataR\bmatchups\"J\n" +
+	"\bmatchups\x18\x01 \x03(\v2\x17.matchup.v1.MatchupDataR\bmatchups\x125\n" +
+	"\n" +
+	"pagination\x18\x02 \x01(\v2\x15.common.v1.PaginationR\n" +
+	"pagination\"J\n" +
 	"\x15CreateBracketResponse\x121\n" +
 	"\abracket\x18\x01 \x01(\v2\x17.bracket.v1.BracketDataR\abracket\"J\n" +
 	"\x15UpdateBracketResponse\x121\n" +
@@ -1844,52 +1935,57 @@ var file_bracket_v1_bracket_proto_goTypes = []any{
 	(*AdvanceBracketResponse)(nil),         // 26: bracket.v1.AdvanceBracketResponse
 	(*ResolveTieAndAdvanceResponse)(nil),   // 27: bracket.v1.ResolveTieAndAdvanceResponse
 	(*InternalAdvanceBracketResponse)(nil), // 28: bracket.v1.InternalAdvanceBracketResponse
-	(*v1.MatchupData)(nil),                 // 29: matchup.v1.MatchupData
+	(*v1.UserSummaryResponse)(nil),         // 29: common.v1.UserSummaryResponse
+	(*v11.MatchupData)(nil),                // 30: matchup.v1.MatchupData
+	(*v1.Pagination)(nil),                  // 31: common.v1.Pagination
 }
 var file_bracket_v1_bracket_proto_depIdxs = []int32{
-	0,  // 0: bracket.v1.BracketSummaryData.bracket:type_name -> bracket.v1.BracketData
-	29, // 1: bracket.v1.BracketSummaryData.matchups:type_name -> matchup.v1.MatchupData
-	1,  // 2: bracket.v1.GetPopularBracketsResponse.brackets:type_name -> bracket.v1.PopularBracketData
-	0,  // 3: bracket.v1.GetBracketResponse.bracket:type_name -> bracket.v1.BracketData
-	2,  // 4: bracket.v1.GetBracketSummaryResponse.summary:type_name -> bracket.v1.BracketSummaryData
-	0,  // 5: bracket.v1.GetUserBracketsResponse.brackets:type_name -> bracket.v1.BracketData
-	29, // 6: bracket.v1.GetBracketMatchupsResponse.matchups:type_name -> matchup.v1.MatchupData
-	0,  // 7: bracket.v1.CreateBracketResponse.bracket:type_name -> bracket.v1.BracketData
-	0,  // 8: bracket.v1.UpdateBracketResponse.bracket:type_name -> bracket.v1.BracketData
-	29, // 9: bracket.v1.AttachMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
-	0,  // 10: bracket.v1.AdvanceBracketResponse.bracket:type_name -> bracket.v1.BracketData
-	0,  // 11: bracket.v1.ResolveTieAndAdvanceResponse.bracket:type_name -> bracket.v1.BracketData
-	3,  // 12: bracket.v1.BracketService.GetPopularBrackets:input_type -> bracket.v1.GetPopularBracketsRequest
-	4,  // 13: bracket.v1.BracketService.GetBracket:input_type -> bracket.v1.GetBracketRequest
-	5,  // 14: bracket.v1.BracketService.GetBracketSummary:input_type -> bracket.v1.GetBracketSummaryRequest
-	6,  // 15: bracket.v1.BracketService.GetUserBrackets:input_type -> bracket.v1.GetUserBracketsRequest
-	7,  // 16: bracket.v1.BracketService.GetBracketMatchups:input_type -> bracket.v1.GetBracketMatchupsRequest
-	8,  // 17: bracket.v1.BracketService.CreateBracket:input_type -> bracket.v1.CreateBracketRequest
-	9,  // 18: bracket.v1.BracketService.UpdateBracket:input_type -> bracket.v1.UpdateBracketRequest
-	10, // 19: bracket.v1.BracketService.DeleteBracket:input_type -> bracket.v1.DeleteBracketRequest
-	11, // 20: bracket.v1.BracketService.AttachMatchup:input_type -> bracket.v1.AttachMatchupRequest
-	12, // 21: bracket.v1.BracketService.DetachMatchup:input_type -> bracket.v1.DetachMatchupRequest
-	13, // 22: bracket.v1.BracketService.AdvanceBracket:input_type -> bracket.v1.AdvanceBracketRequest
-	14, // 23: bracket.v1.BracketService.ResolveTieAndAdvance:input_type -> bracket.v1.ResolveTieAndAdvanceRequest
-	15, // 24: bracket.v1.BracketService.InternalAdvanceBracket:input_type -> bracket.v1.InternalAdvanceBracketRequest
-	16, // 25: bracket.v1.BracketService.GetPopularBrackets:output_type -> bracket.v1.GetPopularBracketsResponse
-	17, // 26: bracket.v1.BracketService.GetBracket:output_type -> bracket.v1.GetBracketResponse
-	18, // 27: bracket.v1.BracketService.GetBracketSummary:output_type -> bracket.v1.GetBracketSummaryResponse
-	19, // 28: bracket.v1.BracketService.GetUserBrackets:output_type -> bracket.v1.GetUserBracketsResponse
-	20, // 29: bracket.v1.BracketService.GetBracketMatchups:output_type -> bracket.v1.GetBracketMatchupsResponse
-	21, // 30: bracket.v1.BracketService.CreateBracket:output_type -> bracket.v1.CreateBracketResponse
-	22, // 31: bracket.v1.BracketService.UpdateBracket:output_type -> bracket.v1.UpdateBracketResponse
-	23, // 32: bracket.v1.BracketService.DeleteBracket:output_type -> bracket.v1.DeleteBracketResponse
-	24, // 33: bracket.v1.BracketService.AttachMatchup:output_type -> bracket.v1.AttachMatchupResponse
-	25, // 34: bracket.v1.BracketService.DetachMatchup:output_type -> bracket.v1.DetachMatchupResponse
-	26, // 35: bracket.v1.BracketService.AdvanceBracket:output_type -> bracket.v1.AdvanceBracketResponse
-	27, // 36: bracket.v1.BracketService.ResolveTieAndAdvance:output_type -> bracket.v1.ResolveTieAndAdvanceResponse
-	28, // 37: bracket.v1.BracketService.InternalAdvanceBracket:output_type -> bracket.v1.InternalAdvanceBracketResponse
-	25, // [25:38] is the sub-list for method output_type
-	12, // [12:25] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	29, // 0: bracket.v1.BracketData.author:type_name -> common.v1.UserSummaryResponse
+	0,  // 1: bracket.v1.BracketSummaryData.bracket:type_name -> bracket.v1.BracketData
+	30, // 2: bracket.v1.BracketSummaryData.matchups:type_name -> matchup.v1.MatchupData
+	1,  // 3: bracket.v1.GetPopularBracketsResponse.brackets:type_name -> bracket.v1.PopularBracketData
+	0,  // 4: bracket.v1.GetBracketResponse.bracket:type_name -> bracket.v1.BracketData
+	2,  // 5: bracket.v1.GetBracketSummaryResponse.summary:type_name -> bracket.v1.BracketSummaryData
+	0,  // 6: bracket.v1.GetUserBracketsResponse.brackets:type_name -> bracket.v1.BracketData
+	31, // 7: bracket.v1.GetUserBracketsResponse.pagination:type_name -> common.v1.Pagination
+	30, // 8: bracket.v1.GetBracketMatchupsResponse.matchups:type_name -> matchup.v1.MatchupData
+	31, // 9: bracket.v1.GetBracketMatchupsResponse.pagination:type_name -> common.v1.Pagination
+	0,  // 10: bracket.v1.CreateBracketResponse.bracket:type_name -> bracket.v1.BracketData
+	0,  // 11: bracket.v1.UpdateBracketResponse.bracket:type_name -> bracket.v1.BracketData
+	30, // 12: bracket.v1.AttachMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
+	0,  // 13: bracket.v1.AdvanceBracketResponse.bracket:type_name -> bracket.v1.BracketData
+	0,  // 14: bracket.v1.ResolveTieAndAdvanceResponse.bracket:type_name -> bracket.v1.BracketData
+	3,  // 15: bracket.v1.BracketService.GetPopularBrackets:input_type -> bracket.v1.GetPopularBracketsRequest
+	4,  // 16: bracket.v1.BracketService.GetBracket:input_type -> bracket.v1.GetBracketRequest
+	5,  // 17: bracket.v1.BracketService.GetBracketSummary:input_type -> bracket.v1.GetBracketSummaryRequest
+	6,  // 18: bracket.v1.BracketService.GetUserBrackets:input_type -> bracket.v1.GetUserBracketsRequest
+	7,  // 19: bracket.v1.BracketService.GetBracketMatchups:input_type -> bracket.v1.GetBracketMatchupsRequest
+	8,  // 20: bracket.v1.BracketService.CreateBracket:input_type -> bracket.v1.CreateBracketRequest
+	9,  // 21: bracket.v1.BracketService.UpdateBracket:input_type -> bracket.v1.UpdateBracketRequest
+	10, // 22: bracket.v1.BracketService.DeleteBracket:input_type -> bracket.v1.DeleteBracketRequest
+	11, // 23: bracket.v1.BracketService.AttachMatchup:input_type -> bracket.v1.AttachMatchupRequest
+	12, // 24: bracket.v1.BracketService.DetachMatchup:input_type -> bracket.v1.DetachMatchupRequest
+	13, // 25: bracket.v1.BracketService.AdvanceBracket:input_type -> bracket.v1.AdvanceBracketRequest
+	14, // 26: bracket.v1.BracketService.ResolveTieAndAdvance:input_type -> bracket.v1.ResolveTieAndAdvanceRequest
+	15, // 27: bracket.v1.BracketService.InternalAdvanceBracket:input_type -> bracket.v1.InternalAdvanceBracketRequest
+	16, // 28: bracket.v1.BracketService.GetPopularBrackets:output_type -> bracket.v1.GetPopularBracketsResponse
+	17, // 29: bracket.v1.BracketService.GetBracket:output_type -> bracket.v1.GetBracketResponse
+	18, // 30: bracket.v1.BracketService.GetBracketSummary:output_type -> bracket.v1.GetBracketSummaryResponse
+	19, // 31: bracket.v1.BracketService.GetUserBrackets:output_type -> bracket.v1.GetUserBracketsResponse
+	20, // 32: bracket.v1.BracketService.GetBracketMatchups:output_type -> bracket.v1.GetBracketMatchupsResponse
+	21, // 33: bracket.v1.BracketService.CreateBracket:output_type -> bracket.v1.CreateBracketResponse
+	22, // 34: bracket.v1.BracketService.UpdateBracket:output_type -> bracket.v1.UpdateBracketResponse
+	23, // 35: bracket.v1.BracketService.DeleteBracket:output_type -> bracket.v1.DeleteBracketResponse
+	24, // 36: bracket.v1.BracketService.AttachMatchup:output_type -> bracket.v1.AttachMatchupResponse
+	25, // 37: bracket.v1.BracketService.DetachMatchup:output_type -> bracket.v1.DetachMatchupResponse
+	26, // 38: bracket.v1.BracketService.AdvanceBracket:output_type -> bracket.v1.AdvanceBracketResponse
+	27, // 39: bracket.v1.BracketService.ResolveTieAndAdvance:output_type -> bracket.v1.ResolveTieAndAdvanceResponse
+	28, // 40: bracket.v1.BracketService.InternalAdvanceBracket:output_type -> bracket.v1.InternalAdvanceBracketResponse
+	28, // [28:41] is the sub-list for method output_type
+	15, // [15:28] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_bracket_v1_bracket_proto_init() }
@@ -1898,6 +1994,8 @@ func file_bracket_v1_bracket_proto_init() {
 		return
 	}
 	file_bracket_v1_bracket_proto_msgTypes[0].OneofWrappers = []any{}
+	file_bracket_v1_bracket_proto_msgTypes[6].OneofWrappers = []any{}
+	file_bracket_v1_bracket_proto_msgTypes[7].OneofWrappers = []any{}
 	file_bracket_v1_bracket_proto_msgTypes[8].OneofWrappers = []any{}
 	file_bracket_v1_bracket_proto_msgTypes[9].OneofWrappers = []any{}
 	file_bracket_v1_bracket_proto_msgTypes[11].OneofWrappers = []any{}

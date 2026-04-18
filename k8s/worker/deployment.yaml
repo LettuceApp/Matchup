@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: matchup-worker
+  namespace: matchup
+  labels:
+    app: matchup-worker
+spec:
+  # One worker is enough at this scale. Bump replicas if any single
+  # queue starts backing up — workers are stateless, so scaling is just
+  # `kubectl scale deployment matchup-worker --replicas=N`.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: matchup-worker
+  template:
+    metadata:
+      labels:
+        app: matchup-worker
+    spec:
+      containers:
+        - name: worker
+          image: matchupacr.azurecr.io/matchup-api:v1
+          imagePullPolicy: Always
+          # Override the default ENTRYPOINT (./server) to run the
+          # background-job binary instead. Same image, different
+          # process — keeps build pipeline simple.
+          command: ["./worker"]
+          envFrom:
+            - configMapRef:
+                name: matchup-config
+            - secretRef:
+                name: matchup-secrets
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: matchup-secrets
+                  key: AWS_ACCESS_KEY_ID_ENV
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: matchup-secrets
+                  key: AWS_SECRET_ACCESS_KEY_ENV
+            - name: AWS_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: matchup-secrets
+                  key: AWS_REGION_ENV
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi

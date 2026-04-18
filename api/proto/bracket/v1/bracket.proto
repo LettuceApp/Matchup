@@ -3,6 +3,7 @@ package bracket.v1;
 option go_package = "Matchup/gen/bracket/v1;bracketv1";
 
 import "matchup/v1/matchup.proto";
+import "common/v1/common.proto";
 
 service BracketService {
   rpc GetPopularBrackets(GetPopularBracketsRequest) returns (GetPopularBracketsResponse);
@@ -35,6 +36,7 @@ message BracketData {
   optional string round_ends_at = 11;
   int32 likes_count = 12;
   repeated string tags = 13;
+  common.v1.UserSummaryResponse author = 14;
 }
 
 // PopularBracketData is a lightweight bracket used in the popular feed.
@@ -49,6 +51,8 @@ message PopularBracketData {
   int32 comments = 8;
   double engagement_score = 9;
   int32 rank = 10;
+  string author_username = 11;
+  string created_at = 12;
 }
 
 // BracketSummaryData combines a bracket, its matchups, and like state.
@@ -73,10 +77,14 @@ message GetBracketSummaryRequest {
 
 message GetUserBracketsRequest {
   string user_id = 1;
+  optional int32 page = 2;
+  optional int32 limit = 3;
 }
 
 message GetBracketMatchupsRequest {
   string id = 1;
+  optional int32 page = 2;
+  optional int32 limit = 3;
 }
 
 message CreateBracketRequest {
@@ -146,10 +154,12 @@ message GetBracketSummaryResponse {
 
 message GetUserBracketsResponse {
   repeated BracketData brackets = 1;
+  common.v1.Pagination pagination = 2;
 }
 
 message GetBracketMatchupsResponse {
   repeated matchup.v1.MatchupData matchups = 1;
+  common.v1.Pagination pagination = 2;
 }
 
 message CreateBracketResponse {

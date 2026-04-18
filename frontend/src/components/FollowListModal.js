@@ -97,7 +97,12 @@ const FollowListModal = ({
             </div>
           ) : activeList.length > 0 ? (
             activeList.map(person => {
-              const avatarSrc = resolveAvatarUrl(person.avatar_path);
+              // Follow list shows ~40-50px avatars — request the thumb
+              // variant uploaded by the backend's resizeAndUpload helper.
+              const fullAvatar = resolveAvatarUrl(person.avatar_path);
+              const avatarSrc = fullAvatar
+                ? fullAvatar.replace(/\.(jpe?g|png|gif|webp)$/i, '_thumb.jpg')
+                : null;
               const isSelf = viewerId && person?.id && viewerId === String(person.id);
               const profileSlug = person.username || person.id;
               return (
@@ -105,7 +110,12 @@ const FollowListModal = ({
                   <div className="follow-modal-card-main">
                     <div className="follow-modal-avatar">
                       {avatarSrc ? (
-                        <img src={avatarSrc} alt={`${person.username || 'User'} avatar`} />
+                        <img
+                          src={avatarSrc}
+                          alt={`${person.username || 'User'} avatar`}
+                          loading="lazy"
+                          decoding="async"
+                        />
                       ) : (
                         <span>MF</span>
                       )}

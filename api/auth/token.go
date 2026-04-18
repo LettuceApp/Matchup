@@ -1,9 +1,7 @@
 package auth
 
 import (
-	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -20,21 +18,22 @@ func CreateToken(id uint) (string, error) {
 	return token.SignedString([]byte(os.Getenv("API_SECRET")))
 }
 
-func TokenValid(r *http.Request) error {
+// parseToken extracts and parses the JWT from the request. Shared by
+// TokenValid and ExtractTokenID to avoid duplicating the signing-method
+// check and secret lookup.
+func parseToken(r *http.Request) (*jwt.Token, error) {
 	tokenString := ExtractToken(r)
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	return jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 		}
 		return []byte(os.Getenv("API_SECRET")), nil
 	})
-	if err != nil {
-		return err
-	}
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		Pretty(claims)
-	}
-	return nil
+}
+
+func TokenValid(r *http.Request) error {
+	_, err := parseToken(r)
+	return err
 }
 
 func ExtractToken(r *http.Request) string {
@@ -51,13 +50,7 @@ func ExtractToken(r *http.Request) string {
 }
 
 func ExtractTokenID(r *http.Request) (uint, error) {
-	tokenString := ExtractToken(r)
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(os.Getenv("API_SECRET")), nil
-	})
+	token, err := parseToken(r)
 	if err != nil {
 		return 0, err
 	}
@@ -75,13 +68,3 @@ func ExtractTokenID(r *http.Request) (uint, error) {
 	return 0, fmt.Errorf("Invalid token")
 }
 
-// Pretty display the claims licely in the terminal
-func Pretty(data interface{}) {
-	b, err := json.MarshalIndent(data, "", " ")
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	fmt.Println(string(b))
-}

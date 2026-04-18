@@ -75,6 +75,8 @@ message PopularMatchupData {
   int32 comments = 10;
   double engagement_score = 11;
   int32 rank = 12;
+  string author_username = 13;
+  string created_at = 14;
 }
 
 // MatchupVoteData is a single vote record.

@@ -7,6 +7,7 @@ spec:
   type: ClusterIP               # Internal only — no external access needed
   selector:
     app: postgres
+    role: primary               # Don't accidentally route writes to the read replica
   ports:
     - port: 5432
       targetPort: 5432

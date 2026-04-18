@@ -8,21 +8,77 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"Matchup/cache"
 	appdb "Matchup/db"
+	"Matchup/middlewares"
 	"Matchup/security"
 
+	aws2 "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/jmoiron/sqlx"
-	"github.com/twinj/uuid"
 )
 
 type Server struct {
-	DB     *sqlx.DB
-	Router chi.Router
+	// DB is the primary read/write connection pool. All writes, all
+	// `SELECT FOR UPDATE`, and any read that lives inside a write
+	// transaction must go through DB.
+	DB *sqlx.DB
+	// ReadDB is a connection pool aimed at the read replica
+	// (k8s/postgres/replica-deployment.yaml). For dev/test, where no
+	// replica exists, ReadDB is set to the same handle as DB so call
+	// sites don't need to know whether a replica is configured.
+	ReadDB *sqlx.DB
+	// S3Client is a process-wide singleton initialized in Initialize().
+	// Constructing s3.NewFromConfig is expensive (it walks the AWS
+	// credential chain and resolves the endpoint), so doing it once at
+	// startup keeps avatar/image upload latency predictable. Handlers
+	// that need it (UserHandler, MatchupHandler) get it injected via
+	// initializeConnectRoutes — they do not call NewFromConfig themselves.
+	// Nil if AWS config could not be loaded; handlers must guard.
+	S3Client *s3.Client
+	Router   chi.Router
+}
+
+// initS3Client builds the singleton s3.Client at startup. Returns nil if
+// the AWS config can't be loaded — uploads will then fail fast at the
+// handler level instead of crashing the entire server boot. Pulled out
+// of Initialize() so it stays unit-testable in isolation.
+func initS3Client() *s3.Client {
+	region := os.Getenv("AWS_REGION")
+	if region == "" {
+		region = "us-east-2"
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var (
+		cfg aws2.Config
+		err error
+	)
+	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	sessionToken := os.Getenv("AWS_SESSION_TOKEN")
+	if accessKey != "" && secretKey != "" {
+		cfg, err = config.LoadDefaultConfig(ctx,
+			config.WithRegion(region),
+			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, sessionToken)),
+		)
+	} else {
+		cfg, err = config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	}
+	if err != nil {
+		log.Printf("warning: AWS config load failed; uploads will be unavailable: %v", err)
+		return nil
+	}
+	return s3.NewFromConfig(cfg)
 }
 
 // ===============================
@@ -51,12 +107,12 @@ func seedAdmin(db *sqlx.DB) error {
 		if err != nil {
 			return err
 		}
-		publicID := uuid.NewV4().String()
+		publicID := appdb.GeneratePublicID()
 		username := strings.Split(adminEmail, "@")[0]
 
 		_, err = db.ExecContext(ctx,
-			`INSERT INTO users (public_id, username, email, password, is_admin, is_private, followers_count, following_count, created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, true, false, 0, 0, NOW(), NOW())`,
+			`INSERT INTO users (public_id, username, email, password, avatar_path, bio, is_admin, is_private, followers_count, following_count, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, '', '', true, false, 0, 0, NOW(), NOW())`,
 			publicID, username, adminEmail, string(hashedPw),
 		)
 		if err != nil {
@@ -105,10 +161,31 @@ func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName stri
 	}
 	server.DB = db
 
+	// Optional read replica. READ_DATABASE_URL points at the replica
+	// service (k8s service `postgres-replica`). When unset — common
+	// during local dev — read traffic transparently falls back to the
+	// primary so handlers don't need a code-path branch.
+	if readDSN := os.Getenv("READ_DATABASE_URL"); readDSN != "" {
+		readDB, err := appdb.ConnectRead(readDSN)
+		if err != nil {
+			log.Printf("warning: could not connect to read replica, falling back to primary: %v", err)
+			server.ReadDB = db
+		} else {
+			server.ReadDB = readDB
+		}
+	} else {
+		server.ReadDB = db
+	}
+
 	// Redis init (safe failure)
 	if err := cache.InitFromEnv(); err != nil {
 		log.Printf("warning: could not connect to redis: %v", err)
 	}
+
+	// Build the S3 client once. Failure is non-fatal — uploads will
+	// reject at the handler level if S3Client is nil — but every other
+	// part of the API still comes up.
+	server.S3Client = initS3Client()
 
 	// SECURE ADMIN CREATION
 	if err := seedAdmin(server.DB); err != nil {
@@ -129,6 +206,16 @@ func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName stri
 		MaxAge:           300,
 	}))
 
+	// ETag middleware. Self-disables for non-GET methods (so all the
+	// ConnectRPC POSTs pass through untouched) and for streaming
+	// responses (SSE). The wins land on /health and any future plain
+	// GETs we add — small but free.
+	r.Use(middlewares.ETagMiddleware())
+
+	// Read-after-write: if the client just performed a write, route
+	// reads to the primary for 5s to avoid stale-read surprises.
+	r.Use(middlewares.ReadAfterWriteMiddleware())
+
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -136,7 +223,7 @@ func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName stri
 	})
 
 	server.Router = r
-	initializeConnectRoutes(r, server.DB)
+	initializeConnectRoutes(r, server.DB, server.ReadDB, server.S3Client)
 }
 
 func (server *Server) Run(addr string) {

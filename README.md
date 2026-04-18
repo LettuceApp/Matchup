@@ -11,7 +11,7 @@ Matchup Hub is a full-stack voting and bracket platform. Users create matchups �
 | Database | PostgreSQL 14 |
 | Cache / pub-sub | Redis 7 |
 | Migrations | Goose |
-| Orchestration | Dagster (Python) |
+| Orchestration | In-process Go scheduler (`api/scheduler`, `api/cmd/cron`) |
 | Container runtime | Docker / Docker Compose |
 | Production deployment | Kubernetes on Azure AKS, Azure Container Registry |
 
@@ -34,7 +34,7 @@ Required variables include `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_N
 
 ## Running locally with Docker Compose
 
-The easiest way to run the full stack (Postgres, Redis, API, frontend, and Dagster) in one command:
+The easiest way to run the full stack (Postgres, Redis, API, frontend, and the cron scheduler) in one command:
 
 ```bash
 docker-compose up --build
@@ -44,7 +44,6 @@ docker-compose up --build
 |---------|-----|
 | Frontend | http://localhost:3000 |
 | API | http://localhost:8888 |
-| Dagster webserver | http://localhost:3001 |
 | Postgres | localhost:5432 |
 | Redis | localhost:6379 |
 
@@ -84,12 +83,13 @@ buf generate
 ```
 .
 ├── api/                  # Go backend
-│   ├── cmd/              # Entry point
+│   ├── cmd/              # Entry points: api server, worker, cron
 │   ├── controllers/      # ConnectRPC handler implementations
 │   ├── middlewares/      # Auth, rate limiting
 │   ├── migrations/       # Goose SQL migrations
 │   ├── models/           # DB model structs and queries
 │   ├── proto/            # Protobuf service definitions
+│   ├── scheduler/        # Cron-style background workload scheduler
 │   └── gen/              # Generated protobuf Go code (do not edit)
 ├── frontend/             # React frontend
 │   ├── src/
@@ -100,7 +100,6 @@ buf generate
 │   │   └── styles/       # CSS files
 │   └── Dockerfile
 ├── k8s/                  # Kubernetes manifests (AKS)
-├── orchestration/        # Dagster pipeline (Python)
 └── docker-compose.yml
 ```
 

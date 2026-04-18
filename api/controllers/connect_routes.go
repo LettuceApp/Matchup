@@ -14,6 +14,7 @@ import (
 	"Matchup/middlewares"
 
 	"connectrpc.com/connect"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -43,16 +44,16 @@ func (snakeJSONCodec) Unmarshal(data []byte, msg any) error {
 
 var snakeCodec = connect.WithCodec(snakeJSONCodec{})
 
-func initializeConnectRoutes(r chi.Router, db *sqlx.DB) {
+func initializeConnectRoutes(r chi.Router, db, readDB *sqlx.DB, s3Client *s3.Client) {
 	authHandler := &AuthHandler{DB: db}
-	userHandler := &UserHandler{DB: db}
-	matchupHandler := &MatchupHandler{DB: db}
-	matchupItemHandler := &MatchupItemHandler{DB: db}
-	bracketHandler := &BracketHandler{DB: db}
-	commentHandler := &CommentHandler{DB: db}
-	likeHandler := &LikeHandler{DB: db}
-	homeHandler := &HomeHandler{DB: db}
-	adminHandler := &AdminHandler{DB: db}
+	userHandler := &UserHandler{DB: db, ReadDB: readDB, S3Client: s3Client}
+	matchupHandler := &MatchupHandler{DB: db, ReadDB: readDB, S3Client: s3Client}
+	matchupItemHandler := &MatchupItemHandler{DB: db, ReadDB: readDB}
+	bracketHandler := &BracketHandler{DB: db, ReadDB: readDB}
+	commentHandler := &CommentHandler{DB: db, ReadDB: readDB}
+	likeHandler := &LikeHandler{DB: db, ReadDB: readDB}
+	homeHandler := &HomeHandler{DB: db, ReadDB: readDB}
+	adminHandler := &AdminHandler{DB: db, ReadDB: readDB}
 
 	// ---------- Rate-limited auth routes ----------
 	r.Group(func(r chi.Router) {
@@ -82,6 +83,8 @@ func initializeConnectRoutes(r chi.Router, db *sqlx.DB) {
 
 		path, h = bracketv1connect.NewBracketServiceHandler(bracketHandler, snakeCodec)
 		r.Mount(path, h)
+
+		r.Get("/brackets/{bracketID}/events", bracketHandler.BracketEventsSSE)
 
 		path, h = commentv1connect.NewCommentServiceHandler(commentHandler, snakeCodec)
 		r.Mount(path, h)

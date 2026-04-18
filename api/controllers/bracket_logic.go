@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"Matchup/cache"
 	appdb "Matchup/db"
 	"Matchup/models"
 
@@ -242,6 +243,15 @@ func (s *Server) advanceBracketInternal(db *sqlx.DB, bracket *models.Bracket) (b
 		return false, err
 	}
 
+	// Merge any pending vote deltas from the Redis buffer onto the
+	// freshly-loaded matchup items. Without this, an in-progress flush
+	// could let the bracket pick the wrong winner — the votes have been
+	// cast (rows exist in matchup_votes) but the matchup_items.votes
+	// counter is still catching up. Mutating the items in place here
+	// flows through to the round buckets below because Go slice copies
+	// share their backing array.
+	applyVoteDeltasToMatchups(ctx, matchups)
+
 	rounds := groupMatchupsByRound(matchups)
 	currentMatchups := rounds[currentRound]
 	if len(currentMatchups) == 0 {
@@ -376,5 +386,11 @@ func (s *Server) advanceBracketInternal(db *sqlx.DB, bracket *models.Bracket) (b
 	if err := tx.Commit(); err != nil {
 		return false, err
 	}
+
+	if cache.Client != nil {
+		cache.Client.Publish(context.Background(),
+			fmt.Sprintf("bracket:%d:events", bracket.ID), "advance")
+	}
+
 	return true, nil
 }

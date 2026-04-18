@@ -8,6 +8,22 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+// ReadAfterWriteMiddleware checks for the _rwp (read-write-primary) cookie
+// set by write handlers. When present, all reads for that request are routed
+// to the primary instead of the replica, avoiding stale-read surprises
+// caused by replication lag. The cookie has a 5-second Max-Age — just long
+// enough to cover the typical replica lag window.
+func ReadAfterWriteMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if c, err := r.Cookie("_rwp"); err == nil && c.Value == "1" {
+				r = r.WithContext(httpctx.WithReadPrimary(r.Context()))
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // SoftJWTMiddleware tries to extract a JWT and inject the user ID into context, but never rejects.
 // Used on public routes that want optional viewer context (e.g., for showing like/follow state).
 func SoftJWTMiddleware() func(http.Handler) http.Handler {

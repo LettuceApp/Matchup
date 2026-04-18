@@ -60,13 +60,35 @@ const ProfilePic = ({ userId, editable = false, size = 80 }) => {
     }
   };
 
-  // Helper: if we only have the S3 key, build the full URL
+  // Pick the smallest resized variant that still looks crisp at the
+  // requested display size. Variants are uploaded by the backend's
+  // resizeAndUpload helper at 100w/300w/full. Multiply by 2 for HiDPI/
+  // retina displays before bucketing — a 60px avatar on a retina screen
+  // wants ~120w of source, which lands in the medium bucket.
+  const variantForSize = (px) => {
+    const needed = px * 2;
+    if (needed <= 100) return 'thumb';
+    if (needed <= 300) return 'medium';
+    return ''; // full original
+  };
+
+  // withImageSize inserts the variant suffix before the extension. Blob
+  // preview URLs from URL.createObjectURL never match the regex so they
+  // fall through unchanged.
+  const withImageSize = (url, sz) => {
+    if (!url || !sz) return url;
+    return url.replace(/\.(jpe?g|png|gif|webp)$/i, `_${sz}.jpg`);
+  };
+
+  // Helper: if we only have the S3 key, build the full URL, then swap in
+  // the resized variant matching the requested display size.
   const getSrc = (keyOrUrl) => {
     if (!keyOrUrl) return null;
+    let full;
     // if it already looks like a full URL (preview or absolute), just use it
-    if (keyOrUrl.startsWith('http')) return keyOrUrl;
-    // otherwise, prefix the bucket URL
-    return `${S3_BASE_URL}/${keyOrUrl}`;
+    if (keyOrUrl.startsWith('http') || keyOrUrl.startsWith('blob:')) full = keyOrUrl;
+    else full = `${S3_BASE_URL}/${keyOrUrl}`;
+    return withImageSize(full, variantForSize(size));
   };
 
   const sizePx = `${size}px`;
@@ -104,6 +126,8 @@ const ProfilePic = ({ userId, editable = false, size = 80 }) => {
             src={src}
             alt="Profile"
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            loading="lazy"
+            decoding="async"
           />
         ) : (
           <span style={{ fontSize: size / 5, color: '#666' }}>Profile</span>

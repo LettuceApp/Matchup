@@ -1,0 +1,73 @@
+# =============================================================
+# Postgres primary configuration
+# =============================================================
+# Wires up logical config + an idempotent init script that runs
+# the first time the primary's data directory is empty. The init
+# script creates the dedicated replication role used by the
+# replica StatefulSet (see replica-deployment.yaml).
+#
+# pg_hba.conf is intentionally permissive *only* on the cluster
+# network — entries are scoped to the kube pod CIDR. The
+# replication entry uses md5 password auth so the replica must
+# present REPLICATION_PASSWORD from matchup-secrets.
+# =============================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: matchup
+data:
+  postgresql.conf: |
+    listen_addresses = '*'
+
+    # Streaming replication settings
+    wal_level = replica
+    max_wal_senders = 5
+    max_replication_slots = 5
+    wal_keep_size = 256MB
+    hot_standby = on
+
+    # Modest tuning to keep parity with the existing 1Gi memory limit
+    shared_buffers = 256MB
+    effective_cache_size = 768MB
+    work_mem = 8MB
+    maintenance_work_mem = 64MB
+
+    # Connection ceiling. Budget: 5 API pods × 50 + cron 10 + worker 5 = 265
+    # theoretical max. Real usage is well under this because pool idle
+    # timeouts rotate connections out. Default (100) is too low once HPA
+    # scales past 3 API pods.
+    max_connections = 200
+
+    # Logging
+    log_min_duration_statement = 200
+    log_line_prefix = '%t [%p] %u@%d '
+
+  pg_hba.conf: |
+    # TYPE  DATABASE        USER            ADDRESS                 METHOD
+    local   all             all                                     trust
+    host    all             all             127.0.0.1/32            md5
+    host    all             all             ::1/128                 md5
+    # Cluster pod network — md5 for app traffic
+    host    all             all             10.0.0.0/8              md5
+    host    all             all             172.16.0.0/12           md5
+    host    all             all             192.168.0.0/16          md5
+    # Replication
+    host    replication     replicator      10.0.0.0/8              md5
+    host    replication     replicator      172.16.0.0/12           md5
+    host    replication     replicator      192.168.0.0/16          md5
+
+  init-replication-user.sh: |
+    #!/bin/bash
+    # Runs once on first init via /docker-entrypoint-initdb.d/.
+    # Creates the dedicated replication role used by the replica.
+    set -e
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+        DO \$\$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'replicator') THEN
+                CREATE ROLE replicator WITH REPLICATION LOGIN PASSWORD '${REPLICATION_PASSWORD}';
+            END IF;
+        END
+        \$\$;
+    EOSQL

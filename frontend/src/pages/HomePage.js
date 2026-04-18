@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getHomeSummary, getMatchups, getPopularMatchups } from '../services/api';
+import { getHomeSummary, getMatchups } from '../services/api';
 import HomeSidebar from '../components/HomeSidebar';
 import HomeCard, { deriveTags } from '../components/HomeCard';
 import '../styles/HomePage.css';
@@ -33,16 +33,18 @@ const HomePage = () => {
           setMatchups(Array.isArray(payload) ? payload : Array.isArray(payload.matchups) ? payload.matchups : []);
           setBrackets(homeBrackets);
         } else if (sortMode === 'trending') {
-          setMatchups(Array.isArray(summaryData.popular_matchups) ? summaryData.popular_matchups : []);
+          // Prefer hourly trending data; fall back to all-time popular if empty.
+          const trending = Array.isArray(summaryData.trending_matchups) && summaryData.trending_matchups.length > 0
+            ? summaryData.trending_matchups
+            : Array.isArray(summaryData.popular_matchups) ? summaryData.popular_matchups : [];
+          setMatchups(trending);
           setBrackets(homeBrackets);
         } else {
-          // most-played: popular matchups sorted by votes desc
-          const res = await getPopularMatchups();
-          const payload = res.data?.matchups ?? res.data?.response ?? res.data ?? [];
-          const sorted = (Array.isArray(payload) ? payload : []).slice().sort(
-            (a, b) => (b.votes ?? 0) - (a.votes ?? 0)
-          );
-          setMatchups(sorted);
+          // most-played: matchups with the most votes in the past hour
+          const mostPlayed = Array.isArray(summaryData.most_played_matchups) && summaryData.most_played_matchups.length > 0
+            ? summaryData.most_played_matchups
+            : Array.isArray(summaryData.popular_matchups) ? summaryData.popular_matchups : [];
+          setMatchups(mostPlayed);
           setBrackets(homeBrackets);
         }
       } catch (err) {
@@ -81,7 +83,8 @@ const HomePage = () => {
     }
     if (categoryFilter !== 'all') {
       items = items.filter((item) => {
-        const tags = deriveTags(item.title ?? '');
+        const backendTags = Array.isArray(item.tags) && item.tags.length > 0 ? item.tags : null;
+        const tags = backendTags ?? deriveTags(item.title ?? '');
         return tags.includes(categoryFilter);
       });
     }
@@ -137,19 +140,43 @@ const HomePage = () => {
           <div className="home-card-grid">
             {Array.from({ length: 9 }).map((_, i) => (
               <div key={i} className="home-card home-card--skeleton">
-                <div className="home-card__thumb home-card__thumb--skeleton" />
-                <div className="home-card__body">
+                <div className="home-card__header">
+                  <div className="home-skeleton-circle" />
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                    <div className="home-skeleton-line" style={{ width: '40%' }} />
+                    <div className="home-skeleton-line" style={{ width: '25%', height: '10px' }} />
+                  </div>
+                </div>
+                <div className="home-card__caption">
                   <div className="home-skeleton-line home-skeleton-line--title" />
-                  <div className="home-skeleton-line" />
                   <div className="home-skeleton-line home-skeleton-line--short" />
+                </div>
+                <div className="home-card__media home-card__media--skeleton" />
+                <div className="home-card__actions">
+                  <div className="home-card__action-row">
+                    <div className="home-skeleton-line" style={{ width: '20%' }} />
+                    <div className="home-skeleton-line" style={{ width: '20%' }} />
+                    <div className="home-skeleton-line" style={{ width: '20%' }} />
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         ) : visibleItems.length === 0 ? (
           <div className="home-empty">
-            <p>No matchups found.</p>
-            <button type="button" className="home-create-btn" onClick={navigateToCreate}>
+            <p>{typeFilter === 'bracket' ? 'No brackets found.' : 'No matchups found.'}</p>
+            <button
+              type="button"
+              className="home-create-btn"
+              onClick={() => {
+                if (!userId) { navigate('/login'); return; }
+                if (typeFilter === 'bracket') {
+                  navigate('/brackets/new');
+                } else {
+                  navigateToCreate();
+                }
+              }}
+            >
               Create the first one
             </button>
           </div>

@@ -18,10 +18,14 @@ var _ adminv1connect.AdminServiceHandler = (*AdminHandler)(nil)
 
 // AdminHandler implements adminv1connect.AdminServiceHandler.
 type AdminHandler struct {
-	DB *sqlx.DB
+	DB     *sqlx.DB
+	ReadDB *sqlx.DB
 }
 
 func (h *AdminHandler) ListUsers(ctx context.Context, req *connect.Request[adminv1.ListUsersRequest]) (*connect.Response[adminv1.ListUsersResponse], error) {
+	// Pure-read RPC — safe to serve from the replica.
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
 	page := int(req.Msg.GetPage())
 	if page < 1 {
 		page = 1
@@ -33,12 +37,12 @@ func (h *AdminHandler) ListUsers(ctx context.Context, req *connect.Request[admin
 	offset := (page - 1) * limit
 
 	var total int64
-	if err := sqlx.GetContext(ctx, h.DB, &total, "SELECT COUNT(*) FROM users"); err != nil {
+	if err := sqlx.GetContext(ctx, db, &total, "SELECT COUNT(*) FROM users"); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
 	var users []models.User
-	if err := sqlx.SelectContext(ctx, h.DB, &users,
+	if err := sqlx.SelectContext(ctx, db, &users,
 		"SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2", limit, offset); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -127,6 +131,9 @@ func (h *AdminHandler) DeleteUser(ctx context.Context, req *connect.Request[admi
 }
 
 func (h *AdminHandler) ListMatchups(ctx context.Context, req *connect.Request[adminv1.ListMatchupsRequest]) (*connect.Response[adminv1.ListMatchupsResponse], error) {
+	// Pure-read RPC — safe to serve from the replica.
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
 	page := int(req.Msg.GetPage())
 	if page < 1 {
 		page = 1
@@ -138,12 +145,12 @@ func (h *AdminHandler) ListMatchups(ctx context.Context, req *connect.Request[ad
 	offset := (page - 1) * limit
 
 	var total int64
-	if err := sqlx.GetContext(ctx, h.DB, &total, "SELECT COUNT(*) FROM matchups WHERE bracket_id IS NULL"); err != nil {
+	if err := sqlx.GetContext(ctx, db, &total, "SELECT COUNT(*) FROM matchups WHERE bracket_id IS NULL"); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
 	var matchups []models.Matchup
-	if err := sqlx.SelectContext(ctx, h.DB, &matchups,
+	if err := sqlx.SelectContext(ctx, db, &matchups,
 		"SELECT * FROM matchups WHERE bracket_id IS NULL ORDER BY created_at DESC LIMIT $1 OFFSET $2", limit, offset); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -157,18 +164,21 @@ func (h *AdminHandler) ListMatchups(ctx context.Context, req *connect.Request[ad
 		}
 
 		itemQuery, itemArgs, _ := sqlx.In("SELECT * FROM matchup_items WHERE matchup_id IN (?)", matchupIDs)
-		itemQuery = h.DB.Rebind(itemQuery)
+		itemQuery = db.Rebind(itemQuery)
 		var allItems []models.MatchupItem
-		_ = sqlx.SelectContext(ctx, h.DB, &allItems, itemQuery, itemArgs...)
+		_ = sqlx.SelectContext(ctx, db, &allItems, itemQuery, itemArgs...)
+		// Merge live Redis vote deltas before fanning items into the
+		// per-matchup map — copies in the map are detached afterwards.
+		applyVoteDeltasToItems(ctx, allItems)
 		itemsByMatchup := make(map[uint][]models.MatchupItem)
 		for _, item := range allItems {
 			itemsByMatchup[item.MatchupID] = append(itemsByMatchup[item.MatchupID], item)
 		}
 
 		authorQuery, authorArgs, _ := sqlx.In("SELECT * FROM users WHERE id IN (?)", authorIDs)
-		authorQuery = h.DB.Rebind(authorQuery)
+		authorQuery = db.Rebind(authorQuery)
 		var authors []models.User
-		_ = sqlx.SelectContext(ctx, h.DB, &authors, authorQuery, authorArgs...)
+		_ = sqlx.SelectContext(ctx, db, &authors, authorQuery, authorArgs...)
 		authorMap := make(map[uint]models.User)
 		for _, a := range authors {
 			a.ProcessAvatarPath()
@@ -183,11 +193,20 @@ func (h *AdminHandler) ListMatchups(ctx context.Context, req *connect.Request[ad
 		}
 	}
 
+	// Admin needs the body — batch-load from matchup_details.
+	contentMap, _ := models.LoadMatchupContents(db, func() []uint {
+		ids := make([]uint, len(matchups))
+		for i := range matchups {
+			ids[i] = matchups[i].ID
+		}
+		return ids
+	}())
+
+	// LikesCount lives on each matchup row (migration 006).
 	protoMatchups := make([]*adminv1.AdminMatchupData, len(matchups))
 	for i := range matchups {
-		var likesCount int64
-		_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM likes WHERE matchup_id = $1", matchups[i].ID)
-		protoMatchups[i] = adminMatchupToProto(h.DB, &matchups[i], likesCount)
+		matchups[i].Content = contentMap[matchups[i].ID]
+		protoMatchups[i] = adminMatchupToProto(db, &matchups[i])
 	}
 
 	return connect.NewResponse(&adminv1.ListMatchupsResponse{
@@ -221,6 +240,9 @@ func (h *AdminHandler) DeleteMatchup(ctx context.Context, req *connect.Request[a
 }
 
 func (h *AdminHandler) ListBrackets(ctx context.Context, req *connect.Request[adminv1.ListBracketsRequest]) (*connect.Response[adminv1.ListBracketsResponse], error) {
+	// Pure-read RPC — safe to serve from the replica.
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
 	page := int(req.Msg.GetPage())
 	if page < 1 {
 		page = 1
@@ -232,12 +254,12 @@ func (h *AdminHandler) ListBrackets(ctx context.Context, req *connect.Request[ad
 	offset := (page - 1) * limit
 
 	var total int64
-	if err := sqlx.GetContext(ctx, h.DB, &total, "SELECT COUNT(*) FROM brackets"); err != nil {
+	if err := sqlx.GetContext(ctx, db, &total, "SELECT COUNT(*) FROM brackets"); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
 	var brackets []models.Bracket
-	if err := sqlx.SelectContext(ctx, h.DB, &brackets,
+	if err := sqlx.SelectContext(ctx, db, &brackets,
 		"SELECT * FROM brackets ORDER BY created_at DESC LIMIT $1 OFFSET $2", limit, offset); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -249,9 +271,9 @@ func (h *AdminHandler) ListBrackets(ctx context.Context, req *connect.Request[ad
 		}
 		query, inArgs, err := sqlx.In("SELECT * FROM users WHERE id IN (?)", authorIDs)
 		if err == nil {
-			query = h.DB.Rebind(query)
+			query = db.Rebind(query)
 			var authors []models.User
-			if err := sqlx.SelectContext(ctx, h.DB, &authors, query, inArgs...); err == nil {
+			if err := sqlx.SelectContext(ctx, db, &authors, query, inArgs...); err == nil {
 				authorMap := make(map[uint]models.User, len(authors))
 				for _, a := range authors {
 					a.ProcessAvatarPath()
@@ -266,15 +288,14 @@ func (h *AdminHandler) ListBrackets(ctx context.Context, req *connect.Request[ad
 		}
 	}
 
+	// LikesCount lives on each bracket row (migration 006).
 	protoBrackets := make([]*adminv1.AdminBracketData, len(brackets))
 	for i := range brackets {
-		var likesCount int64
-		_ = sqlx.GetContext(ctx, h.DB, &likesCount, "SELECT COUNT(*) FROM bracket_likes WHERE bracket_id = $1", brackets[i].ID)
 		authorUsername := ""
 		if brackets[i].Author.ID != 0 {
 			authorUsername = brackets[i].Author.Username
 		}
-		protoBrackets[i] = adminBracketToProto(&brackets[i], likesCount, authorUsername)
+		protoBrackets[i] = adminBracketToProto(&brackets[i], authorUsername)
 	}
 
 	return connect.NewResponse(&adminv1.ListBracketsResponse{

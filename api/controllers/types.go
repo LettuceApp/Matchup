@@ -36,6 +36,7 @@ type PopularMatchupDTO struct {
 	ID              string
 	Title           string
 	AuthorID        string
+	AuthorUsername  string
 	BracketID       *string
 	BracketAuthorID *string
 	Round           *int
@@ -45,12 +46,14 @@ type PopularMatchupDTO struct {
 	Comments        int64
 	EngagementScore float64
 	Rank            int64
+	CreatedAt       string
 }
 
 type PopularBracketDTO struct {
 	ID              string
 	Title           string
 	AuthorID        string
+	AuthorUsername  string
 	CurrentRound    int
 	Size            int
 	Votes           int64
@@ -58,6 +61,7 @@ type PopularBracketDTO struct {
 	Comments        int64
 	EngagementScore float64
 	Rank            int64
+	CreatedAt       string
 }
 
 // ---- follow types ----

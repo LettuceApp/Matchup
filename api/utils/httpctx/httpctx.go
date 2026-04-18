@@ -5,8 +5,9 @@ import "context"
 type contextKey int
 
 const (
-	userIDKey  contextKey = iota
-	isAdminKey contextKey = iota
+	userIDKey      contextKey = iota
+	isAdminKey     contextKey = iota
+	readPrimaryKey contextKey = iota
 )
 
 // WithUserID stores the authenticated user ID in the context.
@@ -37,4 +38,16 @@ func IsAdminRequest(ctx context.Context) bool {
 	}
 	isAdmin, ok := val.(bool)
 	return ok && isAdmin
+}
+
+// WithReadPrimary marks the context so that read queries should be routed
+// to the primary database instead of the replica.
+func WithReadPrimary(ctx context.Context) context.Context {
+	return context.WithValue(ctx, readPrimaryKey, true)
+}
+
+// ShouldReadPrimary reports whether reads should be routed to the primary.
+func ShouldReadPrimary(ctx context.Context) bool {
+	val, _ := ctx.Value(readPrimaryKey).(bool)
+	return val
 }

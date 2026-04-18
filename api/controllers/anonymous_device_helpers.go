@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
+	appdb "Matchup/db"
 	"Matchup/models"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/twinj/uuid"
 )
 
 const anonymousDeviceCookieName = "matchup_device_id"
@@ -101,7 +101,7 @@ func getOrCreateDeviceIDFromRequest(r *http.Request, w http.ResponseWriter, db s
 	}
 
 	if deviceID == "" {
-		deviceID = uuid.NewV4().String()
+		deviceID = appdb.GeneratePublicID()
 	}
 
 	if err := upsertAnonymousDevice(db, deviceID, uaHash, ipHash); err != nil {

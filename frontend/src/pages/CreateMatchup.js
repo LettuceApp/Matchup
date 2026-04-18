@@ -502,7 +502,7 @@ const CreateMatchup = () => {
                         />
                         {imagePreview && (
                           <div className="relative w-full overflow-hidden rounded-2xl border border-slate-600/60" style={{ height: 140 }}>
-                            <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
+                            <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" decoding="async" />
                             <button
                               type="button"
                               onClick={() => { setImageFile(null); setImagePreview(null); }}

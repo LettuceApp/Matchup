@@ -1,54 +1,47 @@
 package middlewares
 
 import (
+	"fmt"
 	"net/http"
-	"sync"
 	"time"
 
-	"golang.org/x/time/rate"
+	"Matchup/cache"
 )
 
-// visitor holds the rate limiter and the last time we saw this IP.
-type visitor struct {
-	limiter  *rate.Limiter
-	lastSeen time.Time
-}
-
-var (
-	loginVisitors   = make(map[string]*visitor)
-	loginVisitorsMu sync.Mutex
-)
-
-func newLoginVisitorLimiter() *rate.Limiter {
-	return rate.NewLimiter(rate.Every(10*time.Second), 100)
-}
-
-func getLoginVisitor(ip string) *rate.Limiter {
-	loginVisitorsMu.Lock()
-	defer loginVisitorsMu.Unlock()
-
-	v, exists := loginVisitors[ip]
-	if !exists {
-		limiter := newLoginVisitorLimiter()
-		loginVisitors[ip] = &visitor{limiter: limiter, lastSeen: time.Now()}
-		return limiter
+func getClientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		return xff
 	}
-	v.lastSeen = time.Now()
-	return v.limiter
+	return r.RemoteAddr
 }
 
-// LoginRateLimitMiddleware applies a stricter per-IP rate limit for auth routes.
+// LoginRateLimitMiddleware applies a per-IP rate limit for auth routes using Redis.
+// Allows 100 requests per 10-second window per IP. Falls back to allowing the
+// request if Redis is unavailable.
 func LoginRateLimitMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := r.RemoteAddr
-			if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-				ip = xff
+			if cache.Client == nil {
+				next.ServeHTTP(w, r)
+				return
 			}
-			if !getLoginVisitor(ip).Allow() {
+
+			ip := getClientIP(r)
+			key := fmt.Sprintf("rate_limit_login:%s", ip)
+
+			count, err := cache.Client.Incr(r.Context(), key).Result()
+			if err != nil {
+				next.ServeHTTP(w, r) // fail open
+				return
+			}
+			if count == 1 {
+				cache.Client.Expire(r.Context(), key, 10*time.Second)
+			}
+			if count > 100 {
 				http.Error(w, `{"error":"Too many authentication attempts. Please wait and try again."}`, http.StatusTooManyRequests)
 				return
 			}
+
 			next.ServeHTTP(w, r)
 		})
 	}

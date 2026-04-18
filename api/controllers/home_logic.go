@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -34,18 +33,6 @@ type HomeCreatorSnapshot struct {
 	FollowingCount int64  `db:"following_count"`
 	IsPrivate      bool   `db:"is_private"`
 	Rank           int32  `db:"rank"`
-}
-
-// isMissingRelation reports whether a postgres error indicates that a relation
-// (table, view, etc.) does not exist — i.e., the materialized view hasn't been
-// created yet and we should fall back to a live query.
-func isMissingRelation(err error, relation string) bool {
-	if err == nil {
-		return false
-	}
-	errLower := strings.ToLower(err.Error())
-	return strings.Contains(errLower, "does not exist") &&
-		strings.Contains(errLower, strings.ToLower(relation))
 }
 
 // calculateUserEngagement returns a weighted engagement score for the given author.

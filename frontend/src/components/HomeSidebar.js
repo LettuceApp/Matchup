@@ -69,21 +69,6 @@ const HomeSidebar = ({ sortMode, onSortChange, categoryFilter, onCategoryChange 
           );
         })}
 
-        {isAuthed && (
-          <>
-            <div className="home-sidebar__section-label">You</div>
-            {profilePath && (
-              <button
-                type="button"
-                className="home-sidebar__nav-item"
-                onClick={() => navigate(profilePath + '?tab=likes')}
-              >
-                Liked Matchups
-              </button>
-            )}
-          </>
-        )}
-
         <div className="home-sidebar__section-label">Account</div>
         {isAuthed ? (
           <>
