@@ -50,8 +50,17 @@ const (
 	// UserServiceUpdateAvatarProcedure is the fully-qualified name of the UserService's UpdateAvatar
 	// RPC.
 	UserServiceUpdateAvatarProcedure = "/user.v1.UserService/UpdateAvatar"
+	// UserServiceUpdateNotificationPreferencesProcedure is the fully-qualified name of the
+	// UserService's UpdateNotificationPreferences RPC.
+	UserServiceUpdateNotificationPreferencesProcedure = "/user.v1.UserService/UpdateNotificationPreferences"
+	// UserServiceGetNotificationPreferencesProcedure is the fully-qualified name of the UserService's
+	// GetNotificationPreferences RPC.
+	UserServiceGetNotificationPreferencesProcedure = "/user.v1.UserService/GetNotificationPreferences"
 	// UserServiceDeleteUserProcedure is the fully-qualified name of the UserService's DeleteUser RPC.
 	UserServiceDeleteUserProcedure = "/user.v1.UserService/DeleteUser"
+	// UserServiceDeleteMyAccountProcedure is the fully-qualified name of the UserService's
+	// DeleteMyAccount RPC.
+	UserServiceDeleteMyAccountProcedure = "/user.v1.UserService/DeleteMyAccount"
 	// UserServiceGetFollowersProcedure is the fully-qualified name of the UserService's GetFollowers
 	// RPC.
 	UserServiceGetFollowersProcedure = "/user.v1.UserService/GetFollowers"
@@ -66,6 +75,18 @@ const (
 	// UserServiceGetRelationshipProcedure is the fully-qualified name of the UserService's
 	// GetRelationship RPC.
 	UserServiceGetRelationshipProcedure = "/user.v1.UserService/GetRelationship"
+	// UserServiceBlockUserProcedure is the fully-qualified name of the UserService's BlockUser RPC.
+	UserServiceBlockUserProcedure = "/user.v1.UserService/BlockUser"
+	// UserServiceUnblockUserProcedure is the fully-qualified name of the UserService's UnblockUser RPC.
+	UserServiceUnblockUserProcedure = "/user.v1.UserService/UnblockUser"
+	// UserServiceListBlocksProcedure is the fully-qualified name of the UserService's ListBlocks RPC.
+	UserServiceListBlocksProcedure = "/user.v1.UserService/ListBlocks"
+	// UserServiceMuteUserProcedure is the fully-qualified name of the UserService's MuteUser RPC.
+	UserServiceMuteUserProcedure = "/user.v1.UserService/MuteUser"
+	// UserServiceUnmuteUserProcedure is the fully-qualified name of the UserService's UnmuteUser RPC.
+	UserServiceUnmuteUserProcedure = "/user.v1.UserService/UnmuteUser"
+	// UserServiceListMutesProcedure is the fully-qualified name of the UserService's ListMutes RPC.
+	UserServiceListMutesProcedure = "/user.v1.UserService/ListMutes"
 )
 
 // UserServiceClient is a client for the user.v1.UserService service.
@@ -77,12 +98,34 @@ type UserServiceClient interface {
 	UpdateUser(context.Context, *connect.Request[v1.UpdateUserRequest]) (*connect.Response[v1.UpdateUserResponse], error)
 	UpdateUserPrivacy(context.Context, *connect.Request[v1.UpdateUserPrivacyRequest]) (*connect.Response[v1.UpdateUserPrivacyResponse], error)
 	UpdateAvatar(context.Context, *connect.Request[v1.UpdateAvatarRequest]) (*connect.Response[v1.UpdateAvatarResponse], error)
+	UpdateNotificationPreferences(context.Context, *connect.Request[v1.UpdateNotificationPreferencesRequest]) (*connect.Response[v1.UpdateNotificationPreferencesResponse], error)
+	GetNotificationPreferences(context.Context, *connect.Request[v1.GetNotificationPreferencesRequest]) (*connect.Response[v1.GetNotificationPreferencesResponse], error)
 	DeleteUser(context.Context, *connect.Request[v1.DeleteUserRequest]) (*connect.Response[v1.DeleteUserResponse], error)
+	// DeleteMyAccount soft-deletes the caller's account. Requires the
+	// caller's current password as a confirmation signal. Public fields
+	// (username, email, avatar, bio) blank out immediately; the row
+	// itself is hard-deleted by a daily cron 30 days later. Push
+	// subscriptions + refresh tokens are revoked inline.
+	DeleteMyAccount(context.Context, *connect.Request[v1.DeleteMyAccountRequest]) (*connect.Response[v1.DeleteMyAccountResponse], error)
 	GetFollowers(context.Context, *connect.Request[v1.GetFollowersRequest]) (*connect.Response[v1.GetFollowersResponse], error)
 	GetFollowing(context.Context, *connect.Request[v1.GetFollowingRequest]) (*connect.Response[v1.GetFollowingResponse], error)
 	FollowUser(context.Context, *connect.Request[v1.FollowUserRequest]) (*connect.Response[v1.FollowUserResponse], error)
 	UnfollowUser(context.Context, *connect.Request[v1.UnfollowUserRequest]) (*connect.Response[v1.UnfollowUserResponse], error)
 	GetRelationship(context.Context, *connect.Request[v1.GetRelationshipRequest]) (*connect.Response[v1.GetRelationshipResponse], error)
+	// Block / unblock. Block is BIDIRECTIONAL: blocked user disappears
+	// from every read surface (feeds, comments, activity, profiles)
+	// AND the blocker disappears from the blocked user's surfaces too.
+	// Blocking severs existing follow edges both ways.
+	BlockUser(context.Context, *connect.Request[v1.BlockUserRequest]) (*connect.Response[v1.BlockUserResponse], error)
+	UnblockUser(context.Context, *connect.Request[v1.UnblockUserRequest]) (*connect.Response[v1.UnblockUserResponse], error)
+	ListBlocks(context.Context, *connect.Request[v1.ListBlocksRequest]) (*connect.Response[v1.ListBlocksResponse], error)
+	// Mute / unmute. Mute is ONE-WAY: the muter stops seeing the muted
+	// user's content in their activity feed + stops getting push
+	// notifications triggered by them. The muted user sees no
+	// difference — softer than a block.
+	MuteUser(context.Context, *connect.Request[v1.MuteUserRequest]) (*connect.Response[v1.MuteUserResponse], error)
+	UnmuteUser(context.Context, *connect.Request[v1.UnmuteUserRequest]) (*connect.Response[v1.UnmuteUserResponse], error)
+	ListMutes(context.Context, *connect.Request[v1.ListMutesRequest]) (*connect.Response[v1.ListMutesResponse], error)
 }
 
 // NewUserServiceClient constructs a client for the user.v1.UserService service. By default, it uses
@@ -138,10 +181,28 @@ func NewUserServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(userServiceMethods.ByName("UpdateAvatar")),
 			connect.WithClientOptions(opts...),
 		),
+		updateNotificationPreferences: connect.NewClient[v1.UpdateNotificationPreferencesRequest, v1.UpdateNotificationPreferencesResponse](
+			httpClient,
+			baseURL+UserServiceUpdateNotificationPreferencesProcedure,
+			connect.WithSchema(userServiceMethods.ByName("UpdateNotificationPreferences")),
+			connect.WithClientOptions(opts...),
+		),
+		getNotificationPreferences: connect.NewClient[v1.GetNotificationPreferencesRequest, v1.GetNotificationPreferencesResponse](
+			httpClient,
+			baseURL+UserServiceGetNotificationPreferencesProcedure,
+			connect.WithSchema(userServiceMethods.ByName("GetNotificationPreferences")),
+			connect.WithClientOptions(opts...),
+		),
 		deleteUser: connect.NewClient[v1.DeleteUserRequest, v1.DeleteUserResponse](
 			httpClient,
 			baseURL+UserServiceDeleteUserProcedure,
 			connect.WithSchema(userServiceMethods.ByName("DeleteUser")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteMyAccount: connect.NewClient[v1.DeleteMyAccountRequest, v1.DeleteMyAccountResponse](
+			httpClient,
+			baseURL+UserServiceDeleteMyAccountProcedure,
+			connect.WithSchema(userServiceMethods.ByName("DeleteMyAccount")),
 			connect.WithClientOptions(opts...),
 		),
 		getFollowers: connect.NewClient[v1.GetFollowersRequest, v1.GetFollowersResponse](
@@ -174,24 +235,69 @@ func NewUserServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(userServiceMethods.ByName("GetRelationship")),
 			connect.WithClientOptions(opts...),
 		),
+		blockUser: connect.NewClient[v1.BlockUserRequest, v1.BlockUserResponse](
+			httpClient,
+			baseURL+UserServiceBlockUserProcedure,
+			connect.WithSchema(userServiceMethods.ByName("BlockUser")),
+			connect.WithClientOptions(opts...),
+		),
+		unblockUser: connect.NewClient[v1.UnblockUserRequest, v1.UnblockUserResponse](
+			httpClient,
+			baseURL+UserServiceUnblockUserProcedure,
+			connect.WithSchema(userServiceMethods.ByName("UnblockUser")),
+			connect.WithClientOptions(opts...),
+		),
+		listBlocks: connect.NewClient[v1.ListBlocksRequest, v1.ListBlocksResponse](
+			httpClient,
+			baseURL+UserServiceListBlocksProcedure,
+			connect.WithSchema(userServiceMethods.ByName("ListBlocks")),
+			connect.WithClientOptions(opts...),
+		),
+		muteUser: connect.NewClient[v1.MuteUserRequest, v1.MuteUserResponse](
+			httpClient,
+			baseURL+UserServiceMuteUserProcedure,
+			connect.WithSchema(userServiceMethods.ByName("MuteUser")),
+			connect.WithClientOptions(opts...),
+		),
+		unmuteUser: connect.NewClient[v1.UnmuteUserRequest, v1.UnmuteUserResponse](
+			httpClient,
+			baseURL+UserServiceUnmuteUserProcedure,
+			connect.WithSchema(userServiceMethods.ByName("UnmuteUser")),
+			connect.WithClientOptions(opts...),
+		),
+		listMutes: connect.NewClient[v1.ListMutesRequest, v1.ListMutesResponse](
+			httpClient,
+			baseURL+UserServiceListMutesProcedure,
+			connect.WithSchema(userServiceMethods.ByName("ListMutes")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // userServiceClient implements UserServiceClient.
 type userServiceClient struct {
-	listUsers         *connect.Client[v1.ListUsersRequest, v1.ListUsersResponse]
-	getUser           *connect.Client[v1.GetUserRequest, v1.GetUserResponse]
-	getCurrentUser    *connect.Client[v1.GetCurrentUserRequest, v1.GetCurrentUserResponse]
-	createUser        *connect.Client[v1.CreateUserRequest, v1.CreateUserResponse]
-	updateUser        *connect.Client[v1.UpdateUserRequest, v1.UpdateUserResponse]
-	updateUserPrivacy *connect.Client[v1.UpdateUserPrivacyRequest, v1.UpdateUserPrivacyResponse]
-	updateAvatar      *connect.Client[v1.UpdateAvatarRequest, v1.UpdateAvatarResponse]
-	deleteUser        *connect.Client[v1.DeleteUserRequest, v1.DeleteUserResponse]
-	getFollowers      *connect.Client[v1.GetFollowersRequest, v1.GetFollowersResponse]
-	getFollowing      *connect.Client[v1.GetFollowingRequest, v1.GetFollowingResponse]
-	followUser        *connect.Client[v1.FollowUserRequest, v1.FollowUserResponse]
-	unfollowUser      *connect.Client[v1.UnfollowUserRequest, v1.UnfollowUserResponse]
-	getRelationship   *connect.Client[v1.GetRelationshipRequest, v1.GetRelationshipResponse]
+	listUsers                     *connect.Client[v1.ListUsersRequest, v1.ListUsersResponse]
+	getUser                       *connect.Client[v1.GetUserRequest, v1.GetUserResponse]
+	getCurrentUser                *connect.Client[v1.GetCurrentUserRequest, v1.GetCurrentUserResponse]
+	createUser                    *connect.Client[v1.CreateUserRequest, v1.CreateUserResponse]
+	updateUser                    *connect.Client[v1.UpdateUserRequest, v1.UpdateUserResponse]
+	updateUserPrivacy             *connect.Client[v1.UpdateUserPrivacyRequest, v1.UpdateUserPrivacyResponse]
+	updateAvatar                  *connect.Client[v1.UpdateAvatarRequest, v1.UpdateAvatarResponse]
+	updateNotificationPreferences *connect.Client[v1.UpdateNotificationPreferencesRequest, v1.UpdateNotificationPreferencesResponse]
+	getNotificationPreferences    *connect.Client[v1.GetNotificationPreferencesRequest, v1.GetNotificationPreferencesResponse]
+	deleteUser                    *connect.Client[v1.DeleteUserRequest, v1.DeleteUserResponse]
+	deleteMyAccount               *connect.Client[v1.DeleteMyAccountRequest, v1.DeleteMyAccountResponse]
+	getFollowers                  *connect.Client[v1.GetFollowersRequest, v1.GetFollowersResponse]
+	getFollowing                  *connect.Client[v1.GetFollowingRequest, v1.GetFollowingResponse]
+	followUser                    *connect.Client[v1.FollowUserRequest, v1.FollowUserResponse]
+	unfollowUser                  *connect.Client[v1.UnfollowUserRequest, v1.UnfollowUserResponse]
+	getRelationship               *connect.Client[v1.GetRelationshipRequest, v1.GetRelationshipResponse]
+	blockUser                     *connect.Client[v1.BlockUserRequest, v1.BlockUserResponse]
+	unblockUser                   *connect.Client[v1.UnblockUserRequest, v1.UnblockUserResponse]
+	listBlocks                    *connect.Client[v1.ListBlocksRequest, v1.ListBlocksResponse]
+	muteUser                      *connect.Client[v1.MuteUserRequest, v1.MuteUserResponse]
+	unmuteUser                    *connect.Client[v1.UnmuteUserRequest, v1.UnmuteUserResponse]
+	listMutes                     *connect.Client[v1.ListMutesRequest, v1.ListMutesResponse]
 }
 
 // ListUsers calls user.v1.UserService.ListUsers.
@@ -229,9 +335,24 @@ func (c *userServiceClient) UpdateAvatar(ctx context.Context, req *connect.Reque
 	return c.updateAvatar.CallUnary(ctx, req)
 }
 
+// UpdateNotificationPreferences calls user.v1.UserService.UpdateNotificationPreferences.
+func (c *userServiceClient) UpdateNotificationPreferences(ctx context.Context, req *connect.Request[v1.UpdateNotificationPreferencesRequest]) (*connect.Response[v1.UpdateNotificationPreferencesResponse], error) {
+	return c.updateNotificationPreferences.CallUnary(ctx, req)
+}
+
+// GetNotificationPreferences calls user.v1.UserService.GetNotificationPreferences.
+func (c *userServiceClient) GetNotificationPreferences(ctx context.Context, req *connect.Request[v1.GetNotificationPreferencesRequest]) (*connect.Response[v1.GetNotificationPreferencesResponse], error) {
+	return c.getNotificationPreferences.CallUnary(ctx, req)
+}
+
 // DeleteUser calls user.v1.UserService.DeleteUser.
 func (c *userServiceClient) DeleteUser(ctx context.Context, req *connect.Request[v1.DeleteUserRequest]) (*connect.Response[v1.DeleteUserResponse], error) {
 	return c.deleteUser.CallUnary(ctx, req)
+}
+
+// DeleteMyAccount calls user.v1.UserService.DeleteMyAccount.
+func (c *userServiceClient) DeleteMyAccount(ctx context.Context, req *connect.Request[v1.DeleteMyAccountRequest]) (*connect.Response[v1.DeleteMyAccountResponse], error) {
+	return c.deleteMyAccount.CallUnary(ctx, req)
 }
 
 // GetFollowers calls user.v1.UserService.GetFollowers.
@@ -259,6 +380,36 @@ func (c *userServiceClient) GetRelationship(ctx context.Context, req *connect.Re
 	return c.getRelationship.CallUnary(ctx, req)
 }
 
+// BlockUser calls user.v1.UserService.BlockUser.
+func (c *userServiceClient) BlockUser(ctx context.Context, req *connect.Request[v1.BlockUserRequest]) (*connect.Response[v1.BlockUserResponse], error) {
+	return c.blockUser.CallUnary(ctx, req)
+}
+
+// UnblockUser calls user.v1.UserService.UnblockUser.
+func (c *userServiceClient) UnblockUser(ctx context.Context, req *connect.Request[v1.UnblockUserRequest]) (*connect.Response[v1.UnblockUserResponse], error) {
+	return c.unblockUser.CallUnary(ctx, req)
+}
+
+// ListBlocks calls user.v1.UserService.ListBlocks.
+func (c *userServiceClient) ListBlocks(ctx context.Context, req *connect.Request[v1.ListBlocksRequest]) (*connect.Response[v1.ListBlocksResponse], error) {
+	return c.listBlocks.CallUnary(ctx, req)
+}
+
+// MuteUser calls user.v1.UserService.MuteUser.
+func (c *userServiceClient) MuteUser(ctx context.Context, req *connect.Request[v1.MuteUserRequest]) (*connect.Response[v1.MuteUserResponse], error) {
+	return c.muteUser.CallUnary(ctx, req)
+}
+
+// UnmuteUser calls user.v1.UserService.UnmuteUser.
+func (c *userServiceClient) UnmuteUser(ctx context.Context, req *connect.Request[v1.UnmuteUserRequest]) (*connect.Response[v1.UnmuteUserResponse], error) {
+	return c.unmuteUser.CallUnary(ctx, req)
+}
+
+// ListMutes calls user.v1.UserService.ListMutes.
+func (c *userServiceClient) ListMutes(ctx context.Context, req *connect.Request[v1.ListMutesRequest]) (*connect.Response[v1.ListMutesResponse], error) {
+	return c.listMutes.CallUnary(ctx, req)
+}
+
 // UserServiceHandler is an implementation of the user.v1.UserService service.
 type UserServiceHandler interface {
 	ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error)
@@ -268,12 +419,34 @@ type UserServiceHandler interface {
 	UpdateUser(context.Context, *connect.Request[v1.UpdateUserRequest]) (*connect.Response[v1.UpdateUserResponse], error)
 	UpdateUserPrivacy(context.Context, *connect.Request[v1.UpdateUserPrivacyRequest]) (*connect.Response[v1.UpdateUserPrivacyResponse], error)
 	UpdateAvatar(context.Context, *connect.Request[v1.UpdateAvatarRequest]) (*connect.Response[v1.UpdateAvatarResponse], error)
+	UpdateNotificationPreferences(context.Context, *connect.Request[v1.UpdateNotificationPreferencesRequest]) (*connect.Response[v1.UpdateNotificationPreferencesResponse], error)
+	GetNotificationPreferences(context.Context, *connect.Request[v1.GetNotificationPreferencesRequest]) (*connect.Response[v1.GetNotificationPreferencesResponse], error)
 	DeleteUser(context.Context, *connect.Request[v1.DeleteUserRequest]) (*connect.Response[v1.DeleteUserResponse], error)
+	// DeleteMyAccount soft-deletes the caller's account. Requires the
+	// caller's current password as a confirmation signal. Public fields
+	// (username, email, avatar, bio) blank out immediately; the row
+	// itself is hard-deleted by a daily cron 30 days later. Push
+	// subscriptions + refresh tokens are revoked inline.
+	DeleteMyAccount(context.Context, *connect.Request[v1.DeleteMyAccountRequest]) (*connect.Response[v1.DeleteMyAccountResponse], error)
 	GetFollowers(context.Context, *connect.Request[v1.GetFollowersRequest]) (*connect.Response[v1.GetFollowersResponse], error)
 	GetFollowing(context.Context, *connect.Request[v1.GetFollowingRequest]) (*connect.Response[v1.GetFollowingResponse], error)
 	FollowUser(context.Context, *connect.Request[v1.FollowUserRequest]) (*connect.Response[v1.FollowUserResponse], error)
 	UnfollowUser(context.Context, *connect.Request[v1.UnfollowUserRequest]) (*connect.Response[v1.UnfollowUserResponse], error)
 	GetRelationship(context.Context, *connect.Request[v1.GetRelationshipRequest]) (*connect.Response[v1.GetRelationshipResponse], error)
+	// Block / unblock. Block is BIDIRECTIONAL: blocked user disappears
+	// from every read surface (feeds, comments, activity, profiles)
+	// AND the blocker disappears from the blocked user's surfaces too.
+	// Blocking severs existing follow edges both ways.
+	BlockUser(context.Context, *connect.Request[v1.BlockUserRequest]) (*connect.Response[v1.BlockUserResponse], error)
+	UnblockUser(context.Context, *connect.Request[v1.UnblockUserRequest]) (*connect.Response[v1.UnblockUserResponse], error)
+	ListBlocks(context.Context, *connect.Request[v1.ListBlocksRequest]) (*connect.Response[v1.ListBlocksResponse], error)
+	// Mute / unmute. Mute is ONE-WAY: the muter stops seeing the muted
+	// user's content in their activity feed + stops getting push
+	// notifications triggered by them. The muted user sees no
+	// difference — softer than a block.
+	MuteUser(context.Context, *connect.Request[v1.MuteUserRequest]) (*connect.Response[v1.MuteUserResponse], error)
+	UnmuteUser(context.Context, *connect.Request[v1.UnmuteUserRequest]) (*connect.Response[v1.UnmuteUserResponse], error)
+	ListMutes(context.Context, *connect.Request[v1.ListMutesRequest]) (*connect.Response[v1.ListMutesResponse], error)
 }
 
 // NewUserServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -325,10 +498,28 @@ func NewUserServiceHandler(svc UserServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(userServiceMethods.ByName("UpdateAvatar")),
 		connect.WithHandlerOptions(opts...),
 	)
+	userServiceUpdateNotificationPreferencesHandler := connect.NewUnaryHandler(
+		UserServiceUpdateNotificationPreferencesProcedure,
+		svc.UpdateNotificationPreferences,
+		connect.WithSchema(userServiceMethods.ByName("UpdateNotificationPreferences")),
+		connect.WithHandlerOptions(opts...),
+	)
+	userServiceGetNotificationPreferencesHandler := connect.NewUnaryHandler(
+		UserServiceGetNotificationPreferencesProcedure,
+		svc.GetNotificationPreferences,
+		connect.WithSchema(userServiceMethods.ByName("GetNotificationPreferences")),
+		connect.WithHandlerOptions(opts...),
+	)
 	userServiceDeleteUserHandler := connect.NewUnaryHandler(
 		UserServiceDeleteUserProcedure,
 		svc.DeleteUser,
 		connect.WithSchema(userServiceMethods.ByName("DeleteUser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	userServiceDeleteMyAccountHandler := connect.NewUnaryHandler(
+		UserServiceDeleteMyAccountProcedure,
+		svc.DeleteMyAccount,
+		connect.WithSchema(userServiceMethods.ByName("DeleteMyAccount")),
 		connect.WithHandlerOptions(opts...),
 	)
 	userServiceGetFollowersHandler := connect.NewUnaryHandler(
@@ -361,6 +552,42 @@ func NewUserServiceHandler(svc UserServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(userServiceMethods.ByName("GetRelationship")),
 		connect.WithHandlerOptions(opts...),
 	)
+	userServiceBlockUserHandler := connect.NewUnaryHandler(
+		UserServiceBlockUserProcedure,
+		svc.BlockUser,
+		connect.WithSchema(userServiceMethods.ByName("BlockUser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	userServiceUnblockUserHandler := connect.NewUnaryHandler(
+		UserServiceUnblockUserProcedure,
+		svc.UnblockUser,
+		connect.WithSchema(userServiceMethods.ByName("UnblockUser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	userServiceListBlocksHandler := connect.NewUnaryHandler(
+		UserServiceListBlocksProcedure,
+		svc.ListBlocks,
+		connect.WithSchema(userServiceMethods.ByName("ListBlocks")),
+		connect.WithHandlerOptions(opts...),
+	)
+	userServiceMuteUserHandler := connect.NewUnaryHandler(
+		UserServiceMuteUserProcedure,
+		svc.MuteUser,
+		connect.WithSchema(userServiceMethods.ByName("MuteUser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	userServiceUnmuteUserHandler := connect.NewUnaryHandler(
+		UserServiceUnmuteUserProcedure,
+		svc.UnmuteUser,
+		connect.WithSchema(userServiceMethods.ByName("UnmuteUser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	userServiceListMutesHandler := connect.NewUnaryHandler(
+		UserServiceListMutesProcedure,
+		svc.ListMutes,
+		connect.WithSchema(userServiceMethods.ByName("ListMutes")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/user.v1.UserService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case UserServiceListUsersProcedure:
@@ -377,8 +604,14 @@ func NewUserServiceHandler(svc UserServiceHandler, opts ...connect.HandlerOption
 			userServiceUpdateUserPrivacyHandler.ServeHTTP(w, r)
 		case UserServiceUpdateAvatarProcedure:
 			userServiceUpdateAvatarHandler.ServeHTTP(w, r)
+		case UserServiceUpdateNotificationPreferencesProcedure:
+			userServiceUpdateNotificationPreferencesHandler.ServeHTTP(w, r)
+		case UserServiceGetNotificationPreferencesProcedure:
+			userServiceGetNotificationPreferencesHandler.ServeHTTP(w, r)
 		case UserServiceDeleteUserProcedure:
 			userServiceDeleteUserHandler.ServeHTTP(w, r)
+		case UserServiceDeleteMyAccountProcedure:
+			userServiceDeleteMyAccountHandler.ServeHTTP(w, r)
 		case UserServiceGetFollowersProcedure:
 			userServiceGetFollowersHandler.ServeHTTP(w, r)
 		case UserServiceGetFollowingProcedure:
@@ -389,6 +622,18 @@ func NewUserServiceHandler(svc UserServiceHandler, opts ...connect.HandlerOption
 			userServiceUnfollowUserHandler.ServeHTTP(w, r)
 		case UserServiceGetRelationshipProcedure:
 			userServiceGetRelationshipHandler.ServeHTTP(w, r)
+		case UserServiceBlockUserProcedure:
+			userServiceBlockUserHandler.ServeHTTP(w, r)
+		case UserServiceUnblockUserProcedure:
+			userServiceUnblockUserHandler.ServeHTTP(w, r)
+		case UserServiceListBlocksProcedure:
+			userServiceListBlocksHandler.ServeHTTP(w, r)
+		case UserServiceMuteUserProcedure:
+			userServiceMuteUserHandler.ServeHTTP(w, r)
+		case UserServiceUnmuteUserProcedure:
+			userServiceUnmuteUserHandler.ServeHTTP(w, r)
+		case UserServiceListMutesProcedure:
+			userServiceListMutesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -426,8 +671,20 @@ func (UnimplementedUserServiceHandler) UpdateAvatar(context.Context, *connect.Re
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserService.UpdateAvatar is not implemented"))
 }
 
+func (UnimplementedUserServiceHandler) UpdateNotificationPreferences(context.Context, *connect.Request[v1.UpdateNotificationPreferencesRequest]) (*connect.Response[v1.UpdateNotificationPreferencesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserService.UpdateNotificationPreferences is not implemented"))
+}
+
+func (UnimplementedUserServiceHandler) GetNotificationPreferences(context.Context, *connect.Request[v1.GetNotificationPreferencesRequest]) (*connect.Response[v1.GetNotificationPreferencesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserService.GetNotificationPreferences is not implemented"))
+}
+
 func (UnimplementedUserServiceHandler) DeleteUser(context.Context, *connect.Request[v1.DeleteUserRequest]) (*connect.Response[v1.DeleteUserResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserService.DeleteUser is not implemented"))
+}
+
+func (UnimplementedUserServiceHandler) DeleteMyAccount(context.Context, *connect.Request[v1.DeleteMyAccountRequest]) (*connect.Response[v1.DeleteMyAccountResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserService.DeleteMyAccount is not implemented"))
 }
 
 func (UnimplementedUserServiceHandler) GetFollowers(context.Context, *connect.Request[v1.GetFollowersRequest]) (*connect.Response[v1.GetFollowersResponse], error) {
@@ -448,4 +705,28 @@ func (UnimplementedUserServiceHandler) UnfollowUser(context.Context, *connect.Re
 
 func (UnimplementedUserServiceHandler) GetRelationship(context.Context, *connect.Request[v1.GetRelationshipRequest]) (*connect.Response[v1.GetRelationshipResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserService.GetRelationship is not implemented"))
+}
+
+func (UnimplementedUserServiceHandler) BlockUser(context.Context, *connect.Request[v1.BlockUserRequest]) (*connect.Response[v1.BlockUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserService.BlockUser is not implemented"))
+}
+
+func (UnimplementedUserServiceHandler) UnblockUser(context.Context, *connect.Request[v1.UnblockUserRequest]) (*connect.Response[v1.UnblockUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserService.UnblockUser is not implemented"))
+}
+
+func (UnimplementedUserServiceHandler) ListBlocks(context.Context, *connect.Request[v1.ListBlocksRequest]) (*connect.Response[v1.ListBlocksResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserService.ListBlocks is not implemented"))
+}
+
+func (UnimplementedUserServiceHandler) MuteUser(context.Context, *connect.Request[v1.MuteUserRequest]) (*connect.Response[v1.MuteUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserService.MuteUser is not implemented"))
+}
+
+func (UnimplementedUserServiceHandler) UnmuteUser(context.Context, *connect.Request[v1.UnmuteUserRequest]) (*connect.Response[v1.UnmuteUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserService.UnmuteUser is not implemented"))
+}
+
+func (UnimplementedUserServiceHandler) ListMutes(context.Context, *connect.Request[v1.ListMutesRequest]) (*connect.Response[v1.ListMutesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserService.ListMutes is not implemented"))
 }

@@ -28,8 +28,38 @@ type User struct {
 	IsPrivate      bool      `db:"is_private" json:"is_private"`
 	FollowersCount int64     `db:"followers_count" json:"followers_count"`
 	FollowingCount int64     `db:"following_count" json:"following_count"`
-	CreatedAt      time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+	// NotificationPrefs is a JSONB blob whose keys map to categories —
+	// `mention`, `engagement`, `milestone`, `prompt`, `social`,
+	// `email_digest`. See migrations 017 and 018 for defaults. Stored
+	// as raw bytes so the model doesn't grow a category-enum dependency;
+	// callers that care (the activity handler's fan-out filter, the
+	// email-digest scheduler) decode on read.
+	NotificationPrefs []byte `db:"notification_prefs" json:"notification_prefs,omitempty"`
+	// EmailDigestLastSentAt is the idempotency guard for the weekly
+	// digest scheduler — nil until the first successful send, then
+	// stamped to NOW() after every send. The scheduler skips any user
+	// whose last send was within the last 6 days.
+	EmailDigestLastSentAt *time.Time `db:"email_digest_last_sent_at" json:"email_digest_last_sent_at,omitempty"`
+	// DeletedAt is the single "this account is gone" flag. Set by
+	// self-delete (DeleteMyAccount RPC) OR admin ban. Read paths use
+	// it to blank public fields + render "[deleted]" everywhere the
+	// user would otherwise appear. A daily cron hard-deletes rows
+	// past the 30-day retention window.
+	DeletedAt       *time.Time `db:"deleted_at"      json:"deleted_at,omitempty"`
+	DeletionReason  *string    `db:"deletion_reason" json:"-"`
+	// BannedAt distinguishes an admin ban from a self-delete inside
+	// the moderation audit trail. NOT exposed in public user-facing
+	// responses — see userToProto's deleted-user branch.
+	BannedAt        *time.Time `db:"banned_at"       json:"-"`
+	BanReason       *string    `db:"ban_reason"      json:"-"`
+	// EmailVerifiedAt is the source of truth for "has this user
+	// confirmed ownership of their email?". NULL on signup; stamped
+	// when the user clicks the verification link. The soft-nudge gate
+	// on CreateMatchup/CreateBracket/CreateComment checks for NULL
+	// and returns FailedPrecondition; everything else stays open.
+	EmailVerifiedAt *time.Time `db:"email_verified_at" json:"-"`
+	CreatedAt       time.Time  `db:"created_at"      json:"created_at"`
+	UpdatedAt       time.Time  `db:"updated_at"      json:"updated_at"`
 }
 
 const SeedAdminEmail = "cordelljenkins1914@gmail.com"

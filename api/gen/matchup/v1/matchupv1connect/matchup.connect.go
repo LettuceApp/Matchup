@@ -83,6 +83,9 @@ const (
 	// MatchupItemServiceGetUserVotesProcedure is the fully-qualified name of the MatchupItemService's
 	// GetUserVotes RPC.
 	MatchupItemServiceGetUserVotesProcedure = "/matchup.v1.MatchupItemService/GetUserVotes"
+	// MatchupItemServiceGetAnonVoteStatusProcedure is the fully-qualified name of the
+	// MatchupItemService's GetAnonVoteStatus RPC.
+	MatchupItemServiceGetAnonVoteStatusProcedure = "/matchup.v1.MatchupItemService/GetAnonVoteStatus"
 )
 
 // MatchupServiceClient is a client for the matchup.v1.MatchupService service.
@@ -422,6 +425,12 @@ type MatchupItemServiceClient interface {
 	DeleteItem(context.Context, *connect.Request[v1.DeleteItemRequest]) (*connect.Response[v1.DeleteItemResponse], error)
 	VoteItem(context.Context, *connect.Request[v1.VoteItemRequest]) (*connect.Response[v1.VoteItemResponse], error)
 	GetUserVotes(context.Context, *connect.Request[v1.GetUserVotesRequest]) (*connect.Response[v1.GetUserVotesResponse], error)
+	// GetAnonVoteStatus reports how many of the per-browser free votes
+	// an anonymous caller has already used vs the cap. Drives the
+	// "X of 3 free votes left" counter chip on the matchup feed +
+	// matchup detail page. Anon-only — authed users have unlimited
+	// votes and don't need this RPC.
+	GetAnonVoteStatus(context.Context, *connect.Request[v1.GetAnonVoteStatusRequest]) (*connect.Response[v1.GetAnonVoteStatusResponse], error)
 }
 
 // NewMatchupItemServiceClient constructs a client for the matchup.v1.MatchupItemService service. By
@@ -465,16 +474,23 @@ func NewMatchupItemServiceClient(httpClient connect.HTTPClient, baseURL string, 
 			connect.WithSchema(matchupItemServiceMethods.ByName("GetUserVotes")),
 			connect.WithClientOptions(opts...),
 		),
+		getAnonVoteStatus: connect.NewClient[v1.GetAnonVoteStatusRequest, v1.GetAnonVoteStatusResponse](
+			httpClient,
+			baseURL+MatchupItemServiceGetAnonVoteStatusProcedure,
+			connect.WithSchema(matchupItemServiceMethods.ByName("GetAnonVoteStatus")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // matchupItemServiceClient implements MatchupItemServiceClient.
 type matchupItemServiceClient struct {
-	addItem      *connect.Client[v1.AddItemRequest, v1.AddItemResponse]
-	updateItem   *connect.Client[v1.UpdateItemRequest, v1.UpdateItemResponse]
-	deleteItem   *connect.Client[v1.DeleteItemRequest, v1.DeleteItemResponse]
-	voteItem     *connect.Client[v1.VoteItemRequest, v1.VoteItemResponse]
-	getUserVotes *connect.Client[v1.GetUserVotesRequest, v1.GetUserVotesResponse]
+	addItem           *connect.Client[v1.AddItemRequest, v1.AddItemResponse]
+	updateItem        *connect.Client[v1.UpdateItemRequest, v1.UpdateItemResponse]
+	deleteItem        *connect.Client[v1.DeleteItemRequest, v1.DeleteItemResponse]
+	voteItem          *connect.Client[v1.VoteItemRequest, v1.VoteItemResponse]
+	getUserVotes      *connect.Client[v1.GetUserVotesRequest, v1.GetUserVotesResponse]
+	getAnonVoteStatus *connect.Client[v1.GetAnonVoteStatusRequest, v1.GetAnonVoteStatusResponse]
 }
 
 // AddItem calls matchup.v1.MatchupItemService.AddItem.
@@ -502,6 +518,11 @@ func (c *matchupItemServiceClient) GetUserVotes(ctx context.Context, req *connec
 	return c.getUserVotes.CallUnary(ctx, req)
 }
 
+// GetAnonVoteStatus calls matchup.v1.MatchupItemService.GetAnonVoteStatus.
+func (c *matchupItemServiceClient) GetAnonVoteStatus(ctx context.Context, req *connect.Request[v1.GetAnonVoteStatusRequest]) (*connect.Response[v1.GetAnonVoteStatusResponse], error) {
+	return c.getAnonVoteStatus.CallUnary(ctx, req)
+}
+
 // MatchupItemServiceHandler is an implementation of the matchup.v1.MatchupItemService service.
 type MatchupItemServiceHandler interface {
 	AddItem(context.Context, *connect.Request[v1.AddItemRequest]) (*connect.Response[v1.AddItemResponse], error)
@@ -509,6 +530,12 @@ type MatchupItemServiceHandler interface {
 	DeleteItem(context.Context, *connect.Request[v1.DeleteItemRequest]) (*connect.Response[v1.DeleteItemResponse], error)
 	VoteItem(context.Context, *connect.Request[v1.VoteItemRequest]) (*connect.Response[v1.VoteItemResponse], error)
 	GetUserVotes(context.Context, *connect.Request[v1.GetUserVotesRequest]) (*connect.Response[v1.GetUserVotesResponse], error)
+	// GetAnonVoteStatus reports how many of the per-browser free votes
+	// an anonymous caller has already used vs the cap. Drives the
+	// "X of 3 free votes left" counter chip on the matchup feed +
+	// matchup detail page. Anon-only — authed users have unlimited
+	// votes and don't need this RPC.
+	GetAnonVoteStatus(context.Context, *connect.Request[v1.GetAnonVoteStatusRequest]) (*connect.Response[v1.GetAnonVoteStatusResponse], error)
 }
 
 // NewMatchupItemServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -548,6 +575,12 @@ func NewMatchupItemServiceHandler(svc MatchupItemServiceHandler, opts ...connect
 		connect.WithSchema(matchupItemServiceMethods.ByName("GetUserVotes")),
 		connect.WithHandlerOptions(opts...),
 	)
+	matchupItemServiceGetAnonVoteStatusHandler := connect.NewUnaryHandler(
+		MatchupItemServiceGetAnonVoteStatusProcedure,
+		svc.GetAnonVoteStatus,
+		connect.WithSchema(matchupItemServiceMethods.ByName("GetAnonVoteStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/matchup.v1.MatchupItemService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case MatchupItemServiceAddItemProcedure:
@@ -560,6 +593,8 @@ func NewMatchupItemServiceHandler(svc MatchupItemServiceHandler, opts ...connect
 			matchupItemServiceVoteItemHandler.ServeHTTP(w, r)
 		case MatchupItemServiceGetUserVotesProcedure:
 			matchupItemServiceGetUserVotesHandler.ServeHTTP(w, r)
+		case MatchupItemServiceGetAnonVoteStatusProcedure:
+			matchupItemServiceGetAnonVoteStatusHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -587,4 +622,8 @@ func (UnimplementedMatchupItemServiceHandler) VoteItem(context.Context, *connect
 
 func (UnimplementedMatchupItemServiceHandler) GetUserVotes(context.Context, *connect.Request[v1.GetUserVotesRequest]) (*connect.Response[v1.GetUserVotesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("matchup.v1.MatchupItemService.GetUserVotes is not implemented"))
+}
+
+func (UnimplementedMatchupItemServiceHandler) GetAnonVoteStatus(context.Context, *connect.Request[v1.GetAnonVoteStatusRequest]) (*connect.Response[v1.GetAnonVoteStatusResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("matchup.v1.MatchupItemService.GetAnonVoteStatus is not implemented"))
 }

@@ -326,6 +326,14 @@
   gap: 1.5rem;
 }
 
+/* Load-more button wrapper under the activity list. Centered so it
+   reads as an affordance rather than list content. */
+.profile-activity-load-more {
+  display: flex;
+  justify-content: center;
+  padding-top: 0.25rem;
+}
+
 .profile-section-header {
   display: flex;
   align-items: center;

@@ -1,0 +1,32 @@
+# Prometheus config for the in-cluster deployment.
+# Mirrors observability/prometheus.yml but uses DNS names that resolve
+# inside the Kubernetes cluster (`matchup-api.matchup.svc.cluster.local`).
+#
+# To update: edit here, then `kubectl rollout restart deployment/prometheus
+# -n matchup` (or curl the /-/reload endpoint since we run with
+# --web.enable-lifecycle).
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: matchup
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: matchup
+
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets: ["localhost:9090"]
+
+      - job_name: matchup-api
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["matchup-api.matchup.svc.cluster.local:8888"]
+            labels:
+              service: matchup-api

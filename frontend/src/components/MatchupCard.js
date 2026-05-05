@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import MatchupItem from "./MatchupItem";
 import MatchupChart from "./MatchupChart";
 import { getUserLikes, likeMatchup, unlikeMatchup } from "../services/api";
+import { track } from "../utils/analytics";
 
 const MotionLink = motion(Link);
 
@@ -142,10 +143,12 @@ export default function MatchupCard({
         await unlikeMatchup(matchup.id);
         setIsLiked(false);
         setLikesCount((count) => Math.max(0, count - 1));
+        track('matchup_unliked', { matchup_id: matchup.id });
       } else {
         await likeMatchup(matchup.id);
         setIsLiked(true);
         setLikesCount((count) => count + 1);
+        track('matchup_liked', { matchup_id: matchup.id });
       }
     } catch (err) {
       const message = err?.response?.data?.error ?? err?.message ?? "";

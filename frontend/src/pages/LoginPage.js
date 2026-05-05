@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { login } from '../services/api';
+import { identifyUser, track } from '../utils/analytics';
 import '../styles/LoginPage.css';
 
 const LoginPage = () => {
@@ -11,6 +12,12 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || '/home';
+  // One-shot banner forwarded by /reset-password success + /settings/
+  // account delete. React Router keeps location.state across renders,
+  // so we read once and trust the user to refresh if they want it
+  // gone (history.replaceState would clear it but also strips any
+  // `from` hint we might need for redirect-after-login).
+  const bannerInfo = location.state?.info;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -20,6 +27,16 @@ const LoginPage = () => {
       setIsSubmitting(true);
       const payload = await login({ email: identifier, password });
       if (payload?.token && payload?.id) {
+        // Identify before navigate so the next pageview already
+        // carries the user_id. The login form's `identifier` field
+        // accepts username OR email — we don't know which without
+        // string-sniffing, so we pass it as `email_or_username` to
+        // keep the cohort attribute honest.
+        identifyUser(payload.id, {
+          username: payload.username,
+          email_or_username: identifier,
+        });
+        track('login_completed');
         navigate('/home', { replace: true });
       } else {
         console.error('Token or User ID is missing in response');
@@ -43,6 +60,7 @@ const LoginPage = () => {
           </p>
         </div>
 
+        {bannerInfo && <p className="login-info">{bannerInfo}</p>}
         {error && <p className="login-error">{error}</p>}
 
         <form onSubmit={handleSubmit} className="login-form">
@@ -71,6 +89,9 @@ const LoginPage = () => {
               autoComplete="current-password"
               required
             />
+            <Link to="/forgot-password" className="login-forgot-link">
+              Forgot password?
+            </Link>
           </div>
           <button
             type="submit"
@@ -87,6 +108,14 @@ const LoginPage = () => {
             Register
           </button>
         </div>
+
+        {/* Legal footer — App Store + Play Store reviewers expect the
+            sign-in surface to reference the Privacy Policy + Terms. */}
+        <p className="login-legal-footer">
+          By continuing, you agree to our{' '}
+          <Link to="/terms">Terms</Link> and{' '}
+          <Link to="/privacy">Privacy Policy</Link>.
+        </p>
       </div>
     </div>
   );

@@ -35,5 +35,13 @@
     ENV PORT=8888
     EXPOSE 8888
 
+    # Sentry release identifier — typically the git SHA, passed in at
+    # build time by the CI pipeline (.github/workflows/deploy.yml).
+    # Baking it into ENV means every pod started from this image
+    # reports the correct release tag without the deployment manifest
+    # needing to know.
+    ARG SENTRY_RELEASE=""
+    ENV SENTRY_RELEASE=$SENTRY_RELEASE
+
     ENTRYPOINT ["./server"]
     

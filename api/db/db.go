@@ -2,15 +2,27 @@ package db
 
 import (
 	"context"
+	"crypto/rand"
+	"errors"
 	"os"
 	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 	"github.com/twinj/uuid"
 )
+
+// shortIDAlphabet is the base62 alphabet used by GenerateShortID. Ordered
+// so the visually confusable pairs stay present (0/O, 1/l) — acceptable
+// because short IDs are always clickable links, not retyped by humans.
+const shortIDAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+// shortIDLength is the default short-ID length in characters. 8 chars of
+// base62 gives 62^8 ≈ 2.18e14 unique IDs — collisions are vanishingly
+// unlikely at any realistic scale, and URL-friendly-short for sharing.
+const shortIDLength = 8
 
 // Psql is a Squirrel statement builder configured for PostgreSQL ($1 placeholders).
 var Psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
@@ -44,6 +56,41 @@ func openWithPool(dsn string) (*sqlx.DB, error) {
 // GeneratePublicID returns a new V4 UUID string.
 func GeneratePublicID() string {
 	return uuid.NewV4().String()
+}
+
+// GenerateShortID returns a short (8-char) base62 identifier suitable for
+// user-facing share URLs like `/m/Kj3mN9xP`. The bytes come from
+// crypto/rand so the ID space is uniformly distributed; with 62^8 ≈
+// 2.18e14 possibilities, collision probability is negligible at any
+// realistic scale. Callers MUST still handle `unique_violation` on
+// insert (Postgres SQLSTATE 23505) and retry — it's cheap insurance.
+func GenerateShortID() string {
+	b := make([]byte, shortIDLength)
+	if _, err := rand.Read(b); err != nil {
+		// crypto/rand.Read never fails on modern OSes; panicking here
+		// turns a silent-zero-ID bug into a loud crash if it ever does.
+		panic("GenerateShortID: crypto/rand.Read failed: " + err.Error())
+	}
+	out := make([]byte, shortIDLength)
+	for i, bb := range b {
+		out[i] = shortIDAlphabet[int(bb)%len(shortIDAlphabet)]
+	}
+	return string(out)
+}
+
+// IsUniqueViolation reports whether err represents a Postgres
+// `unique_violation` (SQLSTATE 23505). Use it to decide whether a
+// short-ID collision should trigger a retry with a newly-generated ID
+// vs. surfacing the error to the caller.
+func IsUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return pqErr.Code == "23505"
+	}
+	return false
 }
 
 // ProcessAvatarPath converts a relative avatar path to a full S3 URL.

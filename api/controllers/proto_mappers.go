@@ -33,6 +33,28 @@ func rfc3339Ptr(t *time.Time) *string {
 // ---- user protos ----
 
 func userToProto(user *models.User) *userv1.UserProfile {
+	// Deleted users — self-deleted or admin-banned — surface to the
+	// outside world as a single anonymous "[deleted]" placeholder.
+	// Public fields (username, email, avatar, bio) are blanked server-
+	// side so even an admin-dash user list can't accidentally leak
+	// the old identity. Counters stay accurate — they're stat, not
+	// identifying, and wiping them would confuse engagement history.
+	if user.DeletedAt != nil {
+		return &userv1.UserProfile{
+			Id:             user.PublicID,
+			Username:       "",
+			Email:          "",
+			AvatarPath:     "",
+			IsAdmin:        false,
+			IsPrivate:      true,
+			FollowersCount: int64(user.FollowersCount),
+			FollowingCount: int64(user.FollowingCount),
+			CreatedAt:      rfc3339(user.CreatedAt),
+			UpdatedAt:      rfc3339(user.UpdatedAt),
+			IsDeleted:      true,
+		}
+	}
+
 	var bio *string
 	if user.Bio != "" {
 		b := user.Bio
@@ -50,6 +72,7 @@ func userToProto(user *models.User) *userv1.UserProfile {
 		CreatedAt:      rfc3339(user.CreatedAt),
 		UpdatedAt:      rfc3339(user.UpdatedAt),
 		Bio:            bio,
+		IsVerified:     user.EmailVerifiedAt != nil,
 	}
 }
 
@@ -152,8 +175,14 @@ func matchupToProto(db sqlx.ExtContext, matchup *models.Matchup, comments []mode
 		tags = []string{}
 	}
 
+	shortID := ""
+	if matchup.ShortID != nil {
+		shortID = *matchup.ShortID
+	}
+
 	return &matchupv1.MatchupData{
 		Id:              matchup.PublicID,
+		ShortId:         shortID,
 		Title:           matchup.Title,
 		Content:         matchup.Content,
 		AuthorId:        authorID,
@@ -228,8 +257,14 @@ func bracketToProto(db sqlx.ExtContext, bracket *models.Bracket) *bracketv1.Brac
 	if tags == nil {
 		tags = []string{}
 	}
+	shortID := ""
+	if bracket.ShortID != nil {
+		shortID = *bracket.ShortID
+	}
+
 	return &bracketv1.BracketData{
 		Id:                   bracket.PublicID,
+		ShortId:              shortID,
 		Title:                bracket.Title,
 		Description:          bracket.Description,
 		AuthorId:             authorID,

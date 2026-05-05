@@ -6,7 +6,10 @@ import ConfirmModal from "../components/ConfirmModal";
 import Button from "../components/Button";
 import BracketView from "../components/BracketView";
 import Comment from "../components/Comment";
+import ShareButton from "../components/ShareButton";
+import ReportModal from "../components/ReportModal";
 import SkeletonCard from "../components/SkeletonCard";
+import { FiFlag } from "react-icons/fi";
 import {
   getBracketSummary,
   getBracketComments,
@@ -21,6 +24,7 @@ import {
 } from "../services/api";
 import "../styles/BracketPage.css";
 import useCountdown from "../hooks/useCountdown";
+import useShareTracking from "../hooks/useShareTracking";
 
 export default function BracketPage() {
   const { id } = useParams();
@@ -40,9 +44,13 @@ export default function BracketPage() {
   const [newComment, setNewComment] = useState("");
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [confirmModal, setConfirmModal] = useState(null);
   const [commentError, setCommentError] = useState(null);
   const [commentPending, setCommentPending] = useState(false);
+
+  // Attribution on incoming shares (see hook).
+  useShareTracking({ contentType: "bracket", shortID: bracket?.short_id });
 
   const loadInFlight = useRef(false);
 
@@ -409,6 +417,17 @@ export default function BracketPage() {
               <span className="bracket-like-count">{likesCount}</span>
               <span>Likes</span>
             </div>
+            <ShareButton item={bracket} type="bracket" />
+            {viewerId && !isOwner && (
+              <button
+                type="button"
+                className="bracket-like-button bracket-like-button--subtle"
+                aria-label="Report this bracket"
+                onClick={() => setReportOpen(true)}
+              >
+                <FiFlag aria-hidden="true" /> Report
+              </button>
+            )}
           </div>
 
           <div className="bracket-action-group bracket-action-group--center">
@@ -499,6 +518,7 @@ export default function BracketPage() {
                   comment={comment}
                   refreshComments={loadComments}
                   onDelete={deleteBracketComment}
+                  subjectType="bracket_comment"
                 />
               ))
             )}
@@ -541,6 +561,14 @@ export default function BracketPage() {
           danger={confirmModal.danger}
           onConfirm={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
           onCancel={() => setConfirmModal(null)}
+        />
+      )}
+
+      {reportOpen && bracket?.public_id && (
+        <ReportModal
+          subjectType="bracket"
+          subjectId={bracket.public_id}
+          onClose={() => setReportOpen(false)}
         />
       )}
     </div>

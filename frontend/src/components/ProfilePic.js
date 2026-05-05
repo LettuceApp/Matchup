@@ -56,7 +56,12 @@ const ProfilePic = ({ userId, editable = false, size = 80 }) => {
       }
     } catch (err) {
       console.error('Upload error:', err);
-      setError('Failed to upload avatar.');
+      // Surface the underlying message (e.g. "File is too large (max 0.5 MB).")
+      // when it came from our presign flow; fall back to a generic string
+      // for network / RPC errors the user can't act on.
+      setError(typeof err?.message === 'string' && err.message.startsWith('File is too large')
+        ? err.message
+        : 'Failed to upload avatar.');
     }
   };
 

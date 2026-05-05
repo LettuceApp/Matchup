@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getHomeSummary, getMatchups } from '../services/api';
 import HomeSidebar from '../components/HomeSidebar';
 import HomeCard, { deriveTags } from '../components/HomeCard';
+import { track } from '../utils/analytics';
 import '../styles/HomePage.css';
 
 const HomePage = () => {
@@ -17,6 +18,18 @@ const HomePage = () => {
   const navigate = useNavigate();
   const userId = localStorage.getItem('userId');
   const username = localStorage.getItem('username');
+
+  // Top-of-funnel marker for anon visitors. Fires once on first
+  // mount per session so we can measure the anon→signup funnel
+  // starting from "saw the home page" rather than "site visit"
+  // (autocapture covers raw pageview already).
+  useEffect(() => {
+    if (!userId) {
+      track('anon_home_viewed');
+    }
+    // Empty deps — fire once per mount, not per filter change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {

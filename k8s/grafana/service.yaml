@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: matchup
+  labels:
+    app: grafana
+spec:
+  # ClusterIP by default. To expose externally either add an Ingress
+  # rule in k8s/ingress.yaml or use `kubectl port-forward svc/grafana
+  # 3001:3000 -n matchup` for quick access.
+  type: ClusterIP
+  selector:
+    app: grafana
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000

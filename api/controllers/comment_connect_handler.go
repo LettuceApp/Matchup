@@ -5,15 +5,51 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
+	"Matchup/cache"
 	commentv1 "Matchup/gen/comment/v1"
 	"Matchup/gen/comment/v1/commentv1connect"
+	"Matchup/middlewares"
 	"Matchup/models"
 	httpctx "Matchup/utils/httpctx"
 
 	"connectrpc.com/connect"
 	"github.com/jmoiron/sqlx"
 )
+
+// truncateForPush keeps the body short enough to fit inside the
+// native notification row across iOS Safari (~160 char cap) and
+// desktop Chrome (~300 char cap) without being cut mid-word.
+func truncateForPush(s string, limit int) string {
+	if len(s) <= limit {
+		return s
+	}
+	trimmed := s[:limit]
+	// Avoid cutting in the middle of a word when there's a nearby
+	// space we can break on.
+	if idx := strings.LastIndex(trimmed, " "); idx > limit-30 {
+		trimmed = trimmed[:idx]
+	}
+	return trimmed + "…"
+}
+
+// Comment rate-limit budget: 10 comments per minute per authenticated
+// user, shared across matchup + bracket comment creation. Tuned for
+// "normal bursty usage" (5-6 replies in a thread) while stopping bots.
+const (
+	commentRateBucket = "comment"
+	commentRateBudget = 10
+	commentRateWindow = time.Minute
+)
+
+func commentRateLimitError() error {
+	return connect.NewError(
+		connect.CodeResourceExhausted,
+		errors.New("You're commenting too fast. Give it a minute and try again."),
+	)
+}
 
 // CommentHandler implements commentv1connect.CommentServiceHandler.
 type CommentHandler struct {
@@ -114,6 +150,12 @@ func (h *CommentHandler) CreateComment(ctx context.Context, req *connect.Request
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("unauthorized"))
 	}
 
+	// Rate limit before we touch the DB — a blocked attempt shouldn't
+	// cost a users-table SELECT or a visibility check.
+	if allowed, _ := middlewares.CheckUserRateLimit(ctx, uid, commentRateBucket, commentRateBudget, commentRateWindow); !allowed {
+		return nil, commentRateLimitError()
+	}
+
 	user := models.User{}
 	if err := sqlx.GetContext(ctx, h.DB, &user, "SELECT * FROM users WHERE id = $1", uid); err != nil {
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("user not found"))
@@ -138,6 +180,14 @@ func (h *CommentHandler) CreateComment(ctx context.Context, req *connect.Request
 
 	isOwner := uid == matchup.AuthorID
 	if !isOwner {
+		// Email-verification soft-gate: you can comment on your OWN
+		// matchups (owner-branch skips this block), but commenting on
+		// another user's content requires a verified email so drive-by
+		// spam networks can't use fake inboxes for outreach.
+		if err := requireVerifiedEmail(ctx, h.DB, uid); err != nil {
+			return nil, err
+		}
+
 		if matchup.Status == matchupStatusDraft {
 			return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("matchup is not active"))
 		}
@@ -175,6 +225,35 @@ func (h *CommentHandler) CreateComment(ctx context.Context, req *connect.Request
 	commentCreated.Author = user
 
 	invalidateHomeSummaryCache(matchup.AuthorID)
+
+	// SSE push — ping the matchup author (skip self-comments) and every
+	// @mentioned user whose handle resolves to a real account. The
+	// payload is just "ping" so clients refetch; we don't need to
+	// decide kinds on the publish side.
+	if !isOwner {
+		_ = cache.PublishActivity(ctx, matchup.AuthorID)
+	}
+	mentioned := resolveMentionedUserIDs(ctx, h.DB, req.Msg.Body, uid)
+	for _, mentionedID := range mentioned {
+		_ = cache.PublishActivity(ctx, mentionedID)
+	}
+
+	// Web Push — mentions are a priority kind, so we fire a native
+	// browser notification to each mentioned user on top of the SSE
+	// ping. Matchup / bracket authors don't get pushed here — they
+	// get a comment_received row in the feed but that's not on the
+	// priority list per product scope.
+	pushURL := fmt.Sprintf("%s/users/%s/matchup/%s",
+		strings.TrimRight(mailerAppBaseURL(), "/"),
+		matchup.Author.Username, matchup.PublicID)
+	for _, mentionedID := range mentioned {
+		_ = cache.PublishPushToUser(ctx, h.DB, mentionedID, cache.PushPayload{
+			Title: "@" + user.Username + " mentioned you",
+			Body:  truncateForPush(req.Msg.Body, 140),
+			URL:   pushURL,
+			Tag:   fmt.Sprintf("mention:%s", matchup.PublicID),
+		})
+	}
 
 	resp := connect.NewResponse(&commentv1.CreateCommentResponse{
 		Comment: commentToProto(h.DB, *commentCreated),
@@ -378,6 +457,14 @@ func (h *CommentHandler) CreateBracketComment(ctx context.Context, req *connect.
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("unauthorized"))
 	}
 
+	// Same shared comment bucket as CreateComment — 10/min per user
+	// across matchup + bracket comments. Intentional: a bot targeting
+	// brackets and matchups on alternating calls shouldn't double its
+	// effective budget.
+	if allowed, _ := middlewares.CheckUserRateLimit(ctx, uid, commentRateBucket, commentRateBudget, commentRateWindow); !allowed {
+		return nil, commentRateLimitError()
+	}
+
 	user := models.User{}
 	if err := sqlx.GetContext(ctx, h.DB, &user, "SELECT * FROM users WHERE id = $1", uid); err != nil {
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("user not found"))
@@ -400,6 +487,15 @@ func (h *CommentHandler) CreateBracketComment(ctx context.Context, req *connect.
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("%s", visibilityErrorMessage(reason)))
 	}
 
+	// Email-verification soft-gate (same as CreateComment). Owners can
+	// comment on their own brackets without verifying; everyone else
+	// needs a verified email.
+	if uid != bracket.AuthorID {
+		if err := requireVerifiedEmail(ctx, h.DB, uid); err != nil {
+			return nil, err
+		}
+	}
+
 	comment := models.BracketComment{
 		Body: req.Msg.Body,
 	}
@@ -419,6 +515,27 @@ func (h *CommentHandler) CreateBracketComment(ctx context.Context, req *connect.
 	commentCreated.Author = user
 
 	invalidateHomeSummaryCache(bracket.AuthorID)
+
+	// SSE push — same shape as CreateComment (author + mentions).
+	if uid != bracket.AuthorID {
+		_ = cache.PublishActivity(ctx, bracket.AuthorID)
+	}
+	mentioned := resolveMentionedUserIDs(ctx, h.DB, req.Msg.Body, uid)
+	for _, mentionedID := range mentioned {
+		_ = cache.PublishActivity(ctx, mentionedID)
+	}
+
+	// Web Push — mentions are a priority kind. Link lands on the bracket.
+	pushURL := fmt.Sprintf("%s/brackets/%s",
+		strings.TrimRight(mailerAppBaseURL(), "/"), bracket.PublicID)
+	for _, mentionedID := range mentioned {
+		_ = cache.PublishPushToUser(ctx, h.DB, mentionedID, cache.PushPayload{
+			Title: "@" + user.Username + " mentioned you",
+			Body:  truncateForPush(req.Msg.Body, 140),
+			URL:   pushURL,
+			Tag:   fmt.Sprintf("mention:%s", bracket.PublicID),
+		})
+	}
 
 	resp := connect.NewResponse(&commentv1.CreateBracketCommentResponse{
 		Comment: bracketCommentToProto(h.DB, *commentCreated),

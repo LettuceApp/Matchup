@@ -6,14 +6,27 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dgrijalva/jwt-go"
 )
 
+// AccessTokenTTL is how long an access-token JWT stays valid before the
+// client must call Refresh. 15 minutes is the standard mobile-API
+// trade-off: short enough that a leaked token has limited blast radius,
+// long enough that the refresh interceptor rarely fires during active
+// use. Exposed as `var` (not `const`) only so integration tests can
+// stub a sub-second TTL to exercise expiry without wall-clock waits.
+var AccessTokenTTL = 15 * time.Minute
+
 func CreateToken(id uint) (string, error) {
-	claims := jwt.MapClaims{}
-	claims["authorized"] = true
-	claims["id"] = id
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"authorized": true,
+		"id":         id,
+		"iat":        now.Unix(),
+		"exp":        now.Add(AccessTokenTTL).Unix(),
+	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(os.Getenv("API_SECRET")))
 }

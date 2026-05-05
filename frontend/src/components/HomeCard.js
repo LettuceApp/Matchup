@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiHeart, FiMessageCircle, FiShare2, FiMoreHorizontal } from 'react-icons/fi';
+import { FiHeart, FiMessageCircle, FiShare2 } from 'react-icons/fi';
+import { relativeTime } from '../utils/time';
 
 const GRADIENTS = [
   'linear-gradient(135deg, #667eea, #764ba2)',
@@ -43,16 +44,8 @@ function titleGradient(title) {
   return GRADIENTS[Math.abs(hash) % GRADIENTS.length];
 }
 
-function relativeTime(dateStr) {
-  if (!dateStr) return '';
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins || 1}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
-}
+// `relativeTime` now lives in utils/time.js so ActivityFeed + others
+// can share it. Re-imported rather than duplicated.
 
 function authorDisplay(item) {
   if (item.author?.username) return item.author.username;
@@ -107,9 +100,6 @@ const HomeCard = ({ item, type }) => {
         </div>
         <span className="home-card__badge">
           {type === 'bracket' ? 'Bracket' : 'Matchup'}
-        </span>
-        <span className="home-card__options">
-          <FiMoreHorizontal />
         </span>
       </div>
 

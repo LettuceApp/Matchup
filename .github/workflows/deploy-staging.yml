@@ -1,0 +1,118 @@
+name: Deploy to Staging (AKS — manual)
+
+# Staging auto-deploys on every merge to main. Prod stays on the
+# tagged-release path (deploy.yml); this workflow just keeps the
+# staging environment current so mobile TestFlight / internal-track
+# builds have a stable target.
+#
+# NOTE: Currently manual-only — the AKS staging cluster + namespace
+# haven't been provisioned yet, so the push-to-main trigger would
+# just produce red CI runs. Re-enable the `push: branches: [main]`
+# trigger once `kubectl apply -k k8s/staging` has been run against a
+# real cluster and the AZURE_* / REACT_APP_*_STAGING secrets are
+# configured in GitHub Actions.
+
+on:
+  workflow_dispatch:  # manual redeploy from the Actions tab
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  ACR_REGISTRY: matchupacr.azurecr.io
+  API_IMAGE: matchupacr.azurecr.io/matchup-api
+  FRONTEND_IMAGE: matchupacr.azurecr.io/matchup-frontend
+  AKS_CLUSTER: matchup-cluster
+  AKS_RESOURCE_GROUP: matchup-rg
+  K8S_NAMESPACE: matchup-staging
+
+jobs:
+  # Reuses the same image tags the prod pipeline builds (by git SHA).
+  # Running after `Test & Deploy` via `workflow_run` would couple the
+  # two pipelines; instead we duplicate the build here but with
+  # staging-specific Sentry args. The image push is a no-op when the
+  # SHA matches an already-built tag.
+  deploy:
+    name: Build + Deploy (staging)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Log in to ACR
+        run: az acr login --name matchupacr
+
+      - name: Set image tag
+        id: meta
+        run: echo "tag=${GITHUB_SHA::8}-staging" >> "$GITHUB_OUTPUT"
+
+      - name: Build + push API image (staging tag)
+        run: |
+          docker build api/ \
+            --platform linux/amd64 \
+            --build-arg SENTRY_RELEASE=${{ steps.meta.outputs.tag }} \
+            -t ${{ env.API_IMAGE }}:${{ steps.meta.outputs.tag }}
+          docker push ${{ env.API_IMAGE }}:${{ steps.meta.outputs.tag }}
+
+      - name: Build + push frontend image (staging tag)
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            -f frontend/Dockerfile . \
+            --build-arg REACT_APP_SENTRY_DSN=${{ secrets.REACT_APP_SENTRY_DSN_STAGING }} \
+            --build-arg REACT_APP_SENTRY_ENVIRONMENT=staging \
+            --build-arg REACT_APP_SENTRY_RELEASE=${{ steps.meta.outputs.tag }} \
+            --build-arg SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }} \
+            --build-arg SENTRY_ORG=${{ secrets.SENTRY_ORG }} \
+            --build-arg SENTRY_PROJECT=${{ secrets.SENTRY_FRONTEND_PROJECT }} \
+            --build-arg REACT_APP_POSTHOG_KEY=${{ secrets.REACT_APP_POSTHOG_KEY }} \
+            --build-arg REACT_APP_POSTHOG_HOST=${{ secrets.REACT_APP_POSTHOG_HOST }} \
+            --build-arg REACT_APP_POSTHOG_ENVIRONMENT=staging \
+            -t ${{ env.FRONTEND_IMAGE }}:${{ steps.meta.outputs.tag }}
+          docker push ${{ env.FRONTEND_IMAGE }}:${{ steps.meta.outputs.tag }}
+
+      - name: Set kubectl context
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ env.AKS_RESOURCE_GROUP }} \
+            --name ${{ env.AKS_CLUSTER }} \
+            --overwrite-existing
+
+      - name: Apply kustomize overlay
+        working-directory: k8s/staging
+        run: |
+          # Kustomize's `images` field ties the tag to the current
+          # build. Using `kustomize edit set image` + piping through
+          # `kubectl apply -k .` avoids a manifest file churn for
+          # every deploy.
+          kustomize edit set image \
+            matchupacr.azurecr.io/matchup-api=${{ env.API_IMAGE }}:${{ steps.meta.outputs.tag }} \
+            matchupacr.azurecr.io/matchup-frontend=${{ env.FRONTEND_IMAGE }}:${{ steps.meta.outputs.tag }}
+          kubectl apply -k .
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/matchup-api -n ${{ env.K8S_NAMESPACE }} --timeout=5m
+          kubectl rollout status deployment/matchup-frontend -n ${{ env.K8S_NAMESPACE }} --timeout=5m
+
+      - name: Smoke test
+        run: |
+          # Basic reachability — if /health 200s from inside the
+          # cluster we at least know the pod is up. External DNS +
+          # cert-manager handshake are separate concerns.
+          kubectl run smoke-${{ github.run_id }} \
+            -n ${{ env.K8S_NAMESPACE }} \
+            --rm -i --restart=Never \
+            --image=curlimages/curl:8.9.1 \
+            -- -sS http://matchup-api:8888/health

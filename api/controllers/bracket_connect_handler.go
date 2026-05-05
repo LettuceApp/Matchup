@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"Matchup/cache"
+	appdb "Matchup/db"
 	bracketv1 "Matchup/gen/bracket/v1"
 	"Matchup/gen/bracket/v1/bracketv1connect"
 	matchupv1 "Matchup/gen/matchup/v1"
@@ -409,6 +410,10 @@ func (h *BracketHandler) CreateBracket(ctx context.Context, req *connect.Request
 	if !ok {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
 	}
+	// Email-verification soft-gate. See matchup_connect_handler.go.
+	if err := requireVerifiedEmail(ctx, h.DB, userID); err != nil {
+		return nil, err
+	}
 
 	roundDurationSeconds := 0
 	if req.Msg.RoundDurationSeconds != nil {
@@ -453,9 +458,27 @@ func (h *BracketHandler) CreateBracket(ctx context.Context, req *connect.Request
 	}
 
 	bracket.Prepare()
-	newBracket, err := bracket.SaveBracket(h.DB)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+
+	// Up to 3 attempts: if the random short_id happens to collide with
+	// an existing row (astronomically unlikely at 62^8 but not
+	// impossible), Postgres rejects the INSERT with SQLSTATE 23505 and
+	// we retry with a fresh ID. Anything else is fatal.
+	var newBracket *models.Bracket
+	var saveErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		sid := appdb.GenerateShortID()
+		bracket.ShortID = &sid
+		newBracket, saveErr = bracket.SaveBracket(h.DB)
+		if saveErr == nil {
+			break
+		}
+		if !appdb.IsUniqueViolation(saveErr) {
+			return nil, connect.NewError(connect.CodeInternal, saveErr)
+		}
+		log.Printf("short_id collision on bracket create (attempt %d), retrying", attempt+1)
+	}
+	if saveErr != nil {
+		return nil, connect.NewError(connect.CodeInternal, errors.New("short_id generation exhausted"))
 	}
 
 	generateFullBracket(h.DB, *newBracket, req.Msg.Entries)

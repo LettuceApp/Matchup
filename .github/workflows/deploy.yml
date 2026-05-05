@@ -1,8 +1,16 @@
-name: Test & Deploy
+name: Test & Deploy (AKS — manual)
 
 on:
-  push:
-    branches: [main]
+  # AKS deploy is manual-only. Re-enable `push: branches: [main]` once
+  # the cluster is provisioned and these GitHub Actions secrets are
+  # configured: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID,
+  # SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_API_PROJECT,
+  # SENTRY_FRONTEND_PROJECT, REACT_APP_SENTRY_DSN,
+  # REACT_APP_POSTHOG_KEY, REACT_APP_POSTHOG_HOST.
+  # Until then prod deploys via Render's GitHub auto-deploy on push
+  # to main; running this workflow without those secrets just paints
+  # the CI badge red for no benefit.
+  workflow_dispatch:
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -99,10 +107,26 @@ jobs:
         run: |
           docker build api/ \
             --platform linux/amd64 \
+            --build-arg SENTRY_RELEASE=${{ steps.meta.outputs.tag }} \
             -t ${{ env.API_IMAGE }}:${{ steps.meta.outputs.tag }} \
             -t ${{ env.API_IMAGE }}:latest
           docker push ${{ env.API_IMAGE }}:${{ steps.meta.outputs.tag }}
           docker push ${{ env.API_IMAGE }}:latest
+
+      # Register the backend release in Sentry so the SENTRY_RELEASE
+      # env var the pod reports at runtime actually resolves to a known
+      # release record. No sourcemaps (Go is compiled; stacktraces are
+      # source-referenced), so we just create + finalise.
+      - name: Register Sentry release (API)
+        if: ${{ secrets.SENTRY_AUTH_TOKEN != '' }}
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_API_PROJECT }}
+        run: |
+          npx --yes @sentry/cli@latest releases new "${{ steps.meta.outputs.tag }}"
+          npx --yes @sentry/cli@latest releases set-commits "${{ steps.meta.outputs.tag }}" --auto || true
+          npx --yes @sentry/cli@latest releases finalize "${{ steps.meta.outputs.tag }}"
 
   # ──────────────────────────────────────────────────
   # Job 4: Build & push frontend image
@@ -136,10 +160,34 @@ jobs:
           docker build \
             --platform linux/amd64 \
             -f frontend/Dockerfile . \
+            --build-arg REACT_APP_SENTRY_DSN=${{ secrets.REACT_APP_SENTRY_DSN }} \
+            --build-arg REACT_APP_SENTRY_ENVIRONMENT=production \
+            --build-arg REACT_APP_SENTRY_RELEASE=${{ steps.meta.outputs.tag }} \
+            --build-arg SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }} \
+            --build-arg SENTRY_ORG=${{ secrets.SENTRY_ORG }} \
+            --build-arg SENTRY_PROJECT=${{ secrets.SENTRY_FRONTEND_PROJECT }} \
+            --build-arg REACT_APP_POSTHOG_KEY=${{ secrets.REACT_APP_POSTHOG_KEY }} \
+            --build-arg REACT_APP_POSTHOG_HOST=${{ secrets.REACT_APP_POSTHOG_HOST }} \
+            --build-arg REACT_APP_POSTHOG_ENVIRONMENT=production \
             -t ${{ env.FRONTEND_IMAGE }}:${{ steps.meta.outputs.tag }} \
             -t ${{ env.FRONTEND_IMAGE }}:latest
           docker push ${{ env.FRONTEND_IMAGE }}:${{ steps.meta.outputs.tag }}
           docker push ${{ env.FRONTEND_IMAGE }}:latest
+
+      # Create a Sentry release record + finalise so events flowing in
+      # during the rollout window get tagged with the correct release.
+      # Runs only when the auth token secret is configured so forked
+      # PR builds don't try to call sentry.io.
+      - name: Register Sentry release (frontend)
+        if: ${{ secrets.SENTRY_AUTH_TOKEN != '' }}
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_FRONTEND_PROJECT }}
+        run: |
+          npx --yes @sentry/cli@latest releases new "${{ steps.meta.outputs.tag }}"
+          npx --yes @sentry/cli@latest releases set-commits "${{ steps.meta.outputs.tag }}" --auto || true
+          npx --yes @sentry/cli@latest releases finalize "${{ steps.meta.outputs.tag }}"
 
   # ──────────────────────────────────────────────────
   # Job 5: Deploy to AKS

@@ -1,0 +1,16 @@
+# Tells Grafana to auto-load every JSON dashboard in /var/lib/grafana/dashboards.
+# The default YAML below is the "provider" — dashboards themselves live next
+# to this file under ../../dashboards/*.json.
+
+apiVersion: 1
+
+providers:
+  - name: matchup-dashboards
+    orgId: 1
+    folder: Matchup
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

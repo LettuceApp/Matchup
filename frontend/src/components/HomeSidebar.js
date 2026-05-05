@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProfilePic from './ProfilePic';
+import { logout as serverLogout, signOutLocally } from '../services/api';
 
 const CATEGORIES = [
   'All Categories',
@@ -18,11 +19,12 @@ const HomeSidebar = ({ sortMode, onSortChange, categoryFilter, onCategoryChange 
   const username = localStorage.getItem('username');
   const isAuthed = Boolean(localStorage.getItem('token'));
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userId');
-    localStorage.removeItem('username');
-    localStorage.removeItem('isAdmin');
+  const handleLogout = async () => {
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (refreshToken) {
+      try { await serverLogout(refreshToken); } catch { /* best-effort */ }
+    }
+    signOutLocally();
     navigate('/login', { replace: true });
   };
 

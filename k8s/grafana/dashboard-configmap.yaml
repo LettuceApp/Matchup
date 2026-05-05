@@ -1,0 +1,99 @@
+# Starter "Matchup API" dashboard, provisioned at pod boot via the
+# grafana-provisioning ConfigMap (dashboards.yaml).
+#
+# To edit: either (a) update this file directly and
+# `kubectl apply -f k8s/grafana/dashboard-configmap.yaml`, or
+# (b) edit through the Grafana UI and export the JSON back here
+# (provisioned dashboards allow UI edits but changes are in-memory only
+# until re-applied via this ConfigMap).
+#
+# This matches observability/grafana/dashboards/matchup-api.json — keep
+# them in sync.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: matchup
+data:
+  matchup-api.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "fieldConfig": {
+            "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never", "spanNulls": true, "stacking": { "group": "A", "mode": "normal" } }, "unit": "reqps" },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "id": 1,
+          "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+          "targets": [{ "expr": "sum by (route) (rate(http_requests_total{job=\"matchup-api\"}[1m]))", "legendFormat": "{{route}}", "refId": "A" }],
+          "title": "Request rate by route (req/s, 1m avg)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "fieldConfig": {
+            "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 2, "showPoints": "never" }, "unit": "s" },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "id": 2,
+          "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+          "targets": [
+            { "expr": "histogram_quantile(0.5, sum by (le, route) (rate(http_request_duration_seconds_bucket{job=\"matchup-api\"}[5m])))", "legendFormat": "p50 {{route}}", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket{job=\"matchup-api\"}[5m])))", "legendFormat": "p95 {{route}}", "refId": "B" },
+            { "expr": "histogram_quantile(0.99, sum by (le, route) (rate(http_request_duration_seconds_bucket{job=\"matchup-api\"}[5m])))", "legendFormat": "p99 {{route}}", "refId": "C" }
+          ],
+          "title": "Request latency percentiles (5m window)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "fieldConfig": {
+            "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "bars", "fillOpacity": 70, "lineWidth": 1, "stacking": { "group": "A", "mode": "normal" } }, "unit": "reqps" },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "id": 3,
+          "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+          "targets": [{ "expr": "sum by (status) (rate(http_requests_total{job=\"matchup-api\"}[1m]))", "legendFormat": "{{status}}", "refId": "A" }],
+          "title": "HTTP status code breakdown",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
+          "fieldConfig": {
+            "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 }, "unit": "short" },
+            "overrides": [{ "matcher": { "id": "byName", "options": "heap MB" }, "properties": [{ "id": "unit", "value": "decmbytes" }] }]
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "id": 4,
+          "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+          "targets": [
+            { "expr": "go_goroutines{job=\"matchup-api\"}", "legendFormat": "goroutines", "refId": "A" },
+            { "expr": "go_memstats_heap_inuse_bytes{job=\"matchup-api\"} / 1024 / 1024", "legendFormat": "heap MB", "refId": "B" }
+          ],
+          "title": "Go runtime (goroutines + heap)",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "15s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["matchup"],
+      "templating": { "list": [] },
+      "time": { "from": "now-1h", "to": "now" },
+      "timezone": "",
+      "title": "Matchup API",
+      "uid": "matchup-api",
+      "version": 1
+    }

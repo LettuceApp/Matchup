@@ -2,6 +2,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { incrementMatchupItemVotes } from "../services/api";
+import { useAnonUpgradePrompt } from "../contexts/AnonUpgradeContext";
+import { track } from "../utils/analytics";
 import "../styles/BracketView.css";
 
 export default function BracketView({
@@ -13,6 +15,7 @@ export default function BracketView({
   const [votePendingId, setVotePendingId] = useState(null);
   const [activeRound, setActiveRound] = useState(null);
   const [hoveredMatchId, setHoveredMatchId] = useState(null);
+  const { promptUpgrade } = useAnonUpgradePrompt();
   const roundRefs = useRef({});
   const navigate = useNavigate();
 
@@ -139,6 +142,15 @@ export default function BracketView({
     if (votePendingId === itemId) return;
     if (!itemId) return;
 
+    // Anonymous users can't vote in brackets — short-circuit BEFORE
+    // the API round-trip so the modal opens instantly. Server still
+    // enforces the same rejection (PermissionDenied) as defence in
+    // depth; this is just a UX nicety.
+    if (!localStorage.getItem('token')) {
+      promptUpgrade('bracket');
+      return;
+    }
+
     try {
       setVotePendingId(itemId);
       const res = await incrementMatchupItemVotes(itemId);
@@ -161,8 +173,26 @@ export default function BracketView({
           return { ...matchup, items: updatedItems };
         }),
       );
+      // Funnel event — bracket votes are member-only by design (anon
+      // attempts are short-circuited above into the upgrade modal),
+      // so is_anon will always be false here. Captured anyway so
+      // dashboards stay schema-consistent with the matchup-item path.
+      track('vote_cast', {
+        matchup_id: matchupId,
+        item_id: itemId,
+        is_bracket: true,
+      });
     } catch (err) {
-      console.error("Unable to register vote", err);
+      // Server is the source of truth — if we somehow let an anon
+      // through above (stale token detection), the server rejects
+      // here and we still show the right modal.
+      const code = err?.response?.data?.code;
+      const message = (err?.response?.data?.message || '').toLowerCase();
+      if (code === 'permission_denied' && message.includes('bracket')) {
+        promptUpgrade('bracket');
+      } else {
+        console.error("Unable to register vote", err);
+      }
     } finally {
       setVotePendingId(null);
     }

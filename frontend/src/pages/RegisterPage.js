@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createUser, login } from '../services/api';
+import { clearAnonId, peekAnonId } from '../utils/anonId';
+import { identifyUser, track } from '../utils/analytics';
 import '../styles/RegisterPage.css';
 
 const RegisterPage = () => {
@@ -13,17 +15,51 @@ const RegisterPage = () => {
   const location = useLocation();
   const from = location.state?.from?.pathname || '/home';
 
+  // Top-of-funnel signal: somebody made it to the signup page.
+  // Combined with `signup_completed` below, this gives us the
+  // form-abandonment rate (fired-once-per-mount, so a refresh
+  // counts as a fresh attempt).
+  useEffect(() => {
+    track('signup_started');
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
 
     try {
       setIsSubmitting(true);
+      // createUser sends X-Anon-Id automatically (axios interceptor),
+      // and the server merges any anon votes into the new account.
       await createUser({ email, username, password });
 
+      // Login also re-runs mergeDeviceVotesToUser — defence in depth
+      // in case createUser's merge missed any rows due to ordering.
       const payload = await login({ email, password });
 
       if (payload?.token && payload?.id) {
+        // Capture the anon-id BEFORE clearAnonId wipes it — we want
+        // it threaded into the identify call so PostHog can stitch
+        // the pre-signup anon events to the new user_id. Without
+        // this, the conversion funnel can't resolve the path.
+        const carriedAnonId = peekAnonId();
+
+        identifyUser(payload.id, {
+          username: payload.username,
+          email,
+          anon_id: carriedAnonId || undefined,
+          signup_at: new Date().toISOString(),
+        });
+        track('signup_completed', {
+          had_anon_id: Boolean(carriedAnonId),
+        });
+
+        // Anon ID has done its job (votes now live on the user
+        // account). Clearing it prevents the next anon-style
+        // request from accidentally re-running the merge against a
+        // stale ID after sign-out.
+        clearAnonId();
+
         const dest = payload.username
           ? `/users/${payload.username}`
           : '/home';
@@ -112,6 +148,14 @@ const RegisterPage = () => {
             Log in
           </button>
         </div>
+
+        {/* Legal footer — the store-reviewer-expected reference to
+            Terms + Privacy on the signup surface. */}
+        <p className="register-legal-footer">
+          By creating an account, you agree to our{' '}
+          <Link to="/terms">Terms</Link> and{' '}
+          <Link to="/privacy">Privacy Policy</Link>.
+        </p>
       </div>
     </div>
   );

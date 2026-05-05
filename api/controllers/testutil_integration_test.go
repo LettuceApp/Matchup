@@ -107,7 +107,32 @@ func setupTestDB(t *testing.T) *sqlx.DB {
 }
 
 // seedTestUser creates a user in the test database and returns it.
+//
+// By default the seeded user is email_verified_at = NOW() — most
+// tests treat the user as a fully-functional "has done onboarding"
+// account, and the email-verification soft-gate on CreateMatchup /
+// CreateBracket / CreateComment would otherwise force every
+// integration test to handle verification. Tests that specifically
+// need an UNVERIFIED user (the soft-gate + verification-flow tests)
+// use seedUnverifiedUser instead.
 func seedTestUser(t *testing.T, db *sqlx.DB, username, email, password string) *models.User {
+	t.Helper()
+	user := seedUnverifiedUser(t, db, username, email, password)
+	if _, err := db.Exec("UPDATE users SET email_verified_at = NOW() WHERE id = $1", user.ID); err != nil {
+		t.Fatalf("auto-verify seeded user %s: %v", username, err)
+	}
+	// Reload so the struct mirrors the DB row (so callers reading
+	// user.EmailVerifiedAt see it set).
+	if err := db.Get(user, "SELECT * FROM users WHERE id = $1", user.ID); err != nil {
+		t.Fatalf("reload seeded user %s: %v", username, err)
+	}
+	return user
+}
+
+// seedUnverifiedUser is the raw seed — no email_verified_at stamp.
+// Used by tests of the verification soft-gate where the whole point
+// is to observe unverified behaviour.
+func seedUnverifiedUser(t *testing.T, db *sqlx.DB, username, email, password string) *models.User {
 	t.Helper()
 	hashedPw, err := security.Hash(password)
 	if err != nil {

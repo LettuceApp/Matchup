@@ -3,6 +3,7 @@ package mailer
 import (
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/matcornic/hermes/v2"
 	"github.com/sendgrid/sendgrid-go"
@@ -13,6 +14,7 @@ type sendMail struct{}
 
 type SendMailer interface {
 	SendResetPassword(string, string, string, string, string) (*EmailResponse, error)
+	SendVerifyEmail(string, string, string, string, string) (*EmailResponse, error)
 }
 
 var (
@@ -24,28 +26,44 @@ type EmailResponse struct {
 	RespBody string
 }
 
+// resetPasswordBaseURL returns the origin the password-reset link
+// should point at. Priority: explicit PUBLIC_ORIGIN env (set in prod
+// + staging so the link domain matches the deployment), then
+// production default, then local-dev default. Keeping this in one
+// place means every new mailer template reuses the same resolution
+// logic — see the email-verification mailer added in a later phase.
+func resetPasswordBaseURL() string {
+	if origin := strings.TrimRight(os.Getenv("PUBLIC_ORIGIN"), "/"); origin != "" {
+		return origin
+	}
+	if os.Getenv("APP_ENV") == "production" {
+		return "https://matchup.com"
+	}
+	return "http://127.0.0.1:3000"
+}
+
 func (s *sendMail) SendResetPassword(ToUser string, FromAdmin string, Token string, Sendgridkey string, AppEnv string) (*EmailResponse, error) {
 	h := hermes.Hermes{
 		Product: hermes.Product{
 			Name: "Matchup",
-			Link: "https://matchup.com",
+			Link: resetPasswordBaseURL(),
 		},
 	}
-	var forgotUrl string
-	if os.Getenv("APP_ENV") == "production" {
-		forgotUrl = "https://matchup.com/resetpassword/" + Token //this is the url of the frontend app
-	} else {
-		forgotUrl = "http://127.0.0.1:3000/resetpassword/" + Token //this is the url of the local frontend app
-	}
+	// React route lives at /reset-password/:token (dashed — matches
+	// the rest of the frontend route convention). The old
+	// /resetpassword/:token URL is not registered, so users whose
+	// emails predated this change would've hit a 404.
+	forgotUrl := resetPasswordBaseURL() + "/reset-password/" + Token
 	email := hermes.Email{
 		Body: hermes.Body{
 			Name: ToUser,
 			Intros: []string{
-				"Welcome to Matchup! Good to have you here.",
+				"Someone requested a password reset for your Matchup account.",
+				"If that wasn't you, you can safely ignore this email — your password hasn't changed.",
 			},
 			Actions: []hermes.Action{
 				{
-					Instructions: "Click this link to reset your password",
+					Instructions: "Click this link to reset your password. It expires in 2 hours.",
 					Button: hermes.Button{
 						Color: "#FFFFFF",
 						Text:  "Reset Password",
@@ -54,7 +72,7 @@ func (s *sendMail) SendResetPassword(ToUser string, FromAdmin string, Token stri
 				},
 			},
 			Outros: []string{
-				"Need help, or have questions? Just reply to this email, we'd love to help.",
+				"Need help, or have questions? Just reply to this email — we'd love to help.",
 			},
 		},
 	}
@@ -62,9 +80,9 @@ func (s *sendMail) SendResetPassword(ToUser string, FromAdmin string, Token stri
 	if err != nil {
 		return nil, err
 	}
-	from := mail.NewEmail("SeamFlow", FromAdmin)
-	subject := "Reset Password"
-	to := mail.NewEmail("Reset Password", ToUser)
+	from := mail.NewEmail("Matchup", FromAdmin)
+	subject := "Reset your Matchup password"
+	to := mail.NewEmail(ToUser, ToUser)
 	message := mail.NewSingleEmail(from, subject, to, emailBody, emailBody)
 	client := sendgrid.NewSendClient(Sendgridkey)
 	_, err = client.Send(message)

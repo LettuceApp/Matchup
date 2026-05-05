@@ -6,6 +6,7 @@ import NavigationBar from "../components/NavigationBar";
 import Button from "../components/Button";
 import ConfirmModal from "../components/ConfirmModal";
 import { createMatchup } from "../services/api";
+import { track } from "../utils/analytics";
 
 const CreateMatchup = () => {
   const { userId } = useParams();
@@ -145,16 +146,11 @@ const CreateMatchup = () => {
       matchupData.duration_seconds = totalSeconds;
     }
 
-    // Encode image as base64 if provided
+    // Hand the raw File to createMatchup — it does the S3 presign +
+    // PUT internally and passes upload_key to the backend. No more
+    // base64 round-trip.
     if (imageFile) {
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(",")[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(imageFile);
-      });
-      matchupData.image_data = base64;
-      matchupData.image_content_type = imageFile.type;
+      matchupData.imageFile = imageFile;
     }
 
     try {
@@ -172,6 +168,12 @@ const CreateMatchup = () => {
       const createdAuthorId =
         created.author_id ?? created.authorId ?? created.AuthorID ?? authedUserId;
       const authorSlug = created?.author?.username || createdAuthorId;
+
+      track('matchup_created', {
+        matchup_id: created.id,
+        item_count: items.length,
+        end_mode: endMode,
+      });
 
       setSuccessMessage("Matchup created! Redirecting you to the debate...");
       setTimeout(() => {

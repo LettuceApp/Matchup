@@ -82,6 +82,24 @@
   transform: translateY(-1px);
 }
 
+/* Right-aligned "Forgot password?" affordance sits under the password
+   input. Small + muted so it doesn't compete with the primary Login
+   button, but still discoverable the moment a user squints at a
+   "wait, did I set a different password?" thought. */
+.login-forgot-link {
+  display: inline-block;
+  margin-top: 0.35rem;
+  align-self: flex-end;
+  font-size: 0.82rem;
+  color: rgba(199, 210, 254, 0.75);
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+.login-forgot-link:hover,
+.login-forgot-link:focus-visible {
+  color: #facc15;
+}
+
 .login-primary-button {
   margin-top: 0.5rem;
   padding: 0.85rem 1.8rem;
@@ -124,6 +142,26 @@
   color: #facc15;
 }
 
+/* Legal footer — smaller + quieter than the "register" CTA above.
+   Store-reviewer-driven addition, not a primary user touchpoint. */
+.login-legal-footer {
+  margin: 1.5rem 0 0;
+  text-align: center;
+  color: rgba(148, 163, 184, 0.75);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.login-legal-footer a {
+  color: rgba(196, 181, 253, 0.85);
+  text-decoration: underline;
+}
+
+.login-legal-footer a:hover,
+.login-legal-footer a:focus-visible {
+  color: #facc15;
+}
+
 .login-error {
   margin: 0;
   padding: 0.85rem 1rem;
@@ -131,6 +169,21 @@
   border: 1px solid rgba(248, 113, 113, 0.4);
   background: rgba(127, 29, 29, 0.55);
   color: #fee2e2;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* Positive confirmation banner forwarded via navigate() state from
+   the reset-password success path and the account-delete confirm
+   flow. Same shape as login-error so the card reserves the same
+   vertical rhythm, but amber/green palette for "good news" vibe. */
+.login-info {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-radius: 16px;
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  background: rgba(22, 101, 52, 0.35);
+  color: #bbf7d0;
   font-weight: 500;
   text-align: center;
 }

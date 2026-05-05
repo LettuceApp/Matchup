@@ -124,6 +124,26 @@
   color: #facc15;
 }
 
+/* Legal footer — smaller + quieter than the "log in" CTA above.
+   Required for App Store / Play Store signup flow review. */
+.register-legal-footer {
+  margin: 1.5rem 0 0;
+  text-align: center;
+  color: rgba(148, 163, 184, 0.75);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.register-legal-footer a {
+  color: rgba(196, 181, 253, 0.85);
+  text-decoration: underline;
+}
+
+.register-legal-footer a:hover,
+.register-legal-footer a:focus-visible {
+  color: #facc15;
+}
+
 .register-error {
   margin: 0;
   padding: 0.85rem 1rem;

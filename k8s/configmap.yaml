@@ -12,3 +12,28 @@ data:
   APP_ENV: "production"
   REDIS_ADDR: "redis:6379"
   REDIS_DB: "0"
+
+  # -----------------------------------------------------------------
+  # Mobile universal-link advertisements
+  # -----------------------------------------------------------------
+  # These four values are served verbatim by the /.well-known/
+  # handlers (see api/controllers/wellknown.go). They're ALL public
+  # information by design — Apple's AASA validator + Google's Digital
+  # Asset Links verifier fetch them over plain HTTPS — so they live
+  # here in the configmap rather than in the Secret.
+  #
+  # Empty strings are the intended default: the handlers return 404
+  # ("not configured") until real values land, which is correct
+  # behaviour for any environment that doesn't yet have a matching
+  # mobile app on the store. Paste real values in once the Apple
+  # Developer / Play Console accounts are enrolled.
+  APNS_TEAM_ID: ""              # Apple Developer Team ID, e.g. "AB12CD34EF"
+  APNS_BUNDLE_ID: ""            # e.g. "app.matchup.ios"
+  ANDROID_PACKAGE_NAME: ""      # e.g. "app.matchup.android"
+  ANDROID_SHA256_FINGERPRINTS: "" # comma-separated SHA-256 hex lines from Play App Signing
+
+  # Sentry environment label. The DSN is a secret (see secrets.yaml);
+  # the environment tag is fine as public config — it just segments
+  # events in the Sentry UI.
+  SENTRY_ENVIRONMENT: "production"
+

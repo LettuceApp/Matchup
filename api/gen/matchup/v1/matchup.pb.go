@@ -46,8 +46,13 @@ type MatchupData struct {
 	WinnerItemId    *string                   `protobuf:"bytes,19,opt,name=winner_item_id,json=winnerItemId,proto3,oneof" json:"winner_item_id,omitempty"`
 	ImageUrl        *string                   `protobuf:"bytes,20,opt,name=image_url,json=imageUrl,proto3,oneof" json:"image_url,omitempty"`
 	Tags            []string                  `protobuf:"bytes,21,rep,name=tags,proto3" json:"tags,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Short, shareable identifier (8-char base62) used in `/m/{short_id}`
+	// preview URLs. Nullable for rows created before migration 014 until
+	// the backfill binary finishes. Client code should fall back to `id`
+	// when empty.
+	ShortId       string `protobuf:"bytes,22,opt,name=short_id,json=shortId,proto3" json:"short_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *MatchupData) Reset() {
@@ -225,6 +230,13 @@ func (x *MatchupData) GetTags() []string {
 		return x.Tags
 	}
 	return nil
+}
+
+func (x *MatchupData) GetShortId() string {
+	if x != nil {
+		return x.ShortId
+	}
+	return ""
 }
 
 // CommentData is a comment embedded inside a matchup response.
@@ -775,21 +787,22 @@ func (x *MatchupItemCreate) GetItem() string {
 }
 
 type CreateMatchupRequest struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	UserId           string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Title            string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
-	Content          *string                `protobuf:"bytes,3,opt,name=content,proto3,oneof" json:"content,omitempty"`
-	Items            []*MatchupItemCreate   `protobuf:"bytes,4,rep,name=items,proto3" json:"items,omitempty"`
-	EndMode          *string                `protobuf:"bytes,5,opt,name=end_mode,json=endMode,proto3,oneof" json:"end_mode,omitempty"`
-	DurationSeconds  *int32                 `protobuf:"varint,6,opt,name=duration_seconds,json=durationSeconds,proto3,oneof" json:"duration_seconds,omitempty"`
-	BracketId        *string                `protobuf:"bytes,7,opt,name=bracket_id,json=bracketId,proto3,oneof" json:"bracket_id,omitempty"`
-	Round            *int32                 `protobuf:"varint,8,opt,name=round,proto3,oneof" json:"round,omitempty"`
-	Seed             *int32                 `protobuf:"varint,9,opt,name=seed,proto3,oneof" json:"seed,omitempty"`
-	Tags             []string               `protobuf:"bytes,10,rep,name=tags,proto3" json:"tags,omitempty"`
-	ImageData        []byte                 `protobuf:"bytes,11,opt,name=image_data,json=imageData,proto3,oneof" json:"image_data,omitempty"`
-	ImageContentType *string                `protobuf:"bytes,12,opt,name=image_content_type,json=imageContentType,proto3,oneof" json:"image_content_type,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	UserId          string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Title           string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Content         *string                `protobuf:"bytes,3,opt,name=content,proto3,oneof" json:"content,omitempty"`
+	Items           []*MatchupItemCreate   `protobuf:"bytes,4,rep,name=items,proto3" json:"items,omitempty"`
+	EndMode         *string                `protobuf:"bytes,5,opt,name=end_mode,json=endMode,proto3,oneof" json:"end_mode,omitempty"`
+	DurationSeconds *int32                 `protobuf:"varint,6,opt,name=duration_seconds,json=durationSeconds,proto3,oneof" json:"duration_seconds,omitempty"`
+	BracketId       *string                `protobuf:"bytes,7,opt,name=bracket_id,json=bracketId,proto3,oneof" json:"bracket_id,omitempty"`
+	Round           *int32                 `protobuf:"varint,8,opt,name=round,proto3,oneof" json:"round,omitempty"`
+	Seed            *int32                 `protobuf:"varint,9,opt,name=seed,proto3,oneof" json:"seed,omitempty"`
+	Tags            []string               `protobuf:"bytes,10,rep,name=tags,proto3" json:"tags,omitempty"`
+	// S3 object key returned by UploadService.PresignUpload. Optional
+	// because not every matchup has a cover image.
+	UploadKey     *string `protobuf:"bytes,13,opt,name=upload_key,json=uploadKey,proto3,oneof" json:"upload_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateMatchupRequest) Reset() {
@@ -892,16 +905,9 @@ func (x *CreateMatchupRequest) GetTags() []string {
 	return nil
 }
 
-func (x *CreateMatchupRequest) GetImageData() []byte {
-	if x != nil {
-		return x.ImageData
-	}
-	return nil
-}
-
-func (x *CreateMatchupRequest) GetImageContentType() string {
-	if x != nil && x.ImageContentType != nil {
-		return *x.ImageContentType
+func (x *CreateMatchupRequest) GetUploadKey() string {
+	if x != nil && x.UploadKey != nil {
+		return *x.UploadKey
 	}
 	return ""
 }
@@ -2198,12 +2204,113 @@ func (x *GetUserVotesResponse) GetVotes() []*MatchupVoteData {
 	return nil
 }
 
+// GetAnonVoteStatus — used by the frontend's anon vote counter.
+// `anon_id` is the per-browser UUID stored in localStorage. Server
+// counts rows in matchup_votes against that anon_id and returns the
+// pair (used, max) so the UI can render "2 of 3 free votes left"
+// without duplicating the cap value.
+type GetAnonVoteStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AnonId        string                 `protobuf:"bytes,1,opt,name=anon_id,json=anonId,proto3" json:"anon_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAnonVoteStatusRequest) Reset() {
+	*x = GetAnonVoteStatusRequest{}
+	mi := &file_matchup_v1_matchup_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAnonVoteStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAnonVoteStatusRequest) ProtoMessage() {}
+
+func (x *GetAnonVoteStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_matchup_v1_matchup_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAnonVoteStatusRequest.ProtoReflect.Descriptor instead.
+func (*GetAnonVoteStatusRequest) Descriptor() ([]byte, []int) {
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *GetAnonVoteStatusRequest) GetAnonId() string {
+	if x != nil {
+		return x.AnonId
+	}
+	return ""
+}
+
+type GetAnonVoteStatusResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Used          int32                  `protobuf:"varint,1,opt,name=used,proto3" json:"used,omitempty"`
+	Max           int32                  `protobuf:"varint,2,opt,name=max,proto3" json:"max,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAnonVoteStatusResponse) Reset() {
+	*x = GetAnonVoteStatusResponse{}
+	mi := &file_matchup_v1_matchup_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAnonVoteStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAnonVoteStatusResponse) ProtoMessage() {}
+
+func (x *GetAnonVoteStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_matchup_v1_matchup_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAnonVoteStatusResponse.ProtoReflect.Descriptor instead.
+func (*GetAnonVoteStatusResponse) Descriptor() ([]byte, []int) {
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *GetAnonVoteStatusResponse) GetUsed() int32 {
+	if x != nil {
+		return x.Used
+	}
+	return 0
+}
+
+func (x *GetAnonVoteStatusResponse) GetMax() int32 {
+	if x != nil {
+		return x.Max
+	}
+	return 0
+}
+
 var File_matchup_v1_matchup_proto protoreflect.FileDescriptor
 
 const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\n" +
 	"\x18matchup/v1/matchup.proto\x12\n" +
-	"matchup.v1\x1a\x16common/v1/common.proto\"\xa6\x06\n" +
+	"matchup.v1\x1a\x16common/v1/common.proto\"\xc1\x06\n" +
 	"\vMatchupData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
@@ -2231,7 +2338,8 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\bend_time\x18\x12 \x01(\tH\x04R\aendTime\x88\x01\x01\x12)\n" +
 	"\x0ewinner_item_id\x18\x13 \x01(\tH\x05R\fwinnerItemId\x88\x01\x01\x12 \n" +
 	"\timage_url\x18\x14 \x01(\tH\x06R\bimageUrl\x88\x01\x01\x12\x12\n" +
-	"\x04tags\x18\x15 \x03(\tR\x04tagsB\r\n" +
+	"\x04tags\x18\x15 \x03(\tR\x04tags\x12\x19\n" +
+	"\bshort_id\x18\x16 \x01(\tR\ashortIdB\r\n" +
 	"\v_bracket_idB\b\n" +
 	"\x06_roundB\a\n" +
 	"\x05_seedB\r\n" +
@@ -2296,7 +2404,7 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\x05_pageB\b\n" +
 	"\x06_limit\"'\n" +
 	"\x11MatchupItemCreate\x12\x12\n" +
-	"\x04item\x18\x01 \x01(\tR\x04item\"\xa2\x04\n" +
+	"\x04item\x18\x01 \x01(\tR\x04item\"\x84\x04\n" +
 	"\x14CreateMatchupRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x1d\n" +
@@ -2311,8 +2419,7 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\x04tags\x18\n" +
 	" \x03(\tR\x04tags\x12\"\n" +
 	"\n" +
-	"image_data\x18\v \x01(\fH\x06R\timageData\x88\x01\x01\x121\n" +
-	"\x12image_content_type\x18\f \x01(\tH\aR\x10imageContentType\x88\x01\x01B\n" +
+	"upload_key\x18\r \x01(\tH\x06R\tuploadKey\x88\x01\x01B\n" +
 	"\n" +
 	"\b_contentB\v\n" +
 	"\t_end_modeB\x13\n" +
@@ -2320,8 +2427,8 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\v_bracket_idB\b\n" +
 	"\x06_roundB\a\n" +
 	"\x05_seedB\r\n" +
-	"\v_image_dataB\x15\n" +
-	"\x13_image_content_type\"\x8a\x01\n" +
+	"\v_upload_keyJ\x04\b\v\x10\fJ\x04\b\f\x10\rR\n" +
+	"image_dataR\x12image_content_type\"\x8a\x01\n" +
 	"\x14UpdateMatchupRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\x05title\x18\x02 \x01(\tH\x00R\x05title\x88\x01\x01\x12\x1d\n" +
@@ -2398,7 +2505,12 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\x04item\x18\x01 \x01(\v2\x1e.common.v1.MatchupItemResponseR\x04item\x12#\n" +
 	"\ralready_voted\x18\x02 \x01(\bR\falreadyVoted\"I\n" +
 	"\x14GetUserVotesResponse\x121\n" +
-	"\x05votes\x18\x01 \x03(\v2\x1b.matchup.v1.MatchupVoteDataR\x05votes2\xf2\a\n" +
+	"\x05votes\x18\x01 \x03(\v2\x1b.matchup.v1.MatchupVoteDataR\x05votes\"3\n" +
+	"\x18GetAnonVoteStatusRequest\x12\x17\n" +
+	"\aanon_id\x18\x01 \x01(\tR\x06anonId\"A\n" +
+	"\x19GetAnonVoteStatusResponse\x12\x12\n" +
+	"\x04used\x18\x01 \x01(\x05R\x04used\x12\x10\n" +
+	"\x03max\x18\x02 \x01(\x05R\x03max2\xf2\a\n" +
 	"\x0eMatchupService\x12Q\n" +
 	"\fListMatchups\x12\x1f.matchup.v1.ListMatchupsRequest\x1a .matchup.v1.ListMatchupsResponse\x12K\n" +
 	"\n" +
@@ -2411,7 +2523,7 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\x15OverrideMatchupWinner\x12(.matchup.v1.OverrideMatchupWinnerRequest\x1a).matchup.v1.OverrideMatchupWinnerResponse\x12Z\n" +
 	"\x0fCompleteMatchup\x12\".matchup.v1.CompleteMatchupRequest\x1a#.matchup.v1.CompleteMatchupResponse\x12W\n" +
 	"\x0eReadyUpMatchup\x12!.matchup.v1.ReadyUpMatchupRequest\x1a\".matchup.v1.ReadyUpMatchupResponse\x12Z\n" +
-	"\x0fActivateMatchup\x12\".matchup.v1.ActivateMatchupRequest\x1a#.matchup.v1.ActivateMatchupResponse2\x8c\x03\n" +
+	"\x0fActivateMatchup\x12\".matchup.v1.ActivateMatchupRequest\x1a#.matchup.v1.ActivateMatchupResponse2\xee\x03\n" +
 	"\x12MatchupItemService\x12B\n" +
 	"\aAddItem\x12\x1a.matchup.v1.AddItemRequest\x1a\x1b.matchup.v1.AddItemResponse\x12K\n" +
 	"\n" +
@@ -2419,7 +2531,8 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\n" +
 	"DeleteItem\x12\x1d.matchup.v1.DeleteItemRequest\x1a\x1e.matchup.v1.DeleteItemResponse\x12E\n" +
 	"\bVoteItem\x12\x1b.matchup.v1.VoteItemRequest\x1a\x1c.matchup.v1.VoteItemResponse\x12Q\n" +
-	"\fGetUserVotes\x12\x1f.matchup.v1.GetUserVotesRequest\x1a .matchup.v1.GetUserVotesResponseB\"Z Matchup/gen/matchup/v1;matchupv1b\x06proto3"
+	"\fGetUserVotes\x12\x1f.matchup.v1.GetUserVotesRequest\x1a .matchup.v1.GetUserVotesResponse\x12`\n" +
+	"\x11GetAnonVoteStatus\x12$.matchup.v1.GetAnonVoteStatusRequest\x1a%.matchup.v1.GetAnonVoteStatusResponseB\"Z Matchup/gen/matchup/v1;matchupv1b\x06proto3"
 
 var (
 	file_matchup_v1_matchup_proto_rawDescOnce sync.Once
@@ -2433,7 +2546,7 @@ func file_matchup_v1_matchup_proto_rawDescGZIP() []byte {
 	return file_matchup_v1_matchup_proto_rawDescData
 }
 
-var file_matchup_v1_matchup_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
+var file_matchup_v1_matchup_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
 var file_matchup_v1_matchup_proto_goTypes = []any{
 	(*MatchupData)(nil),                   // 0: matchup.v1.MatchupData
 	(*CommentData)(nil),                   // 1: matchup.v1.CommentData
@@ -2472,28 +2585,30 @@ var file_matchup_v1_matchup_proto_goTypes = []any{
 	(*DeleteItemResponse)(nil),            // 34: matchup.v1.DeleteItemResponse
 	(*VoteItemResponse)(nil),              // 35: matchup.v1.VoteItemResponse
 	(*GetUserVotesResponse)(nil),          // 36: matchup.v1.GetUserVotesResponse
-	(*v1.UserSummaryResponse)(nil),        // 37: common.v1.UserSummaryResponse
-	(*v1.MatchupItemResponse)(nil),        // 38: common.v1.MatchupItemResponse
-	(*v1.Pagination)(nil),                 // 39: common.v1.Pagination
+	(*GetAnonVoteStatusRequest)(nil),      // 37: matchup.v1.GetAnonVoteStatusRequest
+	(*GetAnonVoteStatusResponse)(nil),     // 38: matchup.v1.GetAnonVoteStatusResponse
+	(*v1.UserSummaryResponse)(nil),        // 39: common.v1.UserSummaryResponse
+	(*v1.MatchupItemResponse)(nil),        // 40: common.v1.MatchupItemResponse
+	(*v1.Pagination)(nil),                 // 41: common.v1.Pagination
 }
 var file_matchup_v1_matchup_proto_depIdxs = []int32{
-	37, // 0: matchup.v1.MatchupData.author:type_name -> common.v1.UserSummaryResponse
-	38, // 1: matchup.v1.MatchupData.items:type_name -> common.v1.MatchupItemResponse
+	39, // 0: matchup.v1.MatchupData.author:type_name -> common.v1.UserSummaryResponse
+	40, // 1: matchup.v1.MatchupData.items:type_name -> common.v1.MatchupItemResponse
 	1,  // 2: matchup.v1.MatchupData.comments:type_name -> matchup.v1.CommentData
 	8,  // 3: matchup.v1.CreateMatchupRequest.items:type_name -> matchup.v1.MatchupItemCreate
 	0,  // 4: matchup.v1.ListMatchupsResponse.matchups:type_name -> matchup.v1.MatchupData
-	39, // 5: matchup.v1.ListMatchupsResponse.pagination:type_name -> common.v1.Pagination
+	41, // 5: matchup.v1.ListMatchupsResponse.pagination:type_name -> common.v1.Pagination
 	0,  // 6: matchup.v1.GetMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
 	2,  // 7: matchup.v1.GetPopularMatchupsResponse.matchups:type_name -> matchup.v1.PopularMatchupData
 	0,  // 8: matchup.v1.GetUserMatchupsResponse.matchups:type_name -> matchup.v1.MatchupData
-	39, // 9: matchup.v1.GetUserMatchupsResponse.pagination:type_name -> common.v1.Pagination
+	41, // 9: matchup.v1.GetUserMatchupsResponse.pagination:type_name -> common.v1.Pagination
 	0,  // 10: matchup.v1.CreateMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
 	0,  // 11: matchup.v1.UpdateMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
 	0,  // 12: matchup.v1.ReadyUpMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
 	0,  // 13: matchup.v1.ActivateMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
-	38, // 14: matchup.v1.AddItemResponse.item:type_name -> common.v1.MatchupItemResponse
-	38, // 15: matchup.v1.UpdateItemResponse.item:type_name -> common.v1.MatchupItemResponse
-	38, // 16: matchup.v1.VoteItemResponse.item:type_name -> common.v1.MatchupItemResponse
+	40, // 14: matchup.v1.AddItemResponse.item:type_name -> common.v1.MatchupItemResponse
+	40, // 15: matchup.v1.UpdateItemResponse.item:type_name -> common.v1.MatchupItemResponse
+	40, // 16: matchup.v1.VoteItemResponse.item:type_name -> common.v1.MatchupItemResponse
 	3,  // 17: matchup.v1.GetUserVotesResponse.votes:type_name -> matchup.v1.MatchupVoteData
 	4,  // 18: matchup.v1.MatchupService.ListMatchups:input_type -> matchup.v1.ListMatchupsRequest
 	5,  // 19: matchup.v1.MatchupService.GetMatchup:input_type -> matchup.v1.GetMatchupRequest
@@ -2511,24 +2626,26 @@ var file_matchup_v1_matchup_proto_depIdxs = []int32{
 	18, // 31: matchup.v1.MatchupItemService.DeleteItem:input_type -> matchup.v1.DeleteItemRequest
 	19, // 32: matchup.v1.MatchupItemService.VoteItem:input_type -> matchup.v1.VoteItemRequest
 	20, // 33: matchup.v1.MatchupItemService.GetUserVotes:input_type -> matchup.v1.GetUserVotesRequest
-	21, // 34: matchup.v1.MatchupService.ListMatchups:output_type -> matchup.v1.ListMatchupsResponse
-	22, // 35: matchup.v1.MatchupService.GetMatchup:output_type -> matchup.v1.GetMatchupResponse
-	23, // 36: matchup.v1.MatchupService.GetPopularMatchups:output_type -> matchup.v1.GetPopularMatchupsResponse
-	24, // 37: matchup.v1.MatchupService.GetUserMatchups:output_type -> matchup.v1.GetUserMatchupsResponse
-	25, // 38: matchup.v1.MatchupService.CreateMatchup:output_type -> matchup.v1.CreateMatchupResponse
-	26, // 39: matchup.v1.MatchupService.UpdateMatchup:output_type -> matchup.v1.UpdateMatchupResponse
-	27, // 40: matchup.v1.MatchupService.DeleteMatchup:output_type -> matchup.v1.DeleteMatchupResponse
-	28, // 41: matchup.v1.MatchupService.OverrideMatchupWinner:output_type -> matchup.v1.OverrideMatchupWinnerResponse
-	29, // 42: matchup.v1.MatchupService.CompleteMatchup:output_type -> matchup.v1.CompleteMatchupResponse
-	30, // 43: matchup.v1.MatchupService.ReadyUpMatchup:output_type -> matchup.v1.ReadyUpMatchupResponse
-	31, // 44: matchup.v1.MatchupService.ActivateMatchup:output_type -> matchup.v1.ActivateMatchupResponse
-	32, // 45: matchup.v1.MatchupItemService.AddItem:output_type -> matchup.v1.AddItemResponse
-	33, // 46: matchup.v1.MatchupItemService.UpdateItem:output_type -> matchup.v1.UpdateItemResponse
-	34, // 47: matchup.v1.MatchupItemService.DeleteItem:output_type -> matchup.v1.DeleteItemResponse
-	35, // 48: matchup.v1.MatchupItemService.VoteItem:output_type -> matchup.v1.VoteItemResponse
-	36, // 49: matchup.v1.MatchupItemService.GetUserVotes:output_type -> matchup.v1.GetUserVotesResponse
-	34, // [34:50] is the sub-list for method output_type
-	18, // [18:34] is the sub-list for method input_type
+	37, // 34: matchup.v1.MatchupItemService.GetAnonVoteStatus:input_type -> matchup.v1.GetAnonVoteStatusRequest
+	21, // 35: matchup.v1.MatchupService.ListMatchups:output_type -> matchup.v1.ListMatchupsResponse
+	22, // 36: matchup.v1.MatchupService.GetMatchup:output_type -> matchup.v1.GetMatchupResponse
+	23, // 37: matchup.v1.MatchupService.GetPopularMatchups:output_type -> matchup.v1.GetPopularMatchupsResponse
+	24, // 38: matchup.v1.MatchupService.GetUserMatchups:output_type -> matchup.v1.GetUserMatchupsResponse
+	25, // 39: matchup.v1.MatchupService.CreateMatchup:output_type -> matchup.v1.CreateMatchupResponse
+	26, // 40: matchup.v1.MatchupService.UpdateMatchup:output_type -> matchup.v1.UpdateMatchupResponse
+	27, // 41: matchup.v1.MatchupService.DeleteMatchup:output_type -> matchup.v1.DeleteMatchupResponse
+	28, // 42: matchup.v1.MatchupService.OverrideMatchupWinner:output_type -> matchup.v1.OverrideMatchupWinnerResponse
+	29, // 43: matchup.v1.MatchupService.CompleteMatchup:output_type -> matchup.v1.CompleteMatchupResponse
+	30, // 44: matchup.v1.MatchupService.ReadyUpMatchup:output_type -> matchup.v1.ReadyUpMatchupResponse
+	31, // 45: matchup.v1.MatchupService.ActivateMatchup:output_type -> matchup.v1.ActivateMatchupResponse
+	32, // 46: matchup.v1.MatchupItemService.AddItem:output_type -> matchup.v1.AddItemResponse
+	33, // 47: matchup.v1.MatchupItemService.UpdateItem:output_type -> matchup.v1.UpdateItemResponse
+	34, // 48: matchup.v1.MatchupItemService.DeleteItem:output_type -> matchup.v1.DeleteItemResponse
+	35, // 49: matchup.v1.MatchupItemService.VoteItem:output_type -> matchup.v1.VoteItemResponse
+	36, // 50: matchup.v1.MatchupItemService.GetUserVotes:output_type -> matchup.v1.GetUserVotesResponse
+	38, // 51: matchup.v1.MatchupItemService.GetAnonVoteStatus:output_type -> matchup.v1.GetAnonVoteStatusResponse
+	35, // [35:52] is the sub-list for method output_type
+	18, // [18:35] is the sub-list for method input_type
 	18, // [18:18] is the sub-list for extension type_name
 	18, // [18:18] is the sub-list for extension extendee
 	0,  // [0:18] is the sub-list for field type_name
@@ -2553,7 +2670,7 @@ func file_matchup_v1_matchup_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_matchup_v1_matchup_proto_rawDesc), len(file_matchup_v1_matchup_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   37,
+			NumMessages:   39,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

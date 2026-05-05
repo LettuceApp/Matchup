@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import NavigationBar from '../components/NavigationBar';
 import ConfirmModal from '../components/ConfirmModal';
+import AdminReports from '../components/AdminReports';
 import {
   adminGetUsers,
   adminUpdateUserRole,
@@ -10,6 +11,7 @@ import {
   adminDeleteMatchup,
   adminGetBrackets,
   adminDeleteBracket,
+  signOutLocally,
 } from '../services/api';
 import '../styles/AdminDashboard.css';
 
@@ -41,9 +43,10 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
 
   const handleUnauthorized = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userId');
-    localStorage.removeItem('isAdmin');
+    // Reached only when both access AND refresh failed — the interceptor
+    // in api.js has already attempted a silent Refresh. No point trying
+    // the server logout RPC here; just clean locally and bounce.
+    signOutLocally();
     navigate('/login', { replace: true });
   }, [navigate]);
 
@@ -295,6 +298,8 @@ const AdminDashboard = () => {
           </div>
           {actionMessage && <div className="admin-toast">{actionMessage}</div>}
         </header>
+
+        <AdminReports />
 
         <section className="admin-section">
           <div className="admin-section-header">

@@ -1,6 +1,8 @@
 import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import ProfilePic from './ProfilePic';
+import NotificationBell from './NotificationBell';
+import { logout as serverLogout, signOutLocally } from '../services/api';
 import './NavigationBar.css';
 
 const NavigationBar = () => {
@@ -9,11 +11,15 @@ const NavigationBar = () => {
   const username = localStorage.getItem('username');
   const isAuthed = Boolean(localStorage.getItem('token'));
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userId');
-    localStorage.removeItem('username');
-    localStorage.removeItem('isAdmin');
+  const handleLogout = async () => {
+    // Best-effort server-side revoke — we don't block the UX on it.
+    // Even if the server is down / returns an error, we still clear
+    // local auth so the user ends up on /login either way.
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (refreshToken) {
+      try { await serverLogout(refreshToken); } catch { /* ignore */ }
+    }
+    signOutLocally();
     navigate('/login', { replace: true });
   };
 
@@ -37,6 +43,7 @@ const NavigationBar = () => {
               >
                 Home
               </button>
+              <NotificationBell />
               {localStorage.getItem('isAdmin') === 'true' && (
                 <button
                   type="button"
@@ -66,16 +73,20 @@ const NavigationBar = () => {
             </>
           ) : (
             <>
+              {/* Sign up is the primary anon CTA — anon users browse +
+                  vote up to 3 times, and the conversion target is
+                  signup. Sign in stays available as a quieter ghost
+                  button for returning users. */}
               <button
                 type="button"
-                className="navigation-bar__button"
+                className="navigation-bar__button navigation-bar__button--ghost"
                 onClick={() => navigate('/login')}
               >
                 Sign in
               </button>
               <button
                 type="button"
-                className="navigation-bar__button navigation-bar__button--ghost"
+                className="navigation-bar__button"
                 onClick={() => navigate('/register')}
               >
                 Sign up

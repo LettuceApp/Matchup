@@ -67,7 +67,14 @@ type PopularBracketDTO struct {
 // ---- follow types ----
 
 // followRow is scanned from the join of follows and users.
-// Query: SELECT follows.id as follow_id, follows.created_at as follow_created_at, users.* FROM follows JOIN users ON ...
+// The query enumerates each users column explicitly (rather than
+// `SELECT users.*`) — sqlx's strict scan errors on extras, and the
+// users table has grown to include columns we don't ferry through
+// the follow list (password hash, notification_prefs, deleted_at,
+// banned_at, email_verified_at, etc.). See
+// fetchFollowRowsStandalone in user_connect_handler.go for the
+// canonical column list — adding a field here means adding the
+// matching column there.
 type followRow struct {
 	// follows-specific fields
 	FollowID        uint      `db:"follow_id"`

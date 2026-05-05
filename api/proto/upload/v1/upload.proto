@@ -1,0 +1,49 @@
+syntax = "proto3";
+package upload.v1;
+option go_package = "Matchup/gen/upload/v1;uploadv1";
+
+// UploadService brokers direct-to-S3 uploads so large payloads never
+// traverse the API process. The contract is a three-step client flow:
+//
+//   1. Call PresignUpload(kind, content_type) → { upload_url, key,
+//      max_bytes, expires_in_seconds }.
+//   2. PUT the raw file bytes to `upload_url` with
+//      `Content-Type: <declared>` (S3 rejects the PUT if the header
+//      deviates from what was signed).
+//   3. Call the kind's commit RPC (e.g. UpdateAvatar) with `upload_key`.
+//      The server validates ownership, fetches the blob, runs the
+//      existing resize pipeline, then DELETEs the temp upload.
+//
+// Abandoned uploads are cleaned up by an S3 bucket lifecycle rule
+// that expires anything under `uploads/` after 24 hours — there's no
+// Go-side cron for that.
+service UploadService {
+  rpc PresignUpload(PresignUploadRequest) returns (PresignUploadResponse);
+}
+
+// PresignUploadRequest — the two things the server needs to generate
+// a PUT-specific signed URL. `kind` gatekeeps the S3 prefix + size
+// cap + allowed content-types via a server-side registry.
+message PresignUploadRequest {
+  // "avatar" | "matchup_cover". Unknown kinds return InvalidArgument.
+  string kind = 1;
+  // The exact Content-Type the client will set on the S3 PUT. Must
+  // be in the allowlist for the kind; S3 rejects the PUT if the
+  // client deviates from this value.
+  string content_type = 2;
+}
+
+message PresignUploadResponse {
+  // HTTPS URL the client PUTs raw file bytes to.
+  string upload_url = 1;
+  // Opaque S3 key the client feeds back on the commit RPC. Embeds
+  // the caller's user_id so the server can reject cross-user keys
+  // without a DB lookup.
+  string key = 2;
+  // Size cap the server will enforce at commit time. Clients should
+  // reject files larger than this before wasting the PUT.
+  int64 max_bytes = 3;
+  // URL TTL in seconds (typically 300). After this the signed URL
+  // is no longer accepted by S3.
+  int64 expires_in_seconds = 4;
+}

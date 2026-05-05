@@ -13,6 +13,7 @@ import {
 import NavigationBar from "../components/NavigationBar";
 import Button from "../components/Button";
 import { createBracket, updateBracket } from "../services/api";
+import { track } from "../utils/analytics";
 
 const sizeOptions = [4, 8, 16, 32, 64];
 const advanceModes = [
@@ -381,6 +382,11 @@ const CreateBracketPage = () => {
           status: "active",
         });
       }
+      track('bracket_created', {
+        bracket_id: created.id,
+        size: created.size ?? created.Size,
+        activated_on_create: Boolean(activateOnCreate),
+      });
       setSuccessMessage("Bracket created! Taking you to the preview...");
       setTimeout(() => {
         navigate(`/brackets/${created.id}`);

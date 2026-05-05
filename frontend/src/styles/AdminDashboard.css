@@ -76,6 +76,65 @@
   align-items: center;
 }
 
+/* Filter pill group — used in the Reports section to flip between
+   open and resolved queues. Mirrors the muted-pill look from the
+   moderation UI so it reads as a view toggle, not a primary CTA. */
+.admin-filter-pills {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.admin-filter-pill {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  background: transparent;
+  color: #4b5563;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.admin-filter-pill:hover {
+  background: rgba(59, 130, 246, 0.08);
+  color: #1e3a8a;
+}
+.admin-filter-pill--active {
+  background: #1e3a8a;
+  border-color: #1e3a8a;
+  color: #fff;
+}
+
+.admin-report-subject {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.admin-report-type {
+  font-weight: 600;
+}
+.admin-report-id {
+  font-size: 0.75rem;
+  color: #64748b;
+  word-break: break-all;
+}
+.admin-report-detail {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  color: #475569;
+  white-space: pre-wrap;
+}
+.admin-report-preview {
+  max-width: 320px;
+  font-size: 0.88rem;
+  color: #334155;
+  white-space: pre-wrap;
+}
+.admin-report-resolution {
+  font-size: 0.85rem;
+  color: #1e3a8a;
+  font-weight: 500;
+}
+
 .admin-search input {
   padding: 0.55rem 0.8rem;
   border: 1px solid #d1d5db;

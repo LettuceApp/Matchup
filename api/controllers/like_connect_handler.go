@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"Matchup/cache"
 	appdb "Matchup/db"
 	likev1 "Matchup/gen/like/v1"
 	"Matchup/gen/like/v1/likev1connect"
@@ -156,6 +157,13 @@ func (h *LikeHandler) LikeMatchup(ctx context.Context, req *connect.Request[like
 		invalidateBracketSummaryCache(*m.BracketID)
 	}
 	invalidateHomeSummaryCache(m.AuthorID)
+
+	// SSE push — let the matchup author's NotificationBell refetch
+	// without waiting for the next 60s poll tick. Self-likes don't
+	// fire a notification, so skip the publish in that case.
+	if !isOwner {
+		_ = cache.PublishActivity(ctx, m.AuthorID)
+	}
 
 	userPublicID := resolveUserPublicID(h.DB, nil, uid)
 	matchupPublicID := matchupRecord.PublicID
@@ -335,6 +343,11 @@ func (h *LikeHandler) LikeBracket(ctx context.Context, req *connect.Request[like
 	}
 	invalidateBracketSummaryCache(bracket.ID)
 	invalidateHomeSummaryCache(bracket.AuthorID)
+
+	// SSE push — skip on self-like (no notification row either).
+	if uid != bracket.AuthorID {
+		_ = cache.PublishActivity(ctx, bracket.AuthorID)
+	}
 
 	userPublicID := resolveUserPublicID(h.DB, nil, uid)
 	resp := connect.NewResponse(&likev1.LikeBracketResponse{Like: bracketLikeToProto(like, userPublicID, bracketRecord.PublicID)})

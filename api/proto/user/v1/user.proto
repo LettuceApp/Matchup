@@ -10,13 +10,38 @@ service UserService {
   rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
   rpc UpdateUserPrivacy(UpdateUserPrivacyRequest) returns (UpdateUserPrivacyResponse);
   rpc UpdateAvatar(UpdateAvatarRequest) returns (UpdateAvatarResponse);
+  rpc UpdateNotificationPreferences(UpdateNotificationPreferencesRequest) returns (UpdateNotificationPreferencesResponse);
+  rpc GetNotificationPreferences(GetNotificationPreferencesRequest) returns (GetNotificationPreferencesResponse);
   rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+
+  // DeleteMyAccount soft-deletes the caller's account. Requires the
+  // caller's current password as a confirmation signal. Public fields
+  // (username, email, avatar, bio) blank out immediately; the row
+  // itself is hard-deleted by a daily cron 30 days later. Push
+  // subscriptions + refresh tokens are revoked inline.
+  rpc DeleteMyAccount(DeleteMyAccountRequest) returns (DeleteMyAccountResponse);
 
   rpc GetFollowers(GetFollowersRequest) returns (GetFollowersResponse);
   rpc GetFollowing(GetFollowingRequest) returns (GetFollowingResponse);
   rpc FollowUser(FollowUserRequest) returns (FollowUserResponse);
   rpc UnfollowUser(UnfollowUserRequest) returns (UnfollowUserResponse);
   rpc GetRelationship(GetRelationshipRequest) returns (GetRelationshipResponse);
+
+  // Block / unblock. Block is BIDIRECTIONAL: blocked user disappears
+  // from every read surface (feeds, comments, activity, profiles)
+  // AND the blocker disappears from the blocked user's surfaces too.
+  // Blocking severs existing follow edges both ways.
+  rpc BlockUser(BlockUserRequest) returns (BlockUserResponse);
+  rpc UnblockUser(UnblockUserRequest) returns (UnblockUserResponse);
+  rpc ListBlocks(ListBlocksRequest) returns (ListBlocksResponse);
+
+  // Mute / unmute. Mute is ONE-WAY: the muter stops seeing the muted
+  // user's content in their activity feed + stops getting push
+  // notifications triggered by them. The muted user sees no
+  // difference — softer than a block.
+  rpc MuteUser(MuteUserRequest) returns (MuteUserResponse);
+  rpc UnmuteUser(UnmuteUserRequest) returns (UnmuteUserResponse);
+  rpc ListMutes(ListMutesRequest) returns (ListMutesResponse);
 }
 
 // UserProfile is the full user object returned from most user endpoints.
@@ -32,6 +57,18 @@ message UserProfile {
   string created_at = 9;
   string updated_at = 10;
   optional string bio = 11;
+  // Set by `userToProto` when the row's deleted_at is populated.
+  // Frontend renders a "[deleted]" placeholder instead of the user's
+  // real name + avatar (both of which are blanked server-side on
+  // deleted profiles). True for self-deleted AND admin-banned users —
+  // the moderation distinction isn't exposed publicly.
+  bool is_deleted = 12;
+  // Set by `userToProto` when `users.email_verified_at IS NOT NULL`.
+  // Drives the soft-nudge email verification banner: frontend shows
+  // the banner (+ blocks content-creation actions) when this is false
+  // for the current user. Never false for other users in a response
+  // payload — it's only meaningful on the viewer's own UserProfile.
+  bool is_verified = 13;
 }
 
 // FollowListUser is a user with viewer relationship fields, used in follower/following lists.
@@ -52,6 +89,12 @@ message RelationshipResponse {
   bool following = 1;
   bool followed_by = 2;
   bool mutual = 3;
+  // viewer has blocked this target (either direction of block also
+  // hides the other user via read filters, but this flag specifically
+  // reports the outgoing edge so the UI can show "Unblock").
+  bool blocked = 4;
+  // viewer has muted this target.
+  bool muted = 5;
 }
 
 // ---- Request messages ----
@@ -85,12 +128,64 @@ message UpdateUserPrivacyRequest {
 
 message UpdateAvatarRequest {
   string id = 1;
-  bytes avatar_data = 2;
-  string content_type = 3;
+  // Field numbers 2+3 previously carried base64-in-proto image bytes +
+  // content-type. Reserved so a future proto reviewer doesn't re-use
+  // them with incompatible semantics.
+  reserved 2, 3;
+  reserved "avatar_data", "content_type";
+  // S3 object key returned by UploadService.PresignUpload(kind="avatar").
+  // The client PUTs the raw JPEG/PNG/GIF/WebP bytes to the presigned URL,
+  // then calls UpdateAvatar with the key. Server validates ownership,
+  // fetches the blob, and runs the resize pipeline.
+  string upload_key = 4;
 }
 
 message DeleteUserRequest {
   string id = 1;
+}
+
+message DeleteMyAccountRequest {
+  // Re-entered current password. Server bcrypt-compares against the
+  // stored hash before proceeding. Reject with Unauthenticated on
+  // mismatch.
+  string password = 1;
+  // Optional free-text churn reason; stored in users.deletion_reason
+  // for admin visibility. No length enforcement.
+  optional string reason = 2;
+}
+
+message DeleteMyAccountResponse {
+  // RFC3339 UTC timestamp after which hard-delete may run. Shown in
+  // the confirmation UI so the user knows when recovery stops being
+  // possible.
+  string hard_delete_at = 1;
+}
+
+// NotificationPreferences — 6 category toggles. Default for every new
+// user is all-true; muting a category hides its kinds from the feed
+// entirely for that user (or stops the weekly email digest in the case
+// of `email_digest`). See migrations 017 and 018 for the defaults.
+message NotificationPreferences {
+  bool mention = 1;
+  bool engagement = 2;
+  bool milestone = 3;
+  bool prompt = 4;
+  bool social = 5;
+  bool email_digest = 6;
+}
+
+message UpdateNotificationPreferencesRequest {
+  NotificationPreferences prefs = 1;
+}
+
+message UpdateNotificationPreferencesResponse {
+  NotificationPreferences prefs = 1;
+}
+
+message GetNotificationPreferencesRequest {}
+
+message GetNotificationPreferencesResponse {
+  NotificationPreferences prefs = 1;
 }
 
 message GetFollowersRequest {
@@ -171,4 +266,46 @@ message UnfollowUserResponse {
 
 message GetRelationshipResponse {
   RelationshipResponse relationship = 1;
+}
+
+// Block / Mute request + response messages. Each carries a single
+// `id` identifying the target user (public UUID or username, resolved
+// server-side). List responses paginate via the usual cursor shape.
+
+message BlockUserRequest {
+  string id = 1;
+}
+message BlockUserResponse { string message = 1; }
+
+message UnblockUserRequest {
+  string id = 1;
+}
+message UnblockUserResponse { string message = 1; }
+
+message ListBlocksRequest {
+  optional string cursor = 1;
+  optional int32 limit = 2;
+}
+message ListBlocksResponse {
+  repeated UserProfile users = 1;
+  optional string next_cursor = 2;
+}
+
+message MuteUserRequest {
+  string id = 1;
+}
+message MuteUserResponse { string message = 1; }
+
+message UnmuteUserRequest {
+  string id = 1;
+}
+message UnmuteUserResponse { string message = 1; }
+
+message ListMutesRequest {
+  optional string cursor = 1;
+  optional int32 limit = 2;
+}
+message ListMutesResponse {
+  repeated UserProfile users = 1;
+  optional string next_cursor = 2;
 }

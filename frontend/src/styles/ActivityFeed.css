@@ -1,0 +1,240 @@
+/* ActivityFeed — vertical list. Each row: [icon] [body] [unread dot].
+   No timeline rail yet; the design can earn it once we prove the feed
+   is worth scrolling. */
+
+.activity-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.activity-item {
+  display: grid;
+  grid-template-columns: 38px 1fr 12px;
+  align-items: start;
+  gap: 0.85rem;
+  padding: 0.9rem 1rem;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 255, 0.14);
+  border-radius: 14px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.activity-item:hover {
+  background: rgba(15, 23, 42, 0.78);
+  border-color: rgba(148, 163, 255, 0.28);
+}
+
+.activity-item.is-unread {
+  border-color: rgba(148, 163, 255, 0.5);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.activity-item__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: rgba(148, 163, 255, 0.12);
+  color: #c7d2fe;
+  font-size: 18px;
+}
+
+/* Per-kind accent colors on the icon chip. Keeps the vertical scan
+   readable at a glance — you can spot wins (gold) vs losses (grey) vs
+   new followers (violet) without reading the text. */
+.activity-item--win .activity-item__icon {
+  background: rgba(250, 204, 21, 0.18);
+  color: #fbbf24;
+}
+.activity-item--loss .activity-item__icon {
+  background: rgba(148, 163, 184, 0.18);
+  color: #cbd5e1;
+}
+.activity-item--cast .activity-item__icon {
+  background: rgba(34, 197, 94, 0.18);
+  color: #86efac;
+}
+.activity-item--progress .activity-item__icon {
+  background: rgba(59, 130, 246, 0.22);
+  color: #93c5fd;
+}
+.activity-item--received .activity-item__icon {
+  background: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
+}
+.activity-item--like .activity-item__icon {
+  background: rgba(244, 114, 182, 0.2);
+  color: #f9a8d4;
+}
+.activity-item--comment .activity-item__icon {
+  background: rgba(168, 85, 247, 0.2);
+  color: #d8b4fe;
+}
+.activity-item--follow .activity-item__icon {
+  background: rgba(14, 165, 233, 0.22);
+  color: #7dd3fc;
+}
+.activity-item--mention .activity-item__icon {
+  background: rgba(167, 139, 250, 0.22);
+  color: #c4b5fd;
+}
+.activity-item--completed-matchup .activity-item__icon {
+  background: rgba(251, 146, 60, 0.22);
+  color: #fdba74;
+}
+.activity-item--completed-bracket .activity-item__icon {
+  background: rgba(250, 204, 21, 0.2);
+  color: #fde68a;
+}
+.activity-item--milestone .activity-item__icon {
+  background: rgba(234, 179, 8, 0.22);
+  color: #fde047;
+}
+.activity-item--closing .activity-item__icon {
+  background: rgba(249, 115, 22, 0.22);
+  color: #fdba74;
+}
+.activity-item--tie .activity-item__icon {
+  background: rgba(234, 88, 12, 0.22);
+  color: #fcd34d;
+}
+.activity-item--followed-posted .activity-item__icon {
+  background: rgba(56, 189, 248, 0.18);
+  color: #7dd3fc;
+}
+
+.activity-item__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.activity-item__message {
+  margin: 0;
+  color: #e2e8f0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.activity-item__message strong {
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.activity-item__muted {
+  color: rgba(226, 232, 240, 0.65);
+}
+
+.activity-item__subject-link,
+.activity-item__actor-link {
+  color: #c7d2fe;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.activity-item__subject-link:hover,
+.activity-item__subject-link:focus-visible,
+.activity-item__actor-link:hover,
+.activity-item__actor-link:focus-visible {
+  color: #f0abfc;
+  text-decoration: underline;
+}
+
+.activity-item__snippet {
+  margin-top: 0.35rem;
+  padding: 0.4rem 0.7rem;
+  background: rgba(15, 23, 42, 0.75);
+  border-left: 2px solid rgba(148, 163, 255, 0.35);
+  color: rgba(226, 232, 240, 0.82);
+  border-radius: 4px;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.activity-item__time {
+  margin: 0;
+  color: rgba(148, 163, 255, 0.55);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.activity-item__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+  align-self: center;
+  justify-self: end;
+}
+
+.activity-feed__state {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: rgba(226, 232, 240, 0.7);
+}
+
+.activity-feed__state--error {
+  color: #fecaca;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Retry button styled as a quiet link so the error state stays low-key. */
+.activity-feed__retry {
+  background: none;
+  border: none;
+  padding: 0.15rem 0.35rem;
+  color: #93c5fd;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.activity-feed__retry:hover,
+.activity-feed__retry:focus-visible {
+  color: #bfdbfe;
+  outline: none;
+}
+
+.activity-feed__empty-title {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.activity-feed__empty-body {
+  margin: 0 auto;
+  max-width: 32ch;
+  color: rgba(226, 232, 240, 0.7);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 600px) {
+  .activity-item {
+    grid-template-columns: 34px 1fr 10px;
+    padding: 0.8rem 0.85rem;
+    gap: 0.65rem;
+  }
+  .activity-item__icon {
+    width: 34px;
+    height: 34px;
+  }
+  .activity-item__message {
+    font-size: 0.9rem;
+  }
+}

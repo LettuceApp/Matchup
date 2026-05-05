@@ -1,11 +1,19 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
+import { FiHeart, FiMessageCircle, FiShare2, FiFlag } from "react-icons/fi";
 import NavigationBar from "../components/NavigationBar";
 import MatchupItem from "../components/MatchupItem";
+import AnonVoteCounter from "../components/AnonVoteCounter";
+import { useAnonVoteStatus } from "../hooks/useAnonVoteStatus";
+import { useAnonUpgradePrompt } from "../contexts/AnonUpgradeContext";
+import { track } from "../utils/analytics";
 import Comment from "../components/Comment";
 import Button from "../components/Button";
 import ConfirmModal from "../components/ConfirmModal";
+import ShareButton from "../components/ShareButton";
+import ReportModal from "../components/ReportModal";
 import SkeletonCard from "../components/SkeletonCard";
+import Reveal from "../components/Reveal";
 import {
   getMatchup,
   getUserMatchup,
@@ -24,12 +32,22 @@ import {
 } from "../services/api";
 import "../styles/MatchupPage.css";
 import useCountdown from "../hooks/useCountdown";
+import useShareTracking from "../hooks/useShareTracking";
+import { relativeTime } from "../utils/time";
+
+// relativeTime moved to utils/time.js; imported below.
 
 const MatchupPage = () => {
   const { uid, id } = useParams();
   const navigate = useNavigate();
   const userId = localStorage.getItem("userId");
   const viewerId = userId || null;
+
+  // Anon-only vote-counter state. The hook short-circuits internally
+  // when no anon UUID exists yet, so we can mount it unconditionally
+  // even though the chip is hidden for authed users.
+  const anonVoteStatus = useAnonVoteStatus();
+  const { promptUpgrade } = useAnonUpgradePrompt();
 
   const [currentUser, setCurrentUser] = useState(null);
   const [matchup, setMatchup] = useState(null);
@@ -50,6 +68,22 @@ const MatchupPage = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [confirmModal, setConfirmModal] = useState(null); // { message, confirmLabel, danger, onConfirm }
   const [votedItemId, setVotedItemId] = useState(null);
+  // Report flow — non-owners can flag a matchup for moderator review.
+  const [reportOpen, setReportOpen] = useState(false);
+
+  // Fire the share-attribution beacon on landing. Runs once per mount
+  // after short_id is known; safe when short_id is missing (no-op).
+  useShareTracking({ contentType: "matchup", shortID: matchup?.short_id });
+
+  // Resolve the viewer's currently-selected item label for share-text
+  // personalization ("I'm team {label} — you?"). Lazily derived because
+  // both matchup.items and votedItemId can update independently.
+  const viewerVoteForShare = (() => {
+    if (!matchup?.items || !votedItemId) return null;
+    const item = matchup.items.find((it) => it.id === votedItemId);
+    if (!item) return null;
+    return { itemLabel: item.item };
+  })();
 
   /* ------------------------------------------------------------------ */
   /* DATA LOADING */
@@ -270,6 +304,43 @@ const MatchupPage = () => {
 
   const leadingVotes = topCount === 1 ? highestVotes : null;
 
+  // Lookup the winning contender object for the reveal banner. Null
+  // until status=completed (via displayWinnerId gating).
+  const winnerItem =
+    displayWinnerId !== null
+      ? items.find((it) => it.id === displayWinnerId) ?? null
+      : null;
+
+  // "2d ago" for the hero overline. relativeTime gracefully returns ""
+  // if created_at is missing, in which case the overline omits the dot.
+  const timeAgo = relativeTime(matchup?.created_at);
+
+  // Aggregate comment count for the engagement line + action bar.
+  const commentsCount = Array.isArray(comments) ? comments.length : 0;
+
+  // Whether any owner action is available on this matchup — drives
+  // visibility of the whole owner tray so a plain viewer never sees it.
+  const hasOwnerActions =
+    canReadyUp ||
+    canActivate ||
+    canOverrideWinner ||
+    (isOwner && !isBracketMatchup);
+
+  // Title + description shown in the hero. For bracket matchups, use
+  // the PARENT bracket's title as the H1 so users instantly know the
+  // tournament they're voting in — the round and specific pairing are
+  // clear from the overline and the contender tiles below. Fall back
+  // to the matchup's own title if the bracket hasn't loaded yet.
+  // Optional chaining because these evaluate before the early-return
+  // for null matchup (loading state).
+  const heroTitle =
+    isBracketMatchup && bracket?.title ? bracket.title : matchup?.title;
+  const heroDescription = isBracketMatchup
+    ? bracket?.description
+    : matchup?.content;
+  const roundLabel =
+    isBracketMatchup && matchup?.round ? `Round ${matchup.round}` : null;
+
   const votesAreTied = items.length > 0 && topCount > 1;
 
   const requiresManualWinner = !isReady && winnerItemId === null && votesAreTied;
@@ -320,10 +391,12 @@ const MatchupPage = () => {
         await unlikeMatchup(matchup.id);
         setIsLiked(false);
         setLikesCount((c) => Math.max(0, c - 1));
+        track('matchup_unliked', { matchup_id: matchup.id });
       } else {
         await likeMatchup(matchup.id);
         setIsLiked(true);
         setLikesCount((c) => c + 1);
+        track('matchup_liked', { matchup_id: matchup.id });
       }
     } catch (err) {
       console.error(err);
@@ -341,6 +414,7 @@ const MatchupPage = () => {
       setCommentPending(true);
       setCommentError(null);
       await createComment(id, { body: newComment.trim() });
+      track('comment_created', { matchup_id: id });
       setNewComment("");
       await refreshMatchup();
     } catch (err) {
@@ -462,121 +536,262 @@ const MatchupPage = () => {
           </div>
         )}
 
-        <section className="matchup-section">
+        {isBracketMatchup && bracket && (
+          <div className="matchup-bracket-crumb">
+            <Link to={`/brackets/${matchup.bracket_id}`} className="matchup-bracket-crumb__link">
+              ← {bracket.title || "Back to bracket"}
+            </Link>
+          </div>
+        )}
+
+        {/* Hero: cover image (inset), overline, H1, description, tags,
+            aggregate engagement, status row. Single-column stacked so
+            the title never plays second fiddle. */}
+        <section className="matchup-hero">
           {matchup.image_url && (
-            <div className="matchup-cover-image">
-              {/* Cover hero is above the fold — keep eager-loaded but async-decoded */}
+            <div className="matchup-hero__media">
               <img src={matchup.image_url} alt={matchup.title} decoding="async" />
             </div>
           )}
-
-          {Array.isArray(matchup.tags) && matchup.tags.length > 0 && (
-            <div className="matchup-tags">
-              {matchup.tags.map((tag) => (
-                <span key={tag} className="matchup-tag">{tag}</span>
-              ))}
-            </div>
-          )}
-
-          {isBracketMatchup && bracket && (
-            <div className="matchup-bracket-crumb">
-              <Link to={`/brackets/${matchup.bracket_id}`} className="matchup-bracket-crumb__link">
-                ← {bracket.title || "Back to bracket"}
+          <div className="matchup-hero__body">
+            <p className="matchup-overline">
+              {isBracketMatchup ? "Tournament" : "Matchup"}
+              {" · by "}
+              <Link
+                to={`/users/${matchup?.author?.username || matchup.author_id}`}
+                className="matchup-author-link"
+              >
+                @{authorName}
               </Link>
+              {roundLabel && (
+                <>
+                  {" · "}
+                  <span className="matchup-overline__round">{roundLabel}</span>
+                </>
+              )}
+              {timeAgo && (
+                <>
+                  {" · "}
+                  <span className="matchup-overline__time">{timeAgo}</span>
+                </>
+              )}
+            </p>
+
+            <h1>{heroTitle}</h1>
+
+            {heroDescription && (
+              <p className="matchup-description">{heroDescription}</p>
+            )}
+
+            {Array.isArray(matchup.tags) && matchup.tags.length > 0 && (
+              <div className="matchup-tag-row">
+                {matchup.tags.map((tag) => (
+                  <span key={tag} className="matchup-tag">{tag}</span>
+                ))}
+              </div>
+            )}
+
+            <div className="matchup-engagement">
+              <span><strong>{totalVotes}</strong> {totalVotes === 1 ? "vote" : "votes"}</span>
+              <span className="matchup-engagement__dot">·</span>
+              <span><strong>{likesCount}</strong> {likesCount === 1 ? "like" : "likes"}</span>
+              <span className="matchup-engagement__dot">·</span>
+              <span><strong>{commentsCount}</strong> {commentsCount === 1 ? "comment" : "comments"}</span>
+            </div>
+
+            <div className="matchup-status-row">
+              {matchupEndsAt && !matchupExpired && (
+                <div className="matchup-status-pill matchup-status-pill--timer">
+                  ⏳ <strong>{countdown.formatted}</strong>
+                </div>
+              )}
+              {matchupExpired && (
+                <div className="matchup-status-pill matchup-status-pill--locked">
+                  ⛔ Voting closed
+                </div>
+              )}
+              {/* Status pill hides when active — countdown already implies it. */}
+              {matchupStatus && matchupStatus !== "active" && !matchupExpired && (
+                <div className="matchup-status-pill">
+                  Status: <strong>{matchupStatus}</strong>
+                </div>
+              )}
+            </div>
+
+            {isTieAfterExpiryInActiveRound && (
+              <div className="matchup-status-banner matchup-status-banner--warning">
+                ⚠️ Voting ended in a tie. The owner must choose a winner before the round can advance.
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Winner reveal — gets its own Reveal-animated banner so
+            status=completed feels like an event, not a quiet flag. */}
+        {isReady && winnerItem && (
+          <Reveal as="section" className="matchup-winner-banner">
+            <span className="matchup-winner-banner__trophy" aria-hidden="true">🏆</span>
+            <span className="matchup-winner-banner__label">Winner</span>
+            <strong className="matchup-winner-banner__name">
+              {winnerItem.item ?? winnerItem.name ?? "Contender"}
+            </strong>
+          </Reveal>
+        )}
+
+        <section className="matchup-vote-stage" aria-label="Tap a contender to cast your vote">
+          {/* Anon vote counter — visible only to non-signed-in
+              viewers. Hidden when atCap so the AnonUpgradeModal
+              triggered by the next vote attempt doesn't compete
+              with the chip-version of the same CTA. */}
+          {!viewerId && !isBracketMatchup && !anonVoteStatus.atCap && (
+            <div className="matchup-anon-counter">
+              <AnonVoteCounter
+                used={anonVoteStatus.used}
+                max={anonVoteStatus.max}
+                atCap={false}
+              />
             </div>
           )}
-
-          <div className="matchup-meta">
-            <div className="matchup-meta__left">
-              <h2>
-                Matchup{" "}
-                {!isBracketMatchup && (
-                  <>
-                    ·{" "}
-                    <Link
-                      to={`/users/${matchup?.author?.username || matchup.author_id}`}
-                      className="matchup-author-link"
-                    >
-                      {authorName}
-                    </Link>
-                  </>
-                )}
-              </h2>
-              <p className="matchup-subtitle">🗳 Tap a contender to cast your vote.</p>
-              <div className="matchup-status-row">
-                <div className="matchup-status-pill">
-                  Status: <strong>{matchupStatus || "unknown"}</strong>
-                </div>
-                {matchupEndsAt && !matchupExpired && (
-                  <div className="matchup-status-pill matchup-status-pill--timer">
-                    ⏳ <strong>{countdown.formatted}</strong>
-                  </div>
-                )}
-                {matchupExpired && (
-                  <div className="matchup-status-pill matchup-status-pill--locked">
-                    ⛔ Voting closed
-                  </div>
-                )}
-              </div>
-              {isTieAfterExpiryInActiveRound && (
-                <div className="matchup-status-banner matchup-status-banner--warning">
-                  ⚠️ Voting ended in a tie. The owner must choose a winner before the round can advance.
-                </div>
-              )}
+          {!viewerId && !isBracketMatchup && anonVoteStatus.atCap && (
+            <div className="matchup-anon-counter">
+              <AnonVoteCounter
+                used={anonVoteStatus.used}
+                max={anonVoteStatus.max}
+                atCap={true}
+                onPromptSignup={() => promptUpgrade('cap')}
+              />
             </div>
+          )}
+          <div className="matchup-items">
+            {items.map((item) => (
+              <MatchupItem
+                key={item.id}
+                item={item}
+                totalVotes={totalVotes}
+                showVoteBar
+                isWinner={displayWinnerId === item.id}
+                isLeading={
+                  displayWinnerId === null &&
+                  leadingVotes !== null &&
+                  Number(item?.votes ?? item?.Votes ?? 0) === Number(leadingVotes)
+                }
+                hasWinner={displayWinnerId !== null}
+                allowEdit={
+                  isOwner &&
+                  (!isBracketMatchup || bracket?.status === "draft")
+                }
+                isVotingLocked={isVotingLocked}
+                isBracketMatchup={isBracketMatchup}
+                canOverrideWinner={canOverrideWinner}
+                disabled={isVotingLocked}
+                onOverrideWinner={() => handleOverrideWinner(item.id)}
+                onVote={() => {
+                  setVotedItemId(item.id);
+                  if (!viewerId) {
+                    // Anon successful-vote path — bump the counter
+                    // chip immediately + sync against the server.
+                    anonVoteStatus.bumpOptimistic();
+                    anonVoteStatus.refresh();
+                  }
+                  return refreshMatchup();
+                }}
+                isOwner={isOwner}
+                isVoted={votedItemId === item.id}
+              />
+            ))}
+          </div>
+        </section>
 
-            <div className="matchup-meta__right">
-              <div className="matchup-actions">
-                {viewerId ? (
-                  <button
-                    type="button"
-                    className={`matchup-like-button ${isLiked ? "is-liked" : ""}`}
-                    onClick={handleLikeToggle}
-                    disabled={!canLike || likePending}
-                  >
-                    {likePending ? "Updating…" : isLiked ? "❤️ Liked" : "♡ Like"}
-                  </button>
-                ) : null}
-                <div className="matchup-like-indicator">
-                  <span className="matchup-like-count">{likesCount}</span>
-                  <span>Likes</span>
-                </div>
-              </div>
+        {/* Flat action bar — Like / Comment / Share. Matches HomeCard's
+            affordance so the same interaction pattern shows up across
+            the app. Vote locked? Like is still available. */}
+        <section className="matchup-action-bar" aria-label="Matchup actions">
+          <button
+            type="button"
+            className={`matchup-action-bar__button ${isLiked ? "is-liked" : ""}`}
+            onClick={handleLikeToggle}
+            disabled={!viewerId || !canLike || likePending}
+          >
+            <FiHeart aria-hidden="true" />
+            <span>{likePending ? "…" : isLiked ? "Liked" : "Like"}</span>
+            {likesCount > 0 && <span className="matchup-action-bar__count">{likesCount}</span>}
+          </button>
+          <a
+            href="#newComment"
+            className="matchup-action-bar__button"
+            onClick={(e) => {
+              // Smooth-scroll + focus the textarea when possible; anchor
+              // nav is the fallback for disabled JS / screen readers.
+              const el = document.getElementById("newComment");
+              if (el && el.scrollIntoView) {
+                e.preventDefault();
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                if (typeof el.focus === "function") el.focus({ preventScroll: true });
+              }
+            }}
+          >
+            <FiMessageCircle aria-hidden="true" />
+            <span>Comment</span>
+            {commentsCount > 0 && <span className="matchup-action-bar__count">{commentsCount}</span>}
+          </a>
+          <div className="matchup-action-bar__share">
+            <ShareButton item={matchup} type="matchup" viewerVote={viewerVoteForShare} />
+          </div>
+          {/* Report lives in the action bar for non-owners only; owners
+              don't need to flag their own content. Auth-gated so anon
+              viewers don't get a dead button. */}
+          {viewerId && !isOwner && (
+            <button
+              type="button"
+              className="matchup-action-bar__button matchup-action-bar__button--subtle"
+              aria-label="Report this matchup"
+              onClick={() => setReportOpen(true)}
+            >
+              <FiFlag aria-hidden="true" />
+              <span>Report</span>
+            </button>
+          )}
+        </section>
 
-              {canReadyUp && (
-                <div className="matchup-readyup-group">
-                  <Button
-                    onClick={handleReadyUp}
-                    disabled={!readyEnabled || readyPending}
-                    title="Mark this matchup as complete and reveal the winner"
-                    className={`matchup-readyup-button ${isReady ? "matchup-readyup-button--armed" : ""}`}
-                  >
-                    {readyPending ? (isReady ? "Unlocking…" : "Locking…") : isReady ? "Undo Ready" : "Ready up"}
-                  </Button>
-                  <span className="matchup-readyup-hint">Closes voting &amp; reveals winner</span>
-                </div>
-              )}
+        {reportOpen && matchup?.public_id && (
+          <ReportModal
+            subjectType="matchup"
+            subjectId={matchup.public_id}
+            onClose={() => setReportOpen(false)}
+          />
+        )}
 
+        {/* Owner tray: consolidates Activate / Ready up / Override /
+            Delete so rare-but-high-consequence actions don't compete
+            with the viewer's vote CTA. Hidden entirely when no owner
+            action applies. */}
+        {hasOwnerActions && (
+          <section className="matchup-owner-tray" aria-label="Owner controls">
+            <p className="matchup-owner-tray__label">Owner controls</p>
+            <div className="matchup-owner-tray__actions">
               {canActivate && (
                 <Button
                   onClick={handleActivateMatchup}
                   disabled={activatePending}
-                  className="matchup-readyup-button"
+                  className="matchup-owner-tray__button"
                 >
                   {activatePending ? "Activating…" : "Activate matchup"}
                 </Button>
               )}
-
-              {isVotingLocked && (
-                <span className="matchup-badge matchup-badge--locked">
-                  Voting locked
-                </span>
+              {canReadyUp && (
+                <Button
+                  onClick={handleReadyUp}
+                  disabled={!readyEnabled || readyPending}
+                  title="Closes voting & reveals winner"
+                  className={`matchup-owner-tray__button ${isReady ? "is-armed" : ""}`}
+                >
+                  {readyPending ? (isReady ? "Unlocking…" : "Locking…") : isReady ? "Undo Ready" : "Ready up"}
+                </Button>
               )}
-
               {canOverrideWinner && items.length > 0 && (
-                <details ref={winnerMenuRef} className="matchup-winner-menu">
-                  <summary className="matchup-winner-summary" aria-label="Winner options">
-                    ⋯
+                <details ref={winnerMenuRef} className="matchup-winner-menu matchup-winner-menu--tray">
+                  <summary className="matchup-winner-summary" aria-label="Override winner">
+                    Override winner ⋯
                   </summary>
                   <div className="matchup-winner-panel">
                     <p className="matchup-winner-title">Select winner</p>
@@ -602,39 +817,23 @@ const MatchupPage = () => {
                   </div>
                 </details>
               )}
+              {isOwner && !isBracketMatchup && (
+                <Button
+                  onClick={() => setDeleteModalOpen(true)}
+                  disabled={isDeleting}
+                  className="matchup-owner-tray__button matchup-owner-tray__button--danger"
+                >
+                  {isDeleting ? "Deleting…" : "Delete matchup"}
+                </Button>
+              )}
+              {isVotingLocked && (
+                <span className="matchup-badge matchup-badge--locked">
+                  Voting locked
+                </span>
+              )}
             </div>
-          </div>
-
-          <div className="matchup-items">
-            {items.map((item) => (
-              <MatchupItem
-                key={item.id}
-                item={item}
-                totalVotes={totalVotes}
-                showVoteBar
-                isWinner={displayWinnerId === item.id}
-                isLeading={
-                  displayWinnerId === null &&
-                  leadingVotes !== null &&
-                  Number(item?.votes ?? item?.Votes ?? 0) === Number(leadingVotes)
-                }
-                hasWinner={displayWinnerId !== null}
-                allowEdit={
-                  isOwner &&
-                  (!isBracketMatchup || bracket?.status === "draft")
-                }
-                isVotingLocked={isVotingLocked}
-                isBracketMatchup={isBracketMatchup}
-                canOverrideWinner={canOverrideWinner}
-                disabled={isVotingLocked}
-                onOverrideWinner={() => handleOverrideWinner(item.id)}
-                onVote={() => { setVotedItemId(item.id); return refreshMatchup(); }}
-                isOwner={isOwner}
-                isVoted={votedItemId === item.id}
-              />
-            ))}
-          </div>
-        </section>
+          </section>
+        )}
 
         <section className="matchup-section matchup-section--comments">
           <header className="matchup-section-header matchup-section-header--comments">
@@ -689,18 +888,6 @@ const MatchupPage = () => {
             </form>
           ) : null}
         </section>
-
-        {isOwner && !isBracketMatchup && (
-          <div className="matchup-danger-zone">
-            <Button
-              onClick={() => setDeleteModalOpen(true)}
-              disabled={isDeleting}
-              className="matchup-danger-button"
-            >
-              {isDeleting ? "Deleting…" : "Delete matchup"}
-            </Button>
-          </div>
-        )}
 
         {deleteModalOpen && (
           <div className="edit-profile-overlay" onClick={() => setDeleteModalOpen(false)}>

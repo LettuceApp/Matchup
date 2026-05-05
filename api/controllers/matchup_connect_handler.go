@@ -6,12 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
-	"os"
-	"strings"
 	"time"
 
 	"Matchup/cache"
+	appdb "Matchup/db"
 	matchupv1 "Matchup/gen/matchup/v1"
 	"Matchup/gen/matchup/v1/matchupv1connect"
 	"Matchup/models"
@@ -393,6 +391,12 @@ func (h *MatchupHandler) CreateMatchup(ctx context.Context, req *connect.Request
 	if !ok {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
 	}
+	// Email-verification soft-gate. Blocks unverified users from
+	// creating matchups — voting, liking, and commenting on their own
+	// content stay open. See email_verification.go:requireVerifiedEmail.
+	if err := requireVerifiedEmail(ctx, h.DB, userID); err != nil {
+		return nil, err
+	}
 
 	matchup := models.Matchup{}
 	matchup.AuthorID = userID
@@ -436,48 +440,47 @@ func (h *MatchupHandler) CreateMatchup(ctx context.Context, req *connect.Request
 		matchup.Tags = pq.StringArray{}
 	}
 
-	// If a bracket is attached, inherit its tags
+	// If a bracket is attached, inherit its tags. Uses the request ctx
+	// (not context.Background) so a client disconnect cancels the query
+	// and a real DB error is logged rather than silently dropped.
 	if matchup.BracketID != nil && len(matchup.Tags) == 0 {
 		var bracketTags pq.StringArray
-		_ = h.DB.QueryRowContext(context.Background(),
+		err := h.DB.QueryRowContext(ctx,
 			"SELECT tags FROM brackets WHERE id = $1", *matchup.BracketID).Scan(&bracketTags)
-		if len(bracketTags) > 0 {
-			matchup.Tags = bracketTags
+		switch {
+		case err == nil:
+			if len(bracketTags) > 0 {
+				matchup.Tags = bracketTags
+			}
+		case errors.Is(err, sql.ErrNoRows):
+			// Bracket was deleted between the caller specifying it and
+			// us looking it up. Fall through to empty tags.
+		default:
+			log.Printf("CreateMatchup: bracket tag lookup failed: %v", err)
 		}
 	}
 
-	// Optional image upload to S3
-	if len(req.Msg.ImageData) > 0 {
-		buf := req.Msg.ImageData
-		if len(buf) > 5_000_000 {
-			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("image too large (max 5MB)"))
+	// Optional cover image — client presigns + PUTs to S3 first, then
+	// hands us the key. CommitUploadedObject validates ownership +
+	// enforces the 5MB size cap + content-type allowlist before we
+	// pull the bytes in for resize.
+	if key := req.Msg.GetUploadKey(); key != "" {
+		bucketName := bucketFromEnv()
+		buf, commitErr := CommitUploadedObject(ctx, h.S3Client, bucketName, key, UploadKindMatchupCover, userID)
+		if commitErr != nil {
+			return nil, commitErr
 		}
-		fileType := http.DetectContentType(buf)
-		if !strings.HasPrefix(fileType, "image/") {
-			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("not an image"))
-		}
-		// All variants are JPEG-encoded by resizeAndUpload, so the canonical
-		// filename stored in the DB always carries a .jpg extension regardless
-		// of the original upload format. fileType is already validated above.
-		_ = fileType
+
 		filePath := fileformat.UniqueFormat("matchup.jpg")
 		keyBase := "MatchupImages/" + filePath
-
-		rawBucket := os.Getenv("S3_BUCKET")
-		bucketName := strings.SplitN(rawBucket, "/", 2)[0]
-
-		if h.S3Client == nil {
-			return nil, connect.NewError(connect.CodeUnavailable, errors.New("upload service unavailable"))
-		}
-
-		// resizeAndUpload decodes once, resizes to thumb/medium/full and
-		// uploads each variant to S3. The function applies its own 30s
-		// timeout, so we just hand it the request context.
 		if _, uploadErr := resizeAndUpload(ctx, h.S3Client, bucketName, keyBase, buf); uploadErr != nil {
 			log.Printf("S3 resize/upload failed: %v", uploadErr)
 			return nil, connect.NewError(connect.CodeInternal, errors.New("failed to upload image"))
 		}
 		matchup.ImagePath = filePath
+
+		// Reap the temp upload now that the resize succeeded.
+		DeleteUploadedObject(ctx, h.S3Client, bucketName, key)
 	}
 
 	if matchup.BracketID == nil && len(matchup.Items) > 4 {
@@ -512,18 +515,35 @@ func (h *MatchupHandler) CreateMatchup(ctx context.Context, req *connect.Request
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("validation failed: %v", errs))
 	}
 
-	tx, err := h.DB.Beginx()
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-	defer tx.Rollback()
+	// Up to 3 attempts: if the random short_id happens to collide with an
+	// existing row (astronomically unlikely at 62^8 but not impossible),
+	// Postgres rejects the INSERT with SQLSTATE 23505 and we retry with a
+	// fresh ID. Anything else is fatal.
+	var matchupCreated *models.Matchup
+	var saveErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		sid := appdb.GenerateShortID()
+		matchup.ShortID = &sid
 
-	matchupCreated, err := matchup.SaveMatchup(tx)
-	if err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+		tx, beginErr := h.DB.Beginx()
+		if beginErr != nil {
+			return nil, connect.NewError(connect.CodeInternal, beginErr)
+		}
+		matchupCreated, saveErr = matchup.SaveMatchup(tx)
+		if saveErr == nil {
+			if commitErr := tx.Commit(); commitErr != nil {
+				return nil, connect.NewError(connect.CodeInternal, commitErr)
+			}
+			break
+		}
+		_ = tx.Rollback()
+		if !appdb.IsUniqueViolation(saveErr) {
+			return nil, connect.NewError(connect.CodeInternal, saveErr)
+		}
+		log.Printf("short_id collision on matchup create (attempt %d), retrying", attempt+1)
 	}
-	if err := tx.Commit(); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+	if saveErr != nil {
+		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("short_id generation exhausted: %w", saveErr))
 	}
 
 	if err := sqlx.SelectContext(ctx, h.DB, &matchupCreated.Items,

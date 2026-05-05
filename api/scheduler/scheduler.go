@@ -90,6 +90,43 @@ func (s *Scheduler) Run(ctx context.Context) error {
 	if _, err := s.cron.AddFunc("30 6 1 * *", s.jobCleanupOldVotesArchive); err != nil {
 		return fmt.Errorf("register cleanup_old_votes_archive: %w", err)
 	}
+	if _, err := s.cron.AddFunc("*/15 * * * *", s.jobScanMilestones); err != nil {
+		return fmt.Errorf("register scan_milestones: %w", err)
+	}
+	if _, err := s.cron.AddFunc("* * * * *", s.jobScanClosingMatchups); err != nil {
+		return fmt.Errorf("register scan_closing_matchups: %w", err)
+	}
+	if _, err := s.cron.AddFunc("* * * * *", s.jobScanTiesNeedingResolution); err != nil {
+		return fmt.Errorf("register scan_ties_needing_resolution: %w", err)
+	}
+	// Weekly email digest — Sunday 14:00 UTC ≈ Sunday morning US-East.
+	// Intentionally fires once a week; the cooldown window in the
+	// controller prevents double-sends on schedule drift.
+	if _, err := s.cron.AddFunc("0 14 * * 0", s.jobSendEmailDigests); err != nil {
+		return fmt.Errorf("register send_email_digests: %w", err)
+	}
+	// Daily sweep of stale refresh tokens — keeps the table bounded.
+	// Retains rows 7 days past expiry + 30 days past revoke so we can
+	// still answer "why was I logged out?" support queries.
+	if _, err := s.cron.AddFunc("0 7 * * *", s.jobCleanupRefreshTokens); err != nil {
+		return fmt.Errorf("register cleanup_refresh_tokens: %w", err)
+	}
+	// Daily hard-delete of self-deleted accounts past the 30-day
+	// retention window. Runs at 03:00 UTC — quiet hour in the heaviest
+	// traffic timezone. Batched to 100 users per tick so a one-time
+	// spike of self-deletions doesn't starve the scheduler timeout.
+	if _, err := s.cron.AddFunc("0 3 * * *", s.jobHardDeleteExpiredAccounts); err != nil {
+		return fmt.Errorf("register hard_delete_expired_accounts: %w", err)
+	}
+
+	// Password-reset tokens live in the `reset_passwords` table; the
+	// 2-hour TTL guards against link reuse, but the rows themselves
+	// stick around until cleaned. Running at 04:00 UTC spaces this
+	// tick after the hard-delete sweep so neither job has to compete
+	// for the write-path at the same time.
+	if _, err := s.cron.AddFunc("0 4 * * *", s.jobDeleteExpiredResetTokens); err != nil {
+		return fmt.Errorf("register delete_expired_reset_tokens: %w", err)
+	}
 
 	s.cron.Start()
 	defer s.cron.Stop()
@@ -101,7 +138,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		s.runAdvanceLoop(ctx)
 	}()
 
-	s.logger.Println("started (6 cron entries + 10s advance loop)")
+	s.logger.Println("started (7 cron entries + 10s advance loop)")
 	<-ctx.Done()
 	s.logger.Println("shutdown: draining cron + advance loop")
 	wg.Wait()
@@ -402,6 +439,135 @@ func (s *Scheduler) jobCleanupAnonymousDevices() {
 // ---------------------------------------------------------------------------
 // Workload: cleanup old rows in matchup_votes_archive (monthly 1st 06:30)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Workload: scan for milestone crossings (every 15 minutes)
+// ---------------------------------------------------------------------------
+//
+// Inserts one `notifications` row per (user, subject, threshold) combo
+// that has crossed a round-number threshold. Idempotent via the
+// ON CONFLICT DO NOTHING against idx_notifications_dedupe.
+func (s *Scheduler) jobScanMilestones() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	if err := controllers.ScanMilestones(ctx, s.db); err != nil {
+		s.logger.Printf("scan_milestones: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Workload: closing-soon + tie-resolution prompt scanners (every minute)
+// ---------------------------------------------------------------------------
+
+func (s *Scheduler) jobScanClosingMatchups() {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+
+	if err := controllers.ScanClosingMatchups(ctx, s.db); err != nil {
+		s.logger.Printf("scan_closing_matchups: %v", err)
+	}
+}
+
+func (s *Scheduler) jobScanTiesNeedingResolution() {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+
+	if err := controllers.ScanTiesNeedingResolution(ctx, s.db); err != nil {
+		s.logger.Printf("scan_ties_needing_resolution: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Workload: weekly email digest (Sunday 14:00 UTC)
+// ---------------------------------------------------------------------------
+//
+// Sends the opt-out digest to every eligible user. Idempotency comes
+// from the `email_digest_last_sent_at` column + 6-day cooldown in the
+// controller — a crash-and-retry inside the 15min job window won't
+// re-deliver to already-sent users.
+// ---------------------------------------------------------------------------
+// Workload: refresh-token cleanup (daily 07:00 UTC)
+// ---------------------------------------------------------------------------
+//
+// Deletes rows that are either long-expired or long-revoked. The grace
+// windows (7 days past expire, 30 days past revoke) exist so support
+// can still answer "my session died — what happened?" questions by
+// eyeballing the table. Revoked-window is longer than expired because
+// theft-detection revokes are the ones users actually call in about.
+// ---------------------------------------------------------------------------
+// Workload: hard-delete soft-deleted accounts past the retention
+// window (daily 03:00 UTC)
+// ---------------------------------------------------------------------------
+//
+// Self-deleted accounts live in soft-delete state for 30 days so users
+// who regret the decision can reach support. After the window, this
+// job hard-deletes them via the same cascade helper admin-immediate
+// delete uses (`controllers.hardDeleteUser`). Batched to 100 per
+// tick — next day's tick mops up anything it missed.
+func (s *Scheduler) jobHardDeleteExpiredAccounts() {
+	// Generous timeout: 100 cascading deletes can be heavy on a
+	// user with a lot of matchups + comments. 10 minutes is plenty.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	n, err := controllers.HardDeleteExpiredAccounts(ctx, s.db)
+	if err != nil {
+		s.logger.Printf("hard_delete_expired_accounts: %v", err)
+		// Continue — n may still be >0 if the error fired mid-batch.
+	}
+	if n > 0 {
+		s.logger.Printf("hard_delete_expired_accounts: removed %d user(s)", n)
+	}
+}
+
+// jobDeleteExpiredResetTokens clears password-reset token rows older
+// than 24 h. The ResetPassword handler already enforces a 2-hour TTL
+// on lookup, so rows older than that are dead weight — this job
+// keeps the table trimmed.
+func (s *Scheduler) jobDeleteExpiredResetTokens() {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	if err := controllers.DeleteExpiredResetTokens(ctx, s.db); err != nil {
+		s.logger.Printf("delete_expired_reset_tokens: %v", err)
+	}
+}
+
+func (s *Scheduler) jobCleanupRefreshTokens() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	result, err := s.db.ExecContext(ctx, `
+		DELETE FROM public.refresh_tokens
+		 WHERE expires_at < NOW() - INTERVAL '7 days'
+		    OR revoked_at  < NOW() - INTERVAL '30 days'
+	`)
+	if err != nil {
+		s.logger.Printf("cleanup_refresh_tokens: %v", err)
+		return
+	}
+	if n, err := result.RowsAffected(); err == nil && n > 0 {
+		s.logger.Printf("cleanup_refresh_tokens: deleted %d row(s)", n)
+	}
+}
+
+func (s *Scheduler) jobSendEmailDigests() {
+	// Generous timeout: large user bases can push this past the default
+	// 5 min cron-wrapper timeout. 15 min is ~2k emails at SendGrid's
+	// typical per-message latency.
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	defer cancel()
+
+	n, err := controllers.SendEmailDigests(ctx, s.db)
+	if err != nil {
+		s.logger.Printf("send_email_digests: %v", err)
+		return
+	}
+	if n > 0 {
+		s.logger.Printf("send_email_digests: delivered %d digest(s)", n)
+	}
+}
 
 func (s *Scheduler) jobCleanupOldVotesArchive() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)

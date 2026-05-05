@@ -1,0 +1,103 @@
+/* ShareButton — matches the Matchup dark-theme card look. */
+
+.share-button-root {
+  position: relative;
+  display: inline-flex;
+}
+
+.share-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 255, 0.35);
+  background: rgba(148, 163, 255, 0.08);
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.share-button:hover,
+.share-button:focus-visible {
+  background: rgba(148, 163, 255, 0.18);
+  border-color: rgba(148, 163, 255, 0.55);
+  outline: none;
+}
+
+.share-button:active {
+  transform: translateY(1px);
+}
+
+.share-button__label {
+  line-height: 1;
+}
+
+.share-menu {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 20;
+  min-width: 220px;
+  background: #1f2940;
+  border: 1px solid rgba(148, 163, 255, 0.2);
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.share-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.75rem;
+  border: none;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.share-menu__item:hover,
+.share-menu__item:focus-visible {
+  background: rgba(148, 163, 255, 0.18);
+  outline: none;
+}
+
+.share-menu__item svg {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  opacity: 0.9;
+}
+
+.share-toast {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border: 1px solid rgba(148, 163, 255, 0.3);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+  z-index: 30;
+  animation: share-toast-fade 2s ease;
+}
+
+@keyframes share-toast-fade {
+  0% { opacity: 0; transform: translateY(-4px); }
+  10% { opacity: 1; transform: translateY(0); }
+  80% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(0); }
+}

@@ -1,0 +1,63 @@
+# Staging overlay. Reuses the prod manifests as a base and overrides:
+#   * `namespace` on every resource (matchup → matchup-staging)
+#   * This overlay's own configmap + secrets + ingress take
+#     precedence over the base via `resources:` order + the
+#     `namespace-staging` suffix pattern.
+#
+# Usage:
+#   kubectl apply -k k8s/staging
+#
+# That single command creates the namespace, applies the base
+# deployments under matchup-staging, and patches in the staging-
+# specific host + env values from this folder.
+#
+# Notes:
+#   * `images:` lets CI bump the tag on both deployments in one
+#     sweep without a kubectl set image call per service.
+#   * `replicas:` trims the API down to 1 pod — staging traffic
+#     doesn't need redundancy and the cost stays low.
+#   * The Postgres + Redis base manifests create fresh PVCs in the
+#     new namespace, so there's no data crossover with prod.
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: matchup-staging
+
+# Order matters — the namespace.yaml must apply first so the
+# namespace exists before everything else lands in it.
+resources:
+  - namespace.yaml
+  # Data plane (fresh PVCs, fresh credentials).
+  - ../postgres
+  - ../redis
+  # Workloads. Each Deployment + Service YAML from the base gets
+  # re-applied into the staging namespace via the `namespace:` key
+  # above.
+  - ../api
+  - ../frontend
+  - ../worker
+  - ../cron
+  # Overrides — these MUST come after the base resources so kustomize
+  # merges staging config on top rather than treating them as dupes.
+  - configmap.yaml
+  - secrets.yaml
+  - ingress.yaml
+
+# Single-replica api pods keep staging cheap.
+replicas:
+  - name: matchup-api
+    count: 1
+  - name: matchup-frontend
+    count: 1
+
+# Pointed at the same ACR so staging exercises the exact images
+# prod will run. CI bumps the tag on every push to main.
+images:
+  - name: matchupacr.azurecr.io/matchup-api
+    newTag: latest
+  - name: matchupacr.azurecr.io/matchup-frontend
+    newTag: latest
+
+commonLabels:
+  env: staging

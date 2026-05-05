@@ -1,0 +1,14 @@
+# Provisioned datasource — Grafana picks this up on boot so we don't
+# have to click through the UI to wire Prometheus in. The `url` uses
+# Docker / K8s service names; both `prometheus` and `http://prometheus:9090`
+# resolve inside the respective networks.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true

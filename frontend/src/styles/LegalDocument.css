@@ -1,0 +1,95 @@
+/* LegalDocumentPage — shared styles for /privacy + /terms.
+ *
+ * Kept intentionally minimal: readable line length, dark-mode palette
+ * matching the rest of the app, clear amber banner so the "this is a
+ * placeholder" signal doesn't get lost. No animations, no hover FX
+ * beyond the default link underline.
+ */
+
+.legal-page {
+  min-height: 100vh;
+  padding: 2.5rem 1.25rem 4rem;
+  background: #0a0f1f;
+  color: #e2e8f0;
+  line-height: 1.6;
+}
+
+.legal-page__content {
+  max-width: 42rem;
+  margin: 0 auto;
+}
+
+.legal-page__banner {
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 2rem;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-radius: 10px;
+  color: #fcd34d;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.legal-page__banner strong {
+  color: #fde68a;
+}
+
+.legal-page__banner a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.legal-page__header {
+  margin-bottom: 2rem;
+}
+
+.legal-page__header h1 {
+  margin: 0 0 0.4rem;
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  color: #f8fafc;
+}
+
+.legal-page__meta {
+  margin: 0;
+  color: rgba(148, 163, 184, 0.8);
+  font-size: 0.88rem;
+}
+
+.legal-page__sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1.6rem;
+}
+
+.legal-page__section h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.15rem;
+  color: #f1f5f9;
+}
+
+.legal-page__placeholder {
+  margin: 0;
+  color: rgba(203, 213, 225, 0.75);
+}
+
+.legal-page__footer {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-top: 3rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid rgba(148, 163, 255, 0.14);
+  font-size: 0.95rem;
+}
+
+.legal-page__footer a {
+  color: #c7d2fe;
+  text-decoration: none;
+}
+
+.legal-page__footer a:hover,
+.legal-page__footer a:focus-visible {
+  color: #f0abfc;
+  text-decoration: underline;
+  outline: none;
+}

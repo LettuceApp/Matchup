@@ -82,51 +82,12 @@ func (h *AdminHandler) DeleteUser(ctx context.Context, req *connect.Request[admi
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("user not found"))
 	}
-	id := user.ID
-
-	var brackets []models.Bracket
-	if err := sqlx.SelectContext(ctx, h.DB, &brackets,
-		"SELECT * FROM brackets WHERE author_id = $1", id); err != nil {
+	// Reuses the shared cascade helper — same code path the 30-day
+	// hard-delete cron runs. Keeps admin-immediate + cron-scheduled
+	// deletes on identical semantics.
+	if err := hardDeleteUser(ctx, h.DB, user.ID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	s := &Server{DB: h.DB}
-	for i := range brackets {
-		if err := s.deleteBracketCascade(&brackets[i]); err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
-	}
-
-	var matchups []models.Matchup
-	if err := sqlx.SelectContext(ctx, h.DB, &matchups,
-		"SELECT * FROM matchups WHERE author_id = $1 AND bracket_id IS NULL", id); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-	for i := range matchups {
-		if err := s.deleteMatchupCascade(&matchups[i]); err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
-	}
-
-	bgCtx := context.Background()
-	for _, query := range []string{
-		"DELETE FROM matchup_votes WHERE user_id = $1",
-		"DELETE FROM likes WHERE user_id = $1",
-		"DELETE FROM bracket_likes WHERE user_id = $1",
-		"DELETE FROM bracket_comments WHERE user_id = $1",
-		"DELETE FROM comments WHERE user_id = $1",
-	} {
-		if _, err := h.DB.ExecContext(bgCtx, query, id); err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
-		}
-	}
-
-	if err := removeUserFollowEdges(h.DB, id); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-	if _, err := user.DeleteAUser(h.DB, id); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
-	}
-
 	return connect.NewResponse(&adminv1.DeleteUserResponse{Message: "user deleted"}), nil
 }
 

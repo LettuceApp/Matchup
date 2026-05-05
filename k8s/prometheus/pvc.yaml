@@ -1,0 +1,15 @@
+# Persistent volume for Prometheus TSDB. 20Gi gives ~15 days of
+# metrics at current scrape volume (one API, ~15s interval, modest
+# cardinality). Bump this if you add services or labels.
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data
+  namespace: matchup
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi

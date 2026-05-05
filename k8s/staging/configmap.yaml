@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: matchup-config
+  namespace: matchup-staging
+data:
+  DB_HOST: "postgres"
+  DB_PORT: "5432"
+  DB_NAME: "matchup"
+  DB_DRIVER: "postgres"
+  PORT: "8888"
+  # APP_ENV=staging flags the backend into "staging" mode — Sentry
+  # tags events with `environment: staging`, rate limiters still
+  # apply, but any env-gated debug endpoints (e.g. /debug/panic for
+  # Sentry smoke-tests) become reachable.
+  APP_ENV: "staging"
+  REDIS_ADDR: "redis:6379"
+  REDIS_DB: "0"
+
+  # -----------------------------------------------------------------
+  # Mobile universal-link advertisements (staging)
+  # -----------------------------------------------------------------
+  # Staging gets its OWN bundle/package IDs — iOS + Android both let
+  # you ship a TestFlight / internal-track build under a different
+  # bundle so it coexists with prod on the same device. These stay
+  # empty until the matching apps are registered.
+  APNS_TEAM_ID: ""
+  APNS_BUNDLE_ID: ""            # e.g. "app.matchup.ios.staging"
+  ANDROID_PACKAGE_NAME: ""      # e.g. "app.matchup.android.staging"
+  ANDROID_SHA256_FINGERPRINTS: ""
+
+  SENTRY_ENVIRONMENT: "staging"
+  # Frontend uses PUBLIC_ORIGIN as the base URL for reset-password
+  # emails + verify-email links. Pointing at the staging host means a
+  # test signup here never accidentally sends prod-hosted links.
+  PUBLIC_ORIGIN: "https://staging.matchup.app"

@@ -127,10 +127,10 @@
   border-radius: 28px;
   border: 1px solid rgba(59, 130, 246, 0.22);
   box-shadow: 0 32px 70px rgba(15, 23, 42, 0.55);
-  padding: clamp(2rem, 5vw, 3.2rem);
-  display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-  gap: clamp(2rem, 4vw, 3rem);
+  padding: clamp(1.5rem, 4vw, 2.4rem);
+  display: flex;
+  flex-direction: column;
+  gap: 1.6rem;
   position: relative;
   overflow: hidden;
 }
@@ -141,6 +141,42 @@
   inset: 0;
   background: linear-gradient(140deg, rgba(59, 130, 246, 0.16), rgba(249, 115, 22, 0.06));
   pointer-events: none;
+}
+
+/* Inset cover-image slot: rounded, 16:7, sits at the top of the hero
+   card with a subtle gradient scrim to keep any light imagery readable
+   against the dark body below. */
+.matchup-hero__media {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  aspect-ratio: 16 / 7;
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.matchup-hero__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.matchup-hero__media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0) 55%, rgba(15, 23, 42, 0.55));
+  pointer-events: none;
+}
+
+.matchup-hero__body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .matchup-hero-text {
@@ -160,11 +196,22 @@
   margin: 0;
 }
 
-.matchup-hero-text h1 {
+.matchup-hero-text h1,
+.matchup-hero__body h1 {
   margin: 0;
   font-size: clamp(2.2rem, 4vw, 2.9rem);
   line-height: 1.08;
   color: #f8fbff;
+}
+
+.matchup-overline__time {
+  color: rgba(148, 163, 255, 0.55);
+  font-weight: 500;
+}
+
+.matchup-overline__round {
+  color: #fbbf24;
+  font-weight: 700;
 }
 
 .matchup-description {
@@ -421,10 +468,22 @@
   background: rgba(15, 23, 42, 0.95);
   box-shadow: 0 20px 45px rgba(15, 23, 42, 0.5);
   padding: 0.85rem;
-  display: flex;
+  /* Hide by default. The parent <details> browser-default trick of
+     hiding non-summary children only works when the child's display
+     is left as initial — setting `display: flex` unconditionally
+     here bled the panel (with the Seed options) into the owner tray
+     whenever the tray was rendered, regardless of whether the user
+     had actually opened the Override-winner menu. Gate the flex on
+     the parent's [open] attribute so the panel stays collapsed
+     until the user clicks the trigger. */
+  display: none;
   flex-direction: column;
   gap: 0.55rem;
   z-index: 5;
+}
+
+.matchup-winner-menu[open] > .matchup-winner-panel {
+  display: flex;
 }
 
 .matchup-winner-title {
@@ -822,5 +881,312 @@
   .matchup-danger-button {
     width: 100%;
     text-align: center;
+  }
+}
+
+/* ---------------------------------------------------------------
+ * Redesign additions (Apr 2026): hero layout, engagement strip,
+ * winner reveal banner, flat action bar, consolidated owner tray.
+ * Keep below original rules so these selectors win when they share
+ * a class name with an older one.
+ * --------------------------------------------------------------- */
+
+.matchup-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.matchup-engagement {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+  color: rgba(226, 232, 240, 0.78);
+}
+
+.matchup-engagement strong {
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.matchup-engagement__dot {
+  color: rgba(148, 163, 255, 0.5);
+}
+
+/* Winner reveal banner — only shown when status=completed. The Reveal
+   component animates it in on scroll-into-view, which is basically
+   always on page load since it sits above the fold. */
+.matchup-winner-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1rem 1.4rem;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.18), rgba(249, 115, 22, 0.12));
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  box-shadow: 0 18px 40px rgba(250, 204, 21, 0.08);
+  color: #fef3c7;
+}
+
+.matchup-winner-banner__trophy {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.matchup-winner-banner__label {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.78rem;
+  color: rgba(250, 204, 21, 0.85);
+  font-weight: 600;
+}
+
+.matchup-winner-banner__name {
+  font-size: 1.4rem;
+  color: #fffbeb;
+}
+
+/* Vote stage is a light wrapper around the existing .matchup-items
+   grid so we can tune spacing without affecting MatchupItem itself. */
+.matchup-vote-stage {
+  display: block;
+}
+
+/* Anon-only vote-counter chip mounted just above the contender list.
+   Centred + small so it reads as a status hint, not a CTA banner —
+   the cap-state chip transitions into a primary CTA on its own. */
+.matchup-anon-counter {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 12px;
+}
+
+/* Flat action bar — Like · Comment · Share. 3 equal columns on every
+   viewport so Share (which opens a dropdown) always has room. */
+.matchup-action-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.4rem;
+  padding: 0.35rem;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(148, 163, 255, 0.18);
+  border-radius: 18px;
+}
+
+.matchup-action-bar__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.matchup-action-bar__button:hover,
+.matchup-action-bar__button:focus-visible {
+  background: rgba(148, 163, 255, 0.12);
+  color: #f8fafc;
+  outline: none;
+}
+
+.matchup-action-bar__button:disabled {
+  color: rgba(226, 232, 240, 0.45);
+  cursor: not-allowed;
+  background: transparent;
+}
+
+.matchup-action-bar__button.is-liked {
+  color: #fda4af;
+}
+
+.matchup-action-bar__button.is-liked:hover,
+.matchup-action-bar__button.is-liked:focus-visible {
+  color: #fecdd3;
+}
+
+.matchup-action-bar__button svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* "--subtle" = ghost-style tertiary action. Used for Report so it
+   doesn't compete visually with the primary Like / Comment / Share
+   trio. */
+.matchup-action-bar__button--subtle {
+  opacity: 0.65;
+}
+.matchup-action-bar__button--subtle:hover,
+.matchup-action-bar__button--subtle:focus-visible {
+  opacity: 1;
+}
+
+.matchup-action-bar__count {
+  font-size: 0.82rem;
+  color: rgba(226, 232, 240, 0.6);
+  font-weight: 500;
+}
+
+/* Wrap ShareButton so its root fills the share cell (ShareButton's own
+   root is an inline-flex, which would otherwise sit left-aligned). */
+.matchup-action-bar__share {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.matchup-action-bar__share .share-button-root,
+.matchup-action-bar__share .share-button {
+  width: 100%;
+  justify-content: center;
+}
+
+/* Owner tray: rare actions, high consequence. Muted container keeps
+   the visual weight below the action bar so it doesn't compete with
+   the viewer's primary Vote / Like / Comment affordances. */
+.matchup-owner-tray {
+  margin-top: 0.4rem;
+  padding: 1rem 1.1rem;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px dashed rgba(148, 163, 255, 0.22);
+  border-radius: 16px;
+}
+
+.matchup-owner-tray__label {
+  margin: 0 0 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(148, 163, 255, 0.78);
+}
+
+.matchup-owner-tray__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+/* The shared Button component has zero default styling — it renders
+   a bare <motion.button> and relies on className for all visuals.
+   Give the tray variant a real skin so it doesn't look unstyled. */
+.matchup-owner-tray__button {
+  padding: 0.7rem 1.3rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border: 1px solid rgba(148, 163, 255, 0.4);
+  background: rgba(148, 163, 255, 0.15);
+  color: #e0e7ff;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 200ms ease, box-shadow 200ms ease,
+    background 200ms ease, border-color 200ms ease;
+}
+
+.matchup-owner-tray__button:hover:not(:disabled),
+.matchup-owner-tray__button:focus-visible:not(:disabled) {
+  transform: translateY(-1px);
+  background: rgba(148, 163, 255, 0.25);
+  border-color: rgba(148, 163, 255, 0.6);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.35);
+  outline: none;
+}
+
+.matchup-owner-tray__button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.matchup-owner-tray__button.is-armed {
+  background: linear-gradient(120deg, #34d399, #10b981);
+  color: #052e16;
+  border-color: transparent;
+  box-shadow: 0 12px 28px rgba(5, 46, 22, 0.35);
+}
+
+.matchup-owner-tray__button--danger {
+  background: rgba(248, 113, 113, 0.15);
+  border-color: rgba(248, 113, 113, 0.5);
+  color: #fecaca;
+}
+
+.matchup-owner-tray__button--danger:hover:not(:disabled),
+.matchup-owner-tray__button--danger:focus-visible:not(:disabled) {
+  background: rgba(248, 113, 113, 0.3);
+  border-color: rgba(248, 113, 113, 0.7);
+  color: #fef2f2;
+  box-shadow: 0 12px 28px rgba(127, 29, 29, 0.4);
+}
+
+/* The override-winner <details> dropdown lives in the owner tray now.
+   Scope a variant so the summary doesn't inherit the original floating-
+   kebab styling.
+
+   The base .matchup-winner-summary is a 36x36 circle designed for the
+   old floating-kebab ("⋯") placement. In the tray it sits next to the
+   Ready up button, so we need a pill the full width of the label —
+   width/height must be explicitly reset or the text wraps inside a
+   tiny square. */
+.matchup-winner-menu--tray .matchup-winner-summary {
+  width: auto;
+  height: auto;
+  padding: 0.7rem 1.3rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 999px;
+  background: rgba(148, 163, 255, 0.15);
+  border: 1px solid rgba(148, 163, 255, 0.4);
+  color: #e0e7ff;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.matchup-winner-menu--tray[open] .matchup-winner-summary {
+  background: rgba(148, 163, 255, 0.28);
+  border-color: rgba(148, 163, 255, 0.55);
+}
+
+@media (max-width: 600px) {
+  /* On narrow viewports keep the action bar readable: icons + short
+     labels. ShareButton's menu handles its own mobile dropdown. */
+  .matchup-action-bar__button span:not(.matchup-action-bar__count) {
+    display: none;
+  }
+
+  .matchup-action-bar__count {
+    margin-left: 0;
+  }
+
+  .matchup-winner-banner__name {
+    font-size: 1.2rem;
+  }
+
+  .matchup-hero {
+    padding: 1.2rem;
+  }
+
+  .matchup-owner-tray__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .matchup-owner-tray__actions > * {
+    width: 100%;
   }
 }

@@ -1,0 +1,133 @@
+/* AccountSettings — destructive-action home. Dark surface + amber +
+   red palette makes the "this is permanent" signal unmissable. */
+
+.account-settings {
+  min-height: 100vh;
+  padding: 5rem 1.25rem 4rem;
+  background: #0a0f1f;
+  color: #e2e8f0;
+}
+
+.account-settings__content {
+  max-width: 42rem;
+  margin: 0 auto;
+}
+
+.account-settings h1 {
+  margin: 0 0 2rem;
+  font-size: clamp(1.6rem, 2.8vw, 2.1rem);
+  color: #f8fafc;
+}
+
+.account-settings__section {
+  padding: 1.5rem 1.6rem;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(148, 163, 255, 0.18);
+  border-radius: 14px;
+}
+
+.account-settings__danger {
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+.account-settings__section h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+  color: #fca5a5;
+}
+
+.account-settings__section p {
+  margin: 0 0 1rem;
+  color: rgba(226, 232, 240, 0.78);
+  line-height: 1.5;
+  font-size: 0.92rem;
+}
+
+.account-settings__danger-button {
+  padding: 0.65rem 1.1rem;
+  background: rgba(127, 29, 29, 0.55);
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  border-radius: 999px;
+  color: #fecaca;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.account-settings__danger-button:hover:not(:disabled),
+.account-settings__danger-button:focus-visible:not(:disabled) {
+  background: rgba(127, 29, 29, 0.75);
+  border-color: rgba(248, 113, 113, 0.8);
+  outline: none;
+}
+
+.account-settings__danger-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.account-settings__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.account-settings__confirm label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.88rem;
+  color: rgba(226, 232, 240, 0.88);
+}
+
+.account-settings__confirm input,
+.account-settings__confirm textarea {
+  padding: 0.55rem 0.75rem;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(148, 163, 255, 0.25);
+  border-radius: 8px;
+  color: #f1f5f9;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.account-settings__confirm textarea {
+  resize: vertical;
+  min-height: 4rem;
+}
+
+.account-settings__error {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  background: rgba(127, 29, 29, 0.4);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  border-radius: 8px;
+  color: #fecaca;
+  font-size: 0.88rem;
+}
+
+.account-settings__actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.account-settings__cancel {
+  padding: 0.55rem 1rem;
+  background: transparent;
+  border: 1px solid rgba(148, 163, 255, 0.3);
+  border-radius: 999px;
+  color: rgba(226, 232, 240, 0.82);
+  font-weight: 500;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.account-settings__cancel:hover,
+.account-settings__cancel:focus-visible {
+  color: #f8fafc;
+  border-color: rgba(148, 163, 255, 0.5);
+  outline: none;
+}

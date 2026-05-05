@@ -215,6 +215,12 @@
 .home-card-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  /* `1fr` for the row-track sizing forces every card on a row to
+     match the tallest one. Without this, a card with a long title
+     (2 lines vs 1) or a tag row that's missing visually rags out
+     the bottom of its row — see the matchup feed where some cards
+     end well below their neighbours. */
+  grid-auto-rows: 1fr;
   gap: 1.25rem;
 }
 
@@ -295,15 +301,6 @@
   flex-shrink: 0;
 }
 
-.home-card__options {
-  color: rgba(148, 163, 184, 0.45);
-  font-size: 1.1rem;
-  display: inline-flex;
-  align-items: center;
-  pointer-events: none;
-  flex-shrink: 0;
-  padding-left: 0.25rem;
-}
 
 /* ---- Caption area ---- */
 .home-card__caption {
@@ -311,6 +308,12 @@
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+  /* The card itself is flex-column; the header / media / actions
+     are fixed-size siblings. Letting the caption flex-grow into
+     any leftover vertical space means the action bar stays pinned
+     to the bottom of every card regardless of title length, missing
+     description, or missing tag row. */
+  flex: 1 1 auto;
 }
 
 .home-card__title {

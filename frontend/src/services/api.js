@@ -1,5 +1,6 @@
 // frontend/src/services/api.js
 import axios from "axios";
+import { peekAnonId, getOrCreateAnonId } from "../utils/anonId";
 
 let API_BASE_URL = process.env.REACT_APP_API_BASE;
 
@@ -25,6 +26,17 @@ API.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  } else {
+    // Anonymous request — attach the X-Anon-Id header IFF an anon
+    // UUID has already been minted (i.e. the user has voted at
+    // least once). peekAnonId() never generates as a side effect,
+    // so passive reads (home feed, matchup detail) don't pollute
+    // localStorage. The signup endpoint reads this header to
+    // migrate anon votes into the new account.
+    const anonId = peekAnonId();
+    if (anonId) {
+      config.headers['X-Anon-Id'] = anonId;
+    }
   }
   config.headers['Connect-Protocol-Version'] = '1';
   return config;
@@ -33,6 +45,113 @@ API.interceptors.request.use((config) => {
 // Helper: call a ConnectRPC method
 const rpc = (service, method, body = {}) =>
   API.post(`/${service}/${method}`, body);
+
+// ---------------------------------------------------------------
+// Refresh-token interceptor
+// ---------------------------------------------------------------
+// Access tokens expire every 15 minutes. Instead of bothering the
+// user with a re-login, any 401 triggers a silent Refresh call with
+// the stored refresh token; the original request is retried once the
+// new access token lands.
+//
+// Concurrency: N requests failing in parallel (typical on a screen
+// that fires a handful of reads at once) should produce exactly ONE
+// Refresh call — we coalesce them onto a shared promise. If Refresh
+// itself 401s, we clear auth and redirect to /login.
+let inFlightRefresh = null;
+
+// The Refresh RPC is the one 401 we NEVER retry — retrying it would
+// be an infinite loop. Comparing against the full request URL would
+// be fragile (relative vs absolute); the path suffix is stable.
+const REFRESH_URL = '/auth.v1.AuthService/Refresh';
+
+const clearAuthStorage = () => {
+  localStorage.removeItem('token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('userId');
+  localStorage.removeItem('username');
+  localStorage.removeItem('isAdmin');
+  delete API.defaults.headers.Authorization;
+};
+
+// performRefresh is exported for tests; production code hits this via
+// the interceptor below.
+export const performRefresh = async () => {
+  const refreshToken = localStorage.getItem('refresh_token');
+  if (!refreshToken) throw new Error('no refresh token stored');
+
+  const res = await API.post(REFRESH_URL, { refresh_token: refreshToken });
+  const payload = res?.data || {};
+  if (!payload.token || !payload.refresh_token) {
+    throw new Error('malformed refresh response');
+  }
+  localStorage.setItem('token', payload.token);
+  localStorage.setItem('refresh_token', payload.refresh_token);
+  API.defaults.headers.Authorization = `Bearer ${payload.token}`;
+  return payload.token;
+};
+
+API.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const original = error.config;
+    const status = error.response?.status;
+
+    // Capture server-side failures (5xx) to Sentry with a breadcrumb
+    // trail. 4xx deliberately NOT captured — client-side errors like
+    // rate-limit or validation are expected and shouldn't consume the
+    // error budget. Dynamic import keeps api.js independent of the
+    // Sentry module load order.
+    if (status >= 500 && status < 600) {
+      import('../sentry').then(({ Sentry }) => {
+        Sentry.captureException(error, {
+          tags: {
+            rpc_path: original?.url,
+            status: String(status),
+          },
+        });
+      }).catch(() => { /* module unavailable; swallow */ });
+    }
+
+    // Not a 401, or the failing request IS /Refresh itself → bail out.
+    if (status !== 401 || !original || original.url?.endsWith(REFRESH_URL)) {
+      return Promise.reject(error);
+    }
+    // Guard against retrying the same request twice.
+    if (original._retriedAfterRefresh) {
+      return Promise.reject(error);
+    }
+    // No refresh token locally → nothing we can do; surface the 401.
+    if (!localStorage.getItem('refresh_token')) {
+      return Promise.reject(error);
+    }
+
+    try {
+      if (!inFlightRefresh) {
+        inFlightRefresh = performRefresh().finally(() => {
+          inFlightRefresh = null;
+        });
+      }
+      const newAccess = await inFlightRefresh;
+      original._retriedAfterRefresh = true;
+      original.headers = original.headers || {};
+      original.headers.Authorization = `Bearer ${newAccess}`;
+      return API.request(original);
+    } catch (refreshErr) {
+      // Refresh itself failed (expired / revoked / theft-detected).
+      // Clear local auth and send the user home. Tests / non-browser
+      // contexts should tolerate the lack of window.location.
+      clearAuthStorage();
+      if (typeof window !== 'undefined' && window.location) {
+        // Intentionally a hard navigation, not react-router —
+        // api.js has no router reference and we want every in-flight
+        // stateful screen torn down.
+        window.location.href = '/login';
+      }
+      return Promise.reject(refreshErr);
+    }
+  },
+);
 
 // -----------------------------------------
 // AUTH
@@ -47,6 +166,9 @@ export const login = async (data) => {
   if (payload.token) {
     localStorage.setItem('token', payload.token);
     API.defaults.headers.Authorization = `Bearer ${payload.token}`;
+  }
+  if (payload.refresh_token) {
+    localStorage.setItem('refresh_token', payload.refresh_token);
   }
   if (payload.id) {
     localStorage.setItem('userId', String(payload.id));
@@ -69,6 +191,26 @@ export const forgotPassword = (data) =>
 export const resetPassword = (data) =>
   rpc('auth.v1.AuthService', 'ResetPassword', data);
 
+// Logout is "hey server, please revoke this device's refresh token."
+// It's best-effort — the caller should still clear local storage
+// afterward so the UX is unambiguous if the server fails.
+export const logout = (refreshToken) =>
+  rpc('auth.v1.AuthService', 'Logout', { refresh_token: refreshToken });
+
+// LogoutAll revokes every active refresh token for the authed user
+// across every device they've signed in on. Useful for "I lost my
+// phone" flows; no UI surface yet but the RPC is here when we need it.
+export const logoutAll = () =>
+  rpc('auth.v1.AuthService', 'LogoutAll', {});
+
+// signOutLocally clears every auth-related key + the axios default
+// Authorization header. Exported so the UI layer's logout button can
+// call this + logout(...) in the same handler regardless of server
+// success.
+export const signOutLocally = () => {
+  clearAuthStorage();
+};
+
 // -----------------------------------------
 // USERS
 // -----------------------------------------
@@ -90,26 +232,142 @@ export const updateUser = (id, data) =>
 export const updateUserPrivacy = (id, isPrivate) =>
   rpc('user.v1.UserService', 'UpdateUserPrivacy', { id, is_private: isPrivate });
 
-export const updateUserAvatar = (userId, file) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        // Strip the data URL prefix to get raw base64
-        const base64 = reader.result.split(',')[1];
-        const res = await rpc('user.v1.UserService', 'UpdateAvatar', {
-          id: userId,
-          avatar_data: base64,
-          content_type: file.type,
-        });
-        resolve(res);
-      } catch (err) {
-        reject(err);
-      }
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+// Self-serve account deletion. Requires the caller's current password
+// as a confirmation signal; the server soft-deletes (blanking public
+// fields immediately) and returns the scheduled hard-delete timestamp
+// that the UI shows the user.
+export const deleteMyAccount = (password, reason) =>
+  rpc('user.v1.UserService', 'DeleteMyAccount', {
+    password,
+    ...(reason ? { reason } : {}),
   });
+
+// Email verification (soft-nudge). Request fires a fresh verification
+// link to the signed-in user's email. Confirm is called from the link
+// landing page with the token pulled from the URL.
+export const requestEmailVerification = () =>
+  rpc('auth.v1.AuthService', 'RequestEmailVerification', {});
+
+export const confirmEmailVerification = (token) =>
+  rpc('auth.v1.AuthService', 'ConfirmEmailVerification', { token });
+
+// Content reporting. subjectType is one of:
+//   "matchup" | "bracket" | "comment" | "bracket_comment" | "user"
+// subjectId is the UUID public_id. reason is one of the closed-list
+// values enforced by the server. reasonDetail is required when
+// reason === "other".
+export const reportContent = ({ subjectType, subjectId, reason, reasonDetail }) =>
+  rpc('report.v1.ReportService', 'ReportContent', {
+    subject_type: subjectType,
+    subject_id: subjectId,
+    reason,
+    ...(reasonDetail ? { reason_detail: reasonDetail } : {}),
+  });
+
+// Notification preferences. Server enforces auth; UI only renders the
+// settings section for the signed-in viewer.
+export const getNotificationPreferences = () =>
+  rpc('user.v1.UserService', 'GetNotificationPreferences', {});
+
+export const updateNotificationPreferences = (prefs) =>
+  rpc('user.v1.UserService', 'UpdateNotificationPreferences', { prefs });
+
+// Per-item read state for persisted notifications. Stamps read_at on
+// every unread row the viewer owns with occurred_at <= before. Omit
+// `before` to use NOW() server-side (mark all currently visible).
+export const markActivityRead = (before) =>
+  rpc('activity.v1.ActivityService', 'MarkActivityRead', before ? { before } : {});
+
+// Push config + subscription management. The RPC set serves web
+// (VAPID) and future mobile (APNS/FCM) clients through a single
+// platform-discriminated subscribe call. GetPushConfig returns the
+// VAPID public key; native clients ignore that field.
+export const getPushConfig = () =>
+  rpc('activity.v1.ActivityService', 'GetPushConfig', {});
+
+// subscribePush({ platform, endpoint, p256dhKey?, authKey?, userAgent? })
+//   platform   "web" (default) | "ios" | "android"
+//   endpoint   browser push URL (web) or device token (mobile)
+//   p256dhKey  required when platform === "web"
+//   authKey    required when platform === "web"
+export const subscribePush = ({
+  platform = 'web',
+  endpoint,
+  p256dhKey,
+  authKey,
+  userAgent,
+}) =>
+  rpc('activity.v1.ActivityService', 'SubscribePush', {
+    platform,
+    endpoint,
+    ...(p256dhKey ? { p256dh_key: p256dhKey } : {}),
+    ...(authKey ? { auth_key: authKey } : {}),
+    ...(userAgent ? { user_agent: userAgent } : {}),
+  });
+
+export const unsubscribePush = (endpoint) =>
+  rpc('activity.v1.ActivityService', 'UnsubscribePush', { endpoint });
+
+// presignUpload — ask the server for an S3 PUT-scoped signed URL.
+// Returns { upload_url, key, max_bytes, expires_in_seconds }. The
+// client PUTs raw bytes to upload_url, then sends the `key` back to
+// whichever commit RPC owns this `kind` (UpdateAvatar for avatars,
+// CreateMatchup.upload_key for matchup covers).
+export const presignUpload = (kind, contentType) =>
+  rpc('upload.v1.UploadService', 'PresignUpload', {
+    kind,
+    content_type: contentType,
+  });
+
+// uploadViaPresign runs the three-step flow end-to-end: presign →
+// PUT the raw file → return the key. Callers hand the key to the
+// commit RPC (UpdateAvatar / CreateMatchup).
+//
+// Throws a plain Error with a UI-friendly message on:
+//  - file too large (server-declared cap)
+//  - S3 PUT rejection
+//  - server-side presign failure
+async function uploadViaPresign(kind, file) {
+  const presignRes = await presignUpload(kind, file.type);
+  const { upload_url, key, max_bytes } = presignRes?.data || {};
+  if (!upload_url || !key) throw new Error('Presign failed.');
+
+  const maxBytes = Number(max_bytes || 0);
+  if (maxBytes > 0 && file.size > maxBytes) {
+    throw new Error(`File is too large (max ${(maxBytes / 1024 / 1024).toFixed(1)} MB).`);
+  }
+
+  // Direct-to-S3 PUT. Content-Type must match what was presigned;
+  // S3 rejects with SignatureDoesNotMatch otherwise. `fetch` is the
+  // right primitive here — axios wraps headers we don't want to send
+  // on a cross-origin S3 request.
+  const putRes = await fetch(upload_url, {
+    method: 'PUT',
+    body: file,
+    headers: { 'Content-Type': file.type },
+  });
+  if (!putRes.ok) {
+    throw new Error(`S3 upload failed: ${putRes.status}`);
+  }
+
+  return key;
+}
+
+export const updateUserAvatar = async (userId, file) => {
+  const uploadKey = await uploadViaPresign('avatar', file);
+  return rpc('user.v1.UserService', 'UpdateAvatar', {
+    id: userId,
+    upload_key: uploadKey,
+  });
+};
+
+// Callers (e.g. CreateMatchup page) pass a File object when they want
+// a cover image. This helper uploads it and returns the S3 key; if
+// `file` is nullish it returns undefined so the caller can spread
+// conditionally.
+export const uploadMatchupCoverImage = async (file) => {
+  if (!file) return undefined;
+  return uploadViaPresign('matchup_cover', file);
 };
 
 export const deleteUser = (id) =>
@@ -131,6 +389,34 @@ export const getUserFollowing = (id, params = {}) =>
   rpc('user.v1.UserService', 'GetFollowing', { id, ...params });
 
 // -----------------------------------------
+// BLOCKS + MUTES
+// -----------------------------------------
+// Block is bidirectional: the target disappears from the viewer's
+// feeds AND the viewer disappears from the target's feeds. Server
+// also severs any existing follow edges both ways. Id accepts either
+// a username or a public UUID.
+export const blockUser = (id) =>
+  rpc('user.v1.UserService', 'BlockUser', { id });
+
+export const unblockUser = (id) =>
+  rpc('user.v1.UserService', 'UnblockUser', { id });
+
+export const listBlocks = (params = {}) =>
+  rpc('user.v1.UserService', 'ListBlocks', params);
+
+// Mute is one-way: the muted user's activity stops appearing in the
+// muter's feed + push delivery, but follows + visibility remain in
+// both directions.
+export const muteUser = (id) =>
+  rpc('user.v1.UserService', 'MuteUser', { id });
+
+export const unmuteUser = (id) =>
+  rpc('user.v1.UserService', 'UnmuteUser', { id });
+
+export const listMutes = (params = {}) =>
+  rpc('user.v1.UserService', 'ListMutes', params);
+
+// -----------------------------------------
 // MATCHUPS
 // -----------------------------------------
 export const getMatchups = (page = 1, limit = 10) =>
@@ -146,8 +432,20 @@ export const getUserMatchup = (_userId, matchupId) =>
 export const getMatchup = (id) =>
   rpc('matchup.v1.MatchupService', 'GetMatchup', { id });
 
-export const createMatchup = (userId, data) =>
-  rpc('matchup.v1.MatchupService', 'CreateMatchup', { user_id: userId, ...data });
+// createMatchup accepts an optional `imageFile` (a File object) on
+// top of the proto fields. When present it's uploaded to S3 via the
+// presign flow first, and the resulting key is passed as
+// `upload_key` to the backend. Callers no longer FileReader/base64
+// anything themselves.
+export const createMatchup = async (userId, data = {}) => {
+  const { imageFile, ...rest } = data;
+  const upload_key = await uploadMatchupCoverImage(imageFile);
+  return rpc('matchup.v1.MatchupService', 'CreateMatchup', {
+    user_id: userId,
+    ...rest,
+    ...(upload_key ? { upload_key } : {}),
+  });
+};
 
 export const updateMatchup = (id, data) =>
   rpc('matchup.v1.MatchupService', 'UpdateMatchup', { id, ...data });
@@ -173,8 +471,30 @@ export const completeMatchup = (matchupId) =>
 // -----------------------------------------
 // MATCHUP ITEMS
 // -----------------------------------------
-export const incrementMatchupItemVotes = (id) =>
-  rpc('matchup.v1.MatchupItemService', 'VoteItem', { id });
+// Vote on an item. When the caller is signed in, the request is
+// authenticated by the bearer token and the anon_id field is
+// ignored. When the caller is anonymous, getOrCreateAnonId() mints
+// a stable per-browser UUID on first vote and persists it in
+// localStorage; subsequent calls reuse the same value so the
+// server's per-anon-id 3-vote cap accumulates across the session.
+export const incrementMatchupItemVotes = (id) => {
+  const body = { id };
+  if (!localStorage.getItem('token')) {
+    body.anon_id = getOrCreateAnonId();
+  }
+  return rpc('matchup.v1.MatchupItemService', 'VoteItem', body);
+};
+
+// GetAnonVoteStatus — returns {used, max}. Drives the "X of 3 free
+// votes left" counter chip on the matchup feed. Only meaningful for
+// anonymous callers; passes the existing anon UUID via peekAnonId
+// (no side-effect generation).
+export const getAnonVoteStatus = () => {
+  const anonId = peekAnonId();
+  return rpc('matchup.v1.MatchupItemService', 'GetAnonVoteStatus', {
+    anon_id: anonId || '',
+  });
+};
 
 export const deleteMatchupItem = (id) =>
   rpc('matchup.v1.MatchupItemService', 'DeleteItem', { id });
@@ -217,6 +537,20 @@ export const unlikeBracket = (bracketId) =>
 
 export const getUserBracketLikes = (userId) =>
   rpc('like.v1.LikeService', 'GetUserBracketLikes', { user_id: userId });
+
+// -----------------------------------------
+// ACTIVITY (notifications-ish feed)
+// -----------------------------------------
+// Returns a merged feed of the viewer's recent activity: votes they
+// cast, wins/losses, bracket progress, plus on-them events (someone
+// voted/liked/commented on their content, new followers). Backed by
+// derived queries server-side — no new write path.
+export const getUserActivity = (userId, { limit, before } = {}) =>
+  rpc('activity.v1.ActivityService', 'GetUserActivity', {
+    user_id: userId,
+    ...(limit ? { limit } : {}),
+    ...(before ? { before } : {}),
+  });
 
 // -----------------------------------------
 // COMMENTS
@@ -319,5 +653,31 @@ export const adminGetBrackets = (params = {}) =>
 
 export const adminDeleteBracket = (bracketId) =>
   rpc('admin.v1.AdminService', 'DeleteBracket', { id: bracketId });
+
+// -----------------------------------------
+// ADMIN MODERATION QUEUE
+// -----------------------------------------
+// Reports queue. Pass `{ status: 'open' | 'resolved' }` to filter; omit
+// to get open by default. Paginated via cursor.
+export const adminListReports = (params = {}) =>
+  rpc('admin.v1.AdminService', 'ListReports', params);
+
+// Resolve a report with one of the four canonical actions. Pass
+// ban_reason when resolution === "ban_user".
+export const adminResolveReport = ({ reportId, resolution, notes, banReason }) =>
+  rpc('admin.v1.AdminService', 'ResolveReport', {
+    report_id: reportId,
+    resolution,
+    ...(notes ? { notes } : {}),
+    ...(banReason ? { ban_reason: banReason } : {}),
+  });
+
+// Direct ban / unban. Reason is required for ban. Unban clears both
+// deleted_at + banned_at so the user can log back in.
+export const adminBanUser = (id, reason) =>
+  rpc('admin.v1.AdminService', 'BanUser', { id, reason });
+
+export const adminUnbanUser = (id) =>
+  rpc('admin.v1.AdminService', 'UnbanUser', { id });
 
 export default API;

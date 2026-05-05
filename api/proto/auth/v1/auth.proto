@@ -6,6 +6,35 @@ service AuthService {
   rpc Login(LoginRequest) returns (LoginResponse);
   rpc ForgotPassword(ForgotPasswordRequest) returns (ForgotPasswordResponse);
   rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse);
+
+  // Refresh rotates the long-lived refresh token into a new one and
+  // mints a fresh access token. Server enforces rotation — calling
+  // twice with the same refresh token revokes the entire family
+  // (theft detection). Mounted under the login rate limiter.
+  rpc Refresh(RefreshRequest) returns (RefreshResponse);
+
+  // Logout revokes the presented refresh token — the one device the
+  // caller is signing out from. Auth-required (access token) so we
+  // know which user, but idempotent against the specific row.
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+
+  // LogoutAll revokes every non-revoked refresh token the caller
+  // owns. Auth-required; the access token identifies the user.
+  rpc LogoutAll(LogoutAllRequest) returns (LogoutAllResponse);
+
+  // Email verification (soft-nudge mode).
+  //
+  // RequestEmailVerification is auth-required and fires a fresh
+  // verification email to the caller's own email. Rate-limited at
+  // 5/hour/user so the "Resend" button can't be used to flood someone
+  // else's inbox if accounts ever share emails.
+  //
+  // ConfirmEmailVerification is anonymous because the user often
+  // clicks the link from a different device than the one where they
+  // registered. Server looks up the token hash, checks expiry, stamps
+  // users.email_verified_at + tokens.used_at in one transaction.
+  rpc RequestEmailVerification(RequestEmailVerificationRequest) returns (RequestEmailVerificationResponse);
+  rpc ConfirmEmailVerification(ConfirmEmailVerificationRequest) returns (ConfirmEmailVerificationResponse);
 }
 
 message LoginRequest {
@@ -14,13 +43,37 @@ message LoginRequest {
 }
 
 message LoginResponse {
-  string token = 1;
+  string token = 1;             // 15-min access token (unchanged semantics)
   string id = 2;
   string email = 3;
   string username = 4;
   bool is_admin = 5;
   string avatar_path = 6;
   bool is_private = 7;
+  string refresh_token = 8;     // NEW — 30-day rolling
+  int64 access_token_expires_in = 9; // NEW — seconds (900 for 15m)
+}
+
+message RefreshRequest {
+  string refresh_token = 1;
+}
+
+message RefreshResponse {
+  string token = 1;
+  string refresh_token = 2;
+  int64 access_token_expires_in = 3;
+}
+
+message LogoutRequest {
+  string refresh_token = 1;
+}
+
+message LogoutResponse {}
+
+message LogoutAllRequest {}
+
+message LogoutAllResponse {
+  int32 revoked_count = 1;
 }
 
 message ForgotPasswordRequest {
@@ -38,5 +91,20 @@ message ResetPasswordRequest {
 }
 
 message ResetPasswordResponse {
+  string message = 1;
+}
+
+message RequestEmailVerificationRequest {}
+
+message RequestEmailVerificationResponse {
+  string message = 1;
+}
+
+message ConfirmEmailVerificationRequest {
+  // Raw token from the emailed link. Server hashes it before lookup.
+  string token = 1;
+}
+
+message ConfirmEmailVerificationResponse {
   string message = 1;
 }

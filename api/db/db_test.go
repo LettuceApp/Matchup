@@ -196,3 +196,52 @@ func TestInsertSizeSuffix_ViaProcessFunctions(t *testing.T) {
 		}
 	})
 }
+
+func TestGenerateShortID_LengthAndAlphabet(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		id := GenerateShortID()
+		if len(id) != 8 {
+			t.Fatalf("GenerateShortID length = %d, want 8 (iter %d, got %q)", len(id), i, id)
+		}
+		for _, c := range id {
+			inAlpha := (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+			if !inAlpha {
+				t.Errorf("GenerateShortID = %q — char %q outside base62 alphabet", id, c)
+			}
+		}
+	}
+}
+
+func TestGenerateShortID_NoCollisionsOverLargeSample(t *testing.T) {
+	// We claim 62^8 ≈ 2.18e14 possibilities; 50k samples should see no
+	// collisions (birthday-paradox expected first collision ≈ sqrt(N) ≈
+	// 14.7M, well beyond 50k). If this test fails, crypto/rand has
+	// actually broken — worth knowing loudly.
+	const n = 50_000
+	seen := make(map[string]struct{}, n)
+	for i := 0; i < n; i++ {
+		id := GenerateShortID()
+		if _, dup := seen[id]; dup {
+			t.Fatalf("collision at iter %d: %q (should be vanishingly unlikely)", i, id)
+		}
+		seen[id] = struct{}{}
+	}
+}
+
+func TestIsUniqueViolation(t *testing.T) {
+	if IsUniqueViolation(nil) {
+		t.Error("nil must not be classified as unique violation")
+	}
+	// A non-pq error must return false — don't match on error strings.
+	if IsUniqueViolation(errorsNew("duplicate key value")) {
+		t.Error("plain errors.New should not count as unique violation")
+	}
+}
+
+// errorsNew is a tiny shim so this test file doesn't need to import
+// "errors" for a single New call.
+func errorsNew(s string) error { return &stringErr{s} }
+
+type stringErr struct{ s string }
+
+func (e *stringErr) Error() string { return e.s }

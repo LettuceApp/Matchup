@@ -14,9 +14,13 @@ import (
 )
 
 type Bracket struct {
-	ID          uint   `db:"id" json:"id"`
-	PublicID    string `db:"public_id" json:"public_id"`
-	Title       string `db:"title" json:"title"`
+	ID          uint    `db:"id" json:"id"`
+	PublicID    string  `db:"public_id" json:"public_id"`
+	// ShortID is the 8-char base62 identifier used in share URLs (see
+	// migration 014). Nullable during rollout until the backfill binary
+	// populates pre-existing rows; new brackets get one on Create.
+	ShortID     *string `db:"short_id" json:"short_id,omitempty"`
+	Title       string  `db:"title" json:"title"`
 	Description string `db:"description" json:"description"`
 
 	Author   User `db:"-" json:"-"`
@@ -113,8 +117,8 @@ func (b *Bracket) SaveBracket(db sqlx.ExtContext) (*Bracket, error) {
 		b.Tags = pq.StringArray{}
 	}
 	query, args, err := appdb.Psql.Insert("brackets").
-		Columns("public_id", "title", "description", "author_id", "size", "status", "current_round", "visibility", "advance_mode", "round_duration_seconds", "round_started_at", "round_ends_at", "completed_at", "champion_matchup_id", "champion_item_id", "tags", "created_at", "updated_at").
-		Values(b.PublicID, b.Title, b.Description, b.AuthorID, b.Size, b.Status, b.CurrentRound, b.Visibility, b.AdvanceMode, b.RoundDurationSeconds, b.RoundStartedAt, b.RoundEndsAt, b.CompletedAt, b.ChampionMatchupID, b.ChampionItemID, b.Tags, b.CreatedAt, b.UpdatedAt).
+		Columns("public_id", "short_id", "title", "description", "author_id", "size", "status", "current_round", "visibility", "advance_mode", "round_duration_seconds", "round_started_at", "round_ends_at", "completed_at", "champion_matchup_id", "champion_item_id", "tags", "created_at", "updated_at").
+		Values(b.PublicID, b.ShortID, b.Title, b.Description, b.AuthorID, b.Size, b.Status, b.CurrentRound, b.Visibility, b.AdvanceMode, b.RoundDurationSeconds, b.RoundStartedAt, b.RoundEndsAt, b.CompletedAt, b.ChampionMatchupID, b.ChampionItemID, b.Tags, b.CreatedAt, b.UpdatedAt).
 		Suffix("RETURNING *").
 		ToSql()
 	if err != nil {

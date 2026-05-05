@@ -51,7 +51,11 @@ func TokenAuthMiddleware(db *sqlx.DB) func(http.Handler) http.Handler {
 				ID      uint `db:"id"`
 				IsAdmin bool `db:"is_admin"`
 			}
-			if err := db.GetContext(r.Context(), &user, "SELECT id, is_admin FROM users WHERE id = $1", userID); err != nil {
+			// `deleted_at IS NULL` shuts out self-deleted + admin-banned
+			// users holding a still-valid access token. Their refresh
+			// token is already revoked on soft-delete (account_delete.go)
+			// so expiring the access token completes the lockout.
+			if err := db.GetContext(r.Context(), &user, "SELECT id, is_admin FROM users WHERE id = $1 AND deleted_at IS NULL", userID); err != nil {
 				http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
 				return
 			}

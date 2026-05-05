@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
 	"Matchup/cache"
+	"Matchup/controllers/share"
 	appdb "Matchup/db"
 	"Matchup/middlewares"
 	"Matchup/security"
@@ -23,6 +26,7 @@ import (
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/jmoiron/sqlx"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Server struct {
@@ -195,6 +199,13 @@ func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName stri
 	r := chi.NewRouter()
 
 	r.Use(chiMiddleware.RealIP)
+
+	// SentryMiddleware replaces chi's Recoverer — it captures the
+	// panic to Sentry (with path + method + viewer tags) AND
+	// re-panics into chi's default error rendering so clients still
+	// get a 500 response. When SENTRY_DSN is empty, Init is a no-op
+	// and this middleware becomes a transparent pass-through.
+	r.Use(middlewares.SentryMiddleware())
 	r.Use(chiMiddleware.Recoverer)
 
 	// CORS
@@ -216,14 +227,77 @@ func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName stri
 	// reads to the primary for 5s to avoid stale-read surprises.
 	r.Use(middlewares.ReadAfterWriteMiddleware())
 
+	// Prometheus HTTP metrics. Self-skips /metrics to avoid a feedback
+	// loop. Must be after Recoverer so panics still get observed with a
+	// 500 status rather than corrupting the counters.
+	r.Use(middlewares.MetricsMiddleware())
+
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"backend running"}`))
 	})
 
+	// Mobile app deep-link manifests. Apple's CDN fetches the AASA;
+	// Android reads assetlinks.json when verifying the app's claim
+	// on this domain. Mounted before the SPA proxy so the NotFound
+	// handler never forwards these to the React dev server (which
+	// would 404 + break Apple's dispatch validator). Graceful 404
+	// when the required env vars aren't set — dev without iOS /
+	// Android config just doesn't serve them.
+	r.Get("/.well-known/apple-app-site-association", AppleAppSiteAssociationHandler())
+	r.Get("/.well-known/assetlinks.json", AndroidAssetLinksHandler())
+
+	// Prometheus scrape endpoint. Exposes HTTP metrics (from our
+	// middleware) plus the default Go runtime + process metrics
+	// (goroutines, GC pauses, memory, file descriptors). Unauthenticated
+	// by design — Prometheus lives in-cluster and scrapes by service
+	// name; if this ever becomes internet-facing, put an auth layer at
+	// the ingress, not here.
+	r.Handle("/metrics", promhttp.Handler())
+
+	// Share / preview routes — MUST be mounted before Connect RPC so
+	// `/m/{shortID}` etc. aren't swallowed by a catch-all. These serve
+	// plain HTML + PNG, not JSON — distinct from everything else on
+	// the router.
+	share.NewHandler(server.DB, server.ReadDB).Mount(r)
+
+	// Share attribution beacon. Frontend sends one POST per landing
+	// with a `?ref=<channel>` query; we increment a Prometheus counter
+	// and return 204. Fire-and-forget by design.
+	r.Post("/share/landed", ShareLandedHandler)
+
 	server.Router = r
 	initializeConnectRoutes(r, server.DB, server.ReadDB, server.S3Client)
+
+	// Local-dev convenience: if FRONTEND_PROXY is set (e.g.
+	// "http://localhost:3000"), forward any unmatched HTTP request to
+	// the React dev server. This lets a single Cloudflare quick-tunnel
+	// serve both the OG-scraping API routes AND the SPA, so a human
+	// tapping the /m/{id} short link gets 302'd to the SPA path and
+	// lands on the actual page instead of 404'ing the API.
+	//
+	// Unset in production — real deployments have nginx / ingress
+	// doing this split and shouldn't let Go forward arbitrary traffic.
+	if target := strings.TrimRight(os.Getenv("FRONTEND_PROXY"), "/"); target != "" {
+		u, err := url.Parse(target)
+		if err != nil {
+			log.Printf("FRONTEND_PROXY invalid URL %q: %v", target, err)
+		} else {
+			proxy := httputil.NewSingleHostReverseProxy(u)
+			// Preserve Host header so tunnels and nginx-style absolute
+			// redirects behave.
+			defaultDirector := proxy.Director
+			proxy.Director = func(req *http.Request) {
+				defaultDirector(req)
+				req.Host = u.Host
+			}
+			r.NotFound(func(w http.ResponseWriter, rq *http.Request) {
+				proxy.ServeHTTP(w, rq)
+			})
+			log.Printf("frontend proxy: forwarding unmatched routes to %s", target)
+		}
+	}
 }
 
 func (server *Server) Run(addr string) {

@@ -44,6 +44,29 @@
 .comment-card__actions {
   display: flex;
   justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* Tertiary ghost-style button — used for Report so it doesn't compete
+   with Delete (which owners see) or the overall comment card styling. */
+.comment-card__report {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 255, 0.22);
+  background: transparent;
+  color: rgba(199, 210, 254, 0.6);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+.comment-card__report:hover,
+.comment-card__report:focus-visible {
+  color: #fecdd3;
+  border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(248, 113, 113, 0.08);
 }
 
 .comment-card__delete {

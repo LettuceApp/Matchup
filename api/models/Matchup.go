@@ -17,6 +17,10 @@ import (
 type Matchup struct {
 	ID              uint          `db:"id" json:"id"`
 	PublicID        string        `db:"public_id" json:"public_id"`
+	// ShortID is the 8-char base62 identifier used in share URLs (see
+	// migration 014). Nullable during rollout until the backfill binary
+	// populates pre-existing rows; new matchups get one on Create.
+	ShortID         *string       `db:"short_id" json:"short_id,omitempty"`
 	Title           string        `db:"title" json:"title"`
 	// Content lives in matchup_details (split out in migration 005). Transient on this struct;
 	// loaded via LoadMatchupContent / saved via SaveMatchupContent.
@@ -145,8 +149,8 @@ func (m *Matchup) SaveMatchup(db sqlx.ExtContext) (*Matchup, error) {
 		m.Tags = pq.StringArray{}
 	}
 	query, args, err := appdb.Psql.Insert("matchups").
-		Columns("public_id", "title", "author_id", "status", "end_mode", "duration_seconds", "bracket_id", "round", "seed", "winner_item_id", "start_time", "end_time", "visibility", "image_path", "tags", "created_at", "updated_at").
-		Values(m.PublicID, m.Title, m.AuthorID, m.Status, m.EndMode, m.DurationSeconds, m.BracketID, m.Round, m.Seed, m.WinnerItemID, m.StartTime, m.EndTime, m.Visibility, m.ImagePath, m.Tags, m.CreatedAt, m.UpdatedAt).
+		Columns("public_id", "short_id", "title", "author_id", "status", "end_mode", "duration_seconds", "bracket_id", "round", "seed", "winner_item_id", "start_time", "end_time", "visibility", "image_path", "tags", "created_at", "updated_at").
+		Values(m.PublicID, m.ShortID, m.Title, m.AuthorID, m.Status, m.EndMode, m.DurationSeconds, m.BracketID, m.Round, m.Seed, m.WinnerItemID, m.StartTime, m.EndTime, m.Visibility, m.ImagePath, m.Tags, m.CreatedAt, m.UpdatedAt).
 		Suffix("RETURNING *").
 		ToSql()
 	if err != nil {

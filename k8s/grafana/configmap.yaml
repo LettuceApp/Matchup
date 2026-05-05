@@ -1,0 +1,33 @@
+# Grafana provisioning — datasource + dashboard provider wired up at
+# boot so the pod comes up fully configured. The dashboard JSON lives in
+# a separate ConfigMap (grafana-dashboards) so it can be updated
+# independently without bouncing the provisioning layer.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+  namespace: matchup
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus.matchup.svc.cluster.local:9090
+        isDefault: true
+        editable: true
+
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: matchup-dashboards
+        orgId: 1
+        folder: Matchup
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards

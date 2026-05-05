@@ -20,10 +20,13 @@ import (
 // can't drift apart silently.
 const EmailQueue = "email"
 
-// EmailKindResetPassword is the only template currently routed through
-// the queue. Adding new kinds is just a matter of adding another
-// constant + handler branch.
-const EmailKindResetPassword = "reset_password"
+// EmailKindResetPassword + EmailKindVerifyEmail are the two templates
+// routed through the queue. Adding new kinds is a matter of adding
+// another constant + handler branch.
+const (
+	EmailKindResetPassword = "reset_password"
+	EmailKindVerifyEmail   = "verify_email"
+)
 
 // EmailJob is the JSON payload format the email worker expects on the
 // wire. The producer marshals one of these and calls
@@ -47,16 +50,24 @@ func HandleEmail(ctx context.Context, payload []byte) error {
 		return err
 	}
 
+	fromAdmin := os.Getenv("ADMIN_EMAIL")
+	sendgridKey := os.Getenv("SENDGRID_API_KEY")
+	appEnv := os.Getenv("APP_ENV")
+
 	switch job.Kind {
 	case EmailKindResetPassword:
-		fromAdmin := os.Getenv("ADMIN_EMAIL")
-		sendgridKey := os.Getenv("SENDGRID_API_KEY")
-		appEnv := os.Getenv("APP_ENV")
 		resp, err := mailer.SendMail.SendResetPassword(job.To, fromAdmin, job.Token, sendgridKey, appEnv)
 		if err != nil {
 			return err
 		}
 		log.Printf("email worker: reset password sent to %s (status=%d)", job.To, resp.Status)
+		return nil
+	case EmailKindVerifyEmail:
+		resp, err := mailer.SendMail.SendVerifyEmail(job.To, fromAdmin, job.Token, sendgridKey, appEnv)
+		if err != nil {
+			return err
+		}
+		log.Printf("email worker: verify email sent to %s (status=%d)", job.To, resp.Status)
 		return nil
 	default:
 		return errors.New("email worker: unknown kind " + job.Kind)

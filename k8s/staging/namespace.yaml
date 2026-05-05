@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: matchup-staging
+  labels:
+    app: matchup
+    env: staging

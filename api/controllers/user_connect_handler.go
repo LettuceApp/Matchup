@@ -2,12 +2,12 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
-	"os"
 	"strings"
 
+	"Matchup/cache"
 	appdb "Matchup/db"
 	userv1 "Matchup/gen/user/v1"
 	"Matchup/gen/user/v1/userv1connect"
@@ -51,10 +51,39 @@ func (h *UserHandler) ListUsers(ctx context.Context, req *connect.Request[userv1
 
 func (h *UserHandler) GetUser(ctx context.Context, req *connect.Request[userv1.GetUserRequest]) (*connect.Response[userv1.GetUserResponse], error) {
 	// Pure-read RPC — safe to serve from the replica.
-	user, err := resolveUserByIdentifier(dbForRead(ctx, h.DB, h.ReadDB), req.Msg.Id)
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+	user, err := resolveUserByIdentifier(db, req.Msg.Id)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("user not found"))
 	}
+
+	viewerID, hasViewer := httpctx.CurrentUserID(ctx)
+
+	// Anonymous viewers can only see public profiles. Private
+	// accounts return 404 — same shape as a missing user so the
+	// existence of the account isn't leaked. Once the user signs
+	// in, this path naturally falls through to the followers-only
+	// gate that's enforced by canViewUserContent on downstream
+	// reads (matchups, brackets, likes).
+	if !hasViewer && user.IsPrivate {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("user not found"))
+	}
+
+	// Block enforcement: return 404 when either side of the block
+	// edge is looking up the other. Deliberately indistinguishable
+	// from a genuine not-found — no "you've been blocked" leakage.
+	// Admins bypass this check so moderation can still see the row.
+	if hasViewer && !httpctx.IsAdminRequest(ctx) && viewerID != user.ID {
+		var blockCount int
+		if err := h.DB.GetContext(ctx, &blockCount, `
+			SELECT COUNT(*) FROM user_blocks
+			 WHERE (blocker_id = $1 AND blocked_id = $2)
+			    OR (blocker_id = $2 AND blocked_id = $1)
+		`, viewerID, user.ID); err == nil && blockCount > 0 {
+			return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("user not found"))
+		}
+	}
+
 	return connect.NewResponse(&userv1.GetUserResponse{User: userToProto(user)}), nil
 }
 
@@ -100,6 +129,33 @@ func (h *UserHandler) CreateUser(ctx context.Context, req *connect.Request[userv
 		}
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+
+	// Fire-and-forget email verification. The dispatch helper picks
+	// the queue path in prod and inline send in dev, so the email
+	// goes out whether or not a worker process is draining Redis.
+	// We never block signup on the result — signup is the most
+	// friction-sensitive surface in the app, and a down SendGrid /
+	// Redis must not prevent new accounts. The soft-nudge banner +
+	// write-path gate take over from here.
+	if token, err := mintEmailVerificationToken(ctx, h.DB, created.ID); err == nil {
+		dispatchVerifyEmail(ctx, created.Email, token)
+	} else {
+		log.Printf("signup: mint verification token failed: %v", err)
+	}
+
+	// Migrate anonymous votes from this browser into the new account.
+	// The frontend sends X-Anon-Id whenever localStorage.anonId is
+	// set. mergeDeviceVotesToUser already handles the conflict case
+	// (signup happens immediately after a vote on a matchup the user
+	// hasn't seen before, so collisions are rare; the helper undoes
+	// the anon vote when one is found). Same code path as the
+	// existing Login-time merge. Failures here don't block signup.
+	if anonID := req.Header().Get("X-Anon-Id"); anonID != "" {
+		if err := mergeDeviceVotesToUser(h.DB, created.ID, anonID); err != nil {
+			log.Printf("signup: merge anon votes for user %d (anon=%s): %v", created.ID, anonID, err)
+		}
+	}
+
 	resp := connect.NewResponse(&userv1.CreateUserResponse{User: userToProto(created)})
 	setReadPrimaryCookie(resp.Header())
 	return resp, nil
@@ -172,6 +228,111 @@ func (h *UserHandler) UpdateUserPrivacy(ctx context.Context, req *connect.Reques
 	return resp, nil
 }
 
+// defaultNotificationPrefs returns the "everything on" map. This is the
+// shape migration 017 stores as the column default; we use the same map
+// when decoding old rows that predate the column (NULL / empty) so the
+// handler's enabled-kind check never needs a missing-key fallback.
+func defaultNotificationPrefs() map[string]bool {
+	return map[string]bool{
+		"mention":      true,
+		"engagement":   true,
+		"milestone":    true,
+		"prompt":       true,
+		"social":       true,
+		"email_digest": true,
+	}
+}
+
+// decodeNotificationPrefs turns a jsonb blob into the canonical map.
+// Missing keys default to true so that a user whose row was created
+// before 017 (or whose prefs were partially written) still sees every
+// category. Callers should NOT mutate the returned map if they plan to
+// serialise it back.
+func decodeNotificationPrefs(raw []byte) map[string]bool {
+	prefs := defaultNotificationPrefs()
+	if len(raw) == 0 {
+		return prefs
+	}
+	var parsed map[string]bool
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return prefs
+	}
+	for k, v := range parsed {
+		prefs[k] = v
+	}
+	return prefs
+}
+
+func prefsToProto(p map[string]bool) *userv1.NotificationPreferences {
+	return &userv1.NotificationPreferences{
+		Mention:     p["mention"],
+		Engagement:  p["engagement"],
+		Milestone:   p["milestone"],
+		Prompt:      p["prompt"],
+		Social:      p["social"],
+		EmailDigest: p["email_digest"],
+	}
+}
+
+// GetNotificationPreferences — viewer's own current settings. Requires
+// auth; no public view.
+func (h *UserHandler) GetNotificationPreferences(ctx context.Context, _ *connect.Request[userv1.GetNotificationPreferencesRequest]) (*connect.Response[userv1.GetNotificationPreferencesResponse], error) {
+	uid, ok := httpctx.CurrentUserID(ctx)
+	if !ok {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("unauthorized"))
+	}
+
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+	var raw []byte
+	if err := db.GetContext(ctx, &raw,
+		"SELECT notification_prefs FROM users WHERE id = $1", uid); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	prefs := decodeNotificationPrefs(raw)
+	return connect.NewResponse(&userv1.GetNotificationPreferencesResponse{
+		Prefs: prefsToProto(prefs),
+	}), nil
+}
+
+// UpdateNotificationPreferences — full replacement write. Writing the
+// full map (rather than a JSON-merge) keeps the server-side semantics
+// simple and the client code trivial: every toggle fires a full PUT.
+func (h *UserHandler) UpdateNotificationPreferences(ctx context.Context, req *connect.Request[userv1.UpdateNotificationPreferencesRequest]) (*connect.Response[userv1.UpdateNotificationPreferencesResponse], error) {
+	uid, ok := httpctx.CurrentUserID(ctx)
+	if !ok {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("unauthorized"))
+	}
+	in := req.Msg.GetPrefs()
+	if in == nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("prefs is required"))
+	}
+
+	prefs := map[string]bool{
+		"mention":      in.GetMention(),
+		"engagement":   in.GetEngagement(),
+		"milestone":    in.GetMilestone(),
+		"prompt":       in.GetPrompt(),
+		"social":       in.GetSocial(),
+		"email_digest": in.GetEmailDigest(),
+	}
+	encoded, err := json.Marshal(prefs)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if _, err := h.DB.ExecContext(ctx,
+		"UPDATE users SET notification_prefs = $1::jsonb, updated_at = NOW() WHERE id = $2",
+		string(encoded), uid,
+	); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	resp := connect.NewResponse(&userv1.UpdateNotificationPreferencesResponse{
+		Prefs: prefsToProto(prefs),
+	})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
+}
+
 func (h *UserHandler) UpdateAvatar(ctx context.Context, req *connect.Request[userv1.UpdateAvatarRequest]) (*connect.Response[userv1.UpdateAvatarResponse], error) {
 	user, err := resolveUserByIdentifier(h.DB, req.Msg.Id)
 	if err != nil {
@@ -182,35 +343,21 @@ func (h *UserHandler) UpdateAvatar(ctx context.Context, req *connect.Request[use
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("unauthorized"))
 	}
 
-	buf := req.Msg.AvatarData
-	if len(buf) == 0 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("avatar_data is required"))
-	}
-	if len(buf) > 512_000 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("file too large (max 500KB)"))
-	}
-	fileType := http.DetectContentType(buf)
-	if !strings.HasPrefix(fileType, "image/") {
-		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("not an image"))
+	// Fetch the client's pre-PUT blob from S3. CommitUploadedObject
+	// validates the upload_key belongs to the caller + that the HeadObject
+	// metadata matches the avatar kind's size + content-type caps; we
+	// get back a byte slice ready for the existing resize pipeline.
+	bucketName := bucketFromEnv()
+	buf, commitErr := CommitUploadedObject(ctx, h.S3Client, bucketName, req.Msg.GetUploadKey(), UploadKindAvatar, requestorID)
+	if commitErr != nil {
+		return nil, commitErr
 	}
 
 	// All variants are JPEG-encoded by resizeAndUpload, so the canonical
 	// filename stored in the DB always carries a .jpg extension regardless
-	// of the original upload format. fileType (used for the input bytes)
-	// still drives content sniffing for the validation above.
-	_ = fileType
+	// of the original upload format.
 	filePath := fileformat.UniqueFormat("avatar.jpg")
 	keyBase := "UserProfilePics/" + filePath
-
-	rawBucket := os.Getenv("S3_BUCKET")
-	bucketName := strings.SplitN(rawBucket, "/", 2)[0]
-	if bucketName == "" {
-		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("server configuration error"))
-	}
-
-	if h.S3Client == nil {
-		return nil, connect.NewError(connect.CodeUnavailable, fmt.Errorf("upload service unavailable"))
-	}
 
 	// resizeAndUpload decodes once, resizes to thumb/medium/full and uploads
 	// each variant to S3. The function applies its own 30s timeout, so we
@@ -219,6 +366,11 @@ func (h *UserHandler) UpdateAvatar(ctx context.Context, req *connect.Request[use
 		log.Printf("S3 resize/upload failed: %v", err)
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to upload image"))
 	}
+
+	// Reap the temp upload — best effort; the S3 lifecycle rule catches
+	// any leaks. Fires only on the happy path so a failed resize leaves
+	// the raw blob around for debugging.
+	DeleteUploadedObject(ctx, h.S3Client, bucketName, req.Msg.GetUploadKey())
 
 	avatarUser := models.User{AvatarPath: filePath}
 	updatedUser, err := avatarUser.UpdateAUserAvatar(h.DB, user.ID)
@@ -383,6 +535,11 @@ func (h *UserHandler) FollowUser(ctx context.Context, req *connect.Request[userv
 	if err := tx.Commit(); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+
+	// SSE push — the followed user's bell should refetch so the new_follower
+	// item surfaces without waiting for the 60s poll tick.
+	_ = cache.PublishActivity(ctx, target.ID)
+
 	resp := connect.NewResponse(&userv1.FollowUserResponse{Message: "user followed"})
 	setReadPrimaryCookie(resp.Header())
 	return resp, nil
@@ -445,15 +602,24 @@ func (h *UserHandler) GetRelationship(ctx context.Context, req *connect.Request[
 		}), nil
 	}
 
+	// One round-trip packs the 4 edge checks the UI needs: follow both
+	// ways + block outgoing + mute outgoing. Incoming-block isn't part
+	// of the response because GetUser already returns 404 when the
+	// target has blocked the viewer — the UI never reaches this call
+	// in that direction.
 	var rel struct {
 		Following  bool `db:"following"`
 		FollowedBy bool `db:"followed_by"`
+		Blocked    bool `db:"blocked"`
+		Muted      bool `db:"muted"`
 	}
 	if err := sqlx.GetContext(ctx, db, &rel,
 		`SELECT
-			EXISTS(SELECT 1 FROM follows WHERE follower_id = $1 AND followed_id = $2) AS following,
-			EXISTS(SELECT 1 FROM follows WHERE follower_id = $3 AND followed_id = $4) AS followed_by`,
-		requestorID, target.ID, target.ID, requestorID,
+			EXISTS(SELECT 1 FROM follows       WHERE follower_id = $1 AND followed_id = $2) AS following,
+			EXISTS(SELECT 1 FROM follows       WHERE follower_id = $2 AND followed_id = $1) AS followed_by,
+			EXISTS(SELECT 1 FROM user_blocks   WHERE blocker_id  = $1 AND blocked_id  = $2) AS blocked,
+			EXISTS(SELECT 1 FROM user_mutes    WHERE muter_id    = $1 AND muted_id    = $2) AS muted`,
+		requestorID, target.ID,
 	); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -462,15 +628,36 @@ func (h *UserHandler) GetRelationship(ctx context.Context, req *connect.Request[
 			Following:  rel.Following,
 			FollowedBy: rel.FollowedBy,
 			Mutual:     rel.Following && rel.FollowedBy,
+			Blocked:    rel.Blocked,
+			Muted:      rel.Muted,
 		},
 	}), nil
 }
 
 // fetchFollowRowsStandalone is the non-Server-method version of fetchFollowRows.
 func fetchFollowRowsStandalone(db *sqlx.DB, whereClause string, whereArgs []interface{}, joinClause string, limit int, cursor *followCursor) ([]followRow, error) {
+	// Explicit column list (rather than `users.*`) for two reasons:
+	//   1. sqlx.Select is STRICT — it errors with
+	//      "missing destination name <col>" the moment the query
+	//      returns a column the followRow struct doesn't declare.
+	//      `users.*` returns every column on the users table, and
+	//      every migration that adds a column (deleted_at, banned_at,
+	//      email_verified_at, notification_prefs, …) breaks this
+	//      query for any user with at least one follow edge.
+	//   2. We never use the password hash on this read path, so
+	//      pulling it across the wire is dead weight + a small
+	//      security smell. Naming columns means we can never
+	//      accidentally surface the hash to a downstream view.
+	//
+	// The list mirrors the followRow struct exactly. If you add a
+	// field there, add the matching column here.
+	const userCols = "users.id, users.public_id, users.username, users.email, " +
+		"users.avatar_path, users.is_admin, users.is_private, " +
+		"users.followers_count, users.following_count, " +
+		"users.created_at, users.updated_at"
 	query := fmt.Sprintf(
-		"SELECT follows.id as follow_id, follows.created_at as follow_created_at, users.* FROM follows JOIN users ON %s WHERE %s",
-		joinClause, whereClause,
+		"SELECT follows.id as follow_id, follows.created_at as follow_created_at, %s FROM follows JOIN users ON %s WHERE %s",
+		userCols, joinClause, whereClause,
 	)
 	args := make([]interface{}, len(whereArgs))
 	copy(args, whereArgs)

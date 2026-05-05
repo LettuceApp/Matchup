@@ -1,0 +1,159 @@
+syntax = "proto3";
+package activity.v1;
+option go_package = "Matchup/gen/activity/v1;activityv1";
+
+// ActivityService backs the Activity tab on UserProfile — a derived
+// feed of "what happened to me and around me". No notifications table:
+// the handler composes the feed by running a small fan-out of indexed
+// queries against existing tables (matchup_votes, likes, bracket_likes,
+// comments, bracket_comments, follows, brackets) and merging by
+// occurred_at DESC.
+//
+// Feed kinds (see ActivityItem.kind):
+//   vote_cast             — you voted on a matchup (vote timeline)
+//   vote_win              — a matchup you voted on completed, your pick won
+//   vote_loss             — a matchup you voted on completed, your pick lost
+//   bracket_progress      — a bracket you voted in advanced OR crowned a champion
+//   matchup_vote_received — someone voted on a matchup you created
+//   like_received         — someone liked your matchup or bracket
+//   comment_received      — someone commented on your matchup or bracket
+//   new_follower          — someone followed you
+//
+// Owner self-interactions are excluded from every kind (mirrors
+// migration 015 + MVs 010/011).
+service ActivityService {
+  rpc GetUserActivity(GetUserActivityRequest) returns (GetUserActivityResponse);
+  // MarkActivityRead stamps `notifications.read_at = NOW()` for every
+  // unread row owned by the viewer whose occurred_at <= `before`. Only
+  // affects persisted notifications (milestone_reached, closing_soon,
+  // tie_needs_resolution); derived kinds continue to track unread state
+  // via the client-side activity_last_seen_at timestamp.
+  rpc MarkActivityRead(MarkActivityReadRequest) returns (MarkActivityReadResponse);
+  // SubscribePush upserts a push subscription for the viewer's browser
+  // or mobile device. `platform` discriminates which delivery channel
+  // (Web Push / APNS / FCM) fans out the notification. Pushes fire
+  // only for the priority notification kinds; the subscription grants
+  // consent but does NOT change the per-category feed prefs.
+  rpc SubscribePush(SubscribePushRequest) returns (SubscribePushResponse);
+  // UnsubscribePush removes the stored subscription for a specific
+  // endpoint. Called when the user revokes permission or on sign-out.
+  // The caller can only remove their own subscriptions.
+  rpc UnsubscribePush(UnsubscribePushRequest) returns (UnsubscribePushResponse);
+  // GetPushConfig returns platform-specific config the client needs
+  // to subscribe. Today that's just the VAPID public key for Web Push;
+  // mobile clients ignore that field (they're pre-configured with
+  // APNS/FCM creds at build time).
+  rpc GetPushConfig(GetPushConfigRequest) returns (GetPushConfigResponse);
+}
+
+// ActivityItem is a single feed row — kind-neutral shape; the renderer
+// branches on `kind` to pick the right icon + copy template.
+//
+//   id            Stable per-kind identifier (e.g. "vote_cast:<matchup_votes.id>").
+//                 Purely for React keys; not a public resource identifier.
+//   kind          One of the strings listed in the service comment above.
+//   occurred_at   RFC3339 timestamp of the underlying event.
+//   actor_*       Who triggered the event from the viewer's perspective
+//                 (another user for on-you events; empty for your-vote events).
+//   subject_*     The matchup / bracket / user the event concerns.
+//                 subject_type is one of "matchup" | "bracket" | "user".
+//   payload       Flat string map of kind-specific extras (voted_item,
+//                 winner_item, round, status). Keeps the proto flexible
+//                 without adding a oneof for every kind.
+message ActivityItem {
+  string id = 1;
+  string kind = 2;
+  string occurred_at = 3;
+  optional string actor_id = 4;
+  optional string actor_username = 5;
+  string subject_type = 6;
+  string subject_id = 7;
+  string subject_title = 8;
+  map<string, string> payload = 9;
+  // RFC3339 timestamp set only on persisted notifications (those backed
+  // by a row in `notifications`). Unset (empty) for unread persisted
+  // rows AND for every derived kind. Derived kinds don't have a row to
+  // stamp — their unread state is driven by the client's
+  // activity_last_seen_at timestamp.
+  optional string read_at = 10;
+}
+
+// GetUserActivityRequest: fetch the viewer's merged activity feed.
+// user_id accepts either a public UUID or a username (mirrors other
+// per-user RPCs like GetUserLikes). limit defaults to 50 in the
+// handler; `before` is an RFC3339 cursor for pagination.
+message GetUserActivityRequest {
+  string user_id = 1;
+  optional int32 limit = 2;
+  optional string before = 3;
+}
+
+message GetUserActivityResponse {
+  repeated ActivityItem items = 1;
+  // Cursor for the next page (occurred_at of the last item). Empty
+  // when the response is the final page.
+  optional string next_before = 2;
+}
+
+// MarkActivityReadRequest: stamp `notifications.read_at` on all unread
+// rows for the authenticated viewer whose occurred_at <= `before`.
+// When `before` is empty the handler uses NOW() so the client can
+// just call `MarkActivityRead({})` to clear everything currently
+// visible as unread.
+message MarkActivityReadRequest {
+  optional string before = 1;
+}
+
+message MarkActivityReadResponse {
+  // How many rows were freshly stamped. Useful for tests; client
+  // ignores it.
+  int32 marked_count = 1;
+}
+
+// SubscribePushRequest — platform-aware push subscription.
+//
+//   platform   "web" | "ios" | "android". Defaults to "web" server-side
+//              if unset so the pre-rename web bundle keeps working
+//              briefly during rollout.
+//   endpoint   Web: browser push service URL. iOS: APNS device token
+//              (hex). Android: FCM registration token. Always the
+//              unique identifier we key on.
+//   p256dh_key / auth_key
+//              Web Push encryption keys from pushManager.subscribe().
+//              Ignored (and required to be empty) for ios / android.
+//   user_agent Optional debug metadata.
+message SubscribePushRequest {
+  string platform = 1;
+  string endpoint = 2;
+  optional string p256dh_key = 3;
+  optional string auth_key = 4;
+  optional string user_agent = 5;
+}
+
+message SubscribePushResponse {
+  // ID of the row in push_subscriptions — not used by the client,
+  // included for easier test assertions.
+  int64 id = 1;
+}
+
+message UnsubscribePushRequest {
+  string endpoint = 1;
+}
+
+message UnsubscribePushResponse {
+  // Whether a row was actually deleted. False when the endpoint
+  // didn't belong to the caller (or didn't exist).
+  bool removed = 1;
+}
+
+message GetPushConfigRequest {}
+
+message GetPushConfigResponse {
+  // VAPID application server public key in URL-safe base64 form,
+  // ready to pass to pushManager.subscribe({applicationServerKey}).
+  // Empty when the server has no VAPID keypair configured — the web
+  // client should hide the "Enable push" button in that case. Mobile
+  // clients ignore this field; they're pre-configured with APNS/FCM
+  // credentials baked into the app bundle.
+  string vapid_public_key = 1;
+}

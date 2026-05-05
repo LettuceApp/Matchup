@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { updateMatchupItem, incrementMatchupItemVotes } from '../services/api';
+import { useAnonUpgradePrompt } from '../contexts/AnonUpgradeContext';
+import { track } from '../utils/analytics';
 import '../styles/MatchupItem.css';
 
 const MatchupItem = ({
@@ -24,6 +26,7 @@ const MatchupItem = ({
   const [itemName, setItemName] = useState(item.item ?? item.name ?? '');
   const [votes, setVotes] = useState(Number(item.votes ?? 0));
   const [votePending, setVotePending] = useState(false);
+  const { promptUpgrade } = useAnonUpgradePrompt();
 
   useEffect(() => {
     setVotes(Number(item.votes ?? item.Votes ?? 0));
@@ -65,13 +68,37 @@ const MatchupItem = ({
       } else {
         setVotes((prev) => prev + 1);
       }
+      // Funnel event — fires after the server acknowledged the vote.
+      // is_bracket distinguishes from BracketView's matchup-item votes
+      // so analyses can split the engagement vs. tournament cohorts.
+      // is_anon comes from the analytics wrapper automatically.
+      track('vote_cast', {
+        matchup_id: item.matchup_id ?? item.matchupId,
+        item_id: item.id,
+        is_bracket: Boolean(isBracketMatchup),
+      });
       if (typeof onVote === 'function') {
         await onVote();
       }
     } catch (err) {
-      console.error('Unable to register vote', err);
-      const msg = err?.response?.data?.message || err?.response?.data?.error || 'Unable to register vote. Please try again.';
-      alert(msg);
+      // Anon-specific server rejections map to the upgrade modal.
+      // The Connect framework returns the canonical code as a
+      // `code` field (lowercase snake_case) in the response body.
+      const code = err?.response?.data?.code;
+      const message = (err?.response?.data?.message || '').toLowerCase();
+      if (code === 'resource_exhausted' && message.includes('free vote')) {
+        promptUpgrade('cap');
+      } else if (code === 'permission_denied' && message.includes('bracket')) {
+        promptUpgrade('bracket');
+      } else if (code === 'unauthenticated' && !localStorage.getItem('token')) {
+        // The legacy 401 path — server rejected an anon vote on a
+        // route that doesn't yet allow them. Treat like the cap.
+        promptUpgrade('cap');
+      } else {
+        console.error('Unable to register vote', err);
+        const msg = err?.response?.data?.message || err?.response?.data?.error || 'Unable to register vote. Please try again.';
+        alert(msg);
+      }
     } finally {
       setVotePending(false);
     }

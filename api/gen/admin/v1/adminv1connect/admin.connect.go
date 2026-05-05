@@ -52,6 +52,16 @@ const (
 	// AdminServiceDeleteBracketProcedure is the fully-qualified name of the AdminService's
 	// DeleteBracket RPC.
 	AdminServiceDeleteBracketProcedure = "/admin.v1.AdminService/DeleteBracket"
+	// AdminServiceListReportsProcedure is the fully-qualified name of the AdminService's ListReports
+	// RPC.
+	AdminServiceListReportsProcedure = "/admin.v1.AdminService/ListReports"
+	// AdminServiceResolveReportProcedure is the fully-qualified name of the AdminService's
+	// ResolveReport RPC.
+	AdminServiceResolveReportProcedure = "/admin.v1.AdminService/ResolveReport"
+	// AdminServiceBanUserProcedure is the fully-qualified name of the AdminService's BanUser RPC.
+	AdminServiceBanUserProcedure = "/admin.v1.AdminService/BanUser"
+	// AdminServiceUnbanUserProcedure is the fully-qualified name of the AdminService's UnbanUser RPC.
+	AdminServiceUnbanUserProcedure = "/admin.v1.AdminService/UnbanUser"
 )
 
 // AdminServiceClient is a client for the admin.v1.AdminService service.
@@ -63,6 +73,18 @@ type AdminServiceClient interface {
 	DeleteMatchup(context.Context, *connect.Request[v1.DeleteMatchupRequest]) (*connect.Response[v1.DeleteMatchupResponse], error)
 	ListBrackets(context.Context, *connect.Request[v1.ListBracketsRequest]) (*connect.Response[v1.ListBracketsResponse], error)
 	DeleteBracket(context.Context, *connect.Request[v1.DeleteBracketRequest]) (*connect.Response[v1.DeleteBracketResponse], error)
+	// Moderation queue. ListReports surfaces open (or resolved) user
+	// reports with denormalised subject + reporter fields so the UI
+	// doesn't have to make N secondary requests.
+	ListReports(context.Context, *connect.Request[v1.ListReportsRequest]) (*connect.Response[v1.ListReportsResponse], error)
+	// ResolveReport closes a report row with one of the four canonical
+	// resolutions + optional moderator notes. Writes to admin_actions
+	// as a side effect so the audit trail is append-only.
+	ResolveReport(context.Context, *connect.Request[v1.ResolveReportRequest]) (*connect.Response[v1.ResolveReportResponse], error)
+	// BanUser soft-deletes + stamps banned_at/ban_reason. Unban clears
+	// both so the user can log back in.
+	BanUser(context.Context, *connect.Request[v1.BanUserRequest]) (*connect.Response[v1.BanUserResponse], error)
+	UnbanUser(context.Context, *connect.Request[v1.UnbanUserRequest]) (*connect.Response[v1.UnbanUserResponse], error)
 }
 
 // NewAdminServiceClient constructs a client for the admin.v1.AdminService service. By default, it
@@ -118,6 +140,30 @@ func NewAdminServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(adminServiceMethods.ByName("DeleteBracket")),
 			connect.WithClientOptions(opts...),
 		),
+		listReports: connect.NewClient[v1.ListReportsRequest, v1.ListReportsResponse](
+			httpClient,
+			baseURL+AdminServiceListReportsProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("ListReports")),
+			connect.WithClientOptions(opts...),
+		),
+		resolveReport: connect.NewClient[v1.ResolveReportRequest, v1.ResolveReportResponse](
+			httpClient,
+			baseURL+AdminServiceResolveReportProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("ResolveReport")),
+			connect.WithClientOptions(opts...),
+		),
+		banUser: connect.NewClient[v1.BanUserRequest, v1.BanUserResponse](
+			httpClient,
+			baseURL+AdminServiceBanUserProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("BanUser")),
+			connect.WithClientOptions(opts...),
+		),
+		unbanUser: connect.NewClient[v1.UnbanUserRequest, v1.UnbanUserResponse](
+			httpClient,
+			baseURL+AdminServiceUnbanUserProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("UnbanUser")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -130,6 +176,10 @@ type adminServiceClient struct {
 	deleteMatchup  *connect.Client[v1.DeleteMatchupRequest, v1.DeleteMatchupResponse]
 	listBrackets   *connect.Client[v1.ListBracketsRequest, v1.ListBracketsResponse]
 	deleteBracket  *connect.Client[v1.DeleteBracketRequest, v1.DeleteBracketResponse]
+	listReports    *connect.Client[v1.ListReportsRequest, v1.ListReportsResponse]
+	resolveReport  *connect.Client[v1.ResolveReportRequest, v1.ResolveReportResponse]
+	banUser        *connect.Client[v1.BanUserRequest, v1.BanUserResponse]
+	unbanUser      *connect.Client[v1.UnbanUserRequest, v1.UnbanUserResponse]
 }
 
 // ListUsers calls admin.v1.AdminService.ListUsers.
@@ -167,6 +217,26 @@ func (c *adminServiceClient) DeleteBracket(ctx context.Context, req *connect.Req
 	return c.deleteBracket.CallUnary(ctx, req)
 }
 
+// ListReports calls admin.v1.AdminService.ListReports.
+func (c *adminServiceClient) ListReports(ctx context.Context, req *connect.Request[v1.ListReportsRequest]) (*connect.Response[v1.ListReportsResponse], error) {
+	return c.listReports.CallUnary(ctx, req)
+}
+
+// ResolveReport calls admin.v1.AdminService.ResolveReport.
+func (c *adminServiceClient) ResolveReport(ctx context.Context, req *connect.Request[v1.ResolveReportRequest]) (*connect.Response[v1.ResolveReportResponse], error) {
+	return c.resolveReport.CallUnary(ctx, req)
+}
+
+// BanUser calls admin.v1.AdminService.BanUser.
+func (c *adminServiceClient) BanUser(ctx context.Context, req *connect.Request[v1.BanUserRequest]) (*connect.Response[v1.BanUserResponse], error) {
+	return c.banUser.CallUnary(ctx, req)
+}
+
+// UnbanUser calls admin.v1.AdminService.UnbanUser.
+func (c *adminServiceClient) UnbanUser(ctx context.Context, req *connect.Request[v1.UnbanUserRequest]) (*connect.Response[v1.UnbanUserResponse], error) {
+	return c.unbanUser.CallUnary(ctx, req)
+}
+
 // AdminServiceHandler is an implementation of the admin.v1.AdminService service.
 type AdminServiceHandler interface {
 	ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error)
@@ -176,6 +246,18 @@ type AdminServiceHandler interface {
 	DeleteMatchup(context.Context, *connect.Request[v1.DeleteMatchupRequest]) (*connect.Response[v1.DeleteMatchupResponse], error)
 	ListBrackets(context.Context, *connect.Request[v1.ListBracketsRequest]) (*connect.Response[v1.ListBracketsResponse], error)
 	DeleteBracket(context.Context, *connect.Request[v1.DeleteBracketRequest]) (*connect.Response[v1.DeleteBracketResponse], error)
+	// Moderation queue. ListReports surfaces open (or resolved) user
+	// reports with denormalised subject + reporter fields so the UI
+	// doesn't have to make N secondary requests.
+	ListReports(context.Context, *connect.Request[v1.ListReportsRequest]) (*connect.Response[v1.ListReportsResponse], error)
+	// ResolveReport closes a report row with one of the four canonical
+	// resolutions + optional moderator notes. Writes to admin_actions
+	// as a side effect so the audit trail is append-only.
+	ResolveReport(context.Context, *connect.Request[v1.ResolveReportRequest]) (*connect.Response[v1.ResolveReportResponse], error)
+	// BanUser soft-deletes + stamps banned_at/ban_reason. Unban clears
+	// both so the user can log back in.
+	BanUser(context.Context, *connect.Request[v1.BanUserRequest]) (*connect.Response[v1.BanUserResponse], error)
+	UnbanUser(context.Context, *connect.Request[v1.UnbanUserRequest]) (*connect.Response[v1.UnbanUserResponse], error)
 }
 
 // NewAdminServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -227,6 +309,30 @@ func NewAdminServiceHandler(svc AdminServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(adminServiceMethods.ByName("DeleteBracket")),
 		connect.WithHandlerOptions(opts...),
 	)
+	adminServiceListReportsHandler := connect.NewUnaryHandler(
+		AdminServiceListReportsProcedure,
+		svc.ListReports,
+		connect.WithSchema(adminServiceMethods.ByName("ListReports")),
+		connect.WithHandlerOptions(opts...),
+	)
+	adminServiceResolveReportHandler := connect.NewUnaryHandler(
+		AdminServiceResolveReportProcedure,
+		svc.ResolveReport,
+		connect.WithSchema(adminServiceMethods.ByName("ResolveReport")),
+		connect.WithHandlerOptions(opts...),
+	)
+	adminServiceBanUserHandler := connect.NewUnaryHandler(
+		AdminServiceBanUserProcedure,
+		svc.BanUser,
+		connect.WithSchema(adminServiceMethods.ByName("BanUser")),
+		connect.WithHandlerOptions(opts...),
+	)
+	adminServiceUnbanUserHandler := connect.NewUnaryHandler(
+		AdminServiceUnbanUserProcedure,
+		svc.UnbanUser,
+		connect.WithSchema(adminServiceMethods.ByName("UnbanUser")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/admin.v1.AdminService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AdminServiceListUsersProcedure:
@@ -243,6 +349,14 @@ func NewAdminServiceHandler(svc AdminServiceHandler, opts ...connect.HandlerOpti
 			adminServiceListBracketsHandler.ServeHTTP(w, r)
 		case AdminServiceDeleteBracketProcedure:
 			adminServiceDeleteBracketHandler.ServeHTTP(w, r)
+		case AdminServiceListReportsProcedure:
+			adminServiceListReportsHandler.ServeHTTP(w, r)
+		case AdminServiceResolveReportProcedure:
+			adminServiceResolveReportHandler.ServeHTTP(w, r)
+		case AdminServiceBanUserProcedure:
+			adminServiceBanUserHandler.ServeHTTP(w, r)
+		case AdminServiceUnbanUserProcedure:
+			adminServiceUnbanUserHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -278,4 +392,20 @@ func (UnimplementedAdminServiceHandler) ListBrackets(context.Context, *connect.R
 
 func (UnimplementedAdminServiceHandler) DeleteBracket(context.Context, *connect.Request[v1.DeleteBracketRequest]) (*connect.Response[v1.DeleteBracketResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("admin.v1.AdminService.DeleteBracket is not implemented"))
+}
+
+func (UnimplementedAdminServiceHandler) ListReports(context.Context, *connect.Request[v1.ListReportsRequest]) (*connect.Response[v1.ListReportsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("admin.v1.AdminService.ListReports is not implemented"))
+}
+
+func (UnimplementedAdminServiceHandler) ResolveReport(context.Context, *connect.Request[v1.ResolveReportRequest]) (*connect.Response[v1.ResolveReportResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("admin.v1.AdminService.ResolveReport is not implemented"))
+}
+
+func (UnimplementedAdminServiceHandler) BanUser(context.Context, *connect.Request[v1.BanUserRequest]) (*connect.Response[v1.BanUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("admin.v1.AdminService.BanUser is not implemented"))
+}
+
+func (UnimplementedAdminServiceHandler) UnbanUser(context.Context, *connect.Request[v1.UnbanUserRequest]) (*connect.Response[v1.UnbanUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("admin.v1.AdminService.UnbanUser is not implemented"))
 }

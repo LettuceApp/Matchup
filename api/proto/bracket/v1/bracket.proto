@@ -37,6 +37,11 @@ message BracketData {
   int32 likes_count = 12;
   repeated string tags = 13;
   common.v1.UserSummaryResponse author = 14;
+  // Short, shareable identifier (8-char base62) used in `/b/{short_id}`
+  // preview URLs. Nullable for rows created before migration 014 until
+  // the backfill binary finishes. Client code should fall back to `id`
+  // when empty.
+  string short_id = 15;
 }
 
 // PopularBracketData is a lightweight bracket used in the popular feed.

@@ -1,6 +1,7 @@
 // useAuthBootstrap.js
 import { useEffect, useState } from 'react';
-import API, { getCurrentUser } from '../services/api'; // <-- default + named
+import API, { getCurrentUser, signOutLocally } from '../services/api'; // <-- default + named
+import { identifyUser } from '../utils/analytics';
 
 export function useAuthBootstrap() {
   const [ready, setReady] = useState(false);
@@ -27,16 +28,24 @@ export function useAuthBootstrap() {
         if (typeof payload?.is_admin === 'boolean') {
           localStorage.setItem('isAdmin', payload.is_admin ? 'true' : 'false');
         }
+        // Identify the user to PostHog so every event from this load
+        // onward carries cohort attributes. No-op when PostHog wasn't
+        // initialised (dev / no key configured).
+        if (payload?.id) {
+          identifyUser(payload.id, {
+            username: payload.username,
+            is_admin: Boolean(payload.is_admin),
+            is_verified: Boolean(payload.is_verified),
+          });
+        }
       })
       .catch((err) => {
         if (!mounted) return;
-        // only wipe token on 401 (don’t log out for 404/network)
+        // only wipe token on 401 (don’t log out for 404/network).
+        // Reached only after the refresh interceptor in api.js has
+        // already tried + failed to rotate — treat as terminal.
         if (err?.response?.status === 401) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('userId');
-          localStorage.removeItem('username');
-          localStorage.removeItem('isAdmin');
-          delete API.defaults.headers.common.Authorization;
+          signOutLocally();
         }
       })
       .finally(() => mounted && setReady(true));

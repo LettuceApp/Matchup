@@ -1,0 +1,126 @@
+/* ReportModal — modal dialog for user-submitted content reports.
+   Dark card on a dimmed scrim, matching the rest of the app's
+   destructive-ish surfaces (AccountSettings etc.). */
+
+.report-modal__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(5, 10, 24, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  backdrop-filter: blur(4px);
+}
+
+.report-modal__card {
+  width: 100%;
+  max-width: 28rem;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(148, 163, 255, 0.25);
+  border-radius: 14px;
+  padding: 1.4rem 1.5rem;
+  color: #e2e8f0;
+  box-shadow: 0 30px 60px -18px rgba(0, 0, 0, 0.7);
+}
+
+.report-modal__title {
+  margin: 0 0 0.4rem;
+  font-size: 1.15rem;
+  color: #f8fafc;
+}
+
+.report-modal__body {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  color: rgba(226, 232, 240, 0.78);
+  line-height: 1.5;
+}
+
+.report-modal__label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.9rem;
+  font-size: 0.88rem;
+}
+
+.report-modal__label span {
+  color: rgba(226, 232, 240, 0.85);
+}
+
+.report-modal__label select,
+.report-modal__label textarea {
+  padding: 0.55rem 0.7rem;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(148, 163, 255, 0.28);
+  border-radius: 8px;
+  color: #f1f5f9;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.report-modal__label textarea {
+  resize: vertical;
+  min-height: 4rem;
+}
+
+.report-modal__error {
+  margin: 0 0 0.9rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(127, 29, 29, 0.4);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  border-radius: 8px;
+  color: #fecaca;
+  font-size: 0.85rem;
+}
+
+.report-modal__actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.report-modal__cancel,
+.report-modal__primary {
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.report-modal__cancel {
+  background: transparent;
+  border: 1px solid rgba(148, 163, 255, 0.3);
+  color: rgba(226, 232, 240, 0.85);
+}
+
+.report-modal__cancel:hover:not(:disabled),
+.report-modal__cancel:focus-visible:not(:disabled) {
+  color: #f8fafc;
+  border-color: rgba(148, 163, 255, 0.55);
+  outline: none;
+}
+
+.report-modal__primary {
+  background: rgba(96, 165, 250, 0.18);
+  border: 1px solid rgba(147, 197, 253, 0.5);
+  color: #c7d2fe;
+}
+
+.report-modal__primary:hover:not(:disabled),
+.report-modal__primary:focus-visible:not(:disabled) {
+  background: rgba(96, 165, 250, 0.32);
+  border-color: rgba(147, 197, 253, 0.7);
+  outline: none;
+}
+
+.report-modal__primary:disabled,
+.report-modal__cancel:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

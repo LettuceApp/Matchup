@@ -1,0 +1,91 @@
+/* EmailVerificationBanner — sticky top-of-viewport amber strip.
+   Sticky rather than fixed so pages that scroll don't have the
+   banner tax their top padding. Amber palette reads as "heads up"
+   without the alarm-red of an error state. */
+
+.email-verify-banner {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 10px 16px;
+  background: linear-gradient(90deg, #78350f 0%, #92400e 100%);
+  color: #fef3c7;
+  font-size: 0.9rem;
+  border-bottom: 1px solid rgba(251, 191, 36, 0.28);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.email-verify-banner__body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.email-verify-banner__error {
+  color: #fecaca;
+  font-size: 0.82rem;
+  margin-left: 8px;
+}
+
+.email-verify-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.email-verify-banner__resend {
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #92400e;
+  background: #fef3c7;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.email-verify-banner__resend:hover:not(:disabled) {
+  background: #fde68a;
+}
+.email-verify-banner__resend:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.email-verify-banner__dismiss {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  line-height: 1;
+  background: transparent;
+  color: #fef3c7;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.email-verify-banner__dismiss:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+@media (max-width: 600px) {
+  .email-verify-banner {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+    font-size: 0.82rem;
+  }
+  .email-verify-banner__body {
+    flex: 1 1 100%;
+  }
+}

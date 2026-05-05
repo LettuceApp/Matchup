@@ -1,0 +1,37 @@
+syntax = "proto3";
+package report.v1;
+option go_package = "Matchup/gen/report/v1;reportv1";
+
+// ReportService — user-submitted content reports. Insert-only from
+// the user side; admin review + resolution lives on AdminService.
+//
+// Rate-limited to 10 reports/user/hour via
+// middlewares.CheckUserRateLimit("report") to keep a single
+// disgruntled user from flooding the review queue.
+service ReportService {
+  rpc ReportContent(ReportContentRequest) returns (ReportContentResponse);
+}
+
+message ReportContentRequest {
+  // What's being reported:
+  //   "matchup" | "bracket" | "comment" | "bracket_comment" | "user"
+  // Validated against the CHECK constraint in migration 023. Unknown
+  // values return InvalidArgument.
+  string subject_type = 1;
+  // The subject's public UUID. Handler resolves to the internal
+  // bigint before insert.
+  string subject_id = 2;
+  // Closed list mirroring the DB CHECK constraint:
+  //   harassment | spam | violence | nudity | misinformation |
+  //   self_harm | copyright | other
+  string reason = 3;
+  // Free-text context. Required when reason == "other"; optional
+  // otherwise but frequently populated by the modal for clarity.
+  optional string reason_detail = 4;
+}
+
+message ReportContentResponse {
+  // Row id — surfaced for test assertions + admin-dashboard links.
+  // Client ignores it.
+  int64 id = 1;
+}

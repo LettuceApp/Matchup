@@ -24,6 +24,13 @@ service MatchupItemService {
   rpc DeleteItem(DeleteItemRequest) returns (DeleteItemResponse);
   rpc VoteItem(VoteItemRequest) returns (VoteItemResponse);
   rpc GetUserVotes(GetUserVotesRequest) returns (GetUserVotesResponse);
+
+  // GetAnonVoteStatus reports how many of the per-browser free votes
+  // an anonymous caller has already used vs the cap. Drives the
+  // "X of 3 free votes left" counter chip on the matchup feed +
+  // matchup detail page. Anon-only — authed users have unlimited
+  // votes and don't need this RPC.
+  rpc GetAnonVoteStatus(GetAnonVoteStatusRequest) returns (GetAnonVoteStatusResponse);
 }
 
 // MatchupData is the full matchup object returned from most matchup endpoints.
@@ -49,6 +56,11 @@ message MatchupData {
   optional string winner_item_id = 19;
   optional string image_url = 20;
   repeated string tags = 21;
+  // Short, shareable identifier (8-char base62) used in `/m/{short_id}`
+  // preview URLs. Nullable for rows created before migration 014 until
+  // the backfill binary finishes. Client code should fall back to `id`
+  // when empty.
+  string short_id = 22;
 }
 
 // CommentData is a comment embedded inside a matchup response.
@@ -122,8 +134,14 @@ message CreateMatchupRequest {
   optional int32 round = 8;
   optional int32 seed = 9;
   repeated string tags = 10;
-  optional bytes image_data = 11;
-  optional string image_content_type = 12;
+  // Field numbers 11+12 previously carried base64-in-proto cover
+  // image bytes + content-type. Reserved now that uploads go via
+  // UploadService.PresignUpload(kind="matchup_cover").
+  reserved 11, 12;
+  reserved "image_data", "image_content_type";
+  // S3 object key returned by UploadService.PresignUpload. Optional
+  // because not every matchup has a cover image.
+  optional string upload_key = 13;
 }
 
 message UpdateMatchupRequest {
@@ -247,4 +265,17 @@ message VoteItemResponse {
 
 message GetUserVotesResponse {
   repeated MatchupVoteData votes = 1;
+}
+
+// GetAnonVoteStatus — used by the frontend's anon vote counter.
+// `anon_id` is the per-browser UUID stored in localStorage. Server
+// counts rows in matchup_votes against that anon_id and returns the
+// pair (used, max) so the UI can render "2 of 3 free votes left"
+// without duplicating the cap value.
+message GetAnonVoteStatusRequest {
+  string anon_id = 1;
+}
+message GetAnonVoteStatusResponse {
+  int32 used = 1;
+  int32 max = 2;
 }

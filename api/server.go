@@ -11,6 +11,7 @@ import (
 	appdb "Matchup/db"
 	"Matchup/migrations"
 	"Matchup/scheduler"
+	"Matchup/sentry"
 
 	"github.com/joho/godotenv"
 )
@@ -25,6 +26,12 @@ func init() {
 }
 
 func Run() {
+	// Sentry early so init-time errors (bad DSN, mis-parsed DATABASE_URL)
+	// still get reported. The returned flush is deferred so crashes
+	// during shutdown still reach Sentry before the binary exits.
+	flush := sentry.Init()
+	defer flush()
+
 	// Build DSN for migrations (same logic as base.go)
 	var dsn string
 	if strings.EqualFold(os.Getenv("APP_ENV"), "production") {

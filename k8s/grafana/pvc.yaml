@@ -1,0 +1,15 @@
+# Persistent storage for Grafana's sqlite state (users, orgs, starred
+# dashboards, alert rules). Small — 1Gi is plenty. Provisioned datasources
+# and dashboards don't live here; they're mounted from ConfigMaps.
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: matchup
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

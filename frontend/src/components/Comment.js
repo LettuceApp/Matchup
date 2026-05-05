@@ -1,10 +1,31 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { FiFlag } from 'react-icons/fi';
 import Button from './Button';
+import ReportModal from './ReportModal';
 import { deleteComment } from '../services/api';
 import '../styles/Comment.css';
 
-const Comment = ({ comment, refreshComments, onDelete }) => {
+/*
+ * Comment — shared renderer for matchup + bracket comments.
+ *
+ * `subjectType` ("comment" | "bracket_comment") controls what kind of
+ * entity a Report opens against. Defaults to the matchup-side value to
+ * preserve older callsites that didn't pass the prop; BracketPage
+ * passes "bracket_comment" explicitly.
+ *
+ * A Report affordance is available to logged-in non-owners. Owners
+ * don't see Report on their own comment (can't meaningfully report
+ * yourself); anonymous viewers don't either (no rate-limit subject).
+ */
+const Comment = ({
+  comment,
+  refreshComments,
+  onDelete,
+  subjectType = 'comment',
+}) => {
+  const [reportOpen, setReportOpen] = useState(false);
+
   if (!comment) return null;
 
   const storedUserId = localStorage.getItem('userId');
@@ -32,6 +53,11 @@ const Comment = ({ comment, refreshComments, onDelete }) => {
     }
   };
 
+  // Reports key on the comment's public_id. Older server payloads that
+  // only carry the numeric id can't be reported; fall back to null and
+  // hide the button rather than firing a CodeInvalidArgument.
+  const reportableId = comment.public_id || comment.publicId || null;
+
   return (
     <article className="comment-card">
       <header className="comment-card__header">
@@ -48,12 +74,30 @@ const Comment = ({ comment, refreshComments, onDelete }) => {
 
       <p className="comment-card__body">{decodeHtml(comment.body)}</p>
 
-      {isOwner && (
-        <div className="comment-card__actions">
+      <div className="comment-card__actions">
+        {isOwner && (
           <Button onClick={handleDelete} className="comment-card__delete">
             Delete
           </Button>
-        </div>
+        )}
+        {!isOwner && userId && reportableId && (
+          <button
+            type="button"
+            className="comment-card__report"
+            aria-label="Report this comment"
+            onClick={() => setReportOpen(true)}
+          >
+            <FiFlag aria-hidden="true" /> Report
+          </button>
+        )}
+      </div>
+
+      {reportOpen && reportableId && (
+        <ReportModal
+          subjectType={subjectType}
+          subjectId={reportableId}
+          onClose={() => setReportOpen(false)}
+        />
       )}
     </article>
   );

@@ -1,0 +1,34 @@
+# Prometheus scrape config used by BOTH docker-compose and Kubernetes.
+# In k8s this file is mounted via a ConfigMap (k8s/prometheus/configmap.yaml);
+# in docker-compose it's bind-mounted directly.
+#
+# Scrape interval defaults to 15s — the sweet spot for alerting latency vs
+# TSDB write amplification on a single-node Prometheus.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: matchup
+
+scrape_configs:
+  # Prometheus scrapes itself — gives us meta-metrics (scrape durations,
+  # TSDB writes, rule evaluations) so we can tell when Prometheus itself
+  # is sick before the things it's watching blow up.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # The Matchup API exposes /metrics from the chi router. One job per
+  # service keeps labels tidy: every series gets `job="matchup-api"`.
+  #
+  # `host.docker.internal` is the Docker-Desktop-for-Mac/Windows DNS name
+  # for the host. This lets Prometheus (in Docker) scrape an API process
+  # running on the host — which is how `go run cmd/main.go` runs it.
+  # If you ever move the API into docker-compose, switch this to `api:8888`.
+  - job_name: matchup-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:8888"]
+        labels:
+          service: matchup-api

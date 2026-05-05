@@ -15,6 +15,7 @@ import (
 	appdb "Matchup/db"
 	matchupv1 "Matchup/gen/matchup/v1"
 	"Matchup/gen/matchup/v1/matchupv1connect"
+	"Matchup/middlewares"
 	"Matchup/models"
 	httpctx "Matchup/utils/httpctx"
 
@@ -22,6 +23,22 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 )
+
+// AnonVoteCap is the maximum number of vote ROWS a single anon UUID
+// can hold across all matchups. Counting live rows (not events) means
+// switching a vote between items on the same matchup doesn't burn a
+// slot — only fresh votes on new matchups do. A deleted matchup also
+// frees the slot back up, which falls out of the live-row count for
+// free.
+//
+// Exposed as a const so the GetAnonVoteStatus RPC can return the same
+// number the cap enforces — single source of truth.
+const AnonVoteCap = 3
+
+// anonVoteIPBudget is the per-hour cap on anon votes from a single
+// IP, layered on top of the per-anon-id cap. Stops a single machine
+// from churning fresh anon UUIDs in a loop.
+const anonVoteIPBudget = 10
 
 // MatchupItemHandler implements matchupv1connect.MatchupItemServiceHandler.
 type MatchupItemHandler struct {
@@ -102,6 +119,33 @@ func (h *MatchupItemHandler) VoteItem(ctx context.Context, req *connect.Request[
 	}
 	if !allowed {
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("%s", visibilityErrorMessage(reason)))
+	}
+
+	// Anonymous-voter gates. None of these apply to authed users — a
+	// signed-in account can vote freely (subject to bracket-round
+	// rules below). The rejections here are mapped to dedicated UI
+	// states on the frontend (sign-up CTA / bracket gate).
+	isAnon := identity.UserID == nil
+	if isAnon {
+		// Brackets are members-only. Bracket child matchups always
+		// have BracketID set; standalone matchups don't.
+		if item.Matchup.BracketID != nil {
+			return nil, connect.NewError(
+				connect.CodePermissionDenied,
+				fmt.Errorf("create an account to vote in brackets"),
+			)
+		}
+		// IP-tier rate limit. Layered ABOVE the per-anon-id cap so
+		// localStorage-clear loops still pay a cost. Fail-open if
+		// Redis is down; the per-anon cap below still gates abuse.
+		if allowed, _ := middlewares.CheckIPRateLimit(
+			ctx, req.Peer().Addr, "anon_vote_ip", anonVoteIPBudget, time.Hour,
+		); !allowed {
+			return nil, connect.NewError(
+				connect.CodeResourceExhausted,
+				fmt.Errorf("too many anon votes from this network; try again later"),
+			)
+		}
 	}
 
 	isOwner := identity.UserID != nil && *identity.UserID == item.Matchup.AuthorID
@@ -193,6 +237,28 @@ func (h *MatchupItemHandler) VoteItem(ctx context.Context, req *connect.Request[
 	} else {
 		// New vote — only the matchup_votes INSERT stays in the
 		// transaction. The counter increment lives in Redis.
+		//
+		// Per-anon cap fires HERE, on the new-vote path only. The
+		// switch-vote branch above just moves an existing row to a
+		// different item, so it doesn't add to the count and shouldn't
+		// be gated. Counting live rows (rather than tracking a
+		// counter) means a deleted matchup naturally restores a slot.
+		if isAnon {
+			var used int
+			if err := h.DB.GetContext(ctx, &used,
+				`SELECT COUNT(*) FROM matchup_votes WHERE anon_id = $1`,
+				*identity.AnonID,
+			); err != nil {
+				return nil, connect.NewError(connect.CodeInternal, err)
+			}
+			if used >= AnonVoteCap {
+				return nil, connect.NewError(
+					connect.CodeResourceExhausted,
+					fmt.Errorf("free vote limit reached"),
+				)
+			}
+		}
+
 		tx, err := h.DB.Beginx()
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
@@ -273,6 +339,21 @@ func (h *MatchupItemHandler) VoteItem(ctx context.Context, req *connect.Request[
 		invalidateBracketSummaryCache(*item.Matchup.BracketID)
 	}
 	invalidateHomeSummaryCache(item.Matchup.AuthorID)
+
+	// SSE push — the matchup author should get a fresh bell state
+	// without waiting on the poll. Skip self-votes (author_id == voter)
+	// and anonymous votes (no viewer bell to push to). The voter's own
+	// feed refetches too so vote_cast surfaces near-instantly.
+	voterID := uint(0)
+	if identity.UserID != nil {
+		voterID = *identity.UserID
+	}
+	if voterID != 0 && voterID != item.Matchup.AuthorID {
+		_ = cache.PublishActivity(ctx, item.Matchup.AuthorID)
+	}
+	if voterID != 0 {
+		_ = cache.PublishActivity(ctx, voterID)
+	}
 
 	resp := connect.NewResponse(&matchupv1.VoteItemResponse{Item: matchupItemToProto(updatedItem)})
 	setReadPrimaryCookie(resp.Header())
@@ -369,6 +450,33 @@ func (h *MatchupItemHandler) DeleteItem(ctx context.Context, req *connect.Reques
 	resp := connect.NewResponse(&matchupv1.DeleteItemResponse{Message: "item deleted"})
 	setReadPrimaryCookie(resp.Header())
 	return resp, nil
+}
+
+// GetAnonVoteStatus returns how many votes the given anon UUID has
+// cast across all matchups, along with the cap. Frontend uses this
+// to render the "X of 3 free votes left" counter without duplicating
+// the cap constant. Empty anon_id is treated as "no votes used yet"
+// rather than an error so the home page can call this on first load
+// before localStorage has been touched.
+func (h *MatchupItemHandler) GetAnonVoteStatus(ctx context.Context, req *connect.Request[matchupv1.GetAnonVoteStatusRequest]) (*connect.Response[matchupv1.GetAnonVoteStatusResponse], error) {
+	anonID := req.Msg.GetAnonId()
+	used := int32(0)
+	if anonID != "" {
+		// Pure read — safe on the replica.
+		db := dbForRead(ctx, h.DB, h.ReadDB)
+		var n int
+		if err := sqlx.GetContext(ctx, db, &n,
+			`SELECT COUNT(*) FROM matchup_votes WHERE anon_id = $1`,
+			anonID,
+		); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+		used = int32(n)
+	}
+	return connect.NewResponse(&matchupv1.GetAnonVoteStatusResponse{
+		Used: used,
+		Max:  int32(AnonVoteCap),
+	}), nil
 }
 
 func (h *MatchupItemHandler) GetUserVotes(ctx context.Context, req *connect.Request[matchupv1.GetUserVotesRequest]) (*connect.Response[matchupv1.GetUserVotesResponse], error) {

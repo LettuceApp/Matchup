@@ -8,6 +8,7 @@ import (
 	"time"
 
 	homev1 "Matchup/gen/home/v1"
+	"Matchup/models"
 )
 
 func TestGetHomeSummary_EmptyDB(t *testing.T) {
@@ -356,4 +357,136 @@ func TestGetHomeSummary_BracketCreatedAtIsRFC3339(t *testing.T) {
 		return
 	}
 	t.Error("Time Bracket not found in response")
+}
+
+// TestGetHomeSummary_PopularMatchups_ExcludesOwnerEngagement is the
+// regression test for migration 015. The popular_matchups_snapshot
+// engagement_score must NOT credit the matchup owner's own like /
+// comment / vote — otherwise an owner can trivially self-boost
+// themselves into the popular feed. The raw display counts
+// (likes_count etc.) are allowed to include owner interactions; only
+// the ranking signal is scrubbed.
+//
+// Setup: two matchups seeded in isolation. Matchup A receives only a
+// self-like from its own author (engagement contribution should be
+// zero). Matchup B receives a like from a different user (engagement
+// should be positive). After refreshing the MV, only B should appear
+// in the popular feed.
+func TestGetHomeSummary_PopularMatchups_ExcludesOwnerEngagement(t *testing.T) {
+	db := setupTestDB(t)
+
+	ownerA := seedTestUser(t, db, "ownerA", "ownerA@example.com", "TestPass123")
+	ownerB := seedTestUser(t, db, "ownerB", "ownerB@example.com", "TestPass123")
+	other := seedTestUser(t, db, "other", "other@example.com", "TestPass123")
+
+	matchupA := seedTestMatchup(t, db, ownerA.ID, "Self-Liked Matchup")
+	matchupB := seedTestMatchup(t, db, ownerB.ID, "Friend-Liked Matchup")
+
+	// Matchup A: the owner self-likes — this must NOT boost ranking.
+	if _, err := db.Exec(
+		`INSERT INTO likes (user_id, matchup_id, created_at, updated_at)
+		 VALUES ($1, $2, NOW(), NOW())`,
+		ownerA.ID, matchupA.ID,
+	); err != nil {
+		t.Fatalf("seed owner self-like on A: %v", err)
+	}
+
+	// Matchup B: a different user likes — this should count.
+	if _, err := db.Exec(
+		`INSERT INTO likes (user_id, matchup_id, created_at, updated_at)
+		 VALUES ($1, $2, NOW(), NOW())`,
+		other.ID, matchupB.ID,
+	); err != nil {
+		t.Fatalf("seed non-owner like on B: %v", err)
+	}
+
+	refreshSnapshotsDirect(t, db)
+
+	handler := &HomeHandler{DB: db, ReadDB: db}
+	resp, err := handler.GetHomeSummary(context.Background(),
+		connectReq(&homev1.GetHomeSummaryRequest{}, ""))
+	if err != nil {
+		t.Fatalf("GetHomeSummary: %v", err)
+	}
+
+	titles := map[string]bool{}
+	for _, m := range resp.Msg.Summary.PopularMatchups {
+		titles[m.Title] = true
+	}
+	if titles["Self-Liked Matchup"] {
+		t.Error("matchup with only an owner self-like leaked into popular — engagement_score should exclude owner interactions (migration 015 regression)")
+	}
+	if !titles["Friend-Liked Matchup"] {
+		t.Error("expected 'Friend-Liked Matchup' in popular feed — third-party like should count toward engagement")
+	}
+}
+
+// TestGetHomeSummary_PopularBrackets_ExcludesOwnerEngagement is the
+// bracket-side counterpart to the matchup test above. Bracket author's
+// self-interactions (on the bracket itself or on any child matchup)
+// must not contribute to the bracket's engagement_score. Since
+// popular_brackets_snapshot intentionally has no engagement > 0
+// filter (migration 013), the bracket will still appear in the MV —
+// but its engagement_score must report zero so a bracket with real
+// viewer engagement always ranks above a self-boosted one.
+func TestGetHomeSummary_PopularBrackets_ExcludesOwnerEngagement(t *testing.T) {
+	db := setupTestDB(t)
+
+	ownerA := seedTestUser(t, db, "ownerA", "ownerA@example.com", "TestPass123")
+	ownerB := seedTestUser(t, db, "ownerB", "ownerB@example.com", "TestPass123")
+	fan := seedTestUser(t, db, "fan", "fan@example.com", "TestPass123")
+
+	bracketA := seedTestBracket(t, db, ownerA.ID, "Self-Liked Bracket", 4)
+	bracketB := seedTestBracket(t, db, ownerB.ID, "Fan-Liked Bracket", 4)
+
+	for _, b := range []*models.Bracket{bracketA, bracketB} {
+		if _, err := db.Exec("UPDATE brackets SET status = 'active' WHERE id = $1", b.ID); err != nil {
+			t.Fatalf("activate bracket %d: %v", b.ID, err)
+		}
+	}
+
+	// Bracket A: owner self-likes their own bracket. Must NOT rank.
+	if _, err := db.Exec(
+		`INSERT INTO bracket_likes (user_id, bracket_id, created_at, updated_at)
+		 VALUES ($1, $2, NOW(), NOW())`,
+		ownerA.ID, bracketA.ID,
+	); err != nil {
+		t.Fatalf("seed owner self-like on bracket A: %v", err)
+	}
+
+	// Bracket B: a fan likes — must rank above A.
+	if _, err := db.Exec(
+		`INSERT INTO bracket_likes (user_id, bracket_id, created_at, updated_at)
+		 VALUES ($1, $2, NOW(), NOW())`,
+		fan.ID, bracketB.ID,
+	); err != nil {
+		t.Fatalf("seed fan like on bracket B: %v", err)
+	}
+
+	refreshSnapshotsDirect(t, db)
+
+	handler := &HomeHandler{DB: db, ReadDB: db}
+	resp, err := handler.GetHomeSummary(context.Background(),
+		connectReq(&homev1.GetHomeSummaryRequest{}, ""))
+	if err != nil {
+		t.Fatalf("GetHomeSummary: %v", err)
+	}
+
+	// Both brackets should appear (no engagement > 0 filter post-013),
+	// but B must rank strictly above A.
+	var aRank, bRank int32
+	for _, b := range resp.Msg.Summary.PopularBrackets {
+		switch b.Title {
+		case "Self-Liked Bracket":
+			aRank = b.Rank
+		case "Fan-Liked Bracket":
+			bRank = b.Rank
+		}
+	}
+	if aRank == 0 || bRank == 0 {
+		t.Fatalf("missing brackets in response (A rank=%d, B rank=%d)", aRank, bRank)
+	}
+	if bRank >= aRank {
+		t.Errorf("expected fan-liked bracket (B rank=%d) to rank above self-liked bracket (A rank=%d) — owner self-likes shouldn't drive ranking", bRank, aRank)
+	}
 }

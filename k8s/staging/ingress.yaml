@@ -1,0 +1,39 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: matchup-ingress
+  namespace: matchup-staging
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    # cert-manager issues a Let's Encrypt cert for the staging host.
+    # The ClusterIssuer is assumed to already exist at cluster scope
+    # from the prod path; if not, deploy cert-manager + a
+    # letsencrypt-prod issuer before applying this file.
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - staging.matchup.app
+      secretName: matchup-staging-tls
+  rules:
+    - host: staging.matchup.app
+      http:
+        paths:
+          # Same ConnectRPC regex as prod — requests land on /{pkg}.v1.{Service}/{Method}
+          - path: /[a-z]+\.v1\.[A-Za-z]
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: matchup-api
+                port:
+                  number: 8888
+          # Everything else serves the React frontend.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: matchup-frontend
+                port:
+                  number: 80

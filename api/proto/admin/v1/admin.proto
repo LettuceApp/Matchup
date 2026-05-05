@@ -13,6 +13,19 @@ service AdminService {
   rpc DeleteMatchup(DeleteMatchupRequest) returns (DeleteMatchupResponse);
   rpc ListBrackets(ListBracketsRequest) returns (ListBracketsResponse);
   rpc DeleteBracket(DeleteBracketRequest) returns (DeleteBracketResponse);
+
+  // Moderation queue. ListReports surfaces open (or resolved) user
+  // reports with denormalised subject + reporter fields so the UI
+  // doesn't have to make N secondary requests.
+  rpc ListReports(ListReportsRequest) returns (ListReportsResponse);
+  // ResolveReport closes a report row with one of the four canonical
+  // resolutions + optional moderator notes. Writes to admin_actions
+  // as a side effect so the audit trail is append-only.
+  rpc ResolveReport(ResolveReportRequest) returns (ResolveReportResponse);
+  // BanUser soft-deletes + stamps banned_at/ban_reason. Unban clears
+  // both so the user can log back in.
+  rpc BanUser(BanUserRequest) returns (BanUserResponse);
+  rpc UnbanUser(UnbanUserRequest) returns (UnbanUserResponse);
 }
 
 // AdminMatchupData includes author info for admin views.
@@ -107,3 +120,59 @@ message ListBracketsResponse {
 message DeleteBracketResponse {
   string message = 1;
 }
+
+// ---- Moderation queue ----
+
+// AdminReport — one row in the moderation queue with denormalised
+// context so the client can render without N+1 secondary fetches.
+message AdminReport {
+  int64 id = 1;
+  string subject_type = 2;   // "matchup" | "bracket" | "comment" | "bracket_comment" | "user"
+  string subject_id = 3;     // public UUID or username for "user"
+  string subject_preview = 4; // short excerpt for comments / titles
+  string reason = 5;         // closed set — see server CHECK
+  string reason_detail = 6;
+  string status = 7;         // "open" | "resolved"
+  string resolution = 8;     // "" | "dismiss" | "remove_content" | "warn_user" | "ban_user"
+  string reporter_username = 9;
+  int64 reporter_id = 10;
+  string created_at = 11;
+  string reviewed_at = 12;
+  string reviewed_by_username = 13;
+}
+
+message ListReportsRequest {
+  // "" (default = "open"), "open", or "resolved"
+  optional string status = 1;
+  optional string cursor = 2;
+  optional int32 limit = 3;
+}
+message ListReportsResponse {
+  repeated AdminReport reports = 1;
+  optional string next_cursor = 2;
+}
+
+message ResolveReportRequest {
+  int64 report_id = 1;
+  // "dismiss" | "remove_content" | "warn_user" | "ban_user"
+  string resolution = 2;
+  // Optional moderator note persisted on admin_actions for audit.
+  optional string notes = 3;
+  // Required when resolution == "ban_user"; short reason surfaced
+  // to the audit log + users.ban_reason.
+  optional string ban_reason = 4;
+}
+message ResolveReportResponse {
+  string message = 1;
+}
+
+message BanUserRequest {
+  string id = 1;      // username or public id
+  string reason = 2;  // required; mirrored into users.ban_reason
+}
+message BanUserResponse { string message = 1; }
+
+message UnbanUserRequest {
+  string id = 1;
+}
+message UnbanUserResponse { string message = 1; }

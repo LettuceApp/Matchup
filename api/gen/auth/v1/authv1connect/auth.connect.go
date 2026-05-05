@@ -41,6 +41,18 @@ const (
 	// AuthServiceResetPasswordProcedure is the fully-qualified name of the AuthService's ResetPassword
 	// RPC.
 	AuthServiceResetPasswordProcedure = "/auth.v1.AuthService/ResetPassword"
+	// AuthServiceRefreshProcedure is the fully-qualified name of the AuthService's Refresh RPC.
+	AuthServiceRefreshProcedure = "/auth.v1.AuthService/Refresh"
+	// AuthServiceLogoutProcedure is the fully-qualified name of the AuthService's Logout RPC.
+	AuthServiceLogoutProcedure = "/auth.v1.AuthService/Logout"
+	// AuthServiceLogoutAllProcedure is the fully-qualified name of the AuthService's LogoutAll RPC.
+	AuthServiceLogoutAllProcedure = "/auth.v1.AuthService/LogoutAll"
+	// AuthServiceRequestEmailVerificationProcedure is the fully-qualified name of the AuthService's
+	// RequestEmailVerification RPC.
+	AuthServiceRequestEmailVerificationProcedure = "/auth.v1.AuthService/RequestEmailVerification"
+	// AuthServiceConfirmEmailVerificationProcedure is the fully-qualified name of the AuthService's
+	// ConfirmEmailVerification RPC.
+	AuthServiceConfirmEmailVerificationProcedure = "/auth.v1.AuthService/ConfirmEmailVerification"
 )
 
 // AuthServiceClient is a client for the auth.v1.AuthService service.
@@ -48,6 +60,31 @@ type AuthServiceClient interface {
 	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error)
 	ForgotPassword(context.Context, *connect.Request[v1.ForgotPasswordRequest]) (*connect.Response[v1.ForgotPasswordResponse], error)
 	ResetPassword(context.Context, *connect.Request[v1.ResetPasswordRequest]) (*connect.Response[v1.ResetPasswordResponse], error)
+	// Refresh rotates the long-lived refresh token into a new one and
+	// mints a fresh access token. Server enforces rotation — calling
+	// twice with the same refresh token revokes the entire family
+	// (theft detection). Mounted under the login rate limiter.
+	Refresh(context.Context, *connect.Request[v1.RefreshRequest]) (*connect.Response[v1.RefreshResponse], error)
+	// Logout revokes the presented refresh token — the one device the
+	// caller is signing out from. Auth-required (access token) so we
+	// know which user, but idempotent against the specific row.
+	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
+	// LogoutAll revokes every non-revoked refresh token the caller
+	// owns. Auth-required; the access token identifies the user.
+	LogoutAll(context.Context, *connect.Request[v1.LogoutAllRequest]) (*connect.Response[v1.LogoutAllResponse], error)
+	// Email verification (soft-nudge mode).
+	//
+	// RequestEmailVerification is auth-required and fires a fresh
+	// verification email to the caller's own email. Rate-limited at
+	// 5/hour/user so the "Resend" button can't be used to flood someone
+	// else's inbox if accounts ever share emails.
+	//
+	// ConfirmEmailVerification is anonymous because the user often
+	// clicks the link from a different device than the one where they
+	// registered. Server looks up the token hash, checks expiry, stamps
+	// users.email_verified_at + tokens.used_at in one transaction.
+	RequestEmailVerification(context.Context, *connect.Request[v1.RequestEmailVerificationRequest]) (*connect.Response[v1.RequestEmailVerificationResponse], error)
+	ConfirmEmailVerification(context.Context, *connect.Request[v1.ConfirmEmailVerificationRequest]) (*connect.Response[v1.ConfirmEmailVerificationResponse], error)
 }
 
 // NewAuthServiceClient constructs a client for the auth.v1.AuthService service. By default, it uses
@@ -79,14 +116,49 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("ResetPassword")),
 			connect.WithClientOptions(opts...),
 		),
+		refresh: connect.NewClient[v1.RefreshRequest, v1.RefreshResponse](
+			httpClient,
+			baseURL+AuthServiceRefreshProcedure,
+			connect.WithSchema(authServiceMethods.ByName("Refresh")),
+			connect.WithClientOptions(opts...),
+		),
+		logout: connect.NewClient[v1.LogoutRequest, v1.LogoutResponse](
+			httpClient,
+			baseURL+AuthServiceLogoutProcedure,
+			connect.WithSchema(authServiceMethods.ByName("Logout")),
+			connect.WithClientOptions(opts...),
+		),
+		logoutAll: connect.NewClient[v1.LogoutAllRequest, v1.LogoutAllResponse](
+			httpClient,
+			baseURL+AuthServiceLogoutAllProcedure,
+			connect.WithSchema(authServiceMethods.ByName("LogoutAll")),
+			connect.WithClientOptions(opts...),
+		),
+		requestEmailVerification: connect.NewClient[v1.RequestEmailVerificationRequest, v1.RequestEmailVerificationResponse](
+			httpClient,
+			baseURL+AuthServiceRequestEmailVerificationProcedure,
+			connect.WithSchema(authServiceMethods.ByName("RequestEmailVerification")),
+			connect.WithClientOptions(opts...),
+		),
+		confirmEmailVerification: connect.NewClient[v1.ConfirmEmailVerificationRequest, v1.ConfirmEmailVerificationResponse](
+			httpClient,
+			baseURL+AuthServiceConfirmEmailVerificationProcedure,
+			connect.WithSchema(authServiceMethods.ByName("ConfirmEmailVerification")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // authServiceClient implements AuthServiceClient.
 type authServiceClient struct {
-	login          *connect.Client[v1.LoginRequest, v1.LoginResponse]
-	forgotPassword *connect.Client[v1.ForgotPasswordRequest, v1.ForgotPasswordResponse]
-	resetPassword  *connect.Client[v1.ResetPasswordRequest, v1.ResetPasswordResponse]
+	login                    *connect.Client[v1.LoginRequest, v1.LoginResponse]
+	forgotPassword           *connect.Client[v1.ForgotPasswordRequest, v1.ForgotPasswordResponse]
+	resetPassword            *connect.Client[v1.ResetPasswordRequest, v1.ResetPasswordResponse]
+	refresh                  *connect.Client[v1.RefreshRequest, v1.RefreshResponse]
+	logout                   *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
+	logoutAll                *connect.Client[v1.LogoutAllRequest, v1.LogoutAllResponse]
+	requestEmailVerification *connect.Client[v1.RequestEmailVerificationRequest, v1.RequestEmailVerificationResponse]
+	confirmEmailVerification *connect.Client[v1.ConfirmEmailVerificationRequest, v1.ConfirmEmailVerificationResponse]
 }
 
 // Login calls auth.v1.AuthService.Login.
@@ -104,11 +176,61 @@ func (c *authServiceClient) ResetPassword(ctx context.Context, req *connect.Requ
 	return c.resetPassword.CallUnary(ctx, req)
 }
 
+// Refresh calls auth.v1.AuthService.Refresh.
+func (c *authServiceClient) Refresh(ctx context.Context, req *connect.Request[v1.RefreshRequest]) (*connect.Response[v1.RefreshResponse], error) {
+	return c.refresh.CallUnary(ctx, req)
+}
+
+// Logout calls auth.v1.AuthService.Logout.
+func (c *authServiceClient) Logout(ctx context.Context, req *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error) {
+	return c.logout.CallUnary(ctx, req)
+}
+
+// LogoutAll calls auth.v1.AuthService.LogoutAll.
+func (c *authServiceClient) LogoutAll(ctx context.Context, req *connect.Request[v1.LogoutAllRequest]) (*connect.Response[v1.LogoutAllResponse], error) {
+	return c.logoutAll.CallUnary(ctx, req)
+}
+
+// RequestEmailVerification calls auth.v1.AuthService.RequestEmailVerification.
+func (c *authServiceClient) RequestEmailVerification(ctx context.Context, req *connect.Request[v1.RequestEmailVerificationRequest]) (*connect.Response[v1.RequestEmailVerificationResponse], error) {
+	return c.requestEmailVerification.CallUnary(ctx, req)
+}
+
+// ConfirmEmailVerification calls auth.v1.AuthService.ConfirmEmailVerification.
+func (c *authServiceClient) ConfirmEmailVerification(ctx context.Context, req *connect.Request[v1.ConfirmEmailVerificationRequest]) (*connect.Response[v1.ConfirmEmailVerificationResponse], error) {
+	return c.confirmEmailVerification.CallUnary(ctx, req)
+}
+
 // AuthServiceHandler is an implementation of the auth.v1.AuthService service.
 type AuthServiceHandler interface {
 	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error)
 	ForgotPassword(context.Context, *connect.Request[v1.ForgotPasswordRequest]) (*connect.Response[v1.ForgotPasswordResponse], error)
 	ResetPassword(context.Context, *connect.Request[v1.ResetPasswordRequest]) (*connect.Response[v1.ResetPasswordResponse], error)
+	// Refresh rotates the long-lived refresh token into a new one and
+	// mints a fresh access token. Server enforces rotation — calling
+	// twice with the same refresh token revokes the entire family
+	// (theft detection). Mounted under the login rate limiter.
+	Refresh(context.Context, *connect.Request[v1.RefreshRequest]) (*connect.Response[v1.RefreshResponse], error)
+	// Logout revokes the presented refresh token — the one device the
+	// caller is signing out from. Auth-required (access token) so we
+	// know which user, but idempotent against the specific row.
+	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
+	// LogoutAll revokes every non-revoked refresh token the caller
+	// owns. Auth-required; the access token identifies the user.
+	LogoutAll(context.Context, *connect.Request[v1.LogoutAllRequest]) (*connect.Response[v1.LogoutAllResponse], error)
+	// Email verification (soft-nudge mode).
+	//
+	// RequestEmailVerification is auth-required and fires a fresh
+	// verification email to the caller's own email. Rate-limited at
+	// 5/hour/user so the "Resend" button can't be used to flood someone
+	// else's inbox if accounts ever share emails.
+	//
+	// ConfirmEmailVerification is anonymous because the user often
+	// clicks the link from a different device than the one where they
+	// registered. Server looks up the token hash, checks expiry, stamps
+	// users.email_verified_at + tokens.used_at in one transaction.
+	RequestEmailVerification(context.Context, *connect.Request[v1.RequestEmailVerificationRequest]) (*connect.Response[v1.RequestEmailVerificationResponse], error)
+	ConfirmEmailVerification(context.Context, *connect.Request[v1.ConfirmEmailVerificationRequest]) (*connect.Response[v1.ConfirmEmailVerificationResponse], error)
 }
 
 // NewAuthServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -136,6 +258,36 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("ResetPassword")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceRefreshHandler := connect.NewUnaryHandler(
+		AuthServiceRefreshProcedure,
+		svc.Refresh,
+		connect.WithSchema(authServiceMethods.ByName("Refresh")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceLogoutHandler := connect.NewUnaryHandler(
+		AuthServiceLogoutProcedure,
+		svc.Logout,
+		connect.WithSchema(authServiceMethods.ByName("Logout")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceLogoutAllHandler := connect.NewUnaryHandler(
+		AuthServiceLogoutAllProcedure,
+		svc.LogoutAll,
+		connect.WithSchema(authServiceMethods.ByName("LogoutAll")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceRequestEmailVerificationHandler := connect.NewUnaryHandler(
+		AuthServiceRequestEmailVerificationProcedure,
+		svc.RequestEmailVerification,
+		connect.WithSchema(authServiceMethods.ByName("RequestEmailVerification")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceConfirmEmailVerificationHandler := connect.NewUnaryHandler(
+		AuthServiceConfirmEmailVerificationProcedure,
+		svc.ConfirmEmailVerification,
+		connect.WithSchema(authServiceMethods.ByName("ConfirmEmailVerification")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/auth.v1.AuthService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AuthServiceLoginProcedure:
@@ -144,6 +296,16 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceForgotPasswordHandler.ServeHTTP(w, r)
 		case AuthServiceResetPasswordProcedure:
 			authServiceResetPasswordHandler.ServeHTTP(w, r)
+		case AuthServiceRefreshProcedure:
+			authServiceRefreshHandler.ServeHTTP(w, r)
+		case AuthServiceLogoutProcedure:
+			authServiceLogoutHandler.ServeHTTP(w, r)
+		case AuthServiceLogoutAllProcedure:
+			authServiceLogoutAllHandler.ServeHTTP(w, r)
+		case AuthServiceRequestEmailVerificationProcedure:
+			authServiceRequestEmailVerificationHandler.ServeHTTP(w, r)
+		case AuthServiceConfirmEmailVerificationProcedure:
+			authServiceConfirmEmailVerificationHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -163,4 +325,24 @@ func (UnimplementedAuthServiceHandler) ForgotPassword(context.Context, *connect.
 
 func (UnimplementedAuthServiceHandler) ResetPassword(context.Context, *connect.Request[v1.ResetPasswordRequest]) (*connect.Response[v1.ResetPasswordResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("auth.v1.AuthService.ResetPassword is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) Refresh(context.Context, *connect.Request[v1.RefreshRequest]) (*connect.Response[v1.RefreshResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("auth.v1.AuthService.Refresh is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("auth.v1.AuthService.Logout is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) LogoutAll(context.Context, *connect.Request[v1.LogoutAllRequest]) (*connect.Response[v1.LogoutAllResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("auth.v1.AuthService.LogoutAll is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) RequestEmailVerification(context.Context, *connect.Request[v1.RequestEmailVerificationRequest]) (*connect.Response[v1.RequestEmailVerificationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("auth.v1.AuthService.RequestEmailVerification is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) ConfirmEmailVerification(context.Context, *connect.Request[v1.ConfirmEmailVerificationRequest]) (*connect.Response[v1.ConfirmEmailVerificationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("auth.v1.AuthService.ConfirmEmailVerification is not implemented"))
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import * as Tabs from '@radix-ui/react-tabs';
 import {
@@ -23,6 +23,7 @@ import {
   updateUser,
   getUserLikes,
   getUserBracketLikes,
+  getUserActivity,
   getMatchup,
   getBracket,
 } from '../services/api';
@@ -32,7 +33,12 @@ import ProfilePic from '../components/ProfilePic';
 import Button from '../components/Button';
 import FollowListModal from '../components/FollowListModal';
 import EmptyStateCard from '../components/EmptyStateCard';
+import ActivityFeed from '../components/ActivityFeed';
+import NotificationSettings from '../components/NotificationSettings';
+import BlockMuteMenu from '../components/BlockMuteMenu';
 import SkeletonCard from '../components/SkeletonCard';
+import { useAnonUpgradePrompt } from '../contexts/AnonUpgradeContext';
+import { track } from '../utils/analytics';
 import '../styles/UserProfile.css';
 
 const normalizeToArray = (raw) => {
@@ -43,11 +49,16 @@ const normalizeToArray = (raw) => {
     if (Array.isArray(raw.data)) return raw.data;
     if (Array.isArray(raw.matchups)) return raw.matchups;
     if (Array.isArray(raw.brackets)) return raw.brackets;
+    // The `likes` key is what `GetUserLikes` / `GetUserBracketLikes`
+    // return — without this the Likes tab silently empties to [] even
+    // when the user has real like rows in the DB.
+    if (Array.isArray(raw.likes)) return raw.likes;
 
     if (raw.response && typeof raw.response === 'object') {
       if (Array.isArray(raw.response.matchups)) return raw.response.matchups;
       if (Array.isArray(raw.response.brackets)) return raw.response.brackets;
       if (Array.isArray(raw.response.data)) return raw.response.data;
+      if (Array.isArray(raw.response.likes)) return raw.response.likes;
     }
   }
 
@@ -123,7 +134,19 @@ const UserProfile = () => {
   const [listFollowBusyId, setListFollowBusyId] = useState(null);
   const [listFollowError, setListFollowError] = useState(null);
   const [followModalOpen, setFollowModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('matchups');
+  // Respect `?tab=` on first mount so deep-links from NotificationBell's
+  // "See all activity" land on the correct tab. Only the four tab
+  // values we actually render are accepted — unknown values fall back
+  // to the default so a typo'd URL doesn't render a blank panel.
+  const [searchParams] = useSearchParams();
+  const initialTab = (() => {
+    const raw = searchParams.get('tab');
+    if (raw && ['matchups', 'brackets', 'activity', 'likes'].includes(raw)) {
+      return raw;
+    }
+    return 'matchups';
+  })();
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -137,6 +160,22 @@ const UserProfile = () => {
   const [likedBrackets, setLikedBrackets] = useState([]);
   const [likesLoaded, setLikesLoaded] = useState(false);
 
+  // Activity tab state — same lazy-load pattern as Likes. The
+  // `activityLastSeenAt` snapshot is taken at tab-open time so every
+  // item that arrived AFTER we opened the tab keeps its unread dot
+  // until the next tab switch bumps it. Stored in localStorage so the
+  // dot persists across sessions.
+  const [activityItems, setActivityItems] = useState([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityError, setActivityError] = useState(null);
+  const [activityLoaded, setActivityLoaded] = useState(false);
+  const [activityLastSeenAt, setActivityLastSeenAt] = useState(null);
+  // Pagination cursor for "Load more" on the activity tab. Server
+  // returns the occurred_at of the last item as next_before when
+  // another page exists; null/empty when we've hit the end.
+  const [activityNextBefore, setActivityNextBefore] = useState(null);
+  const [activityLoadingMore, setActivityLoadingMore] = useState(false);
+
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [archiveModalTarget, setArchiveModalTarget] = useState(null);
   const [editBio, setEditBio] = useState('');
@@ -149,6 +188,17 @@ const UserProfile = () => {
     setLikedBrackets([]);
     setLikesError(null);
     setLikesLoading(false);
+  }, [identifier]);
+
+  // Wipe activity state when viewing a different profile.
+  useEffect(() => {
+    setActivityLoaded(false);
+    setActivityItems([]);
+    setActivityError(null);
+    setActivityLoading(false);
+    setActivityLastSeenAt(null);
+    setActivityNextBefore(null);
+    setActivityLoadingMore(false);
   }, [identifier]);
 
   useEffect(() => {
@@ -287,6 +337,85 @@ const UserProfile = () => {
       isMounted = false;
     };
   }, [activeTab, user, identifier, likesLoaded]);
+
+  // Lazy-load the Activity feed on first tab-open. Reads + writes the
+  // localStorage "last seen" timestamp so unread dots survive reloads.
+  // The cursor-at-open-time lets items that arrive during the visit
+  // still render as unread until the next tab switch.
+  useEffect(() => {
+    let isMounted = true;
+    const loadActivity = async () => {
+      if (activeTab !== 'activity' || !user || activityLoaded) return;
+      const userLookupId = user?.id || identifier;
+      if (!userLookupId) return;
+
+      // Snapshot the "last seen" BEFORE updating — this is what the
+      // renderer uses to decide which items show the dot.
+      const storageKey = `activity_last_seen_at:${userLookupId}`;
+      let previousSeen = null;
+      try {
+        previousSeen = window.localStorage.getItem(storageKey);
+      } catch {
+        // localStorage blocked / unavailable; fine, no dots.
+      }
+      setActivityLastSeenAt(previousSeen);
+
+      setActivityLoading(true);
+      setActivityError(null);
+      try {
+        const res = await getUserActivity(userLookupId, { limit: 50 });
+        if (!isMounted) return;
+        const items = Array.isArray(res.data?.items) ? res.data.items : [];
+        setActivityItems(items);
+        setActivityNextBefore(res.data?.next_before || null);
+        setActivityLoaded(true);
+        // Update "last seen" AFTER we've stored the previous value in
+        // state; next visit will compute unread against this tab-open.
+        try {
+          window.localStorage.setItem(storageKey, new Date().toISOString());
+        } catch {
+          // noop
+        }
+      } catch (err) {
+        console.warn('Activity unavailable', err);
+        if (!isMounted) return;
+        setActivityError('Activity unavailable.');
+      } finally {
+        if (isMounted) setActivityLoading(false);
+      }
+    };
+
+    loadActivity();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab, user, identifier, activityLoaded]);
+
+  // Load the next page of activity using the server-provided cursor.
+  // Appends to the current list rather than replacing it; the render
+  // order is preserved because the server returns DESC and we always
+  // pass the tail's occurred_at as the next cursor.
+  const loadMoreActivity = async () => {
+    if (!activityNextBefore || activityLoadingMore) return;
+    const userLookupId = user?.id || identifier;
+    if (!userLookupId) return;
+    setActivityLoadingMore(true);
+    try {
+      const res = await getUserActivity(userLookupId, {
+        limit: 50,
+        before: activityNextBefore,
+      });
+      const more = Array.isArray(res.data?.items) ? res.data.items : [];
+      setActivityItems((prev) => [...prev, ...more]);
+      setActivityNextBefore(res.data?.next_before || null);
+    } catch (err) {
+      console.warn('Load more activity failed', err);
+      setActivityError('Could not load more activity.');
+    } finally {
+      setActivityLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -434,6 +563,7 @@ const UserProfile = () => {
     (viewerUsername &&
       user?.username &&
       user?.username && viewerUsername.toLowerCase() === user.username.toLowerCase());
+  const { promptUpgrade } = useAnonUpgradePrompt();
 
   const matchupEmptyHeading = matchupsError ? 'Matchups unavailable' : 'No matchups yet';
   const matchupEmptyMessage = matchupsError
@@ -456,7 +586,10 @@ const UserProfile = () => {
   const handleFollowToggle = async () => {
     setFollowError(null);
     if (!viewerId) {
-      navigate('/login');
+      // Anon trying to follow → upgrade modal. Same conversion arc
+      // as the vote-cap CTA: explain why an account helps, give them
+      // both Sign up and Log in. Beats a hard redirect to /login.
+      promptUpgrade('follow');
       return;
     }
     if (isViewer || followBusy) return;
@@ -479,6 +612,7 @@ const UserProfile = () => {
               }
             : prev
         );
+        track('follow_removed', { target_user_id: profileId });
       } else {
         await followUser(profileId);
         setRelationship(prev => {
@@ -497,6 +631,7 @@ const UserProfile = () => {
               }
             : prev
         );
+        track('follow_created', { target_user_id: profileId });
       }
     } catch (err) {
       console.error('Follow action failed', err);
@@ -713,13 +848,15 @@ const UserProfile = () => {
                         <Button
                           onClick={handleFollowToggle}
                           className={relationship?.following ? 'profile-secondary-button' : 'profile-primary-button'}
-                          disabled={followBusy}
+                          disabled={followBusy || relationship?.blocked}
                         >
                           {!viewerId
                             ? 'Log in to follow'
-                            : relationship?.following
-                              ? 'Following'
-                              : 'Follow'}
+                            : relationship?.blocked
+                              ? 'Blocked'
+                              : relationship?.following
+                                ? 'Following'
+                                : 'Follow'}
                         </Button>
                         <Button
                           className="profile-secondary-button profile-secondary-button--disabled"
@@ -727,6 +864,38 @@ const UserProfile = () => {
                         >
                           <FiMessageCircle /> Message
                         </Button>
+                        {viewerId && (
+                          <BlockMuteMenu
+                            targetId={user.username || profileId}
+                            targetUserUuid={user.public_id || user.id || profileId}
+                            initiallyBlocked={Boolean(relationship?.blocked)}
+                            initiallyMuted={Boolean(relationship?.muted)}
+                            onStateChange={(next) => {
+                              // Mirror into the local relationship so the
+                              // Follow button flips to "Blocked" immediately
+                              // and any follow-side-effect counts reset.
+                              setRelationship(prev => ({
+                                ...(prev || {}),
+                                blocked: next.blocked,
+                                muted: next.muted,
+                                // Block severs follow edges server-side.
+                                following: next.blocked ? false : (prev?.following || false),
+                                followed_by: next.blocked ? false : (prev?.followed_by || false),
+                                mutual: next.blocked ? false : (prev?.mutual || false),
+                              }));
+                              if (next.blocked) {
+                                // Reflect the server-side follower_count
+                                // decrement so the header doesn't lie
+                                // until a reload.
+                                setUser(prev => prev ? {
+                                  ...prev,
+                                  followers_count: Math.max((prev.followers_count || 0) - (relationship?.followed_by ? 1 : 0), 0),
+                                  following_count: Math.max((prev.following_count || 0) - (relationship?.following ? 1 : 0), 0),
+                                } : prev);
+                              }
+                            }}
+                          />
+                        )}
                       </>
                     )}
                     {isViewer && (
@@ -756,6 +925,19 @@ const UserProfile = () => {
                       >
                         {user.is_private ? 'Make public' : 'Make followers-only'}
                       </Button>
+                      <NotificationSettings />
+                      <Link
+                        to="/settings/blocks"
+                        className="profile-secondary-button profile-settings-link"
+                      >
+                        Blocks & mutes
+                      </Link>
+                      <Link
+                        to="/settings/account"
+                        className="profile-secondary-button profile-settings-link"
+                      >
+                        Account settings
+                      </Link>
                     </div>
                   )}
                   {privacyError && (
@@ -860,7 +1042,7 @@ const UserProfile = () => {
                     )}
                   </header>
 
-                  <div className="profile-grid">
+                  <div className="profile-grid profile-grid--compact">
                     {bracketsLoading && (
                       Array.from({ length: 3 }).map((_, index) => (
                         <SkeletonCard key={`bracket-skeleton-${index}`} />
@@ -871,7 +1053,7 @@ const UserProfile = () => {
                         {brackets.map(b => (
                           <motion.article
                             key={b.id}
-                            className="profile-card"
+                            className="profile-card profile-card--compact"
                             layout
                             initial={{ opacity: 0, y: 12 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -925,15 +1107,31 @@ const UserProfile = () => {
                       <p>A timeline of votes, wins, and new debates.</p>
                     </div>
                   </header>
-                  <EmptyStateCard
-                    title="Your activity timeline is quiet"
-                    description="Follow a few creators or jump into a matchup to start seeing activity here."
-                    ctaLabel="Browse trending"
-                    onCta={() => navigate('/home')}
-                    suggestions={['Vote on a matchup', 'Follow 3 creators', 'Share your first matchup']}
-                    tips={['Votes happening now', 'Trending matchups refresh daily']}
-                    icon={FiActivity}
+                  <ActivityFeed
+                    items={activityItems}
+                    lastSeenAt={activityLastSeenAt}
+                    loading={activityLoading}
+                    error={activityError}
+                    onRetry={() => {
+                      // Re-arm the load useEffect by flipping the
+                      // "loaded" guard. Keeps the single source of
+                      // truth for fetch logic inside the effect.
+                      setActivityError(null);
+                      setActivityLoaded(false);
+                    }}
                   />
+                  {activityLoaded && activityNextBefore && !activityError && (
+                    <div className="profile-activity-load-more">
+                      <button
+                        type="button"
+                        className="profile-secondary-button"
+                        onClick={loadMoreActivity}
+                        disabled={activityLoadingMore}
+                      >
+                        {activityLoadingMore ? 'Loading…' : 'Load more'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </Tabs.Content>
 
@@ -1020,11 +1218,11 @@ const UserProfile = () => {
                               <h3>Brackets you liked</h3>
                             </div>
                           </header>
-                          <div className="profile-grid">
+                          <div className="profile-grid profile-grid--compact">
                             {likedBrackets.map((bracket) => (
                               <motion.article
                                 key={`liked-bracket-${bracket.id}`}
-                                className="profile-card"
+                                className="profile-card profile-card--compact"
                                 layout
                                 initial={{ opacity: 0, y: 12 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -1034,8 +1232,7 @@ const UserProfile = () => {
                               >
                                 <div>
                                   <h3>{bracket.title}</h3>
-                                  <p>{bracket.description || 'No description yet.'}</p>
-                                  <p className="profile-card-meta">Status: {bracket.status || 'draft'}</p>
+                                  <p>{(bracket.description || '').slice(0, 120) || 'No description yet.'}</p>
                                 </div>
                                 <Link to={`/brackets/${bracket.id}`} className="profile-card-link">
                                   View bracket ->
