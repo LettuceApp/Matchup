@@ -285,6 +285,20 @@ var errUnverifiedContentCreate = connect.NewError(
 // Voting, liking, following, and profile edits stay open so review
 // bots can exercise the app end-to-end without tripping the gate.
 func requireVerifiedEmail(ctx context.Context, db sqlx.ExtContext, userID uint) error {
+	// TEMPORARY: email-verification gate is disabled in prod while
+	// SendGrid configuration is still being sorted out. Returning
+	// nil here lets unverified accounts create matchups, brackets,
+	// and comments. The column, the verify endpoints, and the
+	// frontend banner all stay wired — only this single check is
+	// short-circuited, so re-enabling is a one-line revert. The
+	// rest of the function (preserved below) is the real
+	// implementation; remove the early return to bring it back.
+	_ = userID
+	_ = ctx
+	_ = db
+	return nil
+
+	/* original implementation, kept for the revert:
 	if userID == 0 {
 		// Not logged in — the handler's own auth check returns
 		// Unauthenticated first, so we should never hit this branch
@@ -305,4 +319,5 @@ func requireVerifiedEmail(ctx context.Context, db sqlx.ExtContext, userID uint) 
 		return errUnverifiedContentCreate
 	}
 	return nil
+	*/
 }
