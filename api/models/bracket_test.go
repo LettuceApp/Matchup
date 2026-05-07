@@ -5,12 +5,26 @@ import (
 	"time"
 )
 
-func TestBracketPrepare_SanitizesTitle(t *testing.T) {
+// Prepare() used to call html.EscapeString on the title before insert,
+// but React auto-escapes JSX text nodes at render — the backend escape
+// was double-encoding and surfacing as &#39; etc. in the UI. The test
+// now asserts the new contract: titles are trimmed but stored raw.
+func TestBracketPrepare_TrimsTitle(t *testing.T) {
 	b := Bracket{Title: "  <b>Title</b>  "}
 	b.Prepare()
-	want := "&lt;b&gt;Title&lt;/b&gt;"
+	want := "<b>Title</b>"
 	if b.Title != want {
 		t.Errorf("Title = %q, want %q", b.Title, want)
+	}
+}
+
+func TestBracketPrepare_PreservesApostrophe(t *testing.T) {
+	b := Bracket{Title: "Greatest '90s Movie"}
+	b.Prepare()
+	want := "Greatest '90s Movie"
+	if b.Title != want {
+		t.Errorf("Title = %q, want %q (apostrophe must round-trip un-encoded)",
+			b.Title, want)
 	}
 }
 

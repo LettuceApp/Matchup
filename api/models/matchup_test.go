@@ -5,12 +5,26 @@ import (
 	"time"
 )
 
-func TestMatchupPrepare_SanitizesTitle(t *testing.T) {
+// Prepare() used to call html.EscapeString on the title before insert,
+// but React auto-escapes JSX text nodes at render — the backend escape
+// was double-encoding and surfacing as &#39; etc. in the UI. The test
+// now asserts the new contract: titles are trimmed but stored raw.
+func TestMatchupPrepare_TrimsTitle(t *testing.T) {
 	m := Matchup{Title: "  <b>Test</b>  "}
 	m.Prepare()
-	want := "&lt;b&gt;Test&lt;/b&gt;"
+	want := "<b>Test</b>"
 	if m.Title != want {
 		t.Errorf("Title = %q, want %q", m.Title, want)
+	}
+}
+
+func TestMatchupPrepare_PreservesApostrophe(t *testing.T) {
+	m := Matchup{Title: "Greatest '90s Movie"}
+	m.Prepare()
+	want := "Greatest '90s Movie"
+	if m.Title != want {
+		t.Errorf("Title = %q, want %q (apostrophe must round-trip un-encoded)",
+			m.Title, want)
 	}
 }
 
