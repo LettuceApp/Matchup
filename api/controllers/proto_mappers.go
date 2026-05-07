@@ -244,7 +244,7 @@ func voteToProto(vote models.MatchupVote) *matchupv1.MatchupVoteData {
 		Id:            vote.PublicID,
 		UserId:        userID,
 		MatchupId:     vote.MatchupPublicID,
-		MatchupItemId: vote.MatchupItemPublicID,
+		MatchupItemId: vote.PickedItemID(),
 		CreatedAt:     rfc3339(vote.CreatedAt),
 	}
 }

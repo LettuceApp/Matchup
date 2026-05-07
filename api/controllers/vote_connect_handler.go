@@ -198,7 +198,7 @@ func (h *MatchupItemHandler) VoteItem(ctx context.Context, req *connect.Request[
 
 	if voteErr == nil {
 		// Vote exists on same item — already voted
-		if existingVote.MatchupItemPublicID == item.PublicID {
+		if existingVote.PickedItemID() == item.PublicID {
 			var updatedItem models.MatchupItem
 			if err := sqlx.GetContext(ctx, h.DB, &updatedItem, "SELECT * FROM matchup_items WHERE id = $1", item.ID); err != nil {
 				return nil, connect.NewError(connect.CodeInternal, err)
@@ -215,24 +215,35 @@ func (h *MatchupItemHandler) VoteItem(ctx context.Context, req *connect.Request[
 		}
 		// Switch vote — only the matchup_votes pointer move stays
 		// in-transaction. The matchup_items counter changes happen
-		// in Redis after commit (see below).
+		// in Redis after commit (see below). Setting kind back to
+		// 'pick' here covers the skip → pick switch (user skipped,
+		// then changed their mind and picked a contender).
 		tx, err := h.DB.Beginx()
 		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
 		defer tx.Rollback()
 
-		var prevItem models.MatchupItem
-		if err := sqlx.GetContext(ctx, tx, &prevItem, "SELECT * FROM matchup_items WHERE public_id = $1", existingVote.MatchupItemPublicID); err != nil {
-			return nil, connect.NewError(connect.CodeInternal, err)
+		// Only fetch the previous item if the existing vote was a
+		// pick. Skip rows have a nil item reference, so there's no
+		// previous item to decrement — voteDecrItemID stays zero
+		// in that branch.
+		if prev := existingVote.PickedItemID(); prev != "" {
+			var prevItem models.MatchupItem
+			if err := sqlx.GetContext(ctx, tx, &prevItem, "SELECT * FROM matchup_items WHERE public_id = $1", prev); err != nil {
+				return nil, connect.NewError(connect.CodeInternal, err)
+			}
+			voteDecrItemID = prevItem.ID
 		}
-		if _, err := tx.ExecContext(ctx, "UPDATE matchup_votes SET matchup_item_public_id = $1 WHERE id = $2", item.PublicID, existingVote.ID); err != nil {
+		if _, err := tx.ExecContext(ctx,
+			"UPDATE matchup_votes SET matchup_item_public_id = $1, kind = 'pick', updated_at = NOW() WHERE id = $2",
+			item.PublicID, existingVote.ID,
+		); err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
 		if err := tx.Commit(); err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
 		}
-		voteDecrItemID = prevItem.ID
 		voteIncrItemID = item.ID
 	} else {
 		// New vote — only the matchup_votes INSERT stays in the
@@ -244,9 +255,13 @@ func (h *MatchupItemHandler) VoteItem(ctx context.Context, req *connect.Request[
 		// be gated. Counting live rows (rather than tracking a
 		// counter) means a deleted matchup naturally restores a slot.
 		if isAnon {
+			// Skip rows don't count toward the anon cap (migration 025
+			// added the kind column). Picks are the gated event — skips
+			// are intended to be free so users can browse without
+			// burning their 3 free votes on "I can't decide".
 			var used int
 			if err := h.DB.GetContext(ctx, &used,
-				`SELECT COUNT(*) FROM matchup_votes WHERE anon_id = $1`,
+				`SELECT COUNT(*) FROM matchup_votes WHERE anon_id = $1 AND kind = 'pick'`,
 				*identity.AnonID,
 			); err != nil {
 				return nil, connect.NewError(connect.CodeInternal, err)
@@ -360,6 +375,194 @@ func (h *MatchupItemHandler) VoteItem(ctx context.Context, req *connect.Request[
 	return resp, nil
 }
 
+// SkipMatchup records that the viewer chose not to pick either contender
+// on a matchup. The skip lands in matchup_votes alongside picks but with
+// kind='skip' and a NULL matchup_item_public_id (migration 025 added the
+// column + nullability + check constraints). Skips do NOT count toward
+// the anon vote cap and do NOT increment any item's votes counter.
+//
+// Three flows:
+//
+//  1. No prior vote on this matchup → INSERT a fresh skip row.
+//  2. Prior pick on this matchup → UPDATE the row to skip + decrement the
+//     previously-picked item's counter (same ledger semantics as switching
+//     between picks).
+//  3. Prior skip on this matchup → idempotent no-op; return AlreadySkipped.
+//
+// Anon callers can skip standalone matchups but not bracket matchups —
+// brackets stay members-only, mirroring the VoteItem rule.
+func (h *MatchupItemHandler) SkipMatchup(ctx context.Context, req *connect.Request[matchupv1.SkipMatchupRequest]) (*connect.Response[matchupv1.SkipMatchupResponse], error) {
+	httpReq := &http.Request{Header: req.Header(), URL: &url.URL{}, RemoteAddr: req.Peer().Addr}
+	identity, err := resolveVoteIdentityFromRequest(httpReq, req.Msg.AnonId, h.DB)
+	if err != nil {
+		if errors.Is(err, errInvalidAuthToken) {
+			return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("unauthorized"))
+		}
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	var m models.Matchup
+	if err := sqlx.GetContext(ctx, h.DB, &m, "SELECT * FROM matchups WHERE public_id = $1", req.Msg.MatchupId); err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("matchup not found"))
+	}
+
+	var owner models.User
+	if err := sqlx.GetContext(ctx, h.DB, &owner, "SELECT * FROM users WHERE id = $1", m.AuthorID); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	viewerID := uint(0)
+	hasViewer := false
+	if identity.UserID != nil {
+		viewerID = *identity.UserID
+		hasViewer = true
+	}
+	allowed, reason, err := canViewUserContent(h.DB, viewerID, hasViewer, &owner, m.Visibility, httpctx.IsAdminRequest(ctx))
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if !allowed {
+		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("%s", visibilityErrorMessage(reason)))
+	}
+
+	isAnon := identity.UserID == nil
+	if isAnon {
+		if m.BracketID != nil {
+			return nil, connect.NewError(
+				connect.CodePermissionDenied,
+				fmt.Errorf("create an account to vote in brackets"),
+			)
+		}
+		// Anon skips ride the same IP-tier rate limiter as picks. A
+		// machine churning anon UUIDs to spam skips is still abuse,
+		// even if the cap doesn't apply.
+		if allowed, _ := middlewares.CheckIPRateLimit(
+			ctx, req.Peer().Addr, "anon_vote_ip", anonVoteIPBudget, time.Hour,
+		); !allowed {
+			return nil, connect.NewError(
+				connect.CodeResourceExhausted,
+				fmt.Errorf("too many anon actions from this network; try again later"),
+			)
+		}
+	}
+
+	isOwner := identity.UserID != nil && *identity.UserID == m.AuthorID
+	if !isOwner {
+		if m.Status == matchupStatusCompleted {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("voting is locked for this matchup"))
+		}
+		if m.BracketID == nil && !isMatchupOpenStatus(m.Status) {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("matchup is not active"))
+		}
+		if m.EndTime != nil && time.Now().After(*m.EndTime) {
+			return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("voting is closed for this matchup"))
+		}
+		if m.BracketID != nil {
+			var bracket models.Bracket
+			if err := sqlx.GetContext(ctx, h.DB, &bracket, "SELECT * FROM brackets WHERE id = $1", *m.BracketID); err != nil {
+				return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("bracket not found"))
+			}
+			if bracket.Status != "active" {
+				return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("bracket is not active"))
+			}
+			if m.Round == nil || *m.Round != bracket.CurrentRound {
+				return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("voting is locked for this round"))
+			}
+		}
+	}
+
+	var existingVote models.MatchupVote
+	var voteErr error
+	if identity.UserID != nil {
+		voteErr = sqlx.GetContext(ctx, h.DB, &existingVote,
+			"SELECT * FROM matchup_votes WHERE matchup_public_id = $1 AND user_id = $2",
+			m.PublicID, *identity.UserID)
+	} else {
+		voteErr = sqlx.GetContext(ctx, h.DB, &existingVote,
+			"SELECT * FROM matchup_votes WHERE matchup_public_id = $1 AND anon_id = $2",
+			m.PublicID, *identity.AnonID)
+	}
+	if voteErr != nil && !errors.Is(voteErr, sql.ErrNoRows) {
+		return nil, connect.NewError(connect.CodeInternal, voteErr)
+	}
+
+	var voteDecrItemID uint
+
+	if voteErr == nil {
+		// Already a vote on this matchup.
+		if existingVote.Kind == "skip" {
+			// Idempotent — return AlreadySkipped without touching the row.
+			return connect.NewResponse(&matchupv1.SkipMatchupResponse{
+				AlreadySkipped: true,
+			}), nil
+		}
+		// Pick → skip. Decrement the previously-picked item's counter
+		// and rewrite the row to a skip.
+		if prev := existingVote.PickedItemID(); prev != "" {
+			var prevItem models.MatchupItem
+			if err := sqlx.GetContext(ctx, h.DB, &prevItem,
+				"SELECT * FROM matchup_items WHERE public_id = $1", prev,
+			); err != nil {
+				return nil, connect.NewError(connect.CodeInternal, err)
+			}
+			voteDecrItemID = prevItem.ID
+		}
+		if _, err := h.DB.ExecContext(ctx,
+			"UPDATE matchup_votes SET kind = 'skip', matchup_item_public_id = NULL, updated_at = NOW() WHERE id = $1",
+			existingVote.ID,
+		); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+	} else {
+		// No prior vote — insert a fresh skip. No anon-cap check
+		// because skips never count.
+		now := time.Now()
+		var userID *uint
+		var anonID *string
+		if identity.UserID != nil {
+			userID = identity.UserID
+		} else {
+			anonID = identity.AnonID
+		}
+		if _, err := h.DB.ExecContext(ctx,
+			`INSERT INTO matchup_votes (public_id, user_id, anon_id, matchup_public_id, matchup_item_public_id, kind, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, NULL, 'skip', $5, $6)`,
+			appdb.GeneratePublicID(), userID, anonID, m.PublicID, now, now,
+		); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+	}
+
+	// Apply the decrement (if any) to the Redis vote buffer; fall back
+	// to a direct DB write when Redis is unavailable. Same belt+
+	// suspenders dance as VoteItem.
+	if voteDecrItemID != 0 {
+		if cache.Client != nil {
+			key := voteDeltaKey(voteDecrItemID)
+			if err := cache.Client.Decr(ctx, key).Err(); err != nil {
+				log.Printf("skip: redis decr failed for item %d: %v", voteDecrItemID, err)
+			}
+			cache.Client.Expire(ctx, key, 2*time.Hour)
+		} else {
+			if _, err := h.DB.ExecContext(ctx,
+				"UPDATE matchup_items SET votes = GREATEST(votes - 1, 0) WHERE id = $1",
+				voteDecrItemID,
+			); err != nil {
+				return nil, connect.NewError(connect.CodeInternal, err)
+			}
+		}
+	}
+
+	if m.BracketID != nil {
+		invalidateBracketSummaryCache(*m.BracketID)
+	}
+	invalidateHomeSummaryCache(m.AuthorID)
+
+	resp := connect.NewResponse(&matchupv1.SkipMatchupResponse{AlreadySkipped: false})
+	setReadPrimaryCookie(resp.Header())
+	return resp, nil
+}
+
 func (h *MatchupItemHandler) AddItem(ctx context.Context, req *connect.Request[matchupv1.AddItemRequest]) (*connect.Response[matchupv1.AddItemResponse], error) {
 	requestorID, ok := httpctx.CurrentUserID(ctx)
 	if !ok {
@@ -463,10 +666,12 @@ func (h *MatchupItemHandler) GetAnonVoteStatus(ctx context.Context, req *connect
 	used := int32(0)
 	if anonID != "" {
 		// Pure read — safe on the replica.
+		// Filter by kind='pick' — only picks count toward the cap;
+		// see VoteItem for the matching enforcement query (migration 025).
 		db := dbForRead(ctx, h.DB, h.ReadDB)
 		var n int
 		if err := sqlx.GetContext(ctx, db, &n,
-			`SELECT COUNT(*) FROM matchup_votes WHERE anon_id = $1`,
+			`SELECT COUNT(*) FROM matchup_votes WHERE anon_id = $1 AND kind = 'pick'`,
 			anonID,
 		); err != nil {
 			return nil, connect.NewError(connect.CodeInternal, err)
@@ -487,8 +692,14 @@ func (h *MatchupItemHandler) GetUserVotes(ctx context.Context, req *connect.Requ
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("user not found"))
 	}
+	// Filter to picks only — GetUserVotes powers the "matchups I voted
+	// on" UI, where skips would surface as "voted: nothing", which
+	// is confusing. Skip aggregates are exposed elsewhere via the
+	// per-matchup tally queries.
 	var votes []models.MatchupVote
-	if err := sqlx.SelectContext(ctx, db, &votes, "SELECT * FROM matchup_votes WHERE user_id = $1", user.ID); err != nil {
+	if err := sqlx.SelectContext(ctx, db, &votes,
+		"SELECT * FROM matchup_votes WHERE user_id = $1 AND kind = 'pick'", user.ID,
+	); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	protos := make([]*matchupv1.MatchupVoteData, len(votes))
@@ -498,7 +709,7 @@ func (h *MatchupItemHandler) GetUserVotes(ctx context.Context, req *connect.Requ
 			Id:            v.PublicID,
 			UserId:        &p,
 			MatchupId:     v.MatchupPublicID,
-			MatchupItemId: v.MatchupItemPublicID,
+			MatchupItemId: v.PickedItemID(),
 			CreatedAt:     rfc3339(v.CreatedAt),
 		}
 	}

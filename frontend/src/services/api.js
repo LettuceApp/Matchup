@@ -485,6 +485,21 @@ export const incrementMatchupItemVotes = (id) => {
   return rpc('matchup.v1.MatchupItemService', 'VoteItem', body);
 };
 
+// SkipMatchup — record that the viewer chose not to pick either
+// contender. Skips are stored in matchup_votes alongside picks but
+// with kind='skip' and a NULL item reference; they do NOT count
+// toward the anon 3-vote cap. Anon callers cannot skip on bracket
+// matchups (members-only, mirrors VoteItem). Server returns
+// `{already_skipped: bool}` — the frontend uses that to distinguish
+// "skip recorded just now" from "you'd already skipped this".
+export const skipMatchup = (matchupId) => {
+  const body = { matchup_id: matchupId };
+  if (!localStorage.getItem('token')) {
+    body.anon_id = getOrCreateAnonId();
+  }
+  return rpc('matchup.v1.MatchupItemService', 'SkipMatchup', body);
+};
+
 // GetAnonVoteStatus — returns {used, max}. Drives the "X of 3 free
 // votes left" counter chip on the matchup feed. Only meaningful for
 // anonymous callers; passes the existing anon UUID via peekAnonId

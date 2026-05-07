@@ -1408,6 +1408,68 @@ func (x *VoteItemRequest) GetAnonId() string {
 	return ""
 }
 
+// SkipMatchup records that the viewer chose not to pick either
+// contender on a matchup. Skips are stored in matchup_votes alongside
+// picks but with kind='skip' and a NULL matchup_item_public_id; they
+// do NOT count toward the anon vote cap and do NOT increment any
+// item's votes counter. If the viewer had previously picked an item
+// on this matchup, switching to skip decrements that item's count
+// the same way switching between items does.
+type SkipMatchupRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// matchup_id is the matchup's public_id (UUID) — same identifier
+	// GetMatchup uses. Anon callers pass an anon_id; authed callers can
+	// omit it and the handler resolves identity from the bearer token.
+	MatchupId     string  `protobuf:"bytes,1,opt,name=matchup_id,json=matchupId,proto3" json:"matchup_id,omitempty"`
+	AnonId        *string `protobuf:"bytes,2,opt,name=anon_id,json=anonId,proto3,oneof" json:"anon_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SkipMatchupRequest) Reset() {
+	*x = SkipMatchupRequest{}
+	mi := &file_matchup_v1_matchup_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SkipMatchupRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SkipMatchupRequest) ProtoMessage() {}
+
+func (x *SkipMatchupRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_matchup_v1_matchup_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SkipMatchupRequest.ProtoReflect.Descriptor instead.
+func (*SkipMatchupRequest) Descriptor() ([]byte, []int) {
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *SkipMatchupRequest) GetMatchupId() string {
+	if x != nil {
+		return x.MatchupId
+	}
+	return ""
+}
+
+func (x *SkipMatchupRequest) GetAnonId() string {
+	if x != nil && x.AnonId != nil {
+		return *x.AnonId
+	}
+	return ""
+}
+
 type GetUserVotesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -1417,7 +1479,7 @@ type GetUserVotesRequest struct {
 
 func (x *GetUserVotesRequest) Reset() {
 	*x = GetUserVotesRequest{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[20]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1429,7 +1491,7 @@ func (x *GetUserVotesRequest) String() string {
 func (*GetUserVotesRequest) ProtoMessage() {}
 
 func (x *GetUserVotesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[20]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1442,7 +1504,7 @@ func (x *GetUserVotesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserVotesRequest.ProtoReflect.Descriptor instead.
 func (*GetUserVotesRequest) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{20}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *GetUserVotesRequest) GetUserId() string {
@@ -1462,7 +1524,7 @@ type ListMatchupsResponse struct {
 
 func (x *ListMatchupsResponse) Reset() {
 	*x = ListMatchupsResponse{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[21]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1474,7 +1536,7 @@ func (x *ListMatchupsResponse) String() string {
 func (*ListMatchupsResponse) ProtoMessage() {}
 
 func (x *ListMatchupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[21]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1487,7 +1549,7 @@ func (x *ListMatchupsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMatchupsResponse.ProtoReflect.Descriptor instead.
 func (*ListMatchupsResponse) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{21}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ListMatchupsResponse) GetMatchups() []*MatchupData {
@@ -1513,7 +1575,7 @@ type GetMatchupResponse struct {
 
 func (x *GetMatchupResponse) Reset() {
 	*x = GetMatchupResponse{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[22]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1525,7 +1587,7 @@ func (x *GetMatchupResponse) String() string {
 func (*GetMatchupResponse) ProtoMessage() {}
 
 func (x *GetMatchupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[22]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1538,7 +1600,7 @@ func (x *GetMatchupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMatchupResponse.ProtoReflect.Descriptor instead.
 func (*GetMatchupResponse) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{22}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *GetMatchupResponse) GetMatchup() *MatchupData {
@@ -1557,7 +1619,7 @@ type GetPopularMatchupsResponse struct {
 
 func (x *GetPopularMatchupsResponse) Reset() {
 	*x = GetPopularMatchupsResponse{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[23]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1569,7 +1631,7 @@ func (x *GetPopularMatchupsResponse) String() string {
 func (*GetPopularMatchupsResponse) ProtoMessage() {}
 
 func (x *GetPopularMatchupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[23]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1582,7 +1644,7 @@ func (x *GetPopularMatchupsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPopularMatchupsResponse.ProtoReflect.Descriptor instead.
 func (*GetPopularMatchupsResponse) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{23}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *GetPopularMatchupsResponse) GetMatchups() []*PopularMatchupData {
@@ -1602,7 +1664,7 @@ type GetUserMatchupsResponse struct {
 
 func (x *GetUserMatchupsResponse) Reset() {
 	*x = GetUserMatchupsResponse{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[24]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1614,7 +1676,7 @@ func (x *GetUserMatchupsResponse) String() string {
 func (*GetUserMatchupsResponse) ProtoMessage() {}
 
 func (x *GetUserMatchupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[24]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1627,7 +1689,7 @@ func (x *GetUserMatchupsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserMatchupsResponse.ProtoReflect.Descriptor instead.
 func (*GetUserMatchupsResponse) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{24}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *GetUserMatchupsResponse) GetMatchups() []*MatchupData {
@@ -1653,7 +1715,7 @@ type CreateMatchupResponse struct {
 
 func (x *CreateMatchupResponse) Reset() {
 	*x = CreateMatchupResponse{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[25]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1665,7 +1727,7 @@ func (x *CreateMatchupResponse) String() string {
 func (*CreateMatchupResponse) ProtoMessage() {}
 
 func (x *CreateMatchupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[25]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1678,7 +1740,7 @@ func (x *CreateMatchupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateMatchupResponse.ProtoReflect.Descriptor instead.
 func (*CreateMatchupResponse) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{25}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *CreateMatchupResponse) GetMatchup() *MatchupData {
@@ -1697,7 +1759,7 @@ type UpdateMatchupResponse struct {
 
 func (x *UpdateMatchupResponse) Reset() {
 	*x = UpdateMatchupResponse{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[26]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1709,7 +1771,7 @@ func (x *UpdateMatchupResponse) String() string {
 func (*UpdateMatchupResponse) ProtoMessage() {}
 
 func (x *UpdateMatchupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[26]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1722,7 +1784,7 @@ func (x *UpdateMatchupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateMatchupResponse.ProtoReflect.Descriptor instead.
 func (*UpdateMatchupResponse) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{26}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *UpdateMatchupResponse) GetMatchup() *MatchupData {
@@ -1741,7 +1803,7 @@ type DeleteMatchupResponse struct {
 
 func (x *DeleteMatchupResponse) Reset() {
 	*x = DeleteMatchupResponse{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[27]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1753,7 +1815,7 @@ func (x *DeleteMatchupResponse) String() string {
 func (*DeleteMatchupResponse) ProtoMessage() {}
 
 func (x *DeleteMatchupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[27]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1766,7 +1828,7 @@ func (x *DeleteMatchupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteMatchupResponse.ProtoReflect.Descriptor instead.
 func (*DeleteMatchupResponse) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{27}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *DeleteMatchupResponse) GetMessage() string {
@@ -1786,7 +1848,7 @@ type OverrideMatchupWinnerResponse struct {
 
 func (x *OverrideMatchupWinnerResponse) Reset() {
 	*x = OverrideMatchupWinnerResponse{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[28]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1798,7 +1860,7 @@ func (x *OverrideMatchupWinnerResponse) String() string {
 func (*OverrideMatchupWinnerResponse) ProtoMessage() {}
 
 func (x *OverrideMatchupWinnerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[28]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1811,7 +1873,7 @@ func (x *OverrideMatchupWinnerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OverrideMatchupWinnerResponse.ProtoReflect.Descriptor instead.
 func (*OverrideMatchupWinnerResponse) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{28}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *OverrideMatchupWinnerResponse) GetMessage() string {
@@ -1839,7 +1901,7 @@ type CompleteMatchupResponse struct {
 
 func (x *CompleteMatchupResponse) Reset() {
 	*x = CompleteMatchupResponse{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[29]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1851,7 +1913,7 @@ func (x *CompleteMatchupResponse) String() string {
 func (*CompleteMatchupResponse) ProtoMessage() {}
 
 func (x *CompleteMatchupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[29]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1864,7 +1926,7 @@ func (x *CompleteMatchupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteMatchupResponse.ProtoReflect.Descriptor instead.
 func (*CompleteMatchupResponse) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{29}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *CompleteMatchupResponse) GetMessage() string {
@@ -1897,7 +1959,7 @@ type ReadyUpMatchupResponse struct {
 
 func (x *ReadyUpMatchupResponse) Reset() {
 	*x = ReadyUpMatchupResponse{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[30]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1909,7 +1971,7 @@ func (x *ReadyUpMatchupResponse) String() string {
 func (*ReadyUpMatchupResponse) ProtoMessage() {}
 
 func (x *ReadyUpMatchupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[30]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1922,7 +1984,7 @@ func (x *ReadyUpMatchupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadyUpMatchupResponse.ProtoReflect.Descriptor instead.
 func (*ReadyUpMatchupResponse) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{30}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ReadyUpMatchupResponse) GetMatchup() *MatchupData {
@@ -1941,7 +2003,7 @@ type ActivateMatchupResponse struct {
 
 func (x *ActivateMatchupResponse) Reset() {
 	*x = ActivateMatchupResponse{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[31]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1953,7 +2015,7 @@ func (x *ActivateMatchupResponse) String() string {
 func (*ActivateMatchupResponse) ProtoMessage() {}
 
 func (x *ActivateMatchupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[31]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1966,7 +2028,7 @@ func (x *ActivateMatchupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivateMatchupResponse.ProtoReflect.Descriptor instead.
 func (*ActivateMatchupResponse) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{31}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *ActivateMatchupResponse) GetMatchup() *MatchupData {
@@ -1985,7 +2047,7 @@ type AddItemResponse struct {
 
 func (x *AddItemResponse) Reset() {
 	*x = AddItemResponse{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[32]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1997,7 +2059,7 @@ func (x *AddItemResponse) String() string {
 func (*AddItemResponse) ProtoMessage() {}
 
 func (x *AddItemResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[32]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2010,7 +2072,7 @@ func (x *AddItemResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddItemResponse.ProtoReflect.Descriptor instead.
 func (*AddItemResponse) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{32}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *AddItemResponse) GetItem() *v1.MatchupItemResponse {
@@ -2029,7 +2091,7 @@ type UpdateItemResponse struct {
 
 func (x *UpdateItemResponse) Reset() {
 	*x = UpdateItemResponse{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[33]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2041,7 +2103,7 @@ func (x *UpdateItemResponse) String() string {
 func (*UpdateItemResponse) ProtoMessage() {}
 
 func (x *UpdateItemResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[33]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2054,7 +2116,7 @@ func (x *UpdateItemResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateItemResponse.ProtoReflect.Descriptor instead.
 func (*UpdateItemResponse) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{33}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *UpdateItemResponse) GetItem() *v1.MatchupItemResponse {
@@ -2073,7 +2135,7 @@ type DeleteItemResponse struct {
 
 func (x *DeleteItemResponse) Reset() {
 	*x = DeleteItemResponse{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[34]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2085,7 +2147,7 @@ func (x *DeleteItemResponse) String() string {
 func (*DeleteItemResponse) ProtoMessage() {}
 
 func (x *DeleteItemResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[34]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2098,7 +2160,7 @@ func (x *DeleteItemResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteItemResponse.ProtoReflect.Descriptor instead.
 func (*DeleteItemResponse) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{34}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *DeleteItemResponse) GetMessage() string {
@@ -2118,7 +2180,7 @@ type VoteItemResponse struct {
 
 func (x *VoteItemResponse) Reset() {
 	*x = VoteItemResponse{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[35]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2130,7 +2192,7 @@ func (x *VoteItemResponse) String() string {
 func (*VoteItemResponse) ProtoMessage() {}
 
 func (x *VoteItemResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[35]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2143,7 +2205,7 @@ func (x *VoteItemResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VoteItemResponse.ProtoReflect.Descriptor instead.
 func (*VoteItemResponse) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{35}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *VoteItemResponse) GetItem() *v1.MatchupItemResponse {
@@ -2160,6 +2222,53 @@ func (x *VoteItemResponse) GetAlreadyVoted() bool {
 	return false
 }
 
+type SkipMatchupResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// True when the viewer had already skipped this matchup before this
+	// call. Lets the frontend distinguish "skip recorded" from "you'd
+	// already skipped this one" without a separate state-fetch round-trip.
+	AlreadySkipped bool `protobuf:"varint,1,opt,name=already_skipped,json=alreadySkipped,proto3" json:"already_skipped,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *SkipMatchupResponse) Reset() {
+	*x = SkipMatchupResponse{}
+	mi := &file_matchup_v1_matchup_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SkipMatchupResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SkipMatchupResponse) ProtoMessage() {}
+
+func (x *SkipMatchupResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_matchup_v1_matchup_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SkipMatchupResponse.ProtoReflect.Descriptor instead.
+func (*SkipMatchupResponse) Descriptor() ([]byte, []int) {
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *SkipMatchupResponse) GetAlreadySkipped() bool {
+	if x != nil {
+		return x.AlreadySkipped
+	}
+	return false
+}
+
 type GetUserVotesResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Votes         []*MatchupVoteData     `protobuf:"bytes,1,rep,name=votes,proto3" json:"votes,omitempty"`
@@ -2169,7 +2278,7 @@ type GetUserVotesResponse struct {
 
 func (x *GetUserVotesResponse) Reset() {
 	*x = GetUserVotesResponse{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[36]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2181,7 +2290,7 @@ func (x *GetUserVotesResponse) String() string {
 func (*GetUserVotesResponse) ProtoMessage() {}
 
 func (x *GetUserVotesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[36]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2194,7 +2303,7 @@ func (x *GetUserVotesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserVotesResponse.ProtoReflect.Descriptor instead.
 func (*GetUserVotesResponse) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{36}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *GetUserVotesResponse) GetVotes() []*MatchupVoteData {
@@ -2218,7 +2327,7 @@ type GetAnonVoteStatusRequest struct {
 
 func (x *GetAnonVoteStatusRequest) Reset() {
 	*x = GetAnonVoteStatusRequest{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[37]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2230,7 +2339,7 @@ func (x *GetAnonVoteStatusRequest) String() string {
 func (*GetAnonVoteStatusRequest) ProtoMessage() {}
 
 func (x *GetAnonVoteStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[37]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2243,7 +2352,7 @@ func (x *GetAnonVoteStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAnonVoteStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetAnonVoteStatusRequest) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{37}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *GetAnonVoteStatusRequest) GetAnonId() string {
@@ -2263,7 +2372,7 @@ type GetAnonVoteStatusResponse struct {
 
 func (x *GetAnonVoteStatusResponse) Reset() {
 	*x = GetAnonVoteStatusResponse{}
-	mi := &file_matchup_v1_matchup_proto_msgTypes[38]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2275,7 +2384,7 @@ func (x *GetAnonVoteStatusResponse) String() string {
 func (*GetAnonVoteStatusResponse) ProtoMessage() {}
 
 func (x *GetAnonVoteStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_matchup_v1_matchup_proto_msgTypes[38]
+	mi := &file_matchup_v1_matchup_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2288,7 +2397,7 @@ func (x *GetAnonVoteStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAnonVoteStatusResponse.ProtoReflect.Descriptor instead.
 func (*GetAnonVoteStatusResponse) Descriptor() ([]byte, []int) {
-	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{38}
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *GetAnonVoteStatusResponse) GetUsed() int32 {
@@ -2461,6 +2570,12 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1c\n" +
 	"\aanon_id\x18\x02 \x01(\tH\x00R\x06anonId\x88\x01\x01B\n" +
 	"\n" +
+	"\b_anon_id\"]\n" +
+	"\x12SkipMatchupRequest\x12\x1d\n" +
+	"\n" +
+	"matchup_id\x18\x01 \x01(\tR\tmatchupId\x12\x1c\n" +
+	"\aanon_id\x18\x02 \x01(\tH\x00R\x06anonId\x88\x01\x01B\n" +
+	"\n" +
 	"\b_anon_id\".\n" +
 	"\x13GetUserVotesRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\"\x82\x01\n" +
@@ -2503,7 +2618,9 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\amessage\x18\x01 \x01(\tR\amessage\"k\n" +
 	"\x10VoteItemResponse\x122\n" +
 	"\x04item\x18\x01 \x01(\v2\x1e.common.v1.MatchupItemResponseR\x04item\x12#\n" +
-	"\ralready_voted\x18\x02 \x01(\bR\falreadyVoted\"I\n" +
+	"\ralready_voted\x18\x02 \x01(\bR\falreadyVoted\">\n" +
+	"\x13SkipMatchupResponse\x12'\n" +
+	"\x0falready_skipped\x18\x01 \x01(\bR\x0ealreadySkipped\"I\n" +
 	"\x14GetUserVotesResponse\x121\n" +
 	"\x05votes\x18\x01 \x03(\v2\x1b.matchup.v1.MatchupVoteDataR\x05votes\"3\n" +
 	"\x18GetAnonVoteStatusRequest\x12\x17\n" +
@@ -2523,14 +2640,15 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\x15OverrideMatchupWinner\x12(.matchup.v1.OverrideMatchupWinnerRequest\x1a).matchup.v1.OverrideMatchupWinnerResponse\x12Z\n" +
 	"\x0fCompleteMatchup\x12\".matchup.v1.CompleteMatchupRequest\x1a#.matchup.v1.CompleteMatchupResponse\x12W\n" +
 	"\x0eReadyUpMatchup\x12!.matchup.v1.ReadyUpMatchupRequest\x1a\".matchup.v1.ReadyUpMatchupResponse\x12Z\n" +
-	"\x0fActivateMatchup\x12\".matchup.v1.ActivateMatchupRequest\x1a#.matchup.v1.ActivateMatchupResponse2\xee\x03\n" +
+	"\x0fActivateMatchup\x12\".matchup.v1.ActivateMatchupRequest\x1a#.matchup.v1.ActivateMatchupResponse2\xbe\x04\n" +
 	"\x12MatchupItemService\x12B\n" +
 	"\aAddItem\x12\x1a.matchup.v1.AddItemRequest\x1a\x1b.matchup.v1.AddItemResponse\x12K\n" +
 	"\n" +
 	"UpdateItem\x12\x1d.matchup.v1.UpdateItemRequest\x1a\x1e.matchup.v1.UpdateItemResponse\x12K\n" +
 	"\n" +
 	"DeleteItem\x12\x1d.matchup.v1.DeleteItemRequest\x1a\x1e.matchup.v1.DeleteItemResponse\x12E\n" +
-	"\bVoteItem\x12\x1b.matchup.v1.VoteItemRequest\x1a\x1c.matchup.v1.VoteItemResponse\x12Q\n" +
+	"\bVoteItem\x12\x1b.matchup.v1.VoteItemRequest\x1a\x1c.matchup.v1.VoteItemResponse\x12N\n" +
+	"\vSkipMatchup\x12\x1e.matchup.v1.SkipMatchupRequest\x1a\x1f.matchup.v1.SkipMatchupResponse\x12Q\n" +
 	"\fGetUserVotes\x12\x1f.matchup.v1.GetUserVotesRequest\x1a .matchup.v1.GetUserVotesResponse\x12`\n" +
 	"\x11GetAnonVoteStatus\x12$.matchup.v1.GetAnonVoteStatusRequest\x1a%.matchup.v1.GetAnonVoteStatusResponseB\"Z Matchup/gen/matchup/v1;matchupv1b\x06proto3"
 
@@ -2546,7 +2664,7 @@ func file_matchup_v1_matchup_proto_rawDescGZIP() []byte {
 	return file_matchup_v1_matchup_proto_rawDescData
 }
 
-var file_matchup_v1_matchup_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
+var file_matchup_v1_matchup_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
 var file_matchup_v1_matchup_proto_goTypes = []any{
 	(*MatchupData)(nil),                   // 0: matchup.v1.MatchupData
 	(*CommentData)(nil),                   // 1: matchup.v1.CommentData
@@ -2568,47 +2686,49 @@ var file_matchup_v1_matchup_proto_goTypes = []any{
 	(*UpdateItemRequest)(nil),             // 17: matchup.v1.UpdateItemRequest
 	(*DeleteItemRequest)(nil),             // 18: matchup.v1.DeleteItemRequest
 	(*VoteItemRequest)(nil),               // 19: matchup.v1.VoteItemRequest
-	(*GetUserVotesRequest)(nil),           // 20: matchup.v1.GetUserVotesRequest
-	(*ListMatchupsResponse)(nil),          // 21: matchup.v1.ListMatchupsResponse
-	(*GetMatchupResponse)(nil),            // 22: matchup.v1.GetMatchupResponse
-	(*GetPopularMatchupsResponse)(nil),    // 23: matchup.v1.GetPopularMatchupsResponse
-	(*GetUserMatchupsResponse)(nil),       // 24: matchup.v1.GetUserMatchupsResponse
-	(*CreateMatchupResponse)(nil),         // 25: matchup.v1.CreateMatchupResponse
-	(*UpdateMatchupResponse)(nil),         // 26: matchup.v1.UpdateMatchupResponse
-	(*DeleteMatchupResponse)(nil),         // 27: matchup.v1.DeleteMatchupResponse
-	(*OverrideMatchupWinnerResponse)(nil), // 28: matchup.v1.OverrideMatchupWinnerResponse
-	(*CompleteMatchupResponse)(nil),       // 29: matchup.v1.CompleteMatchupResponse
-	(*ReadyUpMatchupResponse)(nil),        // 30: matchup.v1.ReadyUpMatchupResponse
-	(*ActivateMatchupResponse)(nil),       // 31: matchup.v1.ActivateMatchupResponse
-	(*AddItemResponse)(nil),               // 32: matchup.v1.AddItemResponse
-	(*UpdateItemResponse)(nil),            // 33: matchup.v1.UpdateItemResponse
-	(*DeleteItemResponse)(nil),            // 34: matchup.v1.DeleteItemResponse
-	(*VoteItemResponse)(nil),              // 35: matchup.v1.VoteItemResponse
-	(*GetUserVotesResponse)(nil),          // 36: matchup.v1.GetUserVotesResponse
-	(*GetAnonVoteStatusRequest)(nil),      // 37: matchup.v1.GetAnonVoteStatusRequest
-	(*GetAnonVoteStatusResponse)(nil),     // 38: matchup.v1.GetAnonVoteStatusResponse
-	(*v1.UserSummaryResponse)(nil),        // 39: common.v1.UserSummaryResponse
-	(*v1.MatchupItemResponse)(nil),        // 40: common.v1.MatchupItemResponse
-	(*v1.Pagination)(nil),                 // 41: common.v1.Pagination
+	(*SkipMatchupRequest)(nil),            // 20: matchup.v1.SkipMatchupRequest
+	(*GetUserVotesRequest)(nil),           // 21: matchup.v1.GetUserVotesRequest
+	(*ListMatchupsResponse)(nil),          // 22: matchup.v1.ListMatchupsResponse
+	(*GetMatchupResponse)(nil),            // 23: matchup.v1.GetMatchupResponse
+	(*GetPopularMatchupsResponse)(nil),    // 24: matchup.v1.GetPopularMatchupsResponse
+	(*GetUserMatchupsResponse)(nil),       // 25: matchup.v1.GetUserMatchupsResponse
+	(*CreateMatchupResponse)(nil),         // 26: matchup.v1.CreateMatchupResponse
+	(*UpdateMatchupResponse)(nil),         // 27: matchup.v1.UpdateMatchupResponse
+	(*DeleteMatchupResponse)(nil),         // 28: matchup.v1.DeleteMatchupResponse
+	(*OverrideMatchupWinnerResponse)(nil), // 29: matchup.v1.OverrideMatchupWinnerResponse
+	(*CompleteMatchupResponse)(nil),       // 30: matchup.v1.CompleteMatchupResponse
+	(*ReadyUpMatchupResponse)(nil),        // 31: matchup.v1.ReadyUpMatchupResponse
+	(*ActivateMatchupResponse)(nil),       // 32: matchup.v1.ActivateMatchupResponse
+	(*AddItemResponse)(nil),               // 33: matchup.v1.AddItemResponse
+	(*UpdateItemResponse)(nil),            // 34: matchup.v1.UpdateItemResponse
+	(*DeleteItemResponse)(nil),            // 35: matchup.v1.DeleteItemResponse
+	(*VoteItemResponse)(nil),              // 36: matchup.v1.VoteItemResponse
+	(*SkipMatchupResponse)(nil),           // 37: matchup.v1.SkipMatchupResponse
+	(*GetUserVotesResponse)(nil),          // 38: matchup.v1.GetUserVotesResponse
+	(*GetAnonVoteStatusRequest)(nil),      // 39: matchup.v1.GetAnonVoteStatusRequest
+	(*GetAnonVoteStatusResponse)(nil),     // 40: matchup.v1.GetAnonVoteStatusResponse
+	(*v1.UserSummaryResponse)(nil),        // 41: common.v1.UserSummaryResponse
+	(*v1.MatchupItemResponse)(nil),        // 42: common.v1.MatchupItemResponse
+	(*v1.Pagination)(nil),                 // 43: common.v1.Pagination
 }
 var file_matchup_v1_matchup_proto_depIdxs = []int32{
-	39, // 0: matchup.v1.MatchupData.author:type_name -> common.v1.UserSummaryResponse
-	40, // 1: matchup.v1.MatchupData.items:type_name -> common.v1.MatchupItemResponse
+	41, // 0: matchup.v1.MatchupData.author:type_name -> common.v1.UserSummaryResponse
+	42, // 1: matchup.v1.MatchupData.items:type_name -> common.v1.MatchupItemResponse
 	1,  // 2: matchup.v1.MatchupData.comments:type_name -> matchup.v1.CommentData
 	8,  // 3: matchup.v1.CreateMatchupRequest.items:type_name -> matchup.v1.MatchupItemCreate
 	0,  // 4: matchup.v1.ListMatchupsResponse.matchups:type_name -> matchup.v1.MatchupData
-	41, // 5: matchup.v1.ListMatchupsResponse.pagination:type_name -> common.v1.Pagination
+	43, // 5: matchup.v1.ListMatchupsResponse.pagination:type_name -> common.v1.Pagination
 	0,  // 6: matchup.v1.GetMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
 	2,  // 7: matchup.v1.GetPopularMatchupsResponse.matchups:type_name -> matchup.v1.PopularMatchupData
 	0,  // 8: matchup.v1.GetUserMatchupsResponse.matchups:type_name -> matchup.v1.MatchupData
-	41, // 9: matchup.v1.GetUserMatchupsResponse.pagination:type_name -> common.v1.Pagination
+	43, // 9: matchup.v1.GetUserMatchupsResponse.pagination:type_name -> common.v1.Pagination
 	0,  // 10: matchup.v1.CreateMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
 	0,  // 11: matchup.v1.UpdateMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
 	0,  // 12: matchup.v1.ReadyUpMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
 	0,  // 13: matchup.v1.ActivateMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
-	40, // 14: matchup.v1.AddItemResponse.item:type_name -> common.v1.MatchupItemResponse
-	40, // 15: matchup.v1.UpdateItemResponse.item:type_name -> common.v1.MatchupItemResponse
-	40, // 16: matchup.v1.VoteItemResponse.item:type_name -> common.v1.MatchupItemResponse
+	42, // 14: matchup.v1.AddItemResponse.item:type_name -> common.v1.MatchupItemResponse
+	42, // 15: matchup.v1.UpdateItemResponse.item:type_name -> common.v1.MatchupItemResponse
+	42, // 16: matchup.v1.VoteItemResponse.item:type_name -> common.v1.MatchupItemResponse
 	3,  // 17: matchup.v1.GetUserVotesResponse.votes:type_name -> matchup.v1.MatchupVoteData
 	4,  // 18: matchup.v1.MatchupService.ListMatchups:input_type -> matchup.v1.ListMatchupsRequest
 	5,  // 19: matchup.v1.MatchupService.GetMatchup:input_type -> matchup.v1.GetMatchupRequest
@@ -2625,27 +2745,29 @@ var file_matchup_v1_matchup_proto_depIdxs = []int32{
 	17, // 30: matchup.v1.MatchupItemService.UpdateItem:input_type -> matchup.v1.UpdateItemRequest
 	18, // 31: matchup.v1.MatchupItemService.DeleteItem:input_type -> matchup.v1.DeleteItemRequest
 	19, // 32: matchup.v1.MatchupItemService.VoteItem:input_type -> matchup.v1.VoteItemRequest
-	20, // 33: matchup.v1.MatchupItemService.GetUserVotes:input_type -> matchup.v1.GetUserVotesRequest
-	37, // 34: matchup.v1.MatchupItemService.GetAnonVoteStatus:input_type -> matchup.v1.GetAnonVoteStatusRequest
-	21, // 35: matchup.v1.MatchupService.ListMatchups:output_type -> matchup.v1.ListMatchupsResponse
-	22, // 36: matchup.v1.MatchupService.GetMatchup:output_type -> matchup.v1.GetMatchupResponse
-	23, // 37: matchup.v1.MatchupService.GetPopularMatchups:output_type -> matchup.v1.GetPopularMatchupsResponse
-	24, // 38: matchup.v1.MatchupService.GetUserMatchups:output_type -> matchup.v1.GetUserMatchupsResponse
-	25, // 39: matchup.v1.MatchupService.CreateMatchup:output_type -> matchup.v1.CreateMatchupResponse
-	26, // 40: matchup.v1.MatchupService.UpdateMatchup:output_type -> matchup.v1.UpdateMatchupResponse
-	27, // 41: matchup.v1.MatchupService.DeleteMatchup:output_type -> matchup.v1.DeleteMatchupResponse
-	28, // 42: matchup.v1.MatchupService.OverrideMatchupWinner:output_type -> matchup.v1.OverrideMatchupWinnerResponse
-	29, // 43: matchup.v1.MatchupService.CompleteMatchup:output_type -> matchup.v1.CompleteMatchupResponse
-	30, // 44: matchup.v1.MatchupService.ReadyUpMatchup:output_type -> matchup.v1.ReadyUpMatchupResponse
-	31, // 45: matchup.v1.MatchupService.ActivateMatchup:output_type -> matchup.v1.ActivateMatchupResponse
-	32, // 46: matchup.v1.MatchupItemService.AddItem:output_type -> matchup.v1.AddItemResponse
-	33, // 47: matchup.v1.MatchupItemService.UpdateItem:output_type -> matchup.v1.UpdateItemResponse
-	34, // 48: matchup.v1.MatchupItemService.DeleteItem:output_type -> matchup.v1.DeleteItemResponse
-	35, // 49: matchup.v1.MatchupItemService.VoteItem:output_type -> matchup.v1.VoteItemResponse
-	36, // 50: matchup.v1.MatchupItemService.GetUserVotes:output_type -> matchup.v1.GetUserVotesResponse
-	38, // 51: matchup.v1.MatchupItemService.GetAnonVoteStatus:output_type -> matchup.v1.GetAnonVoteStatusResponse
-	35, // [35:52] is the sub-list for method output_type
-	18, // [18:35] is the sub-list for method input_type
+	20, // 33: matchup.v1.MatchupItemService.SkipMatchup:input_type -> matchup.v1.SkipMatchupRequest
+	21, // 34: matchup.v1.MatchupItemService.GetUserVotes:input_type -> matchup.v1.GetUserVotesRequest
+	39, // 35: matchup.v1.MatchupItemService.GetAnonVoteStatus:input_type -> matchup.v1.GetAnonVoteStatusRequest
+	22, // 36: matchup.v1.MatchupService.ListMatchups:output_type -> matchup.v1.ListMatchupsResponse
+	23, // 37: matchup.v1.MatchupService.GetMatchup:output_type -> matchup.v1.GetMatchupResponse
+	24, // 38: matchup.v1.MatchupService.GetPopularMatchups:output_type -> matchup.v1.GetPopularMatchupsResponse
+	25, // 39: matchup.v1.MatchupService.GetUserMatchups:output_type -> matchup.v1.GetUserMatchupsResponse
+	26, // 40: matchup.v1.MatchupService.CreateMatchup:output_type -> matchup.v1.CreateMatchupResponse
+	27, // 41: matchup.v1.MatchupService.UpdateMatchup:output_type -> matchup.v1.UpdateMatchupResponse
+	28, // 42: matchup.v1.MatchupService.DeleteMatchup:output_type -> matchup.v1.DeleteMatchupResponse
+	29, // 43: matchup.v1.MatchupService.OverrideMatchupWinner:output_type -> matchup.v1.OverrideMatchupWinnerResponse
+	30, // 44: matchup.v1.MatchupService.CompleteMatchup:output_type -> matchup.v1.CompleteMatchupResponse
+	31, // 45: matchup.v1.MatchupService.ReadyUpMatchup:output_type -> matchup.v1.ReadyUpMatchupResponse
+	32, // 46: matchup.v1.MatchupService.ActivateMatchup:output_type -> matchup.v1.ActivateMatchupResponse
+	33, // 47: matchup.v1.MatchupItemService.AddItem:output_type -> matchup.v1.AddItemResponse
+	34, // 48: matchup.v1.MatchupItemService.UpdateItem:output_type -> matchup.v1.UpdateItemResponse
+	35, // 49: matchup.v1.MatchupItemService.DeleteItem:output_type -> matchup.v1.DeleteItemResponse
+	36, // 50: matchup.v1.MatchupItemService.VoteItem:output_type -> matchup.v1.VoteItemResponse
+	37, // 51: matchup.v1.MatchupItemService.SkipMatchup:output_type -> matchup.v1.SkipMatchupResponse
+	38, // 52: matchup.v1.MatchupItemService.GetUserVotes:output_type -> matchup.v1.GetUserVotesResponse
+	40, // 53: matchup.v1.MatchupItemService.GetAnonVoteStatus:output_type -> matchup.v1.GetAnonVoteStatusResponse
+	36, // [36:54] is the sub-list for method output_type
+	18, // [18:36] is the sub-list for method input_type
 	18, // [18:18] is the sub-list for extension type_name
 	18, // [18:18] is the sub-list for extension extendee
 	0,  // [0:18] is the sub-list for field type_name
@@ -2664,13 +2786,14 @@ func file_matchup_v1_matchup_proto_init() {
 	file_matchup_v1_matchup_proto_msgTypes[9].OneofWrappers = []any{}
 	file_matchup_v1_matchup_proto_msgTypes[10].OneofWrappers = []any{}
 	file_matchup_v1_matchup_proto_msgTypes[19].OneofWrappers = []any{}
+	file_matchup_v1_matchup_proto_msgTypes[20].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_matchup_v1_matchup_proto_rawDesc), len(file_matchup_v1_matchup_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   39,
+			NumMessages:   41,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

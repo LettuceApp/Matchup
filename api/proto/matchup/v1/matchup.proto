@@ -23,6 +23,7 @@ service MatchupItemService {
   rpc UpdateItem(UpdateItemRequest) returns (UpdateItemResponse);
   rpc DeleteItem(DeleteItemRequest) returns (DeleteItemResponse);
   rpc VoteItem(VoteItemRequest) returns (VoteItemResponse);
+  rpc SkipMatchup(SkipMatchupRequest) returns (SkipMatchupResponse);
   rpc GetUserVotes(GetUserVotesRequest) returns (GetUserVotesResponse);
 
   // GetAnonVoteStatus reports how many of the per-browser free votes
@@ -191,6 +192,21 @@ message VoteItemRequest {
   optional string anon_id = 2;
 }
 
+// SkipMatchup records that the viewer chose not to pick either
+// contender on a matchup. Skips are stored in matchup_votes alongside
+// picks but with kind='skip' and a NULL matchup_item_public_id; they
+// do NOT count toward the anon vote cap and do NOT increment any
+// item's votes counter. If the viewer had previously picked an item
+// on this matchup, switching to skip decrements that item's count
+// the same way switching between items does.
+message SkipMatchupRequest {
+  // matchup_id is the matchup's public_id (UUID) — same identifier
+  // GetMatchup uses. Anon callers pass an anon_id; authed callers can
+  // omit it and the handler resolves identity from the bearer token.
+  string matchup_id = 1;
+  optional string anon_id = 2;
+}
+
 message GetUserVotesRequest {
   string user_id = 1;
 }
@@ -261,6 +277,13 @@ message DeleteItemResponse {
 message VoteItemResponse {
   common.v1.MatchupItemResponse item = 1;
   bool already_voted = 2;
+}
+
+message SkipMatchupResponse {
+  // True when the viewer had already skipped this matchup before this
+  // call. Lets the frontend distinguish "skip recorded" from "you'd
+  // already skipped this one" without a separate state-fetch round-trip.
+  bool already_skipped = 1;
 }
 
 message GetUserVotesResponse {

@@ -80,6 +80,9 @@ const (
 	// MatchupItemServiceVoteItemProcedure is the fully-qualified name of the MatchupItemService's
 	// VoteItem RPC.
 	MatchupItemServiceVoteItemProcedure = "/matchup.v1.MatchupItemService/VoteItem"
+	// MatchupItemServiceSkipMatchupProcedure is the fully-qualified name of the MatchupItemService's
+	// SkipMatchup RPC.
+	MatchupItemServiceSkipMatchupProcedure = "/matchup.v1.MatchupItemService/SkipMatchup"
 	// MatchupItemServiceGetUserVotesProcedure is the fully-qualified name of the MatchupItemService's
 	// GetUserVotes RPC.
 	MatchupItemServiceGetUserVotesProcedure = "/matchup.v1.MatchupItemService/GetUserVotes"
@@ -424,6 +427,7 @@ type MatchupItemServiceClient interface {
 	UpdateItem(context.Context, *connect.Request[v1.UpdateItemRequest]) (*connect.Response[v1.UpdateItemResponse], error)
 	DeleteItem(context.Context, *connect.Request[v1.DeleteItemRequest]) (*connect.Response[v1.DeleteItemResponse], error)
 	VoteItem(context.Context, *connect.Request[v1.VoteItemRequest]) (*connect.Response[v1.VoteItemResponse], error)
+	SkipMatchup(context.Context, *connect.Request[v1.SkipMatchupRequest]) (*connect.Response[v1.SkipMatchupResponse], error)
 	GetUserVotes(context.Context, *connect.Request[v1.GetUserVotesRequest]) (*connect.Response[v1.GetUserVotesResponse], error)
 	// GetAnonVoteStatus reports how many of the per-browser free votes
 	// an anonymous caller has already used vs the cap. Drives the
@@ -468,6 +472,12 @@ func NewMatchupItemServiceClient(httpClient connect.HTTPClient, baseURL string, 
 			connect.WithSchema(matchupItemServiceMethods.ByName("VoteItem")),
 			connect.WithClientOptions(opts...),
 		),
+		skipMatchup: connect.NewClient[v1.SkipMatchupRequest, v1.SkipMatchupResponse](
+			httpClient,
+			baseURL+MatchupItemServiceSkipMatchupProcedure,
+			connect.WithSchema(matchupItemServiceMethods.ByName("SkipMatchup")),
+			connect.WithClientOptions(opts...),
+		),
 		getUserVotes: connect.NewClient[v1.GetUserVotesRequest, v1.GetUserVotesResponse](
 			httpClient,
 			baseURL+MatchupItemServiceGetUserVotesProcedure,
@@ -489,6 +499,7 @@ type matchupItemServiceClient struct {
 	updateItem        *connect.Client[v1.UpdateItemRequest, v1.UpdateItemResponse]
 	deleteItem        *connect.Client[v1.DeleteItemRequest, v1.DeleteItemResponse]
 	voteItem          *connect.Client[v1.VoteItemRequest, v1.VoteItemResponse]
+	skipMatchup       *connect.Client[v1.SkipMatchupRequest, v1.SkipMatchupResponse]
 	getUserVotes      *connect.Client[v1.GetUserVotesRequest, v1.GetUserVotesResponse]
 	getAnonVoteStatus *connect.Client[v1.GetAnonVoteStatusRequest, v1.GetAnonVoteStatusResponse]
 }
@@ -513,6 +524,11 @@ func (c *matchupItemServiceClient) VoteItem(ctx context.Context, req *connect.Re
 	return c.voteItem.CallUnary(ctx, req)
 }
 
+// SkipMatchup calls matchup.v1.MatchupItemService.SkipMatchup.
+func (c *matchupItemServiceClient) SkipMatchup(ctx context.Context, req *connect.Request[v1.SkipMatchupRequest]) (*connect.Response[v1.SkipMatchupResponse], error) {
+	return c.skipMatchup.CallUnary(ctx, req)
+}
+
 // GetUserVotes calls matchup.v1.MatchupItemService.GetUserVotes.
 func (c *matchupItemServiceClient) GetUserVotes(ctx context.Context, req *connect.Request[v1.GetUserVotesRequest]) (*connect.Response[v1.GetUserVotesResponse], error) {
 	return c.getUserVotes.CallUnary(ctx, req)
@@ -529,6 +545,7 @@ type MatchupItemServiceHandler interface {
 	UpdateItem(context.Context, *connect.Request[v1.UpdateItemRequest]) (*connect.Response[v1.UpdateItemResponse], error)
 	DeleteItem(context.Context, *connect.Request[v1.DeleteItemRequest]) (*connect.Response[v1.DeleteItemResponse], error)
 	VoteItem(context.Context, *connect.Request[v1.VoteItemRequest]) (*connect.Response[v1.VoteItemResponse], error)
+	SkipMatchup(context.Context, *connect.Request[v1.SkipMatchupRequest]) (*connect.Response[v1.SkipMatchupResponse], error)
 	GetUserVotes(context.Context, *connect.Request[v1.GetUserVotesRequest]) (*connect.Response[v1.GetUserVotesResponse], error)
 	// GetAnonVoteStatus reports how many of the per-browser free votes
 	// an anonymous caller has already used vs the cap. Drives the
@@ -569,6 +586,12 @@ func NewMatchupItemServiceHandler(svc MatchupItemServiceHandler, opts ...connect
 		connect.WithSchema(matchupItemServiceMethods.ByName("VoteItem")),
 		connect.WithHandlerOptions(opts...),
 	)
+	matchupItemServiceSkipMatchupHandler := connect.NewUnaryHandler(
+		MatchupItemServiceSkipMatchupProcedure,
+		svc.SkipMatchup,
+		connect.WithSchema(matchupItemServiceMethods.ByName("SkipMatchup")),
+		connect.WithHandlerOptions(opts...),
+	)
 	matchupItemServiceGetUserVotesHandler := connect.NewUnaryHandler(
 		MatchupItemServiceGetUserVotesProcedure,
 		svc.GetUserVotes,
@@ -591,6 +614,8 @@ func NewMatchupItemServiceHandler(svc MatchupItemServiceHandler, opts ...connect
 			matchupItemServiceDeleteItemHandler.ServeHTTP(w, r)
 		case MatchupItemServiceVoteItemProcedure:
 			matchupItemServiceVoteItemHandler.ServeHTTP(w, r)
+		case MatchupItemServiceSkipMatchupProcedure:
+			matchupItemServiceSkipMatchupHandler.ServeHTTP(w, r)
 		case MatchupItemServiceGetUserVotesProcedure:
 			matchupItemServiceGetUserVotesHandler.ServeHTTP(w, r)
 		case MatchupItemServiceGetAnonVoteStatusProcedure:
@@ -618,6 +643,10 @@ func (UnimplementedMatchupItemServiceHandler) DeleteItem(context.Context, *conne
 
 func (UnimplementedMatchupItemServiceHandler) VoteItem(context.Context, *connect.Request[v1.VoteItemRequest]) (*connect.Response[v1.VoteItemResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("matchup.v1.MatchupItemService.VoteItem is not implemented"))
+}
+
+func (UnimplementedMatchupItemServiceHandler) SkipMatchup(context.Context, *connect.Request[v1.SkipMatchupRequest]) (*connect.Response[v1.SkipMatchupResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("matchup.v1.MatchupItemService.SkipMatchup is not implemented"))
 }
 
 func (UnimplementedMatchupItemServiceHandler) GetUserVotes(context.Context, *connect.Request[v1.GetUserVotesRequest]) (*connect.Response[v1.GetUserVotesResponse], error) {
