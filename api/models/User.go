@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"html"
 	"log"
 	"strings"
 	"time"
@@ -79,8 +78,14 @@ func (u *User) ProcessAvatarPath() {
 }
 
 func (u *User) Prepare() {
-	u.Username = html.EscapeString(strings.ToLower(strings.TrimSpace(u.Username)))
-	u.Email = html.EscapeString(strings.ToLower(strings.TrimSpace(u.Email)))
+	// React auto-escapes JSX text nodes at render time, so the
+	// frontend renders user content safely without us pre-escaping
+	// it here. Pre-escaping was breaking the round-trip — apostrophes
+	// in usernames (e.g. "O'Brien") would have surfaced as the literal
+	// `&#39;` in the UI under the old contract. Same fix as
+	// Bracket.Prepare and Matchup.Prepare in commit 506fad4.
+	u.Username = strings.ToLower(strings.TrimSpace(u.Username))
+	u.Email = strings.ToLower(strings.TrimSpace(u.Email))
 
 	// Derive admin flag on the server side
 	if u.Email == strings.ToLower(SeedAdminEmail) {

@@ -6,7 +6,12 @@ import (
 	"time"
 )
 
-func TestUserPrepare_SanitizesUsername(t *testing.T) {
+// Prepare() used to call html.EscapeString on username + email but
+// React auto-escapes JSX text nodes at render — the backend escape
+// was double-encoding and would have surfaced as &#39; etc. for any
+// username with an apostrophe. The tests now assert the new contract:
+// trim + lowercase, no escape.
+func TestUserPrepare_TrimsAndLowercasesUsername(t *testing.T) {
 	u := User{Username: "  TestUser  "}
 	u.Prepare()
 	want := "testuser"
@@ -15,12 +20,38 @@ func TestUserPrepare_SanitizesUsername(t *testing.T) {
 	}
 }
 
-func TestUserPrepare_SanitizesEmail(t *testing.T) {
+func TestUserPrepare_TrimsAndLowercasesEmail(t *testing.T) {
 	u := User{Email: "  Test@Example.COM  "}
 	u.Prepare()
 	want := "test@example.com"
 	if u.Email != want {
 		t.Errorf("Email = %q, want %q", u.Email, want)
+	}
+}
+
+// Locks in the round-trip behavior for the case that surfaced the
+// double-encode bug for Bracket / Matchup. Mirrors
+// TestBracketPrepare_PreservesApostrophe.
+func TestUserPrepare_PreservesApostropheInUsername(t *testing.T) {
+	u := User{Username: "O'Brien"}
+	u.Prepare()
+	want := "o'brien"
+	if u.Username != want {
+		t.Errorf("Username = %q, want %q (apostrophe must round-trip un-encoded)",
+			u.Username, want)
+	}
+}
+
+func TestUserPrepare_PreservesApostropheInEmail(t *testing.T) {
+	// O'Brien-style emails are valid per RFC 5321 (local-part may
+	// contain quoted strings or limited punctuation). Confirm the
+	// backend doesn't mangle them.
+	u := User{Email: "o'brien@example.com"}
+	u.Prepare()
+	want := "o'brien@example.com"
+	if u.Email != want {
+		t.Errorf("Email = %q, want %q (apostrophe must round-trip un-encoded)",
+			u.Email, want)
 	}
 }
 
