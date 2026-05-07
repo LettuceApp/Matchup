@@ -511,10 +511,36 @@
   color: #bbf7d0;
 }
 
+/* Pairwise side-by-side contender layout. Two MatchupItem cards
+   sit in equal-width columns with a tiny center "VS" lane between
+   them — research-backed swap from a top/bottom stack which biased
+   votes toward the upper option. The grid collapses to a single
+   column on narrow viewports (see @media below) so the cards stay
+   readable on mobile without the divider. */
 .matchup-items {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: stretch;
   gap: 1rem;
+}
+
+.matchup-vs-divider {
+  align-self: center;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  font-size: 0.95rem;
+  color: rgba(148, 163, 255, 0.55);
+  padding: 0 0.75rem;
+  user-select: none;
+}
+
+@media (max-width: 720px) {
+  .matchup-items {
+    grid-template-columns: 1fr;
+  }
+  .matchup-vs-divider {
+    display: none;
+  }
 }
 
 .matchup-section--status {

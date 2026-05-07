@@ -398,7 +398,7 @@ export default function BracketView({
                     }, null);
 
                     return (
-                      <motion.div
+                      <div
                         key={matchup.id}
                         className="bracket-match bracket-match--clickable"
                         style={{
@@ -418,10 +418,6 @@ export default function BracketView({
                           if (!authorSlug) return;
                           navigate(`/users/${authorSlug}/matchup/${matchup.id}`);
                         }}
-                        whileHover={{ scale: 1.01 }}
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.25 }}
                       >
                         <div className="bracket-match-header">
                           <span>
@@ -438,7 +434,7 @@ export default function BracketView({
                             renderRow(matchup, item, totalVotes, leadingId),
                           )}
                         </div>
-                      </motion.div>
+                      </div>
                     );
                   })}
                 </div>

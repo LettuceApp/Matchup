@@ -662,42 +662,58 @@ const MatchupPage = () => {
               />
             </div>
           )}
+          {/* Side-by-side contender layout. Pairwise-comparison research
+              (OpinionX, User Research Strategist, Mural / Blaston / PlayyOn
+              case studies) is consistent that top-stacked options anchor the
+              user to the upper choice — equal-weight side-by-side cards
+              with a center "VS" divider remove that bias. The grid
+              collapses to a single column on narrow viewports
+              (see @media (max-width: 720px) in MatchupPage.css). */}
           <div className="matchup-items">
-            {items.map((item) => (
-              <MatchupItem
-                key={item.id}
-                item={item}
-                totalVotes={totalVotes}
-                showVoteBar
-                isWinner={displayWinnerId === item.id}
-                isLeading={
-                  displayWinnerId === null &&
-                  leadingVotes !== null &&
-                  Number(item?.votes ?? item?.Votes ?? 0) === Number(leadingVotes)
-                }
-                hasWinner={displayWinnerId !== null}
-                allowEdit={
-                  isOwner &&
-                  (!isBracketMatchup || bracket?.status === "draft")
-                }
-                isVotingLocked={isVotingLocked}
-                isBracketMatchup={isBracketMatchup}
-                canOverrideWinner={canOverrideWinner}
-                disabled={isVotingLocked}
-                onOverrideWinner={() => handleOverrideWinner(item.id)}
-                onVote={() => {
-                  setVotedItemId(item.id);
-                  if (!viewerId) {
-                    // Anon successful-vote path — bump the counter
-                    // chip immediately + sync against the server.
-                    anonVoteStatus.bumpOptimistic();
-                    anonVoteStatus.refresh();
+            {items.map((item, idx) => (
+              <React.Fragment key={item.id}>
+                {idx === 1 && (
+                  <div
+                    className="matchup-vs-divider"
+                    aria-hidden="true"
+                  >
+                    VS
+                  </div>
+                )}
+                <MatchupItem
+                  item={item}
+                  totalVotes={totalVotes}
+                  showVoteBar
+                  isWinner={displayWinnerId === item.id}
+                  isLeading={
+                    displayWinnerId === null &&
+                    leadingVotes !== null &&
+                    Number(item?.votes ?? item?.Votes ?? 0) === Number(leadingVotes)
                   }
-                  return refreshMatchup();
-                }}
-                isOwner={isOwner}
-                isVoted={votedItemId === item.id}
-              />
+                  hasWinner={displayWinnerId !== null}
+                  allowEdit={
+                    isOwner &&
+                    (!isBracketMatchup || bracket?.status === "draft")
+                  }
+                  isVotingLocked={isVotingLocked}
+                  isBracketMatchup={isBracketMatchup}
+                  canOverrideWinner={canOverrideWinner}
+                  disabled={isVotingLocked}
+                  onOverrideWinner={() => handleOverrideWinner(item.id)}
+                  onVote={() => {
+                    setVotedItemId(item.id);
+                    if (!viewerId) {
+                      // Anon successful-vote path — bump the counter
+                      // chip immediately + sync against the server.
+                      anonVoteStatus.bumpOptimistic();
+                      anonVoteStatus.refresh();
+                    }
+                    return refreshMatchup();
+                  }}
+                  isOwner={isOwner}
+                  isVoted={votedItemId === item.id}
+                />
+              </React.Fragment>
             ))}
           </div>
         </section>

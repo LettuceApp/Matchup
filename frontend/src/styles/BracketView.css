@@ -81,6 +81,14 @@
   flex-direction: column;
   gap: 0.5rem;
   overflow: hidden;
+  /* CSS-driven hover transition replaces a former framer-motion
+     entrance animation (initial={{ opacity: 0 }}). The motion variant
+     was occasionally never resolving — leaving the inline opacity at
+     0, so even `background: yellow !important` couldn't paint the
+     card. Plain CSS means the cards are always visible at their
+     final state from the first paint. */
+  transition: transform 150ms ease, border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
 .bracket-match--clickable {
@@ -88,6 +96,7 @@
 }
 
 .bracket-match--clickable:hover {
+  transform: scale(1.01);
   border-color: rgba(251, 191, 36, 0.6);
   box-shadow: 0 18px 40px rgba(251, 191, 36, 0.15);
 }

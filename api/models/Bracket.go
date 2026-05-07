@@ -3,7 +3,6 @@ package models
 import (
 	"context"
 	"errors"
-	"html"
 	"strings"
 	"time"
 
@@ -51,8 +50,12 @@ type Bracket struct {
 }
 
 func (b *Bracket) Prepare() {
-	b.Title = html.EscapeString(strings.TrimSpace(b.Title))
-	b.Description = html.EscapeString(strings.TrimSpace(b.Description))
+	// React auto-escapes JSX text nodes at render time, so the
+	// frontend renders user content safely without us pre-escaping
+	// it here. Pre-escaping was breaking the round-trip — apostrophes
+	// in titles surfaced as the literal `&#39;` in the UI.
+	b.Title = strings.TrimSpace(b.Title)
+	b.Description = strings.TrimSpace(b.Description)
 	b.Author = User{}
 	b.CreatedAt = time.Now()
 	b.UpdatedAt = time.Now()

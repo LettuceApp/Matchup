@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"html"
 	"strings"
 	"time"
 
@@ -111,8 +110,12 @@ func LoadMatchupContents(db sqlx.ExtContext, matchupIDs []uint) (map[uint]string
 }
 
 func (m *Matchup) Prepare() {
-	m.Title = html.EscapeString(strings.TrimSpace(m.Title))
-	m.Content = html.EscapeString(strings.TrimSpace(m.Content))
+	// React auto-escapes JSX text nodes at render time, so the
+	// frontend renders user content safely without us pre-escaping
+	// it here. Pre-escaping was breaking the round-trip — apostrophes
+	// in titles surfaced as the literal `&#39;` in the UI.
+	m.Title = strings.TrimSpace(m.Title)
+	m.Content = strings.TrimSpace(m.Content)
 	m.Author = User{}
 	m.CreatedAt = time.Now()
 	m.UpdatedAt = time.Now()
