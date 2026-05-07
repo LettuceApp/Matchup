@@ -778,63 +778,85 @@ const MatchupPage = () => {
               />
             </div>
           )}
-          {/* Side-by-side contender layout — but only for exactly two items.
-              Pairwise-comparison research (OpinionX, User Research Strategist,
-              Mural / Blaston / PlayyOn case studies) is specifically about 1v1
-              comparisons; 4-way polls and bigger don't gain from arbitrarily
-              pairing contenders into a 2×2 grid (and the cycling left-border
-              colors lose meaning when item 3+ is forced into the same row as
-              item 1). Falls back to the vertical stack for any other count.
-              The pairwise variant collapses to a single column under 720px
-              (see MatchupPage.css). */}
-          <div
-            className={`matchup-items${items.length === 2 ? " matchup-items--pairwise" : ""}`}
-          >
-            {items.map((item, idx) => (
-              <React.Fragment key={item.id}>
-                {items.length === 2 && idx === 1 && (
-                  <div
-                    className="matchup-vs-divider"
-                    aria-hidden="true"
-                  >
-                    VS
-                  </div>
-                )}
-                <MatchupItem
-                  item={item}
-                  totalVotes={totalVotes}
-                  showVoteBar
-                  isWinner={displayWinnerId === item.id}
-                  isLeading={
-                    displayWinnerId === null &&
-                    leadingVotes !== null &&
-                    Number(item?.votes ?? item?.Votes ?? 0) === Number(leadingVotes)
-                  }
-                  hasWinner={displayWinnerId !== null}
-                  allowEdit={
-                    isOwner &&
-                    (!isBracketMatchup || bracket?.status === "draft")
-                  }
-                  isVotingLocked={isVotingLocked}
-                  isBracketMatchup={isBracketMatchup}
-                  canOverrideWinner={canOverrideWinner}
-                  disabled={isVotingLocked}
-                  onOverrideWinner={() => handleOverrideWinner(item.id)}
-                  onVote={() => {
-                    setVotedItemId(item.id);
-                    if (!viewerId) {
-                      // Anon successful-vote path — bump the counter
-                      // chip immediately + sync against the server.
-                      anonVoteStatus.bumpOptimistic();
-                      anonVoteStatus.refresh();
-                    }
-                    return refreshMatchup();
-                  }}
-                  isOwner={isOwner}
-                  isVoted={votedItemId === item.id}
-                />
-              </React.Fragment>
-            ))}
+          {/* Pair-row contender layout. Items are chunked into rows of
+              two; each row is its own 1fr auto 1fr grid with a centered
+              VS divider in the middle slot. Odd-count tail rows (3, 5, 7
+              items) get a single-card row with no VS — full-width via the
+              --single modifier.
+
+              Earlier versions tried two simpler shapes and both were
+              wrong:
+                - One flat grid for all children: 4 items + 1 divider =
+                  5 children flowing into a 3-col grid → row 2 wraps with
+                  the right column empty.
+                - Vertical stack for items.length !== 2: the 2x2 layout
+                  is what users expect when they create a 4-way poll;
+                  stacking lost the bracket-style visual.
+              Chunked rows handle 1, 2, 3, 4, 5+ cleanly without any
+              special-cases. Each row mirrors one matchup pairing.
+              On <720px every row collapses to a single column (see
+              MatchupPage.css). */}
+          <div className="matchup-items">
+            {(() => {
+              const pairs = [];
+              for (let i = 0; i < items.length; i += 2) {
+                pairs.push(items.slice(i, i + 2));
+              }
+              return pairs.map((pair, pairIdx) => (
+                <div
+                  key={pairIdx}
+                  className={`matchup-pair-row${
+                    pair.length === 1 ? " matchup-pair-row--single" : ""
+                  }`}
+                >
+                  {pair.map((item, idx) => (
+                    <React.Fragment key={item.id}>
+                      {idx === 1 && (
+                        <div
+                          className="matchup-vs-divider"
+                          aria-hidden="true"
+                        >
+                          VS
+                        </div>
+                      )}
+                      <MatchupItem
+                        item={item}
+                        totalVotes={totalVotes}
+                        showVoteBar
+                        isWinner={displayWinnerId === item.id}
+                        isLeading={
+                          displayWinnerId === null &&
+                          leadingVotes !== null &&
+                          Number(item?.votes ?? item?.Votes ?? 0) === Number(leadingVotes)
+                        }
+                        hasWinner={displayWinnerId !== null}
+                        allowEdit={
+                          isOwner &&
+                          (!isBracketMatchup || bracket?.status === "draft")
+                        }
+                        isVotingLocked={isVotingLocked}
+                        isBracketMatchup={isBracketMatchup}
+                        canOverrideWinner={canOverrideWinner}
+                        disabled={isVotingLocked}
+                        onOverrideWinner={() => handleOverrideWinner(item.id)}
+                        onVote={() => {
+                          setVotedItemId(item.id);
+                          if (!viewerId) {
+                            // Anon successful-vote path — bump the counter
+                            // chip immediately + sync against the server.
+                            anonVoteStatus.bumpOptimistic();
+                            anonVoteStatus.refresh();
+                          }
+                          return refreshMatchup();
+                        }}
+                        isOwner={isOwner}
+                        isVoted={votedItemId === item.id}
+                      />
+                    </React.Fragment>
+                  ))}
+                </div>
+              ));
+            })()}
           </div>
 
           {/* Skip / can't-decide affordance.
