@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { FiHeart, FiMessageCircle, FiFlag } from "react-icons/fi";
 import NavigationBar from "../components/NavigationBar";
@@ -28,6 +28,7 @@ import {
   overrideMatchupWinner,
   completeMatchup,
   getCurrentUser,
+  getBracketMatchups,
 } from "../services/api";
 import "../styles/MatchupPage.css";
 import useCountdown from "../hooks/useCountdown";
@@ -51,6 +52,11 @@ const MatchupPage = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [matchup, setMatchup] = useState(null);
   const [bracket, setBracket] = useState(null);
+  // Sibling matchups in the same bracket. Used to compute the
+  // "Match X of Y · Round N" progress chip — pairwise-comparison
+  // research is consistent that surfacing where you are in the
+  // sequence reduces abandonment on multi-vote flows.
+  const [bracketMatchups, setBracketMatchups] = useState([]);
   const [likesCount, setLikesCount] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
   const [comments, setComments] = useState([]);
@@ -124,10 +130,25 @@ const MatchupPage = () => {
     setLikesCount(Number(matchupData.likes_count ?? matchupData.likesCount ?? 0));
 
     if (matchupData.bracket_id) {
-      const b = await getBracket(matchupData.bracket_id);
+      // Fire both calls in parallel — neither depends on the other,
+      // and the bracket-matchups list is what powers the
+      // "Match X of Y · Round N" progress chip.
+      const [b, ms] = await Promise.all([
+        getBracket(matchupData.bracket_id),
+        getBracketMatchups(matchupData.bracket_id),
+      ]);
       setBracket(b.data?.bracket ?? b.data?.response ?? b.data);
+      const msPayload = ms.data?.matchups ?? ms.data?.response ?? ms.data ?? [];
+      setBracketMatchups(
+        Array.isArray(msPayload)
+          ? msPayload
+          : Array.isArray(msPayload.matchups)
+          ? msPayload.matchups
+          : [],
+      );
     } else {
       setBracket(null);
+      setBracketMatchups([]);
     }
   }, [uid, id, viewerId]);
 
@@ -176,6 +197,44 @@ const MatchupPage = () => {
 
   const matchupRound = matchup?.round ?? matchup?.Round ?? null;
   const isBracketMatchup = Boolean(matchup?.bracket_id);
+
+  // "Match X of Y · Round N" progress hint, shown above the contender
+  // cards on bracket matchups. Sort by seed (then id as tiebreak) to
+  // match BracketView's ordering, so a viewer who sees "Match 2 of 4"
+  // here would see this matchup in the second slot of the bracket
+  // visualization. Renders nothing when bracket data hasn't loaded yet
+  // or when the current matchup isn't part of a bracket.
+  const matchProgress = useMemo(() => {
+    if (!isBracketMatchup || !bracketMatchups.length || matchupRound == null) {
+      return null;
+    }
+    const sameRound = bracketMatchups
+      .filter((m) => Number(m.round ?? m.Round ?? 0) === Number(matchupRound))
+      .sort((a, b) => {
+        const sa = Number(a.seed ?? a.Seed ?? 0);
+        const sb = Number(b.seed ?? b.Seed ?? 0);
+        if (sa && sb && sa !== sb) return sa - sb;
+        return String(a.id).localeCompare(String(b.id));
+      });
+    const idx = sameRound.findIndex(
+      (m) => String(m.id) === String(matchup?.id ?? id),
+    );
+    if (idx === -1) return null;
+    // Special-case the championship match: when there's only a single
+    // match in the highest round, "Final" reads better than "Round 2".
+    const allRounds = bracketMatchups
+      .map((m) => Number(m.round ?? m.Round ?? 0))
+      .filter((r) => r > 0);
+    const maxRound = allRounds.length ? Math.max(...allRounds) : 0;
+    const isFinal =
+      sameRound.length === 1 && Number(matchupRound) === maxRound;
+    return {
+      position: idx + 1,
+      total: sameRound.length,
+      round: Number(matchupRound),
+      label: isFinal ? "Final" : `Round ${matchupRound}`,
+    };
+  }, [bracketMatchups, isBracketMatchup, matchupRound, matchup?.id, id]);
 
   const bracketAdvanceMode =
     bracket?.advance_mode ?? bracket?.advanceMode ?? "manual";
@@ -625,6 +684,27 @@ const MatchupPage = () => {
         )}
 
         <section className="matchup-vote-stage" aria-label="Tap a contender to cast your vote">
+          {/* Bracket progress chip — "Match X of Y · Round N" (or
+              "Final" on the championship match). Surfaces sequence
+              context for users who may have landed mid-bracket. Pure
+              client-side computation against the loaded
+              bracketMatchups list — no proto/RPC change. */}
+          {matchProgress && (
+            <div
+              className="matchup-progress-chip"
+              role="status"
+              aria-live="polite"
+              aria-label={`Match ${matchProgress.position} of ${matchProgress.total}, ${matchProgress.label}`}
+            >
+              <span className="matchup-progress-chip__primary">
+                Match {matchProgress.position} of {matchProgress.total}
+              </span>
+              <span className="matchup-progress-chip__sep" aria-hidden="true">·</span>
+              <span className="matchup-progress-chip__round">
+                {matchProgress.label}
+              </span>
+            </div>
+          )}
           {/* Anon vote counter — visible only to non-signed-in
               viewers. Hidden when atCap so the AnonUpgradeModal
               triggered by the next vote attempt doesn't compete

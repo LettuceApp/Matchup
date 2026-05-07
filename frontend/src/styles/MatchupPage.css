@@ -991,6 +991,37 @@
   margin: 0 0 12px;
 }
 
+/* Bracket progress chip — "Match X of Y · Round N". Sits above the
+   anon counter so the read-order is "where am I in the bracket"
+   then "how many anon votes left" then the cards themselves. Same
+   visual weight as a status pill: muted background, small caps
+   feel via letter-spacing, no CTA affordance. width: fit-content +
+   margin auto centres without needing parent text-align hacks. */
+.matchup-progress-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: fit-content;
+  margin: 0 auto 12px;
+  padding: 0.4rem 1.1rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(148, 163, 255, 0.25);
+  color: rgba(226, 232, 240, 0.88);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.matchup-progress-chip__sep {
+  color: rgba(148, 163, 255, 0.5);
+}
+
+.matchup-progress-chip__round {
+  color: rgba(251, 191, 36, 0.95);
+}
+
 /* Flat action bar — Like · Comment · Share. 3 equal columns on every
    viewport so Share (which opens a dropdown) always has room. */
 .matchup-action-bar {
