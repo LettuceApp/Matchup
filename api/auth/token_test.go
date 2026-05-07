@@ -119,8 +119,23 @@ func TestExtractTokenID(t *testing.T) {
 			t.Fatalf("CreateToken() returned error: %v", err)
 		}
 
-		// Flip a character in the signature (last segment)
-		tampered := token[:len(token)-1] + "X"
+		// Replace the entire signature segment with garbage. The
+		// previous version flipped the last char to "X" and was
+		// probabilistically a no-op: HMAC-SHA256 signatures are
+		// 32 bytes encoded as 43 base64url chars where the last
+		// char encodes 4 source bits + 2 padding-zero bits.
+		// base64.RawURLEncoding is lenient about non-zero pad
+		// bits during decode, so a "X" tail (which has non-zero
+		// pad bits) silently produces the same decoded byte
+		// sequence ~1/16 of the time, validating fine. Whole-
+		// segment replacement is unambiguous — this string is
+		// not a valid HMAC-SHA256 signature under any key.
+		parts := strings.Split(token, ".")
+		if len(parts) != 3 {
+			t.Fatalf("expected 3-part JWT, got %d parts", len(parts))
+		}
+		parts[2] = "this-is-not-a-real-signature"
+		tampered := strings.Join(parts, ".")
 
 		req, err := http.NewRequest(http.MethodGet, "http://example.com/test?token="+tampered, nil)
 		if err != nil {
