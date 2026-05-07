@@ -121,6 +121,20 @@ func ProcessMatchupImagePathSized(path, size string) string {
 	return processImagePathSized(path, "MatchupImages/", size)
 }
 
+// ProcessMatchupItemImagePath converts a relative matchup-item image
+// path to a full S3 URL. Item thumbnails live under their own S3
+// prefix (separate lifecycle / cache rules from matchup covers) and
+// were added by migration 026.
+func ProcessMatchupItemImagePath(path string) string {
+	return ProcessMatchupItemImagePathSized(path, "")
+}
+
+// ProcessMatchupItemImagePathSized is the size-aware variant for item
+// thumbnails. See ProcessAvatarPathSized for size semantics.
+func ProcessMatchupItemImagePathSized(path, size string) string {
+	return processImagePathSized(path, "MatchupItemImages/", size)
+}
+
 // processImagePathSized is the shared implementation for both avatar and
 // matchup-image S3 URL construction. dirPrefix is the S3 key directory
 // ("UserProfilePics/" or "MatchupImages/"). We insert the "_<size>"

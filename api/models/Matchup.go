@@ -54,6 +54,10 @@ type MatchupItem struct {
 	MatchupID uint    `db:"matchup_id" json:"matchup_id"`
 	Item      string  `db:"item" json:"item"`
 	Votes     int     `db:"votes" json:"votes"`
+	// Relative S3 path (mirrors matchups.image_path). Empty when the
+	// item has no thumbnail. The proto mapper lifts this to a full URL
+	// via db.ProcessMatchupItemImagePath. Migration 026 added the column.
+	ImagePath string `db:"image_path" json:"image_path"`
 }
 
 // MatchupDetails holds the large `content` body, separated from `matchups`
@@ -177,8 +181,8 @@ func (m *Matchup) SaveMatchup(db sqlx.ExtContext) (*Matchup, error) {
 				m.Items[i].PublicID = appdb.GeneratePublicID()
 			}
 			q, a, err := appdb.Psql.Insert("matchup_items").
-				Columns("public_id", "matchup_id", "item", "votes").
-				Values(m.Items[i].PublicID, m.Items[i].MatchupID, m.Items[i].Item, m.Items[i].Votes).
+				Columns("public_id", "matchup_id", "item", "votes", "image_path").
+				Values(m.Items[i].PublicID, m.Items[i].MatchupID, m.Items[i].Item, m.Items[i].Votes, m.Items[i].ImagePath).
 				Suffix("RETURNING *").
 				ToSql()
 			if err != nil {

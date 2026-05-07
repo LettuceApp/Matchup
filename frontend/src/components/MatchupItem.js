@@ -139,6 +139,22 @@ const MatchupItem = ({
           : undefined
       }
     >
+      {/* Optional thumbnail (cycle 6c). Mounts BEFORE the text label so
+          it leads visually — pairwise-comparison research is consistent
+          that visual richness on contender cards improves recognizability.
+          The rendered <img> uses the proto's resolved image_url; empty
+          paths skip the element entirely so existing text-only cards
+          stay unchanged. Decoded async so Safari doesn't block paint. */}
+      {item?.image_url && (
+        <img
+          src={item.image_url}
+          alt={itemName}
+          className="matchup-item__thumb"
+          decoding="async"
+          loading="lazy"
+        />
+      )}
+
       {isEditing && computedCanEdit ? (
         <input
           value={itemName}

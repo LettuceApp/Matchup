@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { FiChevronDown } from "react-icons/fi";
@@ -20,7 +20,10 @@ const CreateMatchup = () => {
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [items, setItems] = useState([{ item: "" }, { item: "" }]);
+  const [items, setItems] = useState([
+    { item: "", imageFile: null, imagePreview: null },
+    { item: "", imageFile: null, imagePreview: null },
+  ]);
   const [endMode, setEndMode] = useState("manual");
   const [durationMinutes, setDurationMinutes] = useState(5);
   const [confirmLive, setConfirmLive] = useState(false);
@@ -46,23 +49,73 @@ const CreateMatchup = () => {
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, item: value } : it)));
   };
 
+  // Per-item thumbnail handlers (cycle 6c). Each item carries an
+  // optional File + a blob preview URL alongside its label. Revoke
+  // the prior preview on replace + on remove so we don't leak object
+  // URLs across re-picks.
+  const handleItemImageChange = (index, file) => {
+    if (!file) return;
+    setItems((prev) =>
+      prev.map((it, i) => {
+        if (i !== index) return it;
+        if (it.imagePreview) URL.revokeObjectURL(it.imagePreview);
+        return { ...it, imageFile: file, imagePreview: URL.createObjectURL(file) };
+      }),
+    );
+  };
+
+  const handleItemImageRemove = (index) => {
+    setItems((prev) =>
+      prev.map((it, i) => {
+        if (i !== index) return it;
+        if (it.imagePreview) URL.revokeObjectURL(it.imagePreview);
+        return { ...it, imageFile: null, imagePreview: null };
+      }),
+    );
+  };
+
   const addItem = () => {
     if (items.length >= maxItems) return;
-    setItems((prev) => [...prev, { item: "" }]);
+    setItems((prev) => [...prev, { item: "", imageFile: null, imagePreview: null }]);
     setTouchedItems((prev) => [...prev, false]);
   };
 
   const removeItem = (index) => {
     if (items.length <= minItems) return;
-    setItems((prev) => prev.filter((_, i) => i !== index));
+    setItems((prev) => {
+      const removed = prev[index];
+      if (removed?.imagePreview) URL.revokeObjectURL(removed.imagePreview);
+      return prev.filter((_, i) => i !== index);
+    });
     setTouchedItems((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Revoke any lingering blob URLs on unmount so the page doesn't
+  // leak object URL references after navigation.
+  useEffect(() => {
+    return () => {
+      items.forEach((it) => {
+        if (it.imagePreview) URL.revokeObjectURL(it.imagePreview);
+      });
+    };
+    // Run on unmount only; capturing the latest items here is fine since
+    // we just iterate to revoke. ESLint is happy with the empty deps for
+    // unmount-only cleanup.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const goBack = () => navigate(-1);
 
-  // Sanitize + validate
+  // Sanitize + validate. Preserves imageFile through to submission so
+  // createMatchup() can upload each item's thumbnail in parallel with
+  // the cover. The blob preview URLs (imagePreview) are local-only —
+  // not sent to the server.
   const sanitizedItems = useMemo(
-    () => items.map(({ item }) => ({ item: (item ?? "").trim() })),
+    () =>
+      items.map(({ item, imageFile }) => ({
+        item: (item ?? "").trim(),
+        imageFile: imageFile ?? null,
+      })),
     [items]
   );
 
@@ -317,6 +370,49 @@ const CreateMatchup = () => {
                         Contender name required.
                       </p>
                     )}
+
+                    {/* Per-item thumbnail picker (cycle 6c). Optional;
+                        items without a thumbnail render the existing
+                        text-only contender card. The preview block
+                        only mounts after a file is picked, so an empty
+                        contender row stays compact. */}
+                    <div className="flex items-center gap-3">
+                      <label className="flex-1 cursor-pointer rounded-2xl border border-dashed border-slate-600/60 bg-slate-950/40 px-3 py-2 text-xs font-medium text-slate-400 transition hover:border-amber-400/60 hover:text-amber-200">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleItemImageChange(index, file);
+                            // Reset the input so picking the same file
+                            // twice still fires onChange.
+                            e.target.value = "";
+                          }}
+                        />
+                        {itm.imagePreview
+                          ? "Replace thumbnail"
+                          : "+ Add thumbnail (optional)"}
+                      </label>
+                      {itm.imagePreview && (
+                        <div className="relative h-12 w-12 overflow-hidden rounded-xl border border-slate-600/50">
+                          <img
+                            src={itm.imagePreview}
+                            alt={`${itm.item || "Contender"} thumbnail`}
+                            className="h-full w-full object-cover"
+                            decoding="async"
+                          />
+                          <button
+                            type="button"
+                            aria-label="Remove thumbnail"
+                            onClick={() => handleItemImageRemove(index)}
+                            className="absolute inset-0 flex items-center justify-center bg-slate-900/0 text-xs font-semibold text-rose-200 opacity-0 transition hover:bg-slate-900/70 hover:opacity-100"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

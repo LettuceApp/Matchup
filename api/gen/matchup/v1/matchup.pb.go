@@ -743,8 +743,12 @@ func (x *GetUserMatchupsRequest) GetLimit() int32 {
 }
 
 type MatchupItemCreate struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Item          string                 `protobuf:"bytes,1,opt,name=item,proto3" json:"item,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Item  string                 `protobuf:"bytes,1,opt,name=item,proto3" json:"item,omitempty"`
+	// Optional S3 key returned by UploadService.PresignUpload(kind=
+	// "matchup_item"). When set, the item lands with a thumbnail; the
+	// server commits + resizes + stores image_path. Migration 026.
+	UploadKey     *string `protobuf:"bytes,2,opt,name=upload_key,json=uploadKey,proto3,oneof" json:"upload_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -782,6 +786,13 @@ func (*MatchupItemCreate) Descriptor() ([]byte, []int) {
 func (x *MatchupItemCreate) GetItem() string {
 	if x != nil {
 		return x.Item
+	}
+	return ""
+}
+
+func (x *MatchupItemCreate) GetUploadKey() string {
+	if x != nil && x.UploadKey != nil {
+		return *x.UploadKey
 	}
 	return ""
 }
@@ -1209,9 +1220,12 @@ func (x *ActivateMatchupRequest) GetId() string {
 }
 
 type AddItemRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	MatchupId     string                 `protobuf:"bytes,1,opt,name=matchup_id,json=matchupId,proto3" json:"matchup_id,omitempty"`
-	Item          string                 `protobuf:"bytes,2,opt,name=item,proto3" json:"item,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	MatchupId string                 `protobuf:"bytes,1,opt,name=matchup_id,json=matchupId,proto3" json:"matchup_id,omitempty"`
+	Item      string                 `protobuf:"bytes,2,opt,name=item,proto3" json:"item,omitempty"`
+	// Optional thumbnail upload key (kind="matchup_item"). See
+	// MatchupItemCreate.upload_key for the same semantics.
+	UploadKey     *string `protobuf:"bytes,3,opt,name=upload_key,json=uploadKey,proto3,oneof" json:"upload_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1260,10 +1274,22 @@ func (x *AddItemRequest) GetItem() string {
 	return ""
 }
 
+func (x *AddItemRequest) GetUploadKey() string {
+	if x != nil && x.UploadKey != nil {
+		return *x.UploadKey
+	}
+	return ""
+}
+
 type UpdateItemRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Item          string                 `protobuf:"bytes,2,opt,name=item,proto3" json:"item,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Item  string                 `protobuf:"bytes,2,opt,name=item,proto3" json:"item,omitempty"`
+	// Optional thumbnail upload key (kind="matchup_item"). When set,
+	// replaces the item's existing image. Sending an empty string here
+	// is currently a no-op — to clear an image, leave this absent and
+	// we'll add a separate clear flag if it becomes a real need.
+	UploadKey     *string `protobuf:"bytes,3,opt,name=upload_key,json=uploadKey,proto3,oneof" json:"upload_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1308,6 +1334,13 @@ func (x *UpdateItemRequest) GetId() string {
 func (x *UpdateItemRequest) GetItem() string {
 	if x != nil {
 		return x.Item
+	}
+	return ""
+}
+
+func (x *UpdateItemRequest) GetUploadKey() string {
+	if x != nil && x.UploadKey != nil {
+		return *x.UploadKey
 	}
 	return ""
 }
@@ -2511,9 +2544,12 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\x04page\x18\x02 \x01(\x05H\x00R\x04page\x88\x01\x01\x12\x19\n" +
 	"\x05limit\x18\x03 \x01(\x05H\x01R\x05limit\x88\x01\x01B\a\n" +
 	"\x05_pageB\b\n" +
-	"\x06_limit\"'\n" +
+	"\x06_limit\"Z\n" +
 	"\x11MatchupItemCreate\x12\x12\n" +
-	"\x04item\x18\x01 \x01(\tR\x04item\"\x84\x04\n" +
+	"\x04item\x18\x01 \x01(\tR\x04item\x12\"\n" +
+	"\n" +
+	"upload_key\x18\x02 \x01(\tH\x00R\tuploadKey\x88\x01\x01B\r\n" +
+	"\v_upload_key\"\x84\x04\n" +
 	"\x14CreateMatchupRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x1d\n" +
@@ -2556,14 +2592,20 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\x15ReadyUpMatchupRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"(\n" +
 	"\x16ActivateMatchupRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"C\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"v\n" +
 	"\x0eAddItemRequest\x12\x1d\n" +
 	"\n" +
 	"matchup_id\x18\x01 \x01(\tR\tmatchupId\x12\x12\n" +
-	"\x04item\x18\x02 \x01(\tR\x04item\"7\n" +
+	"\x04item\x18\x02 \x01(\tR\x04item\x12\"\n" +
+	"\n" +
+	"upload_key\x18\x03 \x01(\tH\x00R\tuploadKey\x88\x01\x01B\r\n" +
+	"\v_upload_key\"j\n" +
 	"\x11UpdateItemRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04item\x18\x02 \x01(\tR\x04item\"#\n" +
+	"\x04item\x18\x02 \x01(\tR\x04item\x12\"\n" +
+	"\n" +
+	"upload_key\x18\x03 \x01(\tH\x00R\tuploadKey\x88\x01\x01B\r\n" +
+	"\v_upload_key\"#\n" +
 	"\x11DeleteItemRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"K\n" +
 	"\x0fVoteItemRequest\x12\x0e\n" +
@@ -2783,8 +2825,11 @@ func file_matchup_v1_matchup_proto_init() {
 	file_matchup_v1_matchup_proto_msgTypes[3].OneofWrappers = []any{}
 	file_matchup_v1_matchup_proto_msgTypes[4].OneofWrappers = []any{}
 	file_matchup_v1_matchup_proto_msgTypes[7].OneofWrappers = []any{}
+	file_matchup_v1_matchup_proto_msgTypes[8].OneofWrappers = []any{}
 	file_matchup_v1_matchup_proto_msgTypes[9].OneofWrappers = []any{}
 	file_matchup_v1_matchup_proto_msgTypes[10].OneofWrappers = []any{}
+	file_matchup_v1_matchup_proto_msgTypes[16].OneofWrappers = []any{}
+	file_matchup_v1_matchup_proto_msgTypes[17].OneofWrappers = []any{}
 	file_matchup_v1_matchup_proto_msgTypes[19].OneofWrappers = []any{}
 	file_matchup_v1_matchup_proto_msgTypes[20].OneofWrappers = []any{}
 	type x struct{}

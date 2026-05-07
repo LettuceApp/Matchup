@@ -122,6 +122,10 @@ message GetUserMatchupsRequest {
 
 message MatchupItemCreate {
   string item = 1;
+  // Optional S3 key returned by UploadService.PresignUpload(kind=
+  // "matchup_item"). When set, the item lands with a thumbnail; the
+  // server commits + resizes + stores image_path. Migration 026.
+  optional string upload_key = 2;
 }
 
 message CreateMatchupRequest {
@@ -176,11 +180,19 @@ message ActivateMatchupRequest {
 message AddItemRequest {
   string matchup_id = 1;
   string item = 2;
+  // Optional thumbnail upload key (kind="matchup_item"). See
+  // MatchupItemCreate.upload_key for the same semantics.
+  optional string upload_key = 3;
 }
 
 message UpdateItemRequest {
   string id = 1;
   string item = 2;
+  // Optional thumbnail upload key (kind="matchup_item"). When set,
+  // replaces the item's existing image. Sending an empty string here
+  // is currently a no-op — to clear an image, leave this absent and
+  // we'll add a separate clear flag if it becomes a real need.
+  optional string upload_key = 3;
 }
 
 message DeleteItemRequest {

@@ -16,6 +16,21 @@
 .matchup-item:nth-child(2) { border-left-color: #a78bfa; }
 .matchup-item:nth-child(n+3) { border-left-color: #38bdf8; }
 
+/* Optional contender thumbnail (cycle 6c). Square avatar-style image
+   that sits ahead of the text label inside the .matchup-item flex
+   row. Cap the dimensions so a 4-way poll with thumbnails on every
+   item still fits comfortably; on mobile, flex-wrap pushes the label
+   to the next line which keeps the thumbnail readable. */
+.matchup-item__thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 12px;
+  flex-shrink: 0;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 255, 0.2);
+}
+
 .matchup-item--visual {
   cursor: pointer;
   position: relative;

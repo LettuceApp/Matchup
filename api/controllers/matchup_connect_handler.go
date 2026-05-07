@@ -429,8 +429,29 @@ func (h *MatchupHandler) CreateMatchup(ctx context.Context, req *connect.Request
 		matchup.Seed = &s
 	}
 
-	for _, it := range req.Msg.Items {
-		matchup.Items = append(matchup.Items, models.MatchupItem{Item: it.Item})
+	// Build items, committing any per-item thumbnail uploads before
+	// the SaveMatchup write so a failed S3 commit fails CreateMatchup
+	// atomically — no orphan rows. Item uploads are independent: one
+	// failing doesn't prevent the others, but the first failure short-
+	// circuits the request before any DB work happens.
+	itemBucket := bucketFromEnv()
+	for idx, it := range req.Msg.Items {
+		item := models.MatchupItem{Item: it.Item}
+		if key := it.GetUploadKey(); key != "" {
+			buf, commitErr := CommitUploadedObject(ctx, h.S3Client, itemBucket, key, UploadKindMatchupItem, userID)
+			if commitErr != nil {
+				return nil, commitErr
+			}
+			filePath := fileformat.UniqueFormat("item.jpg")
+			keyBase := "MatchupItemImages/" + filePath
+			if _, uploadErr := resizeAndUpload(ctx, h.S3Client, itemBucket, keyBase, buf); uploadErr != nil {
+				log.Printf("CreateMatchup: item %d S3 resize/upload failed: %v", idx, uploadErr)
+				return nil, connect.NewError(connect.CodeInternal, errors.New("failed to upload item image"))
+			}
+			item.ImagePath = filePath
+			DeleteUploadedObject(ctx, h.S3Client, itemBucket, key)
+		}
+		matchup.Items = append(matchup.Items, item)
 	}
 
 	// Tags

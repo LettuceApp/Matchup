@@ -94,10 +94,18 @@ func followListUserToProto(dto FollowUserDTO) *userv1.FollowListUser {
 // ---- common protos ----
 
 func matchupItemToProto(item models.MatchupItem) *commonv1.MatchupItemResponse {
+	// Lift the relative DB path to a full S3 URL on the wire so
+	// frontends never deal with bucket/region details. Empty path
+	// stays empty — frontend uses that as the "no thumbnail" signal.
+	imageURL := ""
+	if item.ImagePath != "" {
+		imageURL = appdb.ProcessMatchupItemImagePath(item.ImagePath)
+	}
 	return &commonv1.MatchupItemResponse{
-		Id:    item.PublicID,
-		Item:  item.Item,
-		Votes: int32(item.Votes),
+		Id:       item.PublicID,
+		Item:     item.Item,
+		Votes:    int32(item.Votes),
+		ImageUrl: imageURL,
 	}
 }
 

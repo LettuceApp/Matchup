@@ -242,8 +242,23 @@ export default function BracketView({
         }}
         disabled={!canVote}
       >
-        <span className="bracket-row-name">
-          {item.placeholder ? "Awaiting winner" : item.item}
+        {/* Thumbnail + name share the first grid cell of .bracket-row
+            so the column layout (name | votes) stays unchanged when
+            an item has no image. Skipped for placeholder rows
+            ("Awaiting winner") which have no item to depict. Cycle 6c. */}
+        <span className="bracket-row-name-wrap">
+          {!item.placeholder && item.image_url && (
+            <img
+              src={item.image_url}
+              alt=""
+              className="bracket-row-thumb"
+              decoding="async"
+              loading="lazy"
+            />
+          )}
+          <span className="bracket-row-name">
+            {item.placeholder ? "Awaiting winner" : item.item}
+          </span>
         </span>
         <span className="bracket-row-votes">{percent}%</span>
         <div className="bracket-row-bar">

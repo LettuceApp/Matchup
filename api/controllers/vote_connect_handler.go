@@ -17,9 +17,11 @@ import (
 	"Matchup/gen/matchup/v1/matchupv1connect"
 	"Matchup/middlewares"
 	"Matchup/models"
+	"Matchup/utils/fileformat"
 	httpctx "Matchup/utils/httpctx"
 
 	"connectrpc.com/connect"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 )
@@ -41,9 +43,14 @@ const AnonVoteCap = 3
 const anonVoteIPBudget = 10
 
 // MatchupItemHandler implements matchupv1connect.MatchupItemServiceHandler.
+//
+// S3Client is optional — only AddItem / UpdateItem with an upload_key
+// require it. Vote / skip / delete paths leave it untouched. Tests
+// that don't exercise the upload path can omit it.
 type MatchupItemHandler struct {
-	DB     *sqlx.DB
-	ReadDB *sqlx.DB
+	DB       *sqlx.DB
+	ReadDB   *sqlx.DB
+	S3Client *s3.Client
 }
 
 var _ matchupv1connect.MatchupItemServiceHandler = (*MatchupItemHandler)(nil)
@@ -585,9 +592,29 @@ func (h *MatchupItemHandler) AddItem(ctx context.Context, req *connect.Request[m
 		MatchupID: matchupRecord.ID,
 		Item:      req.Msg.Item,
 	}
+
+	// Optional thumbnail upload — same three-step pattern as the
+	// matchup cover (see CreateMatchup). Commit before INSERT so a
+	// failed S3 commit fails AddItem atomically — no orphan rows.
+	if key := req.Msg.GetUploadKey(); key != "" {
+		bucketName := bucketFromEnv()
+		buf, commitErr := CommitUploadedObject(ctx, h.S3Client, bucketName, key, UploadKindMatchupItem, requestorID)
+		if commitErr != nil {
+			return nil, commitErr
+		}
+		filePath := fileformat.UniqueFormat("item.jpg")
+		keyBase := "MatchupItemImages/" + filePath
+		if _, uploadErr := resizeAndUpload(ctx, h.S3Client, bucketName, keyBase, buf); uploadErr != nil {
+			log.Printf("AddItem: S3 resize/upload failed: %v", uploadErr)
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to upload item image"))
+		}
+		item.ImagePath = filePath
+		DeleteUploadedObject(ctx, h.S3Client, bucketName, key)
+	}
+
 	if _, err := h.DB.ExecContext(ctx,
-		"INSERT INTO matchup_items (public_id, matchup_id, item, votes, created_at, updated_at) VALUES ($1, $2, $3, 0, NOW(), NOW())",
-		item.PublicID, item.MatchupID, item.Item); err != nil {
+		"INSERT INTO matchup_items (public_id, matchup_id, item, votes, image_path, created_at, updated_at) VALUES ($1, $2, $3, 0, $4, NOW(), NOW())",
+		item.PublicID, item.MatchupID, item.Item, item.ImagePath); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	if err := sqlx.GetContext(ctx, h.DB, &item, "SELECT * FROM matchup_items WHERE public_id = $1", item.PublicID); err != nil {
@@ -617,11 +644,40 @@ func (h *MatchupItemHandler) UpdateItem(ctx context.Context, req *connect.Reques
 	if m.AuthorID != requestorID && !httpctx.IsAdminRequest(ctx) {
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("unauthorized"))
 	}
-	if _, err := h.DB.ExecContext(ctx, "UPDATE matchup_items SET item = $1, updated_at = NOW() WHERE id = $2", req.Msg.Item, itemRecord.ID); err != nil {
+
+	// Optional thumbnail replacement. When upload_key is empty, the
+	// existing image_path is preserved. Sending an empty string here
+	// is currently a no-op (preserves existing) — clearing an image
+	// will need a dedicated flag if it ever becomes a real product
+	// need; the proto field comment documents this contract.
+	newImagePath := itemRecord.ImagePath
+	if key := req.Msg.GetUploadKey(); key != "" {
+		bucketName := bucketFromEnv()
+		buf, commitErr := CommitUploadedObject(ctx, h.S3Client, bucketName, key, UploadKindMatchupItem, requestorID)
+		if commitErr != nil {
+			return nil, commitErr
+		}
+		filePath := fileformat.UniqueFormat("item.jpg")
+		keyBase := "MatchupItemImages/" + filePath
+		if _, uploadErr := resizeAndUpload(ctx, h.S3Client, bucketName, keyBase, buf); uploadErr != nil {
+			log.Printf("UpdateItem: S3 resize/upload failed: %v", uploadErr)
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to upload item image"))
+		}
+		newImagePath = filePath
+		DeleteUploadedObject(ctx, h.S3Client, bucketName, key)
+	}
+
+	if _, err := h.DB.ExecContext(ctx,
+		"UPDATE matchup_items SET item = $1, image_path = $2, updated_at = NOW() WHERE id = $3",
+		req.Msg.Item, newImagePath, itemRecord.ID,
+	); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	if err := sqlx.GetContext(ctx, h.DB, itemRecord, "SELECT * FROM matchup_items WHERE id = $1", itemRecord.ID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	if m.BracketID != nil {
+		invalidateBracketSummaryCache(*m.BracketID)
 	}
 	resp := connect.NewResponse(&matchupv1.UpdateItemResponse{Item: matchupItemToProto(*itemRecord)})
 	setReadPrimaryCookie(resp.Header())

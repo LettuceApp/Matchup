@@ -51,7 +51,7 @@ func initializeConnectRoutes(r chi.Router, db, readDB *sqlx.DB, s3Client *s3.Cli
 	authHandler := &AuthHandler{DB: db}
 	userHandler := &UserHandler{DB: db, ReadDB: readDB, S3Client: s3Client}
 	matchupHandler := &MatchupHandler{DB: db, ReadDB: readDB, S3Client: s3Client}
-	matchupItemHandler := &MatchupItemHandler{DB: db, ReadDB: readDB}
+	matchupItemHandler := &MatchupItemHandler{DB: db, ReadDB: readDB, S3Client: s3Client}
 	bracketHandler := &BracketHandler{DB: db, ReadDB: readDB}
 	commentHandler := &CommentHandler{DB: db, ReadDB: readDB}
 	likeHandler := &LikeHandler{DB: db, ReadDB: readDB}

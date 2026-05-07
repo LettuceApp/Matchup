@@ -1,11 +1,14 @@
 package controllers
 
 import (
+	"os"
+	"strings"
 	"testing"
 	"time"
 
 	bracketv1 "Matchup/gen/bracket/v1"
 	matchupv1 "Matchup/gen/matchup/v1"
+	"Matchup/models"
 )
 
 func TestRfc3339(t *testing.T) {
@@ -218,3 +221,86 @@ func TestPopularBracketToProto(t *testing.T) {
 		var _ *bracketv1.PopularBracketData = got
 	})
 }
+
+// matchupItemToProto — added in cycle 6c (item thumbnails). Empty
+// ImagePath should produce an empty image_url; a non-empty ImagePath
+// should be lifted to a full S3 URL via ProcessMatchupItemImagePath.
+func TestMatchupItemToProto(t *testing.T) {
+	t.Setenv("S3_BUCKET", "matchup-test-bucket")
+	t.Setenv("AWS_REGION", "us-east-2")
+
+	t.Run("empty image_path -> empty image_url", func(t *testing.T) {
+		item := models.MatchupItem{
+			PublicID:  "abc-123",
+			Item:      "Option A",
+			Votes:     5,
+			ImagePath: "",
+		}
+		got := matchupItemToProto(item)
+		if got.GetImageUrl() != "" {
+			t.Errorf("ImageUrl = %q, want empty", got.GetImageUrl())
+		}
+	})
+
+	t.Run("non-empty image_path -> full S3 URL", func(t *testing.T) {
+		item := models.MatchupItem{
+			PublicID:  "abc-123",
+			Item:      "Option A",
+			Votes:     5,
+			ImagePath: "blade-runner.jpg",
+		}
+		got := matchupItemToProto(item)
+		url := got.GetImageUrl()
+		// Should include the bucket, region, and the MatchupItemImages
+		// prefix that ProcessMatchupItemImagePath wires up.
+		for _, want := range []string{"matchup-test-bucket", "us-east-2", "MatchupItemImages/", "blade-runner.jpg"} {
+			if !strings.Contains(url, want) {
+				t.Errorf("ImageUrl = %q, missing %q", url, want)
+			}
+		}
+	})
+
+	t.Run("preserves item label, vote count, public id", func(t *testing.T) {
+		item := models.MatchupItem{
+			PublicID: "abc-123",
+			Item:     "Option A",
+			Votes:    7,
+		}
+		got := matchupItemToProto(item)
+		if got.GetId() != "abc-123" {
+			t.Errorf("Id = %q, want abc-123", got.GetId())
+		}
+		if got.GetItem() != "Option A" {
+			t.Errorf("Item = %q, want Option A", got.GetItem())
+		}
+		if got.GetVotes() != 7 {
+			t.Errorf("Votes = %d, want 7", got.GetVotes())
+		}
+	})
+}
+
+// uploadKinds registry — cycle 6c added UploadKindMatchupItem. Spec
+// must register a non-zero size cap + a content-type allowlist.
+// Without this, PresignUpload would 400 on any matchup_item request.
+func TestUploadKindMatchupItemRegistered(t *testing.T) {
+	spec, ok := uploadKinds[UploadKindMatchupItem]
+	if !ok {
+		t.Fatal("UploadKindMatchupItem not registered in uploadKinds map")
+	}
+	if spec.MaxBytes <= 0 {
+		t.Errorf("MaxBytes = %d, want positive", spec.MaxBytes)
+	}
+	if spec.MaxBytes > 5_000_000 {
+		t.Errorf("MaxBytes = %d, item caps should stay below the matchup-cover ceiling", spec.MaxBytes)
+	}
+	for _, ct := range []string{"image/jpeg", "image/png", "image/webp", "image/gif"} {
+		if !spec.AllowedTypes[ct] {
+			t.Errorf("Content-Type %q not in allowlist", ct)
+		}
+	}
+}
+
+// Compile-time guard so a refactor that drops the os import doesn't
+// silently break the t.Setenv-using tests above.
+var _ = os.Setenv
+

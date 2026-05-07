@@ -370,6 +370,16 @@ export const uploadMatchupCoverImage = async (file) => {
   return uploadViaPresign('matchup_cover', file);
 };
 
+// uploadMatchupItemImage — same pattern as uploadMatchupCoverImage but
+// for per-contender thumbnails (kind="matchup_item", 2 MB cap). Returns
+// the S3 key the backend expects on the matching commit RPC
+// (CreateMatchup.items[].upload_key, AddItem.upload_key,
+// UpdateItem.upload_key).
+export const uploadMatchupItemImage = async (file) => {
+  if (!file) return undefined;
+  return uploadViaPresign('matchup_item', file);
+};
+
 export const deleteUser = (id) =>
   rpc('user.v1.UserService', 'DeleteUser', { id });
 
@@ -432,17 +442,31 @@ export const getUserMatchup = (_userId, matchupId) =>
 export const getMatchup = (id) =>
   rpc('matchup.v1.MatchupService', 'GetMatchup', { id });
 
-// createMatchup accepts an optional `imageFile` (a File object) on
-// top of the proto fields. When present it's uploaded to S3 via the
-// presign flow first, and the resulting key is passed as
-// `upload_key` to the backend. Callers no longer FileReader/base64
-// anything themselves.
+// createMatchup accepts:
+//  - imageFile (a File) for the matchup cover
+//  - items: [{ item, imageFile? }] — each item may carry an optional
+//    File for its thumbnail (cycle 6c)
+// Both upload paths run in parallel via Promise.all so a 4-item
+// matchup with thumbnails on every item doesn't pay 5× sequential
+// network round-trips. Failures bubble up as plain Errors with the
+// uploadViaPresign messages; the caller surfaces those inline.
 export const createMatchup = async (userId, data = {}) => {
-  const { imageFile, ...rest } = data;
-  const upload_key = await uploadMatchupCoverImage(imageFile);
+  const { imageFile, items: rawItems, ...rest } = data;
+
+  const coverPromise = uploadMatchupCoverImage(imageFile);
+  const itemsPromise = Promise.all(
+    (rawItems ?? []).map(async ({ imageFile: itemFile, ...itemRest }) => {
+      const upload_key = await uploadMatchupItemImage(itemFile);
+      return { ...itemRest, ...(upload_key ? { upload_key } : {}) };
+    }),
+  );
+
+  const [upload_key, items] = await Promise.all([coverPromise, itemsPromise]);
+
   return rpc('matchup.v1.MatchupService', 'CreateMatchup', {
     user_id: userId,
     ...rest,
+    items,
     ...(upload_key ? { upload_key } : {}),
   });
 };

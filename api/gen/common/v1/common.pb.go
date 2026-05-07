@@ -76,10 +76,15 @@ func (x *UserSummaryResponse) GetUsername() string {
 
 // MatchupItemResponse is an item inside a matchup.
 type MatchupItemResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Item          string                 `protobuf:"bytes,2,opt,name=item,proto3" json:"item,omitempty"`
-	Votes         int32                  `protobuf:"varint,3,opt,name=votes,proto3" json:"votes,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Item  string                 `protobuf:"bytes,2,opt,name=item,proto3" json:"item,omitempty"`
+	Votes int32                  `protobuf:"varint,3,opt,name=votes,proto3" json:"votes,omitempty"`
+	// Full S3 URL for the item's thumbnail, or empty when the item has
+	// no image. Resolved server-side via ProcessMatchupItemImagePath
+	// (which lifts the relative DB path to a CDN-style URL). Empty
+	// strings are valid; the frontend falls back to a text-only card.
+	ImageUrl      string `protobuf:"bytes,4,opt,name=image_url,json=imageUrl,proto3" json:"image_url,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -133,6 +138,13 @@ func (x *MatchupItemResponse) GetVotes() int32 {
 		return x.Votes
 	}
 	return 0
+}
+
+func (x *MatchupItemResponse) GetImageUrl() string {
+	if x != nil {
+		return x.ImageUrl
+	}
+	return ""
 }
 
 // Pagination is included in paginated list responses.
@@ -211,11 +223,12 @@ const file_common_v1_common_proto_rawDesc = "" +
 	"\x16common/v1/common.proto\x12\tcommon.v1\"A\n" +
 	"\x13UserSummaryResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
-	"\busername\x18\x02 \x01(\tR\busername\"O\n" +
+	"\busername\x18\x02 \x01(\tR\busername\"l\n" +
 	"\x13MatchupItemResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04item\x18\x02 \x01(\tR\x04item\x12\x14\n" +
-	"\x05votes\x18\x03 \x01(\x05R\x05votes\"m\n" +
+	"\x05votes\x18\x03 \x01(\x05R\x05votes\x12\x1b\n" +
+	"\timage_url\x18\x04 \x01(\tR\bimageUrl\"m\n" +
 	"\n" +
 	"Pagination\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x14\n" +

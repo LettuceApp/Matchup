@@ -151,6 +151,27 @@
   border-color: rgba(148, 163, 255, 0.65);
 }
 
+/* Thumbnail + name wrapper occupies the first grid cell of .bracket-row.
+   Lets us add an optional thumbnail (cycle 6c) without changing the
+   row's outer 2-column grid (name-block | votes). When there's no
+   thumbnail the wrapper is just the name with no visible width hit. */
+.bracket-row-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.bracket-row-thumb {
+  width: 22px;
+  height: 22px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 255, 0.2);
+}
+
 .bracket-row-name {
   font-weight: 600;
   font-size: 0.85rem;

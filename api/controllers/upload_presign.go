@@ -39,8 +39,12 @@ var _ uploadv1connect.UploadServiceHandler = (*UploadHandler)(nil)
 type UploadKind string
 
 const (
-	UploadKindAvatar        UploadKind = "avatar"
-	UploadKindMatchupCover  UploadKind = "matchup_cover"
+	UploadKindAvatar       UploadKind = "avatar"
+	UploadKindMatchupCover UploadKind = "matchup_cover"
+	// Item thumbnails — added migration 026. Smaller cap than matchup
+	// covers (items are tile-sized in the contender card layout, so a
+	// 2 MB cap is plenty for a sharp upload that resizes well).
+	UploadKindMatchupItem UploadKind = "matchup_item"
 )
 
 // uploadKindSpec is the per-kind policy: what's allowed + how large.
@@ -66,6 +70,15 @@ var uploadKinds = map[UploadKind]uploadKindSpec{
 	},
 	UploadKindMatchupCover: {
 		MaxBytes: 5_000_000,
+		AllowedTypes: map[string]bool{
+			"image/jpeg": true,
+			"image/png":  true,
+			"image/webp": true,
+			"image/gif":  true,
+		},
+	},
+	UploadKindMatchupItem: {
+		MaxBytes: 2_000_000,
 		AllowedTypes: map[string]bool{
 			"image/jpeg": true,
 			"image/png":  true,
