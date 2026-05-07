@@ -41,7 +41,13 @@ export default function MatchupCard({
       ? String(matchupOwnerId)
       : null;
   const profileSlug = matchup?.author?.username || normalizedOwnerId;
-  const items = Array.isArray(matchup.items) ? matchup.items : [];
+  // Memoized so the array reference stays stable when matchup.items
+  // hasn't changed — otherwise the totalVotes useMemo below would
+  // recompute on every render.
+  const items = useMemo(
+    () => (Array.isArray(matchup.items) ? matchup.items : []),
+    [matchup.items],
+  );
   const roundNumber =
     typeof matchup.round === "number"
       ? matchup.round

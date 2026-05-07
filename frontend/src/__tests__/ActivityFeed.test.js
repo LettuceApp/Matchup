@@ -147,8 +147,15 @@ describe('ActivityFeed', () => {
     }];
     const lastSeenAt = new Date(NOW - 10 * 60_000).toISOString();
     const { container } = renderFeed({ items, lastSeenAt });
-    // Two items rendered, only the newer one has the unread class
+    // Two items rendered, only the newer one has the unread class.
+    // The "unread" state is a CSS-class-driven visual cue — there's no
+    // accessible role/label that distinguishes it (yet), so a class-
+    // selector query is the most direct assertion. testing-library's
+    // no-container / no-node-access rules are intentionally relaxed
+    // for this single case.
+    /* eslint-disable testing-library/no-container, testing-library/no-node-access */
     const unread = container.querySelectorAll('.activity-item.is-unread');
+    /* eslint-enable testing-library/no-container, testing-library/no-node-access */
     expect(unread).toHaveLength(1);
   });
 });

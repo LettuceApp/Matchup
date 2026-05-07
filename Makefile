@@ -1,4 +1,4 @@
-.PHONY: test test-api test-frontend test-integration cover cover-html lint build dev
+.PHONY: test test-api test-frontend test-integration cover cover-html lint build dev setup-hooks
 
 # ── Tests ──────────────────────────────────────────────────────────────
 test: test-api test-frontend
@@ -39,3 +39,12 @@ dev:
 	@echo "Waiting for Postgres..."
 	@sleep 2
 	cd api && go run ./cmd
+
+# ── Hooks ──────────────────────────────────────────────────────────────
+# Point this clone at the tracked .githooks/ directory so .githooks/pre-push
+# fires on every `git push`. Run once per clone; the config is per-clone
+# (not in the repo), so cloning fresh requires re-running this.
+setup-hooks:
+	git config core.hooksPath .githooks
+	@echo "✓ hooks enabled — .githooks/pre-push will run on git push"
+	@echo "  Skip in emergencies with: git push --no-verify"

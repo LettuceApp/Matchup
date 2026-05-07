@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# .githooks/pre-push
+#
+# Runs the same battery CI runs (go vet + go test, ESLint, npm test)
+# locally before allowing a push to leave the machine. Catches the
+# class of bug where I broke a unit test with a code change and only
+# noticed after Render had already auto-deployed the bad commit.
+#
+# Skip in emergencies with: git push --no-verify
+#
+# To enable this hook (one-time per clone):
+#   make setup-hooks
+# or:
+#   git config core.hooksPath .githooks
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# Find the Go binary. Default install path on macOS is /usr/local/go/bin/go,
+# but PATH may not include it from a non-interactive shell (e.g. when GUI
+# git tools invoke the hook). Fall back to common locations.
+GO=""
+for candidate in /usr/local/go/bin/go go; do
+  if command -v "$candidate" >/dev/null 2>&1; then
+    GO="$candidate"
+    break
+  fi
+done
+if [ -z "$GO" ]; then
+  echo "✗ pre-push: 'go' binary not found in PATH or /usr/local/go/bin." >&2
+  echo "  Install Go or extend PATH and retry." >&2
+  exit 1
+fi
+
+echo "▸ pre-push: validating before letting this push leave the machine..."
+
+# ── Backend: vet + test (no race; CI runs the slower race+coverage version) ──
+echo "→ go vet ./..."
+( cd api && "$GO" vet ./... )
+
+echo "→ go test ./..."
+( cd api && "$GO" test -count=1 -timeout 120s ./... )
+
+# ── Frontend: lint + test ──
+# CI uses --max-warnings 0; mirror that here so a warning blocks the push.
+echo "→ eslint --max-warnings 0"
+( cd frontend && npx --no-install eslint src/ --max-warnings 0 )
+
+echo "→ npm test"
+( cd frontend && CI=true npm test --silent -- --watchAll=false --passWithNoTests )
+
+echo "✓ pre-push checks passed"

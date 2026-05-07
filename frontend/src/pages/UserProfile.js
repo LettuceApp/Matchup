@@ -7,7 +7,6 @@ import {
   FiStar,
   FiTrendingUp,
   FiMessageCircle,
-  FiActivity,
 } from 'react-icons/fi';
 import {
   getUserMatchups,
@@ -117,7 +116,6 @@ const UserProfile = () => {
   const [brackets, setBrackets] = useState([]);
   const [followers, setFollowers] = useState([]);
   const [followersCursor, setFollowersCursor] = useState(null);
-  const [followersLoaded, setFollowersLoaded] = useState(false);
   const [followersLoading, setFollowersLoading] = useState(false);
   const [followersError, setFollowersError] = useState(null);
   const [following, setFollowing] = useState([]);
@@ -476,7 +474,6 @@ const UserProfile = () => {
       const { users, nextCursor } = normalizeFollowPayload(res.data);
       setFollowers(prev => (reset ? users : [...prev, ...users]));
       setFollowersCursor(nextCursor);
-      setFollowersLoaded(true);
     } catch (err) {
       console.warn('Followers unavailable', err);
       setFollowersError('Followers unavailable.');
@@ -515,7 +512,6 @@ const UserProfile = () => {
   useEffect(() => {
     setFollowers([]);
     setFollowersCursor(null);
-    setFollowersLoaded(false);
     setFollowersLoading(false);
     setFollowersError(null);
     setFollowing([]);
@@ -526,6 +522,11 @@ const UserProfile = () => {
     setActiveFollowTab('followers');
     setListFollowError(null);
     loadFollowers(true);
+    // loadFollowers reads several state values (cursor, loading flag) and
+    // updates them — adding it to the dep array would re-fire this effect
+    // every time those flags change, defeating the "reset-on-identifier-
+    // change" intent. Stable across the component's lifetime per profile.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [identifier]);
 
   useEffect(() => {
@@ -533,6 +534,10 @@ const UserProfile = () => {
     if (!followingLoaded && !followingLoading) {
       loadFollowing(true);
     }
+    // Same reasoning as the followers effect above — loadFollowing reads
+    // pagination state it itself updates, so adding it as a dep would
+    // create a feedback loop. Lazy-fire-once-per-tab-activation is intentional.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFollowTab, followingLoaded, followingLoading, identifier]);
 
   const handleDeleteBracket = async (bracket) => {

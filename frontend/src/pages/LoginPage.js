@@ -37,7 +37,10 @@ const LoginPage = () => {
           email_or_username: identifier,
         });
         track('login_completed');
-        navigate('/home', { replace: true });
+        // Honour the redirect-after-login hint that RequireAuth puts in
+        // location.state when an unauthenticated user hits a gated route.
+        // Falls back to /home when the user came here directly.
+        navigate(from, { replace: true });
       } else {
         console.error('Token or User ID is missing in response');
         setError('Login failed. Please try again.');

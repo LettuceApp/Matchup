@@ -119,6 +119,21 @@ cd frontend
 npm test -- --watchAll=false
 ```
 
+### Pre-push hook (recommended)
+
+Render auto-deploys on every push to `main`, so a broken commit reaches
+production before CI can flag it. The repo ships a `.githooks/pre-push`
+script that runs the same battery CI runs (`go vet`, `go test`, `eslint
+--max-warnings 0`, `npm test`) locally before letting the push leave the
+machine. Enable it once per clone:
+
+```bash
+make setup-hooks
+```
+
+The hook adds ~30 seconds per push. Skip in emergencies with
+`git push --no-verify`.
+
 ## Deployment (AKS)
 
 Images are built and pushed to Azure Container Registry, then applied to the cluster:

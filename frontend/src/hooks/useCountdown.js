@@ -1,11 +1,15 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export default function useCountdown(targetTime) {
-  const getRemaining = () => {
+  // Wrapped in useCallback so the function identity is stable across
+  // renders for the same targetTime — that lets the effect below depend
+  // on it without re-firing every render. (Was previously not memoized,
+  // so eslint flagged the effect for missing deps.)
+  const getRemaining = useCallback(() => {
     if (!targetTime) return null;
     const diff = new Date(targetTime).getTime() - Date.now();
     return Math.max(0, diff);
-  };
+  }, [targetTime]);
 
   const [remainingMs, setRemainingMs] = useState(getRemaining);
 
@@ -22,7 +26,7 @@ export default function useCountdown(targetTime) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [targetTime]);
+  }, [targetTime, getRemaining]);
 
   const isExpired = remainingMs !== null && remainingMs <= 0;
 

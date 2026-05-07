@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { FiHeart, FiMessageCircle, FiShare2, FiFlag } from "react-icons/fi";
+import { FiHeart, FiMessageCircle, FiFlag } from "react-icons/fi";
 import NavigationBar from "../components/NavigationBar";
 import MatchupItem from "../components/MatchupItem";
 import AnonVoteCounter from "../components/AnonVoteCounter";
@@ -28,7 +28,6 @@ import {
   overrideMatchupWinner,
   completeMatchup,
   getCurrentUser,
-  updateBracket,
 } from "../services/api";
 import "../styles/MatchupPage.css";
 import useCountdown from "../hooks/useCountdown";
@@ -205,10 +204,6 @@ const MatchupPage = () => {
 
   const isAdmin = currentUser?.is_admin === true;
 
-  const canManageBracket = isBracketMatchup && (isOwner || isAdmin);
-  const showBracketActivate =
-    canManageBracket && bracket?.status === "draft";
-
   const isActiveBracketRound =
     isBracketMatchup &&
     bracket?.status === "active" &&
@@ -223,15 +218,6 @@ const MatchupPage = () => {
           bracket.status !== "active" ||
           Number(matchupRound) !==
             Number(bracket?.current_round ?? bracket?.currentRound))));
-
-  const interactionLocked =
-    matchupExpired ||
-    (!isBracketMatchup && !isOpenStatus) ||
-    (isBracketMatchup &&
-      (!bracket ||
-        bracket.status !== "active" ||
-        Number(matchupRound) !==
-          Number(bracket?.current_round ?? bracket?.currentRound)));
   const isReady = matchupStatus === "completed";
   const canReadyUp = (isOwner || isAdmin) && (isOpenStatus || isReady);
   const canLike = Boolean(viewerId) && matchupStatus !== "draft";

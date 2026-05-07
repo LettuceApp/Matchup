@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { createUser, login } from '../services/api';
 import { clearAnonId, peekAnonId } from '../utils/anonId';
 import { identifyUser, track } from '../utils/analytics';
@@ -12,8 +12,10 @@ const RegisterPage = () => {
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation();
-  const from = location.state?.from?.pathname || '/home';
+  // After signup we redirect to the new user's profile page (see `dest`
+  // below), not to a `from` location. If redirect-after-signup behavior
+  // ever shifts, restore the useLocation + location.state?.from pattern
+  // used in LoginPage.
 
   // Top-of-funnel signal: somebody made it to the signup page.
   // Combined with `signup_completed` below, this gives us the
