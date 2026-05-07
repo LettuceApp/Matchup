@@ -17,9 +17,17 @@
   gap: 0.6rem;
 }
 
+/* Author at 0.95rem (~15px) sits BELOW the 1rem (16px) body so the
+   visual hierarchy reads body > author > timestamp — the comment
+   itself is the primary content; the author is the metadata that
+   introduces it. Was 1.05rem (16.8px), which inverted that order
+   and made the username feel like the lede. Browser-Claude flagged
+   this on a prod typography pass; reasoning matches mainstream
+   discussion-surface conventions (Reddit, YouTube, HN, Substack
+   all sit author ≤ body). */
 .comment-card__author {
   font-weight: 600;
-  font-size: 1.05rem;
+  font-size: 0.95rem;
   color: #c7d2fe;
   text-decoration: none;
   transition: color 200ms ease;
@@ -35,10 +43,15 @@
   color: rgba(148, 163, 255, 0.78);
 }
 
+/* Body stays at the inherited 1rem (16px) — that's the standard
+   minimum for comfortable reading on the web and shrinking it
+   would hurt engagement on the discussion surface. Line-height
+   tightened from 1.5 → 1.45 for a slightly more cohesive feel
+   without touching the size. */
 .comment-card__body {
   margin: 0;
   color: rgba(226, 232, 240, 0.86);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 .comment-card__actions {
