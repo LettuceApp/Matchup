@@ -728,17 +728,21 @@ const MatchupPage = () => {
               />
             </div>
           )}
-          {/* Side-by-side contender layout. Pairwise-comparison research
-              (OpinionX, User Research Strategist, Mural / Blaston / PlayyOn
-              case studies) is consistent that top-stacked options anchor the
-              user to the upper choice — equal-weight side-by-side cards
-              with a center "VS" divider remove that bias. The grid
-              collapses to a single column on narrow viewports
-              (see @media (max-width: 720px) in MatchupPage.css). */}
-          <div className="matchup-items">
+          {/* Side-by-side contender layout — but only for exactly two items.
+              Pairwise-comparison research (OpinionX, User Research Strategist,
+              Mural / Blaston / PlayyOn case studies) is specifically about 1v1
+              comparisons; 4-way polls and bigger don't gain from arbitrarily
+              pairing contenders into a 2×2 grid (and the cycling left-border
+              colors lose meaning when item 3+ is forced into the same row as
+              item 1). Falls back to the vertical stack for any other count.
+              The pairwise variant collapses to a single column under 720px
+              (see MatchupPage.css). */}
+          <div
+            className={`matchup-items${items.length === 2 ? " matchup-items--pairwise" : ""}`}
+          >
             {items.map((item, idx) => (
               <React.Fragment key={item.id}>
-                {idx === 1 && (
+                {items.length === 2 && idx === 1 && (
                   <div
                     className="matchup-vs-divider"
                     aria-hidden="true"
