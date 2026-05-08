@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiHeart, FiMessageCircle, FiShare2 } from 'react-icons/fi';
+import { FiHeart, FiMessageCircle, FiShare2, FiX } from 'react-icons/fi';
 import { relativeTime } from '../utils/time';
+import { skipMatchup } from '../services/api';
+import { track } from '../utils/analytics';
 
 const GRADIENTS = [
   'linear-gradient(135deg, #667eea, #764ba2)',
@@ -67,6 +69,16 @@ function withImageSize(url, size) {
 
 const HomeCard = ({ item, type }) => {
   const navigate = useNavigate();
+  // Skip-from-feed state. When the user dismisses a matchup card we
+  // unmount it locally so the surrounding grid reflows. The server-
+  // side skip is recorded too (kind='skip' on matchup_votes via the
+  // SkipMatchup RPC), but we don't currently filter dismissed matchups
+  // out of the home-summary query — so a page refresh restores the
+  // card. That's intentional for now: lets users see the same matchup
+  // again if they want, and keeps the home-summary materialized view
+  // queryable without a per-viewer join.
+  const [dismissed, setDismissed] = useState(false);
+  const [skipPending, setSkipPending] = useState(false);
   const title = item.title || (type === 'bracket' ? 'Untitled Bracket' : 'Untitled Matchup');
   const backendTags = Array.isArray(item.tags) && item.tags.length > 0 ? item.tags : null;
   const tags = backendTags ?? deriveTags(title);
@@ -89,6 +101,39 @@ const HomeCard = ({ item, type }) => {
     }
   };
 
+  // Skip from feed. Only valid on type === 'matchup' (brackets aren't
+  // voted on directly). Stops propagation so the click doesn't also
+  // navigate into the detail page. After the RPC succeeds the card
+  // unmounts; on RPC failure we surface no error UI here — the home
+  // feed isn't where users debug — and just leave the card visible
+  // so they can try again or click in.
+  const handleSkip = async (e) => {
+    e.stopPropagation();
+    if (skipPending || dismissed) return;
+    setSkipPending(true);
+    try {
+      const res = await skipMatchup(item.id);
+      const alreadySkipped = Boolean(
+        res?.data?.already_skipped ?? res?.data?.alreadySkipped,
+      );
+      track('matchup_skipped', {
+        matchup_id: item.id,
+        surface: 'feed',
+        already_skipped: alreadySkipped,
+      });
+      setDismissed(true);
+    } catch (err) {
+      // Anon-on-bracket would 403 but we never render Skip on bracket
+      // cards. A locked / closed matchup would 412. Either way: leave
+      // the card visible and let the user click in to investigate.
+      console.warn('home-feed skip failed:', err);
+    } finally {
+      setSkipPending(false);
+    }
+  };
+
+  if (dismissed) return null;
+
   return (
     <article className="home-card" onClick={handleClick}>
       {/* Post header */}
@@ -101,6 +146,23 @@ const HomeCard = ({ item, type }) => {
         <span className="home-card__badge">
           {type === 'bracket' ? 'Bracket' : 'Matchup'}
         </span>
+        {/* Skip / dismiss — matchup cards only. Not on brackets (you
+            don't vote on a bracket directly, you vote on its child
+            matchups). Visible always for v1 so the affordance is
+            discoverable. Could move to hover-only on desktop later if
+            it reads as too noisy. */}
+        {type === 'matchup' && (
+          <button
+            type="button"
+            className="home-card__skip"
+            onClick={handleSkip}
+            disabled={skipPending}
+            aria-label="Skip this matchup"
+            title="Skip — remove from feed"
+          >
+            <FiX aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       {/* Caption */}
