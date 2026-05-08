@@ -29,6 +29,7 @@ import {
   completeMatchup,
   getCurrentUser,
   getBracketMatchups,
+  getMatchups,
   skipMatchup,
 } from "../services/api";
 import "../styles/MatchupPage.css";
@@ -74,13 +75,11 @@ const MatchupPage = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [confirmModal, setConfirmModal] = useState(null); // { message, confirmLabel, danger, onConfirm }
   const [votedItemId, setVotedItemId] = useState(null);
-  // Skip-button state. `skipped` flips true after a successful skip
-  // RPC (or when the server reports already_skipped on a duplicate
-  // call). `skipPending` blocks double-clicks during the round trip.
-  // The skip is reversible — picking a contender afterwards switches
-  // the row back to a pick + restores that item's counter — but the
-  // button itself stays in the affirmation state once toggled.
-  const [skipped, setSkipped] = useState(false);
+  // Skip-button state. Skip is "navigate to a random public matchup"
+  // (TikTok-style swipe-next), not "abstain in place" — once clicked,
+  // the page navigates away, so we don't need an affirmation state.
+  // skipPending guards against double-tap while the RPC + fetch are
+  // in flight.
   const [skipPending, setSkipPending] = useState(false);
   // Report flow — non-owners can flag a matchup for moderator review.
   const [reportOpen, setReportOpen] = useState(false);
@@ -479,44 +478,72 @@ const MatchupPage = () => {
     }
   };
 
-  // Reset the skip-button state when the user navigates between
-  // matchups — otherwise the affirmation state would carry over.
+  // Reset skipPending whenever the route changes — covers the
+  // navigate-to-next case so the new matchup loads with a fresh
+  // button state.
   useEffect(() => {
-    setSkipped(false);
     setSkipPending(false);
-    // matchup?.id is stable per logical matchup — refreshMatchup mutations
-    // keep the same id. Only a route change replaces it.
   }, [matchup?.id]);
 
+  // handleSkip is the swipe-next gesture: record the skip server-side
+  // (best-effort; the kind='skip' row stays useful for bracket-owner
+  // skip-rate analytics), then navigate to a random public standalone
+  // matchup the viewer hasn't seen. Modeled on TikTok / Twitter video
+  // "next" — the gesture is "I'm done with this one, give me another"
+  // rather than "abstain in place."
+  //
+  // Candidate pool comes from getMatchups(1, 50) filtered client-side:
+  //   - exclude the current matchup
+  //   - exclude bracket children (bracket flow shouldn't get
+  //     interrupted by an unrelated standalone)
+  //   - exclude completed (no votes left to cast)
+  // If the filtered pool is empty (small dataset), fall back to /home
+  // so the user lands somewhere useful instead of a navigation no-op.
   const handleSkip = async () => {
-    if (skipPending || skipped) return;
+    if (skipPending) return;
     setSkipPending(true);
     try {
-      const res = await skipMatchup(matchup.id);
-      const alreadySkipped = Boolean(
-        res?.data?.already_skipped ?? res?.data?.alreadySkipped,
-      );
-      // Pick → skip switch on the server decrements the previously-picked
-      // item; refresh so the UI reflects that.
-      if (votedItemId) {
-        await refreshMatchup();
-      }
-      setVotedItemId(null);
-      setSkipped(true);
+      // Fire skip + fetch in parallel so the next matchup is ready
+      // by the time the skip row commits. allSettled — neither
+      // failing should block the navigation.
+      const [, listRes] = await Promise.allSettled([
+        skipMatchup(matchup.id),
+        getMatchups(1, 50),
+      ]);
+
       track('matchup_skipped', {
         matchup_id: matchup.id,
         bracket: isBracketMatchup,
-        already_skipped: alreadySkipped,
+        surface: 'detail-next',
         from_pick: Boolean(votedItemId),
       });
+
+      let nextHref = '/home';
+      if (listRes.status === 'fulfilled') {
+        const payload = listRes.value?.data?.matchups
+          ?? listRes.value?.data?.response
+          ?? listRes.value?.data
+          ?? {};
+        const pool = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload.matchups) ? payload.matchups : [];
+        const candidates = pool.filter((m) =>
+          String(m.id) !== String(matchup.id) &&
+          !m.bracket_id &&
+          m.status !== 'completed'
+        );
+        if (candidates.length > 0) {
+          const next = candidates[Math.floor(Math.random() * candidates.length)];
+          const slug = next?.author?.username ?? next?.author_id ?? 'unknown';
+          nextHref = `/users/${slug}/matchup/${next.id}`;
+        }
+      }
+      navigate(nextHref);
     } catch (err) {
-      // Backend can return PermissionDenied (anon on bracket) or
-      // FailedPrecondition (matchup locked / closed). Surface as an
-      // inline error rather than a modal — skip is a low-stakes action.
-      console.error('skip failed:', err);
-      setError("Couldn't record skip. Try again in a moment.");
-    } finally {
-      setSkipPending(false);
+      // Outer catch is defensive — Promise.allSettled never rejects.
+      // Falling back to /home keeps the user moving.
+      console.warn('skip-next failed:', err);
+      navigate('/home');
     }
   };
 
@@ -859,36 +886,28 @@ const MatchupPage = () => {
             })()}
           </div>
 
-          {/* Skip / can't-decide affordance.
-              Pairwise-comparison research is consistent that forcing a
-              choice on close pairs makes users abandon — a skip is a
-              recorded "neither right now" that gives bracket owners
-              signal without burning the user's anon vote cap.
-              Hidden when:
-                - the matchup is already resolved (winner declared) —
-                  voting is closed, skip wouldn't apply
-                - the viewer is anonymous on a bracket child — backend
-                  rejects with PermissionDenied (members-only)
-              Disabled when:
-                - voting is locked (status, expiry, wrong bracket round)
-                - a skip RPC is in flight
-                - the viewer has already skipped this matchup
-              The button stays visible after a skip so the affirmation
-              text reads as confirmation, but it flips to disabled —
-              re-clicking would no-op since the server is already in
-              the skip state for this user/anon. Switching to a pick
-              afterwards remains possible by clicking a contender (the
-              backend handles skip → pick atomically). */}
-          {displayWinnerId === null && !(isBracketMatchup && !viewerId) && (
+          {/* "Next matchup →" — TikTok-style swipe-next gesture.
+              Records the skip server-side (matchup_votes.kind='skip',
+              best-effort) AND navigates to a random public standalone
+              matchup. The action means "I'm done with this one, show
+              me another", not "abstain in place" — so once clicked,
+              the page navigates away and there's no affirmation state
+              to surface.
+              Hidden only when the matchup is already resolved (winner
+              declared) — at that point voting is closed and the user
+              can navigate via Like / Comment / Share if they want to
+              keep going. Available on bracket children for authed
+              users (anon-on-bracket would 403 the skip RPC, but the
+              navigation still works since the fetch is independent). */}
+          {displayWinnerId === null && (
             <div className="matchup-skip-row">
               <button
                 type="button"
-                className={`matchup-skip-btn${skipped ? " matchup-skip-btn--done" : ""}`}
+                className="matchup-skip-btn"
                 onClick={handleSkip}
-                disabled={isVotingLocked || skipPending || skipped}
-                aria-pressed={skipped}
+                disabled={skipPending}
               >
-                {skipped ? "Skipped" : "Can't decide? Skip this one"}
+                {skipPending ? "Loading…" : "Next matchup →"}
               </button>
             </div>
           )}
