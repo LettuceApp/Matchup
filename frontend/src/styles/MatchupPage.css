@@ -1006,18 +1006,22 @@
   margin: 0 0 12px;
 }
 
-/* "Next matchup →" button — TikTok-style swipe-next gesture sitting
-   between the contender cards and the action bar. Ghost pill, muted
-   by default; lights up amber on hover so it reads as a secondary
-   action that's still inviting. No "skipped" affirmation state — the
-   button click navigates the page so there's nothing to confirm. */
-.matchup-skip-row {
+/* Twitter-video swipe-stream nav: "← Previous" + "Next matchup →"
+   pair sitting between the contender cards and the action bar.
+   Both buttons share the same ghost-pill treatment so neither
+   visually outranks the other; hover lights them up amber. The
+   disabled state at cursor === 0 (Previous-at-origin) gets the
+   automatic :disabled opacity drop, which reads as "you're at the
+   start" without needing a separate variant rule. */
+.matchup-nav-row {
   display: flex;
   justify-content: center;
+  align-items: center;
+  gap: 0.6rem;
   margin: 14px 0 4px;
 }
 
-.matchup-skip-btn {
+.matchup-nav-btn {
   font: inherit;
   cursor: pointer;
   padding: 0.55rem 1.4rem;
@@ -1031,14 +1035,14 @@
   transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
 }
 
-.matchup-skip-btn:hover:not(:disabled) {
+.matchup-nav-btn:hover:not(:disabled) {
   border-color: rgba(251, 191, 36, 0.55);
   color: #fbbf24;
 }
 
-.matchup-skip-btn:disabled {
+.matchup-nav-btn:disabled {
   cursor: default;
-  opacity: 0.7;
+  opacity: 0.45;
 }
 
 /* Bracket progress chip — "Match X of Y · Round N". Sits above the

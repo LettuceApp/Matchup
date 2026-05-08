@@ -36,6 +36,7 @@ import "../styles/MatchupPage.css";
 import useCountdown from "../hooks/useCountdown";
 import useShareTracking from "../hooks/useShareTracking";
 import { relativeTime } from "../utils/time";
+import { readHistory, writeHistory } from "../utils/matchupNavHistory";
 
 // relativeTime moved to utils/time.js; imported below.
 
@@ -75,12 +76,14 @@ const MatchupPage = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [confirmModal, setConfirmModal] = useState(null); // { message, confirmLabel, danger, onConfirm }
   const [votedItemId, setVotedItemId] = useState(null);
-  // Skip-button state. Skip is "navigate to a random public matchup"
-  // (TikTok-style swipe-next), not "abstain in place" — once clicked,
-  // the page navigates away, so we don't need an affirmation state.
-  // skipPending guards against double-tap while the RPC + fetch are
-  // in flight.
-  const [skipPending, setSkipPending] = useState(false);
+  // Swipe-stream nav state. `history` is the ordered list of matchups
+  // the viewer has hit in this detail-flow session; `cursor` is their
+  // index within it. Persisted to sessionStorage by the reconciliation
+  // effect below, so a tab refresh keeps place but a new tab starts
+  // clean. navPending guards both buttons against double-tap while
+  // the fetch + skip RPC are in flight.
+  const [navState, setNavState] = useState(() => readHistory());
+  const [navPending, setNavPending] = useState(false);
   // Report flow — non-owners can flag a matchup for moderator review.
   const [reportOpen, setReportOpen] = useState(false);
 
@@ -478,73 +481,130 @@ const MatchupPage = () => {
     }
   };
 
-  // Reset skipPending whenever the route changes — covers the
-  // navigate-to-next case so the new matchup loads with a fresh
-  // button state.
+  // Reconcile the URL with the stored nav stack on every matchup
+  // load. Three cases:
+  //   1. current id === history[cursor]  → in-flow nav, no change.
+  //   2. current id is elsewhere in the stack → cursor moved by
+  //      browser back/forward (or a deep-link to a known entry);
+  //      slide cursor to that index.
+  //   3. current id not in history at all → fresh entry from /home or
+  //      an external link. Reset history to a single-entry stack
+  //      so the new matchup becomes the new origin.
+  // This makes browser back/forward, deep-links, and "click a fresh
+  // matchup from the feed" all work without explicit detection.
   useEffect(() => {
-    setSkipPending(false);
-  }, [matchup?.id]);
+    if (!matchup?.id) return;
+    const currentId = String(matchup.id);
+    const slug = String(
+      matchup?.author?.username ?? matchup?.author_id ?? uid ?? 'unknown',
+    );
+    const stored = readHistory();
+    const idx = stored.history.findIndex((h) => h.id === currentId);
+    let next;
+    if (idx >= 0) {
+      next = { history: stored.history, cursor: idx };
+    } else {
+      next = { history: [{ id: currentId, slug }], cursor: 0 };
+    }
+    writeHistory(next);
+    setNavState(next);
+    setNavPending(false);
+  }, [matchup?.id, matchup?.author?.username, matchup?.author_id, uid]);
 
-  // handleSkip is the swipe-next gesture: record the skip server-side
-  // (best-effort; the kind='skip' row stays useful for bracket-owner
-  // skip-rate analytics), then navigate to a random public standalone
-  // matchup the viewer hasn't seen. Modeled on TikTok / Twitter video
-  // "next" — the gesture is "I'm done with this one, give me another"
-  // rather than "abstain in place."
-  //
-  // Candidate pool comes from getMatchups(1, 50) filtered client-side:
-  //   - exclude the current matchup
-  //   - exclude bracket children (bracket flow shouldn't get
-  //     interrupted by an unrelated standalone)
-  //   - exclude completed (no votes left to cast)
-  // If the filtered pool is empty (small dataset), fall back to /home
-  // so the user lands somewhere useful instead of a navigation no-op.
-  const handleSkip = async () => {
-    if (skipPending) return;
-    setSkipPending(true);
+  // handleNext — Twitter-video swipe-up. If we're mid-stack, re-walk
+  // the existing forward path (browser-style); only at the end do we
+  // fetch fresh content. Filter excludes every id in history so the
+  // pool can never serve us back a matchup we've already seen — fixes
+  // the ping-pong bug where a small public-matchup pool repeatedly
+  // bounced the viewer between two cards.
+  const handleNext = async () => {
+    if (navPending) return;
+    setNavPending(true);
     try {
-      // Fire skip + fetch in parallel so the next matchup is ready
-      // by the time the skip row commits. allSettled — neither
-      // failing should block the navigation.
+      // Mid-stack: browser-style replay forward.
+      if (navState.cursor < navState.history.length - 1) {
+        const fwd = { ...navState, cursor: navState.cursor + 1 };
+        writeHistory(fwd);
+        setNavState(fwd);
+        const target = fwd.history[fwd.cursor];
+        track('matchup_skipped', {
+          matchup_id: matchup.id,
+          surface: 'detail-next',
+          forward_replay: true,
+          from_pick: Boolean(votedItemId),
+        });
+        navigate(`/users/${target.slug}/matchup/${target.id}`);
+        return;
+      }
+
+      // End of stack: fire skip + fetch a fresh pool in parallel.
       const [, listRes] = await Promise.allSettled([
         skipMatchup(matchup.id),
         getMatchups(1, 50),
       ]);
 
-      track('matchup_skipped', {
-        matchup_id: matchup.id,
-        bracket: isBracketMatchup,
-        surface: 'detail-next',
-        from_pick: Boolean(votedItemId),
-      });
-
-      let nextHref = '/home';
+      let pool = [];
       if (listRes.status === 'fulfilled') {
         const payload = listRes.value?.data?.matchups
           ?? listRes.value?.data?.response
           ?? listRes.value?.data
           ?? {};
-        const pool = Array.isArray(payload)
+        pool = Array.isArray(payload)
           ? payload
           : Array.isArray(payload.matchups) ? payload.matchups : [];
-        const candidates = pool.filter((m) =>
-          String(m.id) !== String(matchup.id) &&
-          !m.bracket_id &&
-          m.status !== 'completed'
-        );
-        if (candidates.length > 0) {
-          const next = candidates[Math.floor(Math.random() * candidates.length)];
-          const slug = next?.author?.username ?? next?.author_id ?? 'unknown';
-          nextHref = `/users/${slug}/matchup/${next.id}`;
-        }
       }
-      navigate(nextHref);
+      const seen = new Set(navState.history.map((h) => h.id));
+      seen.add(String(matchup.id));
+      const candidates = pool.filter((m) =>
+        !seen.has(String(m.id)) &&
+        !m.bracket_id &&
+        m.status !== 'completed'
+      );
+
+      track('matchup_skipped', {
+        matchup_id: matchup.id,
+        surface: 'detail-next',
+        forward_replay: false,
+        from_pick: Boolean(votedItemId),
+        pool_size: candidates.length,
+      });
+
+      if (candidates.length === 0) {
+        // Pool exhausted — viewer has seen everything we can show.
+        // Falling back to /home rather than ping-ponging.
+        navigate('/home');
+        return;
+      }
+
+      const pick = candidates[Math.floor(Math.random() * candidates.length)];
+      const slug = String(
+        pick?.author?.username ?? pick?.author_id ?? 'unknown',
+      );
+      const appended = {
+        history: [...navState.history, { id: String(pick.id), slug }],
+        cursor: navState.history.length,
+      };
+      writeHistory(appended);
+      setNavState(appended);
+      navigate(`/users/${slug}/matchup/${pick.id}`);
     } catch (err) {
-      // Outer catch is defensive — Promise.allSettled never rejects.
-      // Falling back to /home keeps the user moving.
-      console.warn('skip-next failed:', err);
+      // Promise.allSettled never rejects, so this is purely defensive.
+      console.warn('next-matchup failed:', err);
       navigate('/home');
     }
+  };
+
+  // handlePrevious — Twitter-video swipe-down. Walks back through the
+  // stack; the JSX disables the button at cursor === 0 so this branch
+  // never fires from the UI, but the guard stays for safety.
+  const handlePrevious = () => {
+    if (navPending) return;
+    if (navState.cursor <= 0) return;
+    const back = { ...navState, cursor: navState.cursor - 1 };
+    writeHistory(back);
+    setNavState(back);
+    const target = back.history[back.cursor];
+    navigate(`/users/${target.slug}/matchup/${target.id}`);
   };
 
   const handleOverrideWinner = (winnerId) => {
@@ -886,28 +946,40 @@ const MatchupPage = () => {
             })()}
           </div>
 
-          {/* "Next matchup →" — TikTok-style swipe-next gesture.
-              Records the skip server-side (matchup_votes.kind='skip',
-              best-effort) AND navigates to a random public standalone
-              matchup. The action means "I'm done with this one, show
-              me another", not "abstain in place" — so once clicked,
-              the page navigates away and there's no affirmation state
-              to surface.
-              Hidden only when the matchup is already resolved (winner
-              declared) — at that point voting is closed and the user
-              can navigate via Like / Comment / Share if they want to
-              keep going. Available on bracket children for authed
-              users (anon-on-bracket would 403 the skip RPC, but the
-              navigation still works since the fetch is independent). */}
+          {/* Twitter-video stream nav: "← Previous" + "Next matchup →".
+              Next walks forward through the in-session history (or
+              fetches a fresh public matchup at the end of the stack
+              and appends it). Previous walks back through history;
+              disabled at cursor === 0 (the origin matchup the viewer
+              entered the flow on). The disabled state lights up with
+              a subtle gray so it reads as "you're at the start" —
+              v1 doesn't auto-exit to the timeline at origin like
+              Twitter does; the browser back button covers that.
+              Hidden when the matchup is resolved (winner declared) —
+              voting is closed and there's nothing to swipe past. */}
           {displayWinnerId === null && (
-            <div className="matchup-skip-row">
+            <div className="matchup-nav-row">
               <button
                 type="button"
-                className="matchup-skip-btn"
-                onClick={handleSkip}
-                disabled={skipPending}
+                className="matchup-nav-btn matchup-nav-btn--prev"
+                onClick={handlePrevious}
+                disabled={navPending || navState.cursor <= 0}
+                aria-label={
+                  navState.cursor <= 0
+                    ? "Previous matchup (at start)"
+                    : "Go to previous matchup"
+                }
               >
-                {skipPending ? "Loading…" : "Next matchup →"}
+                ← Previous
+              </button>
+              <button
+                type="button"
+                className="matchup-nav-btn matchup-nav-btn--next"
+                onClick={handleNext}
+                disabled={navPending}
+                aria-label="Go to next matchup"
+              >
+                {navPending ? "Loading…" : "Next matchup →"}
               </button>
             </div>
           )}
