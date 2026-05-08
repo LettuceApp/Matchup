@@ -516,6 +516,12 @@ export const incrementMatchupItemVotes = (id) => {
 // matchups (members-only, mirrors VoteItem). Server returns
 // `{already_skipped: bool}` — the frontend uses that to distinguish
 // "skip recorded just now" from "you'd already skipped this".
+//
+// Currently DORMANT — the visible Skip button on the matchup detail
+// page was removed in a UX call. The RPC + this wrapper are kept
+// in place for a possible future bracket-play surface (sequential
+// round flow) where skip semantics actually fit. If no caller
+// surfaces in a few cycles, this can be removed too.
 export const skipMatchup = (matchupId) => {
   const body = { matchup_id: matchupId };
   if (!localStorage.getItem('token')) {
