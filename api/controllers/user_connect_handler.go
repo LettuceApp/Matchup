@@ -506,6 +506,15 @@ func (h *UserHandler) FollowUser(ctx context.Context, req *connect.Request[userv
 	if !ok {
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("unauthorized"))
 	}
+	// Email-verification gate: unverified accounts can browse + vote
+	// but can't add friends. Friend graphs are an abuse vector for
+	// fake-account networks; gating Follow specifically (not Unfollow,
+	// not the rest of the user-profile RPCs) is the lightest pressure
+	// that still cuts the abuse path. Self-disables when SendGrid isn't
+	// configured (see email_verification.go).
+	if err := requireVerifiedEmail(ctx, h.DB, requestorID); err != nil {
+		return nil, err
+	}
 	target, err := resolveUserByIdentifier(h.DB, req.Msg.Id)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("user not found"))

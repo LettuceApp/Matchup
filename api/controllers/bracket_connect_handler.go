@@ -73,6 +73,12 @@ func (h *BracketHandler) GetPopularBrackets(ctx context.Context, req *connect.Re
 	const limit = 5
 	viewerID, hasViewer := optionalViewerFromCtx(ctx)
 	isAdmin := httpctx.IsAdminRequest(ctx)
+	// Anon viewers can't see brackets at all — they browse + vote on
+	// matchups, brackets are members-only. Reject early so the read
+	// never hits the materialized view.
+	if !hasViewer {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("create an account to view brackets"))
+	}
 
 	var rows []popularBracketRow
 	if err := sqlx.SelectContext(ctx, db, &rows,
@@ -136,6 +142,11 @@ func (h *BracketHandler) GetPopularBrackets(ctx context.Context, req *connect.Re
 }
 
 func (h *BracketHandler) GetBracket(ctx context.Context, req *connect.Request[bracketv1.GetBracketRequest]) (*connect.Response[bracketv1.GetBracketResponse], error) {
+	// Members-only — anon can't view brackets. Frontend guards the route
+	// too but the backend rejection is the source of truth.
+	if _, hasViewer := optionalViewerFromCtx(ctx); !hasViewer {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("create an account to view brackets"))
+	}
 	bracketRecord, err := resolveBracketByIdentifier(h.DB, req.Msg.Id)
 	if err != nil {
 		if errors.Is(err, errInvalidIdentifier) {
@@ -174,6 +185,10 @@ func (h *BracketHandler) GetBracket(ctx context.Context, req *connect.Request[br
 }
 
 func (h *BracketHandler) GetBracketSummary(ctx context.Context, req *connect.Request[bracketv1.GetBracketSummaryRequest]) (*connect.Response[bracketv1.GetBracketSummaryResponse], error) {
+	// Members-only (see GetBracket).
+	if _, hasViewer := optionalViewerFromCtx(ctx); !hasViewer {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("create an account to view brackets"))
+	}
 	bracketRecord, err := resolveBracketByIdentifier(h.DB, req.Msg.Id)
 	if err != nil {
 		if errors.Is(err, errInvalidIdentifier) {
@@ -264,6 +279,13 @@ func (h *BracketHandler) GetUserBrackets(ctx context.Context, req *connect.Reque
 	// Pure-read RPC — safe to serve from the replica.
 	db := dbForRead(ctx, h.DB, h.ReadDB)
 
+	// Members-only — anon can't see anyone's bracket list. Profile pages
+	// for anon will see matchups + likes; the brackets tab on a profile
+	// surfaces "Sign up to see brackets" when this returns Unauthenticated.
+	if _, hasViewer := optionalViewerFromCtx(ctx); !hasViewer {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("create an account to view brackets"))
+	}
+
 	owner, err := resolveUserByIdentifier(db, req.Msg.UserId)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("user not found"))
@@ -334,6 +356,10 @@ func (h *BracketHandler) GetUserBrackets(ctx context.Context, req *connect.Reque
 }
 
 func (h *BracketHandler) GetBracketMatchups(ctx context.Context, req *connect.Request[bracketv1.GetBracketMatchupsRequest]) (*connect.Response[bracketv1.GetBracketMatchupsResponse], error) {
+	// Members-only (see GetBracket).
+	if _, hasViewer := optionalViewerFromCtx(ctx); !hasViewer {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("create an account to view brackets"))
+	}
 	bracketRecord, err := resolveBracketByIdentifier(h.DB, req.Msg.Id)
 	if err != nil {
 		if errors.Is(err, errInvalidIdentifier) {

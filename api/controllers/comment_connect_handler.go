@@ -180,13 +180,11 @@ func (h *CommentHandler) CreateComment(ctx context.Context, req *connect.Request
 
 	isOwner := uid == matchup.AuthorID
 	if !isOwner {
-		// Email-verification soft-gate: you can comment on your OWN
-		// matchups (owner-branch skips this block), but commenting on
-		// another user's content requires a verified email so drive-by
-		// spam networks can't use fake inboxes for outreach.
-		if err := requireVerifiedEmail(ctx, h.DB, uid); err != nil {
-			return nil, err
-		}
+		// Comment creation intentionally NOT gated by requireVerifiedEmail
+		// — comments are an engagement surface and gating them on a
+		// pre-verify state silences too many real first-time users.
+		// Bracket-create + follow-user are the gated surfaces; comment
+		// content is moderated through Report instead.
 
 		if matchup.Status == matchupStatusDraft {
 			return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("matchup is not active"))
@@ -487,14 +485,8 @@ func (h *CommentHandler) CreateBracketComment(ctx context.Context, req *connect.
 		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("%s", visibilityErrorMessage(reason)))
 	}
 
-	// Email-verification soft-gate (same as CreateComment). Owners can
-	// comment on their own brackets without verifying; everyone else
-	// needs a verified email.
-	if uid != bracket.AuthorID {
-		if err := requireVerifiedEmail(ctx, h.DB, uid); err != nil {
-			return nil, err
-		}
-	}
+	// Bracket-comment creation intentionally NOT gated by
+	// requireVerifiedEmail — same rationale as matchup comments.
 
 	comment := models.BracketComment{
 		Body: req.Msg.Body,

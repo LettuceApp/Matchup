@@ -393,7 +393,15 @@ const CreateBracketPage = () => {
       }, 500);
     } catch (err) {
       console.error("Error creating bracket:", err);
-      setError("We could not create that bracket. Please review your entries and try again.");
+      // FailedPrecondition (HTTP 412) is the verify-email gate.
+      // Point users at the banner instead of a generic error.
+      const status = err?.response?.status;
+      const message = String(err?.response?.data?.message ?? err?.message ?? "");
+      if (status === 412 && /verify your email/i.test(message)) {
+        setError("Verify your email to create brackets. Check your inbox or use the banner above to resend.");
+      } else {
+        setError("We could not create that bracket. Please review your entries and try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }

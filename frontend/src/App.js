@@ -217,9 +217,11 @@ const AppRoutes = () => {
         <Route
           path="/brackets/:id"
           element={
-            <PageTransition>
-              <BracketPage />
-            </PageTransition>
+            <RequireAuth>
+              <PageTransition>
+                <BracketPage />
+              </PageTransition>
+            </RequireAuth>
           }
         />
         <Route

@@ -281,10 +281,17 @@ func (h *HomeHandler) GetHomeSummary(ctx context.Context, req *connect.Request[h
 	}
 
 	// Popular brackets — read from materialized view (migration 007).
+	// Hidden from anon viewers per the members-only-brackets rule:
+	// anon users can browse + vote on matchups but can't see brackets
+	// at all. The materialized view query is skipped entirely for
+	// anon to save the round-trip; the response just carries an empty
+	// list. Authed users see the standard popular-brackets feed.
 	popularBracketRows := []popularBracketRow{}
-	if err := sqlx.SelectContext(ctx, db, &popularBracketRows,
-		"SELECT * FROM popular_brackets_snapshot ORDER BY rank ASC LIMIT 12"); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+	if hasViewer {
+		if err := sqlx.SelectContext(ctx, db, &popularBracketRows,
+			"SELECT * FROM popular_brackets_snapshot ORDER BY rank ASC LIMIT 12"); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
 	}
 
 	var protoPopularBrackets []*bracketv1.PopularBracketData

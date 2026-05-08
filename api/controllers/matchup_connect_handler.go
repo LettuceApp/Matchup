@@ -391,12 +391,11 @@ func (h *MatchupHandler) CreateMatchup(ctx context.Context, req *connect.Request
 	if !ok {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("unauthorized"))
 	}
-	// Email-verification soft-gate. Blocks unverified users from
-	// creating matchups — voting, liking, and commenting on their own
-	// content stay open. See email_verification.go:requireVerifiedEmail.
-	if err := requireVerifiedEmail(ctx, h.DB, userID); err != nil {
-		return nil, err
-	}
+	// Matchup creation is intentionally NOT gated by requireVerifiedEmail.
+	// Matchups are the primary engagement vector — gating them at the
+	// unverified state pushes too many first-time users out of the funnel.
+	// Bracket creation + adding follows are the gated surfaces; see
+	// bracket_connect_handler.go and user_connect_handler.go FollowUser.
 
 	matchup := models.Matchup{}
 	matchup.AuthorID = userID

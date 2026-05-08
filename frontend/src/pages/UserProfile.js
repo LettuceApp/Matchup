@@ -640,7 +640,18 @@ const UserProfile = () => {
       }
     } catch (err) {
       console.error('Follow action failed', err);
-      setFollowError('Unable to update follow status.');
+      // Connect-RPC FailedPrecondition (HTTP 412) is the verify-email
+      // gate. Surface a clear "verify your email first" message instead
+      // of the generic "unable to update follow status" so the user
+      // knows where to look (the EmailVerificationBanner is already
+      // mounted at the top of every page).
+      const status = err?.response?.status;
+      const message = String(err?.response?.data?.message ?? err?.message ?? '');
+      if (status === 412 && /verify your email/i.test(message)) {
+        setFollowError("Verify your email to add friends. Check your inbox or use the banner above.");
+      } else {
+        setFollowError('Unable to update follow status.');
+      }
     } finally {
       setFollowBusy(false);
     }
