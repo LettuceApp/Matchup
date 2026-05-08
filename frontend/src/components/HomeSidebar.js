@@ -3,13 +3,26 @@ import { useNavigate } from 'react-router-dom';
 import ProfilePic from './ProfilePic';
 import { logout as serverLogout, signOutLocally } from '../services/api';
 
+// Order mirrors the user's preferred ordering. "All Categories" stays
+// pinned to the top as the cleared-filter; "Other" pinned to the
+// bottom as the catch-all. Each entry must match a TAG_RULES tag in
+// HomeCard.js so deriveTags() produces a string the filter compares
+// against (HomePage.js does an exact `tags.includes(categoryFilter)`).
 const CATEGORIES = [
   'All Categories',
-  'Music',
-  'Sports',
-  'Gaming',
   'Anime',
-  'Movies/TV',
+  'Manga',
+  'Gaming',
+  'Music',
+  'Movies',
+  'TV Shows',
+  'K-Pop',
+  'Sports',
+  'Food',
+  'Pokémon',
+  'Cartoons',
+  'Animals',
+  'Celebrities',
   'Other',
 ];
 

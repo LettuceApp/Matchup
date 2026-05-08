@@ -14,12 +14,31 @@ const GRADIENTS = [
   'linear-gradient(135deg, #a1c4fd, #c2e9fb)',
 ];
 
+// Tag rules — order matters. The first rule whose keyword list hits
+// the lowercased title contributes a tag (deriveTags returns up to 2
+// matches). Specific subgenres come BEFORE broader categories so a
+// title like "Best Pokémon Game" tags as Pokémon (not Gaming) and
+// "K-Pop Song of the Year" tags as K-Pop (not Music).
+//
+// Tag strings must match the labels in HomeSidebar's CATEGORIES list
+// — HomePage.js filters with an exact `tags.includes(categoryFilter)`.
 const TAG_RULES = [
+  // Specific subgenres (must precede the broader category they fall under).
+  { keywords: ['pokemon', 'pokémon', 'pikachu', 'pokeball'], tag: 'Pokémon' },
+  { keywords: ['k-pop', 'kpop', 'bts', 'blackpink', 'twice', 'newjeans'], tag: 'K-Pop' },
+  { keywords: ['manga', 'manhwa', 'manhua', 'webtoon'], tag: 'Manga' },
+  { keywords: ['anime', 'shonen', 'shoujo', 'op', 'ending'], tag: 'Anime' },
+  { keywords: ['cartoon', 'looney', 'spongebob', 'simpsons', 'family guy', 'rick and morty', 'animated series'], tag: 'Cartoons' },
+
+  // Broader categories.
   { keywords: ['music', 'song', 'songs', 'album', 'rapper', 'singer', 'band', 'artist', 'r&b', 'hip hop', 'rap'], tag: 'Music' },
-  { keywords: ['anime', 'manga', 'op', 'ending', 'k-pop', 'kpop'], tag: 'Anime' },
-  { keywords: ['game', 'gaming', 'pokemon', 'mario', 'xbox', 'playstation', 'nintendo', 'video game'], tag: 'Gaming' },
-  { keywords: ['movie', 'film', 'tv', 'show', 'series', 'marvel', 'dc', 'character', 'villain', 'hero'], tag: 'Movies/TV' },
+  { keywords: ['movie', 'film', 'marvel', 'dc', 'cinema'], tag: 'Movies' },
+  { keywords: ['tv', 'show', 'series', 'sitcom', 'episode', 'season'], tag: 'TV Shows' },
+  { keywords: ['game', 'gaming', 'mario', 'xbox', 'playstation', 'nintendo', 'video game', 'rpg', 'fps'], tag: 'Gaming' },
   { keywords: ['sport', 'nba', 'nfl', 'soccer', 'football', 'basketball', 'baseball', 'goat', 'player'], tag: 'Sports' },
+  { keywords: ['food', 'pizza', 'burger', 'taco', 'sushi', 'pasta', 'ramen', 'cuisine', 'restaurant', 'dish'], tag: 'Food' },
+  { keywords: ['animal', 'dog', 'cat', 'pet', 'puppy', 'kitten', 'wolf', 'lion', 'bear'], tag: 'Animals' },
+  { keywords: ['celebrity', 'celeb', 'actor', 'actress', 'kardashian', 'taylor swift', 'beyonce', 'rihanna'], tag: 'Celebrities' },
 ];
 
 export function deriveTags(title) {
