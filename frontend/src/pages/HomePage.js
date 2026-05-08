@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getHomeSummary, getMatchups, logout as serverLogout, signOutLocally } from '../services/api';
 import HomeSidebar from '../components/HomeSidebar';
 import HomeCard, { deriveTags } from '../components/HomeCard';
@@ -131,6 +131,37 @@ const HomePage = () => {
     navigate('/login', { replace: true });
   };
 
+  // Profile-pic dropdown menu. Avatar trigger; menu collapses Home /
+  // Admin / Logout / View-profile so the topbar reads clean. Bell stays
+  // outside as an unread-state indicator. Outside-click + Escape close.
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef(null);
+  useEffect(() => {
+    if (!profileMenuOpen) return undefined;
+    const onPointerDown = (e) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+        setProfileMenuOpen(false);
+      }
+    };
+    const onKey = (e) => { if (e.key === 'Escape') setProfileMenuOpen(false); };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [profileMenuOpen]);
+
+  const profileSlug = (username && username !== 'undefined') ? username : userId;
+  const goAndClose = (path) => () => {
+    setProfileMenuOpen(false);
+    navigate(path);
+  };
+  const handleLogoutFromMenu = async () => {
+    setProfileMenuOpen(false);
+    await handleLogout();
+  };
+
   return (
     <div className="home-page">
       <HomeSidebar
@@ -164,51 +195,69 @@ const HomePage = () => {
             + Create Bracket
           </button>
 
-          {/* Nav actions inlined into the topbar — mirrors what
-              <NavigationBar /> renders on every other page (Home,
-              bell, optional Admin, logout, profile pic). The home
-              page doesn't mount NavigationBar at the top because
-              the sidebar handles the home/sort/category nav, but
-              the user still wants quick access to the same shortcuts
-              they have everywhere else. Reuses NavigationBar's
-              existing class names + styles so the look is identical. */}
+          {/* Topbar right-cluster. Authed users see [bell] [profile▾]
+              with Home / Admin / Logout / View profile collapsed into
+              the profile dropdown. Bell stays visible because its
+              unread count is the whole point — burying it would
+              defeat the indicator. Anon users still see Sign in /
+              Sign up since there's nothing to dropdown into. */}
           <div className="home-topbar__actions">
             {isAuthed ? (
               <>
-                <button
-                  type="button"
-                  className="navigation-bar__button"
-                  onClick={() => navigate('/home')}
-                >
-                  Home
-                </button>
                 <NotificationBell />
-                {localStorage.getItem('isAdmin') === 'true' && (
+                <div className="home-profile-menu" ref={profileMenuRef}>
                   <button
                     type="button"
-                    className="navigation-bar__button navigation-bar__button--muted"
-                    onClick={() => navigate('/admin')}
+                    className="home-profile-menu__trigger"
+                    aria-haspopup="menu"
+                    aria-expanded={profileMenuOpen}
+                    onClick={() => setProfileMenuOpen((v) => !v)}
                   >
-                    Admin
+                    {userId && <ProfilePic userId={userId} size={44} />}
                   </button>
-                )}
-                <button
-                  type="button"
-                  className="navigation-bar__button navigation-bar__button--icon"
-                  onClick={handleLogout}
-                  title="Logout"
-                >
-                  ⎋
-                </button>
-                {userId && (
-                  <Link
-                    to={`/users/${(username && username !== 'undefined') ? username : userId}`}
-                    className="navigation-bar__profile"
-                    aria-label="View profile"
-                  >
-                    <ProfilePic userId={userId} size={44} />
-                  </Link>
-                )}
+
+                  {profileMenuOpen && (
+                    <div className="home-profile-menu__panel" role="menu">
+                      {profileSlug && (
+                        <button
+                          type="button"
+                          className="home-profile-menu__item"
+                          role="menuitem"
+                          onClick={goAndClose(`/users/${profileSlug}`)}
+                        >
+                          View profile
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="home-profile-menu__item"
+                        role="menuitem"
+                        onClick={goAndClose('/home')}
+                      >
+                        Home
+                      </button>
+                      {localStorage.getItem('isAdmin') === 'true' && (
+                        <button
+                          type="button"
+                          className="home-profile-menu__item"
+                          role="menuitem"
+                          onClick={goAndClose('/admin')}
+                        >
+                          Admin
+                        </button>
+                      )}
+                      <div className="home-profile-menu__divider" />
+                      <button
+                        type="button"
+                        className="home-profile-menu__item home-profile-menu__item--danger"
+                        role="menuitem"
+                        onClick={handleLogoutFromMenu}
+                      >
+                        Log out
+                      </button>
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               <>

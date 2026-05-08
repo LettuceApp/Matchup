@@ -143,14 +143,92 @@
   flex-wrap: wrap;
 }
 
-/* Container for the inlined nav actions (Home, bell, profile pic, etc.).
-   ml: auto pushes them to the right end of the row regardless of how
-   many create buttons sit between. */
+/* Container for the inlined nav actions (bell + profile-pic dropdown
+   trigger). ml: auto pushes them to the right end of the row regardless
+   of how many create buttons sit between. */
 .home-topbar__actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   margin-left: auto;
+}
+
+/* Profile-pic dropdown — avatar is the trigger, panel hosts Home /
+   Admin / Logout / View-profile. Same outside-click + Escape close
+   pattern as BlockMuteMenu; styling intentionally mirrors that menu
+   so the app's two overflow menus read as the same component. */
+.home-profile-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.home-profile-menu__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: box-shadow 120ms ease, transform 120ms ease;
+}
+
+.home-profile-menu__trigger:hover,
+.home-profile-menu__trigger[aria-expanded="true"] {
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.45);
+}
+
+.home-profile-menu__panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 200px;
+  padding: 6px;
+  border-radius: 12px;
+  background: #151928;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.home-profile-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  font-size: 0.92rem;
+  color: #d7dcf1;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.home-profile-menu__item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.home-profile-menu__item--danger {
+  color: #ff8b8b;
+}
+
+.home-profile-menu__item--danger:hover {
+  background: rgba(255, 72, 72, 0.1);
+  color: #ff9e9e;
+}
+
+.home-profile-menu__divider {
+  height: 1px;
+  margin: 4px 6px;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .home-search {
