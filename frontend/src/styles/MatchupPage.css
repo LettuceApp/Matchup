@@ -1006,6 +1006,51 @@
   margin: 0 0 12px;
 }
 
+/* Skip-this-one button. Mounts below the contender cards inside the
+   vote stage. Reads as a secondary affordance: ghost button with a
+   muted border, no fill, smaller than the contender cards. Once the
+   user has skipped, the button flips to a confirmation pill (filled,
+   disabled, "Skipped"). Centred via flex on .matchup-skip-row so it
+   sits visually between the cards and the action bar. */
+.matchup-skip-row {
+  display: flex;
+  justify-content: center;
+  margin: 14px 0 4px;
+}
+
+.matchup-skip-btn {
+  font: inherit;
+  cursor: pointer;
+  padding: 0.55rem 1.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 255, 0.32);
+  background: transparent;
+  color: rgba(226, 232, 240, 0.8);
+  font-size: 0.86rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+}
+
+.matchup-skip-btn:hover:not(:disabled) {
+  border-color: rgba(251, 191, 36, 0.55);
+  color: #fbbf24;
+}
+
+.matchup-skip-btn:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+/* "Skipped" affirmation state — filled muted gold, no border ring,
+   reads like a status badge once the action is committed. */
+.matchup-skip-btn--done {
+  background: rgba(251, 191, 36, 0.18);
+  border-color: rgba(251, 191, 36, 0.4);
+  color: #fcd34d;
+  opacity: 1;
+}
+
 /* Bracket progress chip — "Match X of Y · Round N". Sits above the
    anon counter so the read-order is "where am I in the bracket"
    then "how many anon votes left" then the cards themselves. Same

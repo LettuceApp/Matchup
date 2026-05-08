@@ -29,6 +29,7 @@ import {
   completeMatchup,
   getCurrentUser,
   getBracketMatchups,
+  skipMatchup,
 } from "../services/api";
 import "../styles/MatchupPage.css";
 import useCountdown from "../hooks/useCountdown";
@@ -73,6 +74,14 @@ const MatchupPage = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [confirmModal, setConfirmModal] = useState(null); // { message, confirmLabel, danger, onConfirm }
   const [votedItemId, setVotedItemId] = useState(null);
+  // Skip-button state. `skipped` flips true after a successful skip
+  // RPC (or when the server reports already_skipped on a duplicate
+  // call). `skipPending` blocks double-clicks during the round trip.
+  // The skip is reversible — picking a contender afterwards switches
+  // the row back to a pick + restores that item's counter — but the
+  // button itself stays in the affirmation state once toggled.
+  const [skipped, setSkipped] = useState(false);
+  const [skipPending, setSkipPending] = useState(false);
   // Report flow — non-owners can flag a matchup for moderator review.
   const [reportOpen, setReportOpen] = useState(false);
 
@@ -470,6 +479,47 @@ const MatchupPage = () => {
     }
   };
 
+  // Reset the skip-button state when the user navigates between
+  // matchups — otherwise the affirmation state would carry over.
+  useEffect(() => {
+    setSkipped(false);
+    setSkipPending(false);
+    // matchup?.id is stable per logical matchup — refreshMatchup mutations
+    // keep the same id. Only a route change replaces it.
+  }, [matchup?.id]);
+
+  const handleSkip = async () => {
+    if (skipPending || skipped) return;
+    setSkipPending(true);
+    try {
+      const res = await skipMatchup(matchup.id);
+      const alreadySkipped = Boolean(
+        res?.data?.already_skipped ?? res?.data?.alreadySkipped,
+      );
+      // Pick → skip switch on the server decrements the previously-picked
+      // item; refresh so the UI reflects that.
+      if (votedItemId) {
+        await refreshMatchup();
+      }
+      setVotedItemId(null);
+      setSkipped(true);
+      track('matchup_skipped', {
+        matchup_id: matchup.id,
+        bracket: isBracketMatchup,
+        already_skipped: alreadySkipped,
+        from_pick: Boolean(votedItemId),
+      });
+    } catch (err) {
+      // Backend can return PermissionDenied (anon on bracket) or
+      // FailedPrecondition (matchup locked / closed). Surface as an
+      // inline error rather than a modal — skip is a low-stakes action.
+      console.error('skip failed:', err);
+      setError("Couldn't record skip. Try again in a moment.");
+    } finally {
+      setSkipPending(false);
+    }
+  };
+
   const handleOverrideWinner = (winnerId) => {
     if (!canOverrideWinner) return;
     const msg = isTieAfterExpiryInActiveRound
@@ -809,11 +859,39 @@ const MatchupPage = () => {
             })()}
           </div>
 
-          {/* Skip affordance moved to HomeCard (home-feed surface).
-              The detail page is where users explicitly land to engage;
-              skip belongs at feed level where the research argument
-              actually applies. SkipMatchup RPC + matchup_votes.kind
-              column stay live in the backend. */}
+          {/* Skip / can't-decide affordance.
+              Pairwise-comparison research is consistent that forcing a
+              choice on close pairs makes users abandon — a skip is a
+              recorded "neither right now" that gives bracket owners
+              signal without burning the user's anon vote cap.
+              Hidden when:
+                - the matchup is already resolved (winner declared) —
+                  voting is closed, skip wouldn't apply
+                - the viewer is anonymous on a bracket child — backend
+                  rejects with PermissionDenied (members-only)
+              Disabled when:
+                - voting is locked (status, expiry, wrong bracket round)
+                - a skip RPC is in flight
+                - the viewer has already skipped this matchup
+              The button stays visible after a skip so the affirmation
+              text reads as confirmation, but it flips to disabled —
+              re-clicking would no-op since the server is already in
+              the skip state for this user/anon. Switching to a pick
+              afterwards remains possible by clicking a contender (the
+              backend handles skip → pick atomically). */}
+          {displayWinnerId === null && !(isBracketMatchup && !viewerId) && (
+            <div className="matchup-skip-row">
+              <button
+                type="button"
+                className={`matchup-skip-btn${skipped ? " matchup-skip-btn--done" : ""}`}
+                onClick={handleSkip}
+                disabled={isVotingLocked || skipPending || skipped}
+                aria-pressed={skipped}
+              >
+                {skipped ? "Skipped" : "Can't decide? Skip this one"}
+              </button>
+            </div>
+          )}
         </section>
 
         {/* Flat action bar — Like / Comment / Share. Matches HomeCard's
