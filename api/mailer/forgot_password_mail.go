@@ -1,6 +1,8 @@
 package mailer
 
 import (
+	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -85,9 +87,22 @@ func (s *sendMail) SendResetPassword(ToUser string, FromAdmin string, Token stri
 	to := mail.NewEmail(ToUser, ToUser)
 	message := mail.NewSingleEmail(from, subject, to, emailBody, emailBody)
 	client := sendgrid.NewSendClient(Sendgridkey)
-	_, err = client.Send(message)
+	resp, err := client.Send(message)
 	if err != nil {
 		return nil, err
+	}
+	// Same SendGrid-status check as SendVerifyEmail — non-2xx means
+	// the API rejected the send (bad key, unverified sender, etc.)
+	// even though the HTTP transport succeeded.
+	if resp == nil || resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body := ""
+		status := 0
+		if resp != nil {
+			body = resp.Body
+			status = resp.StatusCode
+		}
+		log.Printf("mailer: SendGrid rejected reset-password email (status %d): %s", status, body)
+		return nil, fmt.Errorf("sendgrid status %d: %s", status, body)
 	}
 	return &EmailResponse{
 		Status:   http.StatusOK,

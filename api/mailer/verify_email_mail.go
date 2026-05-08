@@ -77,8 +77,26 @@ func (s *sendMail) SendVerifyEmail(ToUser string, FromAdmin string, Token string
 	to := mail.NewEmail(ToUser, ToUser)
 	message := mail.NewSingleEmail(from, subject, to, emailBody, emailBody)
 	client := sendgrid.NewSendClient(Sendgridkey)
-	if _, err := client.Send(message); err != nil {
+	resp, err := client.Send(message)
+	if err != nil {
+		// Network / transport-level failure (DNS, TLS, etc.).
 		return nil, err
+	}
+	// SendGrid returns the actual rejection status (401 / 403 / 400)
+	// in the response body even when the HTTP transport succeeded.
+	// Treat anything outside 2xx as a real failure — and log the body
+	// so misconfigured-sender / bad-API-key errors are debuggable.
+	// Without this, a sender-not-verified-yet sails through as silent
+	// success and the user wonders why no email arrived.
+	if resp == nil || resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body := ""
+		status := 0
+		if resp != nil {
+			body = resp.Body
+			status = resp.StatusCode
+		}
+		log.Printf("mailer: SendGrid rejected verify email (status %d): %s", status, body)
+		return nil, fmt.Errorf("sendgrid status %d: %s", status, body)
 	}
 	return &EmailResponse{
 		Status:   http.StatusOK,
