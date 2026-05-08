@@ -131,11 +131,26 @@
   gap: 1rem;
 }
 
-/* ---- Top bar ---- */
+/* ---- Top bar ----
+   Layout: [search (flex:1)] [Create Matchup] [Create Bracket] [nav actions]
+   The actions cluster pushes to the right; on narrow viewports the
+   row wraps so the create buttons drop below search instead of
+   crushing the actions cluster off-screen. */
 .home-topbar {
   display: flex;
   gap: 0.75rem;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Container for the inlined nav actions (Home, bell, profile pic, etc.).
+   ml: auto pushes them to the right end of the row regardless of how
+   many create buttons sit between. */
+.home-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
 }
 
 .home-search {
@@ -176,6 +191,19 @@
 .home-create-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 8px 20px rgba(249, 115, 22, 0.35);
+}
+
+/* Secondary create button — Create Bracket. Distinct from Create
+   Matchup so the two CTAs read as related-but-separate (same shape
+   + size, different color). Indigo-violet gradient pairs with the
+   orange-yellow primary without competing for attention. */
+.home-create-btn--secondary {
+  background: linear-gradient(120deg, #6366f1, #a78bfa);
+  color: #f8fafc;
+}
+
+.home-create-btn--secondary:hover {
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
 }
 
 /* ---- Type filter chips ---- */

@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getHomeSummary, getMatchups } from '../services/api';
+import { useNavigate, Link } from 'react-router-dom';
+import { getHomeSummary, getMatchups, logout as serverLogout, signOutLocally } from '../services/api';
 import HomeSidebar from '../components/HomeSidebar';
 import HomeCard, { deriveTags } from '../components/HomeCard';
+import NotificationBell from '../components/NotificationBell';
+import ProfilePic from '../components/ProfilePic';
 import { track } from '../utils/analytics';
 import '../styles/HomePage.css';
+import '../components/NavigationBar.css';
 
 const HomePage = () => {
   const [sortMode, setSortMode] = useState('latest');
@@ -109,6 +112,25 @@ const HomePage = () => {
     navigate(`/users/${username || userId}/create-matchup`);
   };
 
+  const navigateToCreateBracket = () => {
+    if (!userId) { navigate('/login'); return; }
+    navigate('/brackets/new');
+  };
+
+  // Mirrors NavigationBar.handleLogout — best-effort server revoke,
+  // always clear local auth + redirect to /login. Inlined here
+  // because the home-topbar now hosts the nav actions itself instead
+  // of mounting <NavigationBar />.
+  const isAuthed = Boolean(localStorage.getItem('token'));
+  const handleLogout = async () => {
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (refreshToken) {
+      try { await serverLogout(refreshToken); } catch { /* ignore */ }
+    }
+    signOutLocally();
+    navigate('/login', { replace: true });
+  };
+
   return (
     <div className="home-page">
       <HomeSidebar
@@ -132,8 +154,81 @@ const HomePage = () => {
             className="home-create-btn"
             onClick={navigateToCreate}
           >
-            + Create
+            + Create Matchup
           </button>
+          <button
+            type="button"
+            className="home-create-btn home-create-btn--secondary"
+            onClick={navigateToCreateBracket}
+          >
+            + Create Bracket
+          </button>
+
+          {/* Nav actions inlined into the topbar — mirrors what
+              <NavigationBar /> renders on every other page (Home,
+              bell, optional Admin, logout, profile pic). The home
+              page doesn't mount NavigationBar at the top because
+              the sidebar handles the home/sort/category nav, but
+              the user still wants quick access to the same shortcuts
+              they have everywhere else. Reuses NavigationBar's
+              existing class names + styles so the look is identical. */}
+          <div className="home-topbar__actions">
+            {isAuthed ? (
+              <>
+                <button
+                  type="button"
+                  className="navigation-bar__button"
+                  onClick={() => navigate('/home')}
+                >
+                  Home
+                </button>
+                <NotificationBell />
+                {localStorage.getItem('isAdmin') === 'true' && (
+                  <button
+                    type="button"
+                    className="navigation-bar__button navigation-bar__button--muted"
+                    onClick={() => navigate('/admin')}
+                  >
+                    Admin
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="navigation-bar__button navigation-bar__button--icon"
+                  onClick={handleLogout}
+                  title="Logout"
+                >
+                  ⎋
+                </button>
+                {userId && (
+                  <Link
+                    to={`/users/${(username && username !== 'undefined') ? username : userId}`}
+                    className="navigation-bar__profile"
+                    aria-label="View profile"
+                  >
+                    <ProfilePic userId={userId} size={44} />
+                  </Link>
+                )}
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="navigation-bar__button navigation-bar__button--ghost"
+                  onClick={() => navigate('/login')}
+                >
+                  Sign in
+                </button>
+                <button
+                  type="button"
+                  className="navigation-bar__button"
+                  onClick={() => navigate('/register')}
+                >
+                  Sign up
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="home-filters">
