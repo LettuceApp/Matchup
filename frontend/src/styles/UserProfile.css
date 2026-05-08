@@ -46,13 +46,20 @@
   box-shadow: 0 30px 65px rgba(5, 10, 24, 0.55);
   padding: clamp(1.8rem, 4vw, 2.6rem);
   position: relative;
-  overflow: hidden;
+  /* overflow MUST stay visible — the BlockMuteMenu (... overflow menu
+     in the actions row) renders its dropdown via position: absolute
+     directly below the trigger. Clipping the hero would chop the
+     panel off and hide the Mute / Block options below "Report…". */
+  overflow: visible;
 }
 
 .profile-hero::after {
   content: '';
   position: absolute;
   inset: 0;
+  /* Inherit the parent's border-radius so the gradient overlay still
+     has rounded corners now that the hero no longer clips children. */
+  border-radius: inherit;
   background: linear-gradient(140deg, rgba(148, 163, 255, 0.12), rgba(249, 115, 22, 0.08));
   pointer-events: none;
 }
