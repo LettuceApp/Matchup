@@ -32,6 +32,10 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           working-directory: api
+          # Pin to v2 — config schema in api/.golangci.yml is v2 format.
+          # The action defaults to v1 for backwards compat, so without
+          # this it rejects the config in ~1s.
+          version: v2.1
 
   # ──────────────────────────────────────────────────
   # Go tests + coverage
