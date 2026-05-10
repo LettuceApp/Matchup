@@ -1,7 +1,9 @@
+/* Scrim — translucent black dims the page in both themes; intentionally
+   not tokenized. */
 .follow-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.75);
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -13,15 +15,15 @@
   width: min(720px, 100%);
   max-height: 90vh;
   overflow: hidden;
-  background: rgba(15, 23, 42, 0.95);
-  border: 1px solid rgba(148, 163, 255, 0.25);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-subtle);
   border-radius: 24px;
-  box-shadow: 0 40px 80px rgba(15, 23, 42, 0.6);
+  box-shadow: var(--shadow-panel);
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
   padding: 2rem;
-  color: #e2e8f0;
+  color: var(--text-secondary);
 }
 
 .follow-modal-header {
@@ -32,20 +34,20 @@
 
 .follow-modal-header h2 {
   margin: 0;
-  color: #f8fbff;
+  color: var(--text-primary);
 }
 
 .follow-modal-header p {
   margin: 0.35rem 0 0;
-  color: rgba(226, 232, 240, 0.75);
+  color: var(--text-muted);
 }
 
 .follow-modal-close {
-  border: 1px solid rgba(148, 163, 255, 0.45);
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
   padding: 0.45rem 1rem;
-  background: rgba(148, 163, 255, 0.15);
-  color: #e0e7ff;
+  background: var(--accent-secondary-bg-soft);
+  color: var(--text-primary);
   font-weight: 600;
   cursor: pointer;
 }
@@ -59,17 +61,18 @@
 .follow-modal-tab {
   padding: 0.5rem 1.3rem;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 255, 0.4);
-  background: rgba(15, 23, 42, 0.7);
-  color: rgba(226, 232, 240, 0.9);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-input);
+  color: var(--text-secondary);
   font-weight: 600;
   cursor: pointer;
 }
 
+/* Active tab — indigo soft fill, brighter text. */
 .follow-modal-tab.is-active {
-  background: rgba(96, 165, 250, 0.28);
-  border-color: rgba(96, 165, 250, 0.6);
-  color: #f8fbff;
+  background: var(--accent-secondary-bg-soft);
+  border-color: var(--accent-secondary-border-soft);
+  color: var(--text-primary);
 }
 
 .follow-modal-list {
@@ -91,8 +94,8 @@
   gap: 1rem;
   padding: 1.1rem 1.3rem;
   border-radius: 18px;
-  background: rgba(15, 23, 42, 0.75);
-  border: 1px solid rgba(148, 163, 255, 0.2);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
 }
 
 .follow-modal-card-main {
@@ -108,7 +111,7 @@
   height: 50px;
   border-radius: 50%;
   overflow: hidden;
-  background: rgba(148, 163, 255, 0.2);
+  background: var(--accent-secondary-bg-soft);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -122,14 +125,14 @@
 }
 
 .follow-modal-name {
-  color: #f8fbff;
+  color: var(--text-primary);
   font-weight: 600;
   text-decoration: none;
 }
 
 .follow-modal-meta {
   margin: 0.25rem 0 0;
-  color: rgba(226, 232, 240, 0.7);
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
@@ -140,17 +143,20 @@
   margin-top: 0.4rem;
 }
 
+/* Badge — solid warm CTA pill. Dark text reads on the bright fill in
+   both themes. */
 .follow-modal-badge {
   padding: 0.3rem 0.7rem;
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 600;
-  color: #0f172a;
-  background: rgba(56, 189, 248, 0.9);
+  color: var(--text-on-accent);
+  background: var(--accent-primary);
 }
 
+/* Mutual badge — gradient end (yellow) to differentiate from solo follow. */
 .follow-modal-badge--mutual {
-  background: rgba(250, 204, 21, 0.92);
+  background: var(--accent-primary-to);
 }
 
 .follow-modal-card-actions {
@@ -163,15 +169,15 @@
 }
 
 .follow-modal-empty {
-  background: rgba(15, 23, 42, 0.6);
+  background: var(--bg-input);
   border-radius: 16px;
   padding: 1.5rem;
   text-align: center;
-  color: rgba(226, 232, 240, 0.85);
+  color: var(--text-secondary);
 }
 
 .follow-modal-error {
-  color: rgba(248, 113, 113, 0.95);
+  color: var(--danger-fg);
 }
 
 @media (max-width: 720px) {

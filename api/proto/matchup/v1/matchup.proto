@@ -147,6 +147,14 @@ message CreateMatchupRequest {
   // S3 object key returned by UploadService.PresignUpload. Optional
   // because not every matchup has a cover image.
   optional string upload_key = 13;
+  // Per-matchup visibility override. One of "public", "followers",
+  // "mutuals". Defaults to "public" when unset. The backend's
+  // normalizeVisibility coerces unknown values back to "public" for
+  // upgrade-skew safety. A creator with a public account can still
+  // mark an individual matchup as followers- or mutuals-only by
+  // setting this on creation; the same field flows through to
+  // canViewUserContent on every subsequent read.
+  optional string visibility = 14;
 }
 
 message UpdateMatchupRequest {

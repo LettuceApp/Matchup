@@ -1,16 +1,17 @@
 .empty-state-card {
-  background: rgba(12, 19, 38, 0.7);
-  border: 1px solid rgba(148, 163, 255, 0.22);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
   border-radius: 20px;
   padding: 2rem;
   text-align: center;
-  box-shadow: 0 20px 45px rgba(8, 12, 24, 0.45);
+  box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
   align-items: center;
 }
 
+/* Soft indigo halo around the icon — reads as informational, not destructive. */
 .empty-state-icon {
   width: 52px;
   height: 52px;
@@ -18,19 +19,19 @@
   display: grid;
   place-items: center;
   font-size: 1.6rem;
-  background: rgba(96, 165, 250, 0.15);
-  color: #e0f2fe;
+  background: var(--accent-secondary-bg-soft);
+  color: var(--accent-secondary);
 }
 
 .empty-state-card h3 {
   margin: 0;
   font-size: 1.3rem;
-  color: #f8fafc;
+  color: var(--text-primary);
 }
 
 .empty-state-card p {
   margin: 0;
-  color: rgba(226, 232, 240, 0.8);
+  color: var(--text-secondary);
   max-width: 360px;
   line-height: 1.5;
 }
@@ -42,13 +43,14 @@
   justify-content: center;
 }
 
+/* Soft orange tip pills — calls out hints without competing with the CTA. */
 .empty-state-tip {
   padding: 0.3rem 0.7rem;
   border-radius: 999px;
-  background: rgba(249, 115, 22, 0.15);
-  border: 1px solid rgba(249, 115, 22, 0.3);
+  background: var(--accent-primary-soft);
+  border: 1px solid var(--accent-primary-soft);
   font-size: 0.75rem;
-  color: #fed7aa;
+  color: var(--accent-primary);
 }
 
 .empty-state-suggestions {
@@ -59,21 +61,23 @@
 }
 
 .empty-state-chip {
-  border: 1px solid rgba(148, 163, 255, 0.35);
-  background: rgba(148, 163, 255, 0.15);
-  color: rgba(226, 232, 240, 0.9);
+  border: 1px solid var(--accent-secondary-border-soft);
+  background: var(--accent-secondary-bg-soft);
+  color: var(--text-secondary);
   border-radius: 999px;
   padding: 0.35rem 0.85rem;
   font-size: 0.85rem;
   cursor: default;
 }
 
+/* Warm gradient CTA — text uses --text-on-accent so it stays legible
+   against both the dark- and light-mode gradient stops. */
 .empty-state-cta {
   margin-top: 0.4rem;
   padding: 0.75rem 1.6rem;
   border-radius: 999px;
-  background: linear-gradient(120deg, #f97316, #facc15);
-  color: #0f172a;
+  background: linear-gradient(120deg, var(--accent-primary-from), var(--accent-primary-to));
+  color: var(--text-on-accent);
   font-weight: 700;
   border: none;
   cursor: pointer;
@@ -83,5 +87,5 @@
 .empty-state-cta:hover,
 .empty-state-cta:focus-visible {
   transform: translateY(-2px);
-  box-shadow: 0 16px 30px rgba(249, 115, 22, 0.35);
+  box-shadow: 0 16px 30px var(--accent-primary-shadow);
 }

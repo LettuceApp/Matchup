@@ -17,20 +17,21 @@
   align-items: start;
   gap: 0.85rem;
   padding: 0.9rem 1rem;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(148, 163, 255, 0.14);
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
   border-radius: 14px;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .activity-item:hover {
-  background: rgba(15, 23, 42, 0.78);
-  border-color: rgba(148, 163, 255, 0.28);
+  background: var(--bg-surface);
+  border-color: var(--border-input);
 }
 
+/* Unread row — slightly stronger border + faint accent tint behind it. */
 .activity-item.is-unread {
-  border-color: rgba(148, 163, 255, 0.5);
-  background: rgba(59, 130, 246, 0.06);
+  border-color: var(--border-strong);
+  background: var(--accent-secondary-bg-soft);
 }
 
 .activity-item__icon {
@@ -40,25 +41,29 @@
   width: 38px;
   height: 38px;
   border-radius: 12px;
-  background: rgba(148, 163, 255, 0.12);
-  color: #c7d2fe;
+  background: var(--accent-secondary-bg-soft);
+  color: var(--accent-secondary);
   font-size: 18px;
 }
 
 /* Per-kind accent colors on the icon chip. Keeps the vertical scan
    readable at a glance — you can spot wins (gold) vs losses (grey) vs
-   new followers (violet) without reading the text. */
+   new followers (violet) without reading the text.
+   These per-kind chips intentionally stay literal: the palette spans
+   ~12 hues that aren't part of the token list, and tinting them via
+   tokens would collapse the categorical distinction the chips exist
+   to provide. */
 .activity-item--win .activity-item__icon {
   background: rgba(250, 204, 21, 0.18);
-  color: #fbbf24;
+  color: var(--accent-primary-to);
 }
 .activity-item--loss .activity-item__icon {
   background: rgba(148, 163, 184, 0.18);
-  color: #cbd5e1;
+  color: var(--text-muted);
 }
 .activity-item--cast .activity-item__icon {
-  background: rgba(34, 197, 94, 0.18);
-  color: #86efac;
+  background: var(--success-bg);
+  color: var(--success-fg);
 }
 .activity-item--progress .activity-item__icon {
   background: rgba(59, 130, 246, 0.22);
@@ -86,7 +91,7 @@
 }
 .activity-item--completed-matchup .activity-item__icon {
   background: rgba(251, 146, 60, 0.22);
-  color: #fdba74;
+  color: var(--accent-primary);
 }
 .activity-item--completed-bracket .activity-item__icon {
   background: rgba(250, 204, 21, 0.2);
@@ -97,8 +102,8 @@
   color: #fde047;
 }
 .activity-item--closing .activity-item__icon {
-  background: rgba(249, 115, 22, 0.22);
-  color: #fdba74;
+  background: var(--filter-active-bg);
+  color: var(--accent-primary);
 }
 .activity-item--tie .activity-item__icon {
   background: rgba(234, 88, 12, 0.22);
@@ -118,24 +123,24 @@
 
 .activity-item__message {
   margin: 0;
-  color: #e2e8f0;
+  color: var(--text-secondary);
   font-size: 0.95rem;
   line-height: 1.45;
   word-break: break-word;
 }
 
 .activity-item__message strong {
-  color: #f8fafc;
+  color: var(--text-primary);
   font-weight: 700;
 }
 
 .activity-item__muted {
-  color: rgba(226, 232, 240, 0.65);
+  color: var(--text-muted);
 }
 
 .activity-item__subject-link,
 .activity-item__actor-link {
-  color: #c7d2fe;
+  color: var(--accent-secondary);
   text-decoration: none;
   font-weight: 600;
 }
@@ -144,16 +149,16 @@
 .activity-item__subject-link:focus-visible,
 .activity-item__actor-link:hover,
 .activity-item__actor-link:focus-visible {
-  color: #f0abfc;
+  color: var(--accent-primary);
   text-decoration: underline;
 }
 
 .activity-item__snippet {
   margin-top: 0.35rem;
   padding: 0.4rem 0.7rem;
-  background: rgba(15, 23, 42, 0.75);
-  border-left: 2px solid rgba(148, 163, 255, 0.35);
-  color: rgba(226, 232, 240, 0.82);
+  background: var(--bg-input);
+  border-left: 2px solid var(--border-input);
+  color: var(--text-secondary);
   border-radius: 4px;
   font-size: 0.88rem;
   line-height: 1.4;
@@ -161,18 +166,19 @@
 
 .activity-item__time {
   margin: 0;
-  color: rgba(148, 163, 255, 0.55);
+  color: var(--text-faint);
   font-size: 0.78rem;
   font-weight: 500;
   letter-spacing: 0.02em;
 }
 
+/* Unread dot — uses the indigo accent token in both themes. */
 .activity-item__dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #60a5fa;
-  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+  background: var(--accent-secondary);
+  box-shadow: 0 0 0 3px var(--accent-secondary-bg-soft);
   align-self: center;
   justify-self: end;
 }
@@ -180,11 +186,11 @@
 .activity-feed__state {
   padding: 2rem 1rem;
   text-align: center;
-  color: rgba(226, 232, 240, 0.7);
+  color: var(--text-muted);
 }
 
 .activity-feed__state--error {
-  color: #fecaca;
+  color: var(--danger-fg);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -196,7 +202,7 @@
   background: none;
   border: none;
   padding: 0.15rem 0.35rem;
-  color: #93c5fd;
+  color: var(--accent-secondary);
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
@@ -205,7 +211,7 @@
 
 .activity-feed__retry:hover,
 .activity-feed__retry:focus-visible {
-  color: #bfdbfe;
+  color: var(--accent-primary);
   outline: none;
 }
 
@@ -213,13 +219,13 @@
   margin: 0 0 0.3rem;
   font-size: 1rem;
   font-weight: 700;
-  color: #e2e8f0;
+  color: var(--text-primary);
 }
 
 .activity-feed__empty-body {
   margin: 0 auto;
   max-width: 32ch;
-  color: rgba(226, 232, 240, 0.7);
+  color: var(--text-muted);
   font-size: 0.9rem;
   line-height: 1.5;
 }

@@ -409,6 +409,14 @@ func (h *MatchupHandler) CreateMatchup(ctx context.Context, req *connect.Request
 	if req.Msg.DurationSeconds != nil {
 		matchup.DurationSeconds = int(*req.Msg.DurationSeconds)
 	}
+	// Per-matchup visibility override. Unset → models.Matchup.Prepare()
+	// later applies the "public" default. Set → normalizeVisibility
+	// clamps to one of {public, followers, mutuals}. Lets a public
+	// account post a private matchup without flipping their whole
+	// profile to private.
+	if req.Msg.Visibility != nil {
+		matchup.Visibility = normalizeVisibility(*req.Msg.Visibility)
+	}
 
 	// Resolve bracket ID from public ID if provided
 	if req.Msg.BracketId != nil {

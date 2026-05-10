@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { FiHeart, FiMessageCircle, FiFlag } from "react-icons/fi";
+import { FiHeart, FiMessageCircle } from "react-icons/fi";
 import NavigationBar from "../components/NavigationBar";
 import MatchupItem from "../components/MatchupItem";
 import AnonVoteCounter from "../components/AnonVoteCounter";
@@ -141,27 +141,39 @@ const MatchupPage = () => {
     setLikesCount(Number(matchupData.likes_count ?? matchupData.likesCount ?? 0));
 
     if (matchupData.bracket_id) {
-      // Fire both calls in parallel — neither depends on the other,
-      // and the bracket-matchups list is what powers the
-      // "Match X of Y · Round N" progress chip.
-      const [b, ms] = await Promise.all([
-        getBracket(matchupData.bracket_id),
-        getBracketMatchups(matchupData.bracket_id),
-      ]);
-      setBracket(b.data?.bracket ?? b.data?.response ?? b.data);
-      const msPayload = ms.data?.matchups ?? ms.data?.response ?? ms.data ?? [];
-      setBracketMatchups(
-        Array.isArray(msPayload)
-          ? msPayload
-          : Array.isArray(msPayload.matchups)
-          ? msPayload.matchups
-          : [],
-      );
+      // Anon viewers can't reach the bracket RPCs (the anon-bracket
+      // gate added in 1e675c1 rejects with Unauthenticated). Without
+      // this short-circuit, the page errored with the generic
+      // "We couldn't load this matchup right now." banner. Instead,
+      // show the anon-upgrade modal — the matchup itself stays
+      // viewable; only the bracket-context fetches are skipped.
+      if (!viewerId) {
+        promptUpgrade('bracket');
+        setBracket(null);
+        setBracketMatchups([]);
+      } else {
+        // Fire both calls in parallel — neither depends on the other,
+        // and the bracket-matchups list is what powers the
+        // "Match X of Y · Round N" progress chip.
+        const [b, ms] = await Promise.all([
+          getBracket(matchupData.bracket_id),
+          getBracketMatchups(matchupData.bracket_id),
+        ]);
+        setBracket(b.data?.bracket ?? b.data?.response ?? b.data);
+        const msPayload = ms.data?.matchups ?? ms.data?.response ?? ms.data ?? [];
+        setBracketMatchups(
+          Array.isArray(msPayload)
+            ? msPayload
+            : Array.isArray(msPayload.matchups)
+            ? msPayload.matchups
+            : [],
+        );
+      }
     } else {
       setBracket(null);
       setBracketMatchups([]);
     }
-  }, [uid, id, viewerId]);
+  }, [uid, id, viewerId, promptUpgrade]);
 
   const loadMatchup = useCallback(async (initial = false) => {
     try {
@@ -555,9 +567,22 @@ const MatchupPage = () => {
       }
       const seen = new Set(navState.history.map((h) => h.id));
       seen.add(String(matchup.id));
+      // Bracket-child matchups are now eligible — research feedback on
+      // the home feed asked for bracket matchups (not whole brackets)
+      // to be browseable from the swipe stream. The matchup detail
+      // page already handles `bracket_id` set: it renders the parent
+      // breadcrumb + "Match X of Y · Round N" chip and falls through
+      // to the same vote/comment UI. Whole brackets are never in the
+      // ListMatchups response (they live in the popular_brackets feed),
+      // so we don't need an explicit "skip bracket roots" filter.
+      //
+      // Cycling-through-N bug fix: with the previous `!m.bracket_id`
+      // filter, dev DBs that had 3 standalone matchups + N bracket
+      // children produced a tiny pool that exhausted in 3 clicks and
+      // bounced the viewer back to /home. Including bracket children
+      // grows the pool dramatically.
       const candidates = pool.filter((m) =>
         !seen.has(String(m.id)) &&
-        !m.bracket_id &&
         m.status !== 'completed'
       );
 
@@ -773,13 +798,11 @@ const MatchupPage = () => {
               </div>
             )}
 
-            <div className="matchup-engagement">
-              <span><strong>{totalVotes}</strong> {totalVotes === 1 ? "vote" : "votes"}</span>
-              <span className="matchup-engagement__dot">·</span>
-              <span><strong>{likesCount}</strong> {likesCount === 1 ? "like" : "likes"}</span>
-              <span className="matchup-engagement__dot">·</span>
-              <span><strong>{commentsCount}</strong> {commentsCount === 1 ? "comment" : "comments"}</span>
-            </div>
+            {/* Engagement strip removed at user request — votes /
+                likes / comments above the title felt like meta-noise.
+                Like + comment counts are still shown in the action
+                bar at the bottom of the page; vote count appears
+                inline next to each contender's vote bar. */}
 
             <div className="matchup-status-row">
               {matchupEndsAt && !matchupExpired && (
@@ -1020,20 +1043,9 @@ const MatchupPage = () => {
           <div className="matchup-action-bar__share">
             <ShareButton item={matchup} type="matchup" viewerVote={viewerVoteForShare} />
           </div>
-          {/* Report lives in the action bar for non-owners only; owners
-              don't need to flag their own content. Auth-gated so anon
-              viewers don't get a dead button. */}
-          {viewerId && !isOwner && (
-            <button
-              type="button"
-              className="matchup-action-bar__button matchup-action-bar__button--subtle"
-              aria-label="Report this matchup"
-              onClick={() => setReportOpen(true)}
-            >
-              <FiFlag aria-hidden="true" />
-              <span>Report</span>
-            </button>
-          )}
+          {/* Report button removed at user request. The ReportService
+              backend handler stays in place — re-enabling is a one-line
+              JSX restore + the FiFlag import below if it gets removed. */}
         </section>
 
         {reportOpen && matchup?.public_id && (

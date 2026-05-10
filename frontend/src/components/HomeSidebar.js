@@ -1,36 +1,34 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProfilePic from './ProfilePic';
 import { logout as serverLogout, signOutLocally } from '../services/api';
+import { CATEGORIES } from '../utils/categories';
 
-// Order mirrors the user's preferred ordering. "All Categories" stays
-// pinned to the top as the cleared-filter; "Other" pinned to the
-// bottom as the catch-all. Each entry must match a TAG_RULES tag in
-// HomeCard.js so deriveTags() produces a string the filter compares
-// against (HomePage.js does an exact `tags.includes(categoryFilter)`).
-const CATEGORIES = [
-  'All Categories',
-  'Anime',
-  'Manga',
-  'Gaming',
-  'Music',
-  'Movies',
-  'TV Shows',
-  'K-Pop',
-  'Sports',
-  'Food',
-  'Pokémon',
-  'Cartoons',
-  'Animals',
-  'Celebrities',
-  'Other',
-];
+// How many categories to show in the collapsed state. With 14 total
+// categories the full list pushes "Other" off-screen at standard
+// laptop heights — research feedback flagged the cliff. Six gives
+// the most-popular categories breathing room and keeps an obvious
+// "Show more" affordance for the rest.
+const COLLAPSED_CATEGORY_COUNT = 6;
 
 const HomeSidebar = ({ sortMode, onSortChange, categoryFilter, onCategoryChange }) => {
   const navigate = useNavigate();
   const userId = localStorage.getItem('userId');
   const username = localStorage.getItem('username');
   const isAuthed = Boolean(localStorage.getItem('token'));
+
+  // Progressive-disclosure state for the categories list. "All
+  // Categories" stays pinned at the top, the first N body categories
+  // stay visible, and the remainder collapses behind a "Show more"
+  // toggle. If the active filter is one of the collapsed categories
+  // we force-expand so the active highlight is reachable.
+  const [categoriesExpanded, setCategoriesExpanded] = useState(false);
+  const allCategoriesEntry = CATEGORIES[0];
+  const bodyCategories = CATEGORIES.slice(1);
+  const topBodyCategories = bodyCategories.slice(0, COLLAPSED_CATEGORY_COUNT);
+  const hiddenBodyCategories = bodyCategories.slice(COLLAPSED_CATEGORY_COUNT);
+  const activeIsHidden = hiddenBodyCategories.includes(categoryFilter);
+  const showHidden = categoriesExpanded || activeIsHidden;
 
   const handleLogout = async () => {
     const refreshToken = localStorage.getItem('refresh_token');
@@ -69,7 +67,7 @@ const HomeSidebar = ({ sortMode, onSortChange, categoryFilter, onCategoryChange 
         ))}
 
         <div className="home-sidebar__section-label">Categories</div>
-        {CATEGORIES.map((cat) => {
+        {[allCategoriesEntry, ...topBodyCategories].map((cat) => {
           const value = cat === 'All Categories' ? 'all' : cat;
           const isActive = categoryFilter === value;
           return (
@@ -83,6 +81,29 @@ const HomeSidebar = ({ sortMode, onSortChange, categoryFilter, onCategoryChange 
             </button>
           );
         })}
+        {showHidden && hiddenBodyCategories.map((cat) => {
+          const isActive = categoryFilter === cat;
+          return (
+            <button
+              key={cat}
+              type="button"
+              className={`home-sidebar__nav-item${isActive ? ' home-sidebar__nav-item--active' : ''}`}
+              onClick={() => onCategoryChange(cat)}
+            >
+              {cat}
+            </button>
+          );
+        })}
+        {hiddenBodyCategories.length > 0 && !activeIsHidden && (
+          <button
+            type="button"
+            className="home-sidebar__nav-item home-sidebar__nav-item--muted home-sidebar__nav-item--toggle"
+            onClick={() => setCategoriesExpanded((v) => !v)}
+            aria-expanded={categoriesExpanded}
+          >
+            {categoriesExpanded ? 'Show less' : `Show ${hiddenBodyCategories.length} more`}
+          </button>
+        )}
 
         <div className="home-sidebar__section-label">Account</div>
         {isAuthed ? (

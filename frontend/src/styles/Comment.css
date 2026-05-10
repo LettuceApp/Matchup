@@ -1,12 +1,12 @@
 .comment-card {
-  background: rgba(15, 23, 42, 0.7);
+  background: var(--bg-surface);
   border-radius: 20px;
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  border: 1px solid var(--border-subtle);
   padding: 1.2rem 1.4rem;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.45);
+  box-shadow: var(--shadow-card);
 }
 
 .comment-card__header {
@@ -28,19 +28,19 @@
 .comment-card__author {
   font-weight: 600;
   font-size: 0.95rem;
-  color: #c7d2fe;
+  color: var(--accent-secondary);
   text-decoration: none;
   transition: color 200ms ease;
 }
 
 .comment-card__author:hover,
 .comment-card__author:focus-visible {
-  color: #facc15;
+  color: var(--accent-primary);
 }
 
 .comment-card__timestamp {
   font-size: 0.85rem;
-  color: rgba(148, 163, 255, 0.78);
+  color: var(--text-muted);
 }
 
 /* Body stays at the inherited 1rem (16px) — that's the standard
@@ -50,7 +50,7 @@
    without touching the size. */
 .comment-card__body {
   margin: 0;
-  color: rgba(226, 232, 240, 0.86);
+  color: var(--text-secondary);
   line-height: 1.45;
 }
 
@@ -68,26 +68,26 @@
   gap: 0.35rem;
   padding: 0.4rem 0.8rem;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 255, 0.22);
+  border: 1px solid var(--border-subtle);
   background: transparent;
-  color: rgba(199, 210, 254, 0.6);
+  color: var(--text-muted);
   font-size: 0.82rem;
   cursor: pointer;
   transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
 }
 .comment-card__report:hover,
 .comment-card__report:focus-visible {
-  color: #fecdd3;
-  border-color: rgba(248, 113, 113, 0.45);
-  background: rgba(248, 113, 113, 0.08);
+  color: var(--danger-fg);
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
 }
 
 .comment-card__delete {
   padding: 0.5rem 1rem;
   border-radius: 999px;
-  border: 1px solid rgba(248, 113, 113, 0.5);
-  background: rgba(248, 113, 113, 0.18);
-  color: #fee2e2;
+  border: 1px solid var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--danger-fg);
   font-weight: 600;
   cursor: pointer;
   transition: transform 200ms ease, background-color 200ms ease, border-color 200ms ease;
@@ -96,6 +96,6 @@
 .comment-card__delete:hover,
 .comment-card__delete:focus-visible {
   transform: translateY(-2px);
-  background: rgba(248, 113, 113, 0.32);
-  border-color: rgba(248, 113, 113, 0.65);
+  background: var(--danger-bg);
+  border-color: var(--danger-fg);
 }

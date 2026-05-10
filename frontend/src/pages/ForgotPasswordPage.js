@@ -60,9 +60,17 @@ const ForgotPasswordPage = () => {
                 It expires in 2 hours.
               </p>
             </div>
-            <div className="login-footer">
-              <Link to="/login">Back to login</Link>
-            </div>
+            {/* Promoted from a text link to a primary CTA — the
+                "Check your email" success state has nothing else for
+                the user to do, so the next-step button should look
+                like the next step. Reuses the home-page primary CTA
+                gradient. */}
+            <Link
+              to="/login"
+              className="home-create-btn forgot-success-button"
+            >
+              Back to login
+            </Link>
           </>
         ) : (
           <>

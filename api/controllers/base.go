@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -301,7 +302,21 @@ func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName stri
 }
 
 func (server *Server) Run(addr string) {
-	log.Fatal(http.ListenAndServe(addr, server.Router))
+	// Bind explicitly via net.Listen so we surface a real error if the
+	// socket can't be created — http.ListenAndServe swallows the bind
+	// error inside its return value, which is easy to miss when the only
+	// log is "starting…". On Fly Machines the private IP is IPv6-only,
+	// so the listener has to dual-stack via [::]; rewrite ":8888" to
+	// "[::]:8888" so the listener is IPv6 with v4-mapped accept enabled.
+	if strings.HasPrefix(addr, ":") {
+		addr = "[::]" + addr
+	}
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatalf("listen %s: %v", addr, err)
+	}
+	log.Printf("listening on %s (actual=%s)", addr, ln.Addr().String())
+	log.Fatal(http.Serve(ln, server.Router))
 }
 
 func splitCSV(input string) []string {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import * as Tabs from '@radix-ui/react-tabs';
@@ -7,6 +7,7 @@ import {
   FiStar,
   FiTrendingUp,
   FiMessageCircle,
+  FiChevronDown,
 } from 'react-icons/fi';
 import {
   getUserMatchups,
@@ -129,6 +130,35 @@ const UserProfile = () => {
   const [followError, setFollowError] = useState(null);
   const [privacyUpdating, setPrivacyUpdating] = useState(false);
   const [privacyError, setPrivacyError] = useState(null);
+  // Settings dropdown — collapses the four secondary actions
+  // (privacy toggle, notifications, blocks & mutes, account settings)
+  // behind a single trigger so the profile-card primary action
+  // ("Edit profile") doesn't have to compete for attention.
+  // Outside-click + Escape close, but clicks on the NotificationSettings
+  // portal panel (which lives outside our DOM tree because it's
+  // createPortal'd to body) are explicitly tolerated so the user can
+  // still toggle notification prefs without the Settings menu collapsing
+  // out from under them.
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const settingsMenuRef = useRef(null);
+  useEffect(() => {
+    if (!settingsMenuOpen) return undefined;
+    const onPointerDown = (e) => {
+      if (settingsMenuRef.current && settingsMenuRef.current.contains(e.target)) return;
+      // NotificationSettings portal — its panel renders to document.body
+      // so contains() on settingsMenuRef will miss it. Allowing that
+      // class through keeps both menus open simultaneously.
+      if (e.target.closest && e.target.closest('.notification-settings__menu')) return;
+      setSettingsMenuOpen(false);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') setSettingsMenuOpen(false); };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [settingsMenuOpen]);
   const [listFollowBusyId, setListFollowBusyId] = useState(null);
   const [listFollowError, setListFollowError] = useState(null);
   const [followModalOpen, setFollowModalOpen] = useState(false);
@@ -915,17 +945,80 @@ const UserProfile = () => {
                       </>
                     )}
                     {isViewer && (
-                      <Button
-                        className="profile-secondary-button"
-                        onClick={openEditModal}
-                      >
-                        Edit profile
-                      </Button>
+                      <>
+                        <Button
+                          className="profile-secondary-button"
+                          onClick={openEditModal}
+                        >
+                          Edit profile
+                        </Button>
+                        {/* Settings dropdown. Sits next to "Edit profile"
+                            so the primary action stands alone; the
+                            secondary actions (privacy toggle, notifications,
+                            blocks, account) collapse behind one trigger.
+                            Pattern mirrors the home-topbar profile menu. */}
+                        <div className="profile-settings-menu" ref={settingsMenuRef}>
+                          <Button
+                            className="profile-secondary-button profile-settings-menu__trigger"
+                            onClick={() => setSettingsMenuOpen((v) => !v)}
+                            aria-haspopup="menu"
+                            aria-expanded={settingsMenuOpen}
+                          >
+                            Settings <FiChevronDown aria-hidden="true" />
+                          </Button>
+                          {settingsMenuOpen && (
+                            <div className="profile-settings-menu__panel" role="menu">
+                              <button
+                                type="button"
+                                className="profile-settings-menu__item"
+                                role="menuitem"
+                                onClick={() => {
+                                  handlePrivacyToggle();
+                                  setSettingsMenuOpen(false);
+                                }}
+                                disabled={privacyUpdating}
+                              >
+                                {user.is_private ? 'Make public' : 'Make followers-only'}
+                              </button>
+                              {/* NotificationSettings is itself a dropdown
+                                  trigger; rendering it here means the
+                                  user clicks "Notifications" and the
+                                  inner panel portals to body. The
+                                  outside-click handler above whitelists
+                                  the inner panel's class so this
+                                  Settings menu stays open while the user
+                                  toggles notification prefs. */}
+                              <NotificationSettings />
+                              <Link
+                                to="/settings/blocks"
+                                className="profile-settings-menu__item"
+                                role="menuitem"
+                                onClick={() => setSettingsMenuOpen(false)}
+                              >
+                                Blocks & mutes
+                              </Link>
+                              <Link
+                                to="/settings/account"
+                                className="profile-settings-menu__item"
+                                role="menuitem"
+                                onClick={() => setSettingsMenuOpen(false)}
+                              >
+                                Account settings
+                              </Link>
+                            </div>
+                          )}
+                        </div>
+                      </>
                     )}
                   </div>
 
+                  {/* Profile visibility — informational status only.
+                      The privacy toggle moved into the Settings menu
+                      above, but the current state (Public / Followers
+                      only) stays visible because it tells the viewer
+                      something about their account at a glance. */}
                   {isViewer && (
-                    <div className="profile-privacy-row">
+                    <div className="profile-privacy-row profile-privacy-row--status">
                       <span className="profile-privacy-label">Profile visibility</span>
                       <span
                         className={`profile-privacy-pill ${
@@ -934,26 +1027,6 @@ const UserProfile = () => {
                       >
                         {user.is_private ? 'Followers only' : 'Public'}
                       </span>
-                      <Button
-                        onClick={handlePrivacyToggle}
-                        className="profile-secondary-button"
-                        disabled={privacyUpdating}
-                      >
-                        {user.is_private ? 'Make public' : 'Make followers-only'}
-                      </Button>
-                      <NotificationSettings />
-                      <Link
-                        to="/settings/blocks"
-                        className="profile-secondary-button profile-settings-link"
-                      >
-                        Blocks & mutes
-                      </Link>
-                      <Link
-                        to="/settings/account"
-                        className="profile-secondary-button profile-settings-link"
-                      >
-                        Account settings
-                      </Link>
                     </div>
                   )}
                   {privacyError && (

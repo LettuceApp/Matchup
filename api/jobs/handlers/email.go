@@ -50,7 +50,16 @@ func HandleEmail(ctx context.Context, payload []byte) error {
 		return err
 	}
 
-	fromAdmin := os.Getenv("ADMIN_EMAIL")
+	// SENDGRID_FROM is the canonical key going forward (matches the
+	// auth handler's inline-send fallback). The legacy ADMIN_EMAIL
+	// fallback is kept so deployments whose Secret was created from
+	// the old template (only ADMIN_EMAIL set) keep working until
+	// SENDGRID_FROM is rolled out. Once every cluster has
+	// SENDGRID_FROM, the fallback can come out.
+	fromAdmin := os.Getenv("SENDGRID_FROM")
+	if fromAdmin == "" {
+		fromAdmin = os.Getenv("ADMIN_EMAIL")
+	}
 	sendgridKey := os.Getenv("SENDGRID_API_KEY")
 	appEnv := os.Getenv("APP_ENV")
 

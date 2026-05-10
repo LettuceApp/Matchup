@@ -1,4 +1,4 @@
-/* ShareButton — matches the Matchup dark-theme card look. */
+/* ShareButton — matches the Matchup card look in both themes. */
 
 .share-button-root {
   position: relative;
@@ -11,9 +11,9 @@
   gap: 0.4rem;
   padding: 0.45rem 0.9rem;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 255, 0.35);
-  background: rgba(148, 163, 255, 0.08);
-  color: #e2e8f0;
+  border: 1px solid var(--border-strong);
+  background: var(--accent-secondary-bg-soft);
+  color: var(--text-secondary);
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
@@ -22,8 +22,8 @@
 
 .share-button:hover,
 .share-button:focus-visible {
-  background: rgba(148, 163, 255, 0.18);
-  border-color: rgba(148, 163, 255, 0.55);
+  background: var(--accent-secondary-border-soft);
+  border-color: var(--accent-secondary);
   outline: none;
 }
 
@@ -35,16 +35,17 @@
   line-height: 1;
 }
 
+/* Dropdown panel — same raised-surface treatment as other dropdown menus. */
 .share-menu {
   position: absolute;
   top: calc(100% + 0.4rem);
   right: 0;
   z-index: 20;
   min-width: 220px;
-  background: #1f2940;
-  border: 1px solid rgba(148, 163, 255, 0.2);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-panel);
   padding: 0.35rem;
   display: flex;
   flex-direction: column;
@@ -57,7 +58,7 @@
   padding: 0.55rem 0.75rem;
   border: none;
   background: transparent;
-  color: #e2e8f0;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   font-weight: 500;
   border-radius: 8px;
@@ -68,7 +69,7 @@
 
 .share-menu__item:hover,
 .share-menu__item:focus-visible {
-  background: rgba(148, 163, 255, 0.18);
+  background: var(--accent-secondary-bg-soft);
   outline: none;
 }
 
@@ -79,18 +80,20 @@
   opacity: 0.9;
 }
 
+/* Copy-link confirmation toast — page-surface fill so it reads as a
+   distinct floater regardless of which surface it's anchored to. */
 .share-toast {
   position: absolute;
   top: calc(100% + 0.4rem);
   right: 0;
-  background: #0f172a;
-  color: #f8fafc;
+  background: var(--bg-page);
+  color: var(--text-primary);
   padding: 0.45rem 0.9rem;
   border-radius: 8px;
   font-size: 0.85rem;
   font-weight: 500;
-  border: 1px solid rgba(148, 163, 255, 0.3);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border-input);
+  box-shadow: var(--shadow-card);
   z-index: 30;
   animation: share-toast-fade 2s ease;
 }

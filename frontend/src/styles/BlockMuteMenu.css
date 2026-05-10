@@ -13,19 +13,20 @@
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: #e0e6ff;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-input);
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 1.1rem;
   transition: background 120ms ease, border-color 120ms ease;
 }
 .block-mute-menu__trigger:hover,
 .block-mute-menu__trigger[aria-expanded="true"] {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.22);
+  background: var(--bg-surface);
+  border-color: var(--border-input);
 }
 
+/* Panel — same dropdown surface treatment as home-profile-menu__panel. */
 .block-mute-menu__panel {
   position: absolute;
   right: 0;
@@ -33,9 +34,9 @@
   min-width: 200px;
   padding: 6px;
   border-radius: 12px;
-  background: #151928;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-panel);
   z-index: 60;
   display: flex;
   flex-direction: column;
@@ -48,7 +49,7 @@
   gap: 10px;
   padding: 10px 12px;
   font-size: 0.92rem;
-  color: #d7dcf1;
+  color: var(--text-secondary);
   background: transparent;
   border: none;
   border-radius: 8px;
@@ -57,24 +58,25 @@
   transition: background 120ms ease, color 120ms ease;
 }
 .block-mute-menu__item:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  background: var(--accent-secondary-bg-soft);
+  color: var(--text-primary);
 }
 .block-mute-menu__item:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
+/* Destructive variant — red text, soft red hover fill. */
 .block-mute-menu__item--danger {
-  color: #ff8b8b;
+  color: var(--danger-fg);
 }
 .block-mute-menu__item--danger:hover:not(:disabled) {
-  background: rgba(255, 72, 72, 0.1);
-  color: #ff9e9e;
+  background: var(--danger-bg);
+  color: var(--danger-fg);
 }
 
 .block-mute-menu__error {
   margin: 6px 8px 2px;
   font-size: 0.78rem;
-  color: #ff8b8b;
+  color: var(--danger-fg);
 }

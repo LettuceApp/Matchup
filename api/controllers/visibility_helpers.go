@@ -10,14 +10,21 @@ import (
 )
 
 const (
-	visibilityPublic  = "public"
-	visibilityMutuals = "mutuals"
+	visibilityPublic    = "public"
+	visibilityFollowers = "followers"
+	visibilityMutuals   = "mutuals"
 )
 
+// normalizeVisibility coerces a client-supplied string into one of the
+// three known modes. Anything we don't recognise falls back to public,
+// which is the fail-open default — better that an upgrade-skew client
+// sees a public matchup than silently locks itself out of its own post.
 func normalizeVisibility(value string) string {
 	switch value {
 	case visibilityMutuals:
 		return visibilityMutuals
+	case visibilityFollowers:
+		return visibilityFollowers
 	default:
 		return visibilityPublic
 	}
@@ -60,6 +67,21 @@ func canViewUserContent(db sqlx.ExtContext, viewerID uint, hasViewer bool, owner
 	}
 
 	normalized := normalizeVisibility(visibility)
+	// Followers-only: viewer must follow the owner. Strictly weaker
+	// than mutuals (one-way is enough). Anon viewers fail immediately
+	// since they can't follow anything.
+	if normalized == visibilityFollowers {
+		if !hasViewer {
+			return false, "followers", nil
+		}
+		follower, err := isFollower(db, viewerID, owner.ID)
+		if err != nil {
+			return false, "", err
+		}
+		if !follower {
+			return false, "followers", nil
+		}
+	}
 	if normalized == visibilityMutuals {
 		if !hasViewer {
 			return false, visibilityMutuals, nil

@@ -9,16 +9,17 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Safety-net background. Page-level wrappers (.bracket-page,
-     .matchup-page, .home-page, etc.) paint their own gradients on
-     top of this; the body rule is what shows through any momentary
-     gap or short-content page so users never see a white flash. */
+  /* Page background lives on the tokens so swapping data-theme on
+     <html> reskins the whole canvas without rerendering. The
+     gradient-as-image pattern keeps the per-theme tints reading as
+     "atmospheric" rather than the flat color a single var() would
+     produce. */
   min-height: 100vh;
-  background:
-    radial-gradient(120% 120% at 0% 0%, rgba(59, 130, 246, 0.35) 0%, rgba(15, 23, 42, 0) 45%),
-    radial-gradient(120% 120% at 100% 0%, rgba(244, 114, 182, 0.35) 0%, rgba(15, 23, 42, 0) 45%),
-    linear-gradient(135deg, #0f172a 0%, #111c3d 100%);
+  color: var(--text-primary);
+  background-color: var(--bg-page);
+  background-image: var(--bg-page-gradient);
   background-attachment: fixed;
+  transition: background-color 200ms ease, color 200ms ease;
 }
 
 code {

@@ -85,9 +85,9 @@ func TestValidateKeyOwnership_RejectsWrongUser(t *testing.T) {
 
 // TestValidateKeyOwnership_RejectsKindMismatch — a key minted under
 // the matchup_cover prefix can't be claimed as an avatar. This
-// matters because the size cap + allowlist are per-kind: a
-// matchup_cover (5MB) claimed as an avatar (500KB) would bypass the
-// smaller cap if the commit handler didn't recheck.
+// matters because the allowlist (and previously the size cap)
+// is per-kind, so the kind-stamp inside the key prevents a client
+// from confusing the commit handler about which spec applies.
 func TestValidateKeyOwnership_RejectsKindMismatch(t *testing.T) {
 	coverKey := "uploads/matchup_cover/42/abc-123.bin"
 	if err := validateKeyOwnership(coverKey, UploadKindAvatar, 42); err == nil {

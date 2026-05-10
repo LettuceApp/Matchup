@@ -1,6 +1,7 @@
+/* Page wrapper transparent so the body gradient shows through both themes. */
 .admin-dashboard {
   min-height: 100vh;
-  background-color: #f7f8fa;
+  background: transparent;
 }
 
 .admin-main {
@@ -22,33 +23,35 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--text-muted);
   margin-bottom: 0.3rem;
 }
 
 .admin-header h1 {
   margin: 0 0 0.25rem;
   font-size: 2rem;
+  color: var(--text-primary);
 }
 
 .admin-header p {
   margin: 0;
-  color: #4b5563;
+  color: var(--text-secondary);
 }
 
 .admin-toast {
-  background: #ecfdf5;
-  color: #047857;
+  background: var(--success-bg);
+  color: var(--success-fg);
   padding: 0.9rem 1.1rem;
   border-radius: 8px;
   font-weight: 600;
+  border: 1px solid var(--success-border);
 }
 
 .admin-section {
-  background: #fff;
+  background: var(--bg-surface);
   border-radius: 16px;
   padding: 1.5rem;
-  box-shadow: 0 10px 30px rgba(14, 69, 107, 0.06);
+  box-shadow: var(--shadow-card);
   margin-bottom: 2rem;
 }
 
@@ -63,11 +66,12 @@
 
 .admin-section-header h2 {
   margin: 0;
+  color: var(--text-primary);
 }
 
 .admin-section-header p {
   margin: 0.3rem 0 0;
-  color: #4b5563;
+  color: var(--text-secondary);
 }
 
 .admin-search {
@@ -88,20 +92,21 @@
   padding: 0.5rem 1rem;
   font-size: 0.85rem;
   border-radius: 999px;
-  border: 1px solid rgba(15, 23, 42, 0.15);
+  border: 1px solid var(--border-subtle);
   background: transparent;
-  color: #4b5563;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
 }
 .admin-filter-pill:hover {
-  background: rgba(59, 130, 246, 0.08);
-  color: #1e3a8a;
+  background: var(--accent-secondary-bg-soft);
+  color: var(--accent-secondary);
 }
+/* Active pill — filled indigo so it reads as the chosen queue. */
 .admin-filter-pill--active {
-  background: #1e3a8a;
-  border-color: #1e3a8a;
-  color: #fff;
+  background: var(--accent-secondary);
+  border-color: var(--accent-secondary);
+  color: var(--text-on-accent);
 }
 
 .admin-report-subject {
@@ -111,80 +116,95 @@
 }
 .admin-report-type {
   font-weight: 600;
+  color: var(--text-primary);
 }
 .admin-report-id {
   font-size: 0.75rem;
-  color: #64748b;
+  color: var(--text-muted);
   word-break: break-all;
 }
 .admin-report-detail {
   margin-top: 4px;
   font-size: 0.82rem;
-  color: #475569;
+  color: var(--text-secondary);
   white-space: pre-wrap;
 }
 .admin-report-preview {
   max-width: 320px;
   font-size: 0.88rem;
-  color: #334155;
+  color: var(--text-secondary);
   white-space: pre-wrap;
 }
 .admin-report-resolution {
   font-size: 0.85rem;
-  color: #1e3a8a;
+  color: var(--accent-secondary);
   font-weight: 500;
 }
 
 .admin-search input {
   padding: 0.55rem 0.8rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-input);
   border-radius: 8px;
   min-width: 240px;
+  background: var(--bg-input);
+  color: var(--text-primary);
 }
 
+.admin-search input::placeholder {
+  color: var(--text-muted);
+}
+
+.admin-search input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+/* Primary search button — uses the accent gradient so it reads as a CTA. */
 .admin-search button {
   border: none;
-  background: #0f172a;
-  color: #fff;
+  background: linear-gradient(120deg, var(--accent-primary-from), var(--accent-primary-to));
+  color: var(--text-on-accent);
   border-radius: 8px;
   padding: 0.55rem 1.4rem;
   cursor: pointer;
+  font-weight: 600;
 }
 
 .admin-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.95rem;
+  color: var(--text-primary);
 }
 
 .admin-table th,
 .admin-table td {
   padding: 0.75rem 0.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-subtle);
   text-align: left;
 }
 
 .admin-table th {
   font-weight: 600;
-  color: #374151;
+  color: var(--text-secondary);
 }
 
 .admin-empty {
   text-align: center;
-  color: #6b7280;
+  color: var(--text-muted);
   padding: 1.5rem 0;
 }
 
 .admin-link {
   background: none;
   border: none;
-  color: #2563eb;
+  color: var(--accent-secondary);
   font-weight: 600;
   cursor: pointer;
 }
 
 .admin-link--danger {
-  color: #dc2626;
+  color: var(--danger-fg);
 }
 
 .admin-action-group {
@@ -194,16 +214,18 @@
 }
 
 .admin-status-card {
-  background: #f3f4f6;
+  background: var(--bg-surface-raised);
   border-radius: 12px;
   padding: 1rem;
-  color: #374151;
+  color: var(--text-secondary);
   margin-bottom: 1rem;
+  border: 1px solid var(--border-subtle);
 }
 
 .admin-status-card--error {
-  background: #fef2f2;
-  color: #b91c1c;
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+  border-color: var(--danger-border);
 }
 
 .admin-pagination {
@@ -213,13 +235,15 @@
   margin-top: 1rem;
 }
 
+/* Pagination controls share the indigo accent for affordance. */
 .admin-pagination button {
   border: none;
-  background: #1d4ed8;
-  color: #fff;
+  background: var(--accent-secondary);
+  color: var(--text-on-accent);
   padding: 0.5rem 1.2rem;
   border-radius: 8px;
   cursor: pointer;
+  font-weight: 600;
 }
 
 .admin-pagination button:disabled {

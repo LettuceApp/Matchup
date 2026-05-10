@@ -9,7 +9,6 @@ import Comment from "../components/Comment";
 import ShareButton from "../components/ShareButton";
 import ReportModal from "../components/ReportModal";
 import SkeletonCard from "../components/SkeletonCard";
-import { FiFlag } from "react-icons/fi";
 import {
   getBracketSummary,
   getBracketComments,
@@ -25,11 +24,28 @@ import {
 import "../styles/BracketPage.css";
 import useCountdown from "../hooks/useCountdown";
 import useShareTracking from "../hooks/useShareTracking";
+import { useAnonUpgradePrompt } from "../contexts/AnonUpgradeContext";
 
 export default function BracketPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const viewerId = localStorage.getItem("userId");
+  const { promptUpgrade } = useAnonUpgradePrompt();
+
+  // Anon viewers can mount this page (RequireAuth was removed at the
+  // route level so we can show a friendly modal instead of bouncing
+  // them to /login). The modal explains why they need to sign up;
+  // dismissing it routes them out via its own onClose handler.
+  useEffect(() => {
+    if (!viewerId) {
+      promptUpgrade('bracket');
+    }
+    // Run once on mount per session — the modal itself collapses
+    // duplicate triggers, but the empty deps array makes the intent
+    // explicit (we don't want this firing on every viewerId-derived
+    // re-render).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [bracket, setBracket] = useState(null);
   const [matchups, setMatchups] = useState([]);
@@ -279,8 +295,25 @@ export default function BracketPage() {
 
   const handleAdvance = async () => {
     if (!bracket) return;
-    await advanceBracket(bracket.id);
-    await loadBracket();
+    setError(null);
+    try {
+      await advanceBracket(bracket.id);
+      await loadBracket();
+    } catch (err) {
+      // Map the backend's verbose error strings to a friendly inline
+      // message rather than letting an uncaught exception surface as
+      // a console error. The "not completed" branch is the common
+      // case — user clicked Advance before all current-round
+      // matchups finished.
+      const msg = err?.response?.data?.message || err?.message || '';
+      if (msg.includes('not completed')) {
+        setError("All matches in the current round haven't been completed yet.");
+      } else if (msg.includes('already populated')) {
+        setError('This round has already been advanced.');
+      } else {
+        setError("Couldn't advance the round. Please try again.");
+      }
+    }
   };
 
   const handleDelete = async () => {
@@ -358,24 +391,31 @@ export default function BracketPage() {
       <NavigationBar />
       <main className="bracket-content">
         <motion.section className="bracket-hero-summary" {...sectionMotion}>
-          <p className="bracket-overline">
-            Tournament snapshot
-            {(bracket.author?.username || bracket.author_username) && (
-              <>
-                {" · by "}
-                <Link
-                  to={`/users/${bracket.author?.username || bracket.author_id}`}
-                  className="bracket-author-link"
-                >
-                  {bracket.author?.username || bracket.author_username}
-                </Link>
-              </>
-            )}
-          </p>
-          <h1>{bracket.title}</h1>
-          <p className="bracket-description">
-            {bracket.description || "No description provided yet."}
-          </p>
+          {/* Title + description wrapped in .bracket-hero-text so the
+              already-defined CSS rule applies (gap + max-width). The
+              wrapper was missing from the JSX previously, so the
+              bracket-overline / h1 / description sat with mismatched
+              spacing. */}
+          <div className="bracket-hero-text">
+            <p className="bracket-overline">
+              Tournament snapshot
+              {(bracket.author?.username || bracket.author_username) && (
+                <>
+                  {" · by "}
+                  <Link
+                    to={`/users/${bracket.author?.username || bracket.author_id}`}
+                    className="bracket-author-link"
+                  >
+                    {bracket.author?.username || bracket.author_username}
+                  </Link>
+                </>
+              )}
+            </p>
+            <h1>{bracket.title}</h1>
+            <p className="bracket-description">
+              {bracket.description || "No description provided yet."}
+            </p>
+          </div>
 
           <div className="bracket-meta-row">
             <div>
@@ -418,16 +458,8 @@ export default function BracketPage() {
               <span>Likes</span>
             </div>
             <ShareButton item={bracket} type="bracket" />
-            {viewerId && !isOwner && (
-              <button
-                type="button"
-                className="bracket-like-button bracket-like-button--subtle"
-                aria-label="Report this bracket"
-                onClick={() => setReportOpen(true)}
-              >
-                <FiFlag aria-hidden="true" /> Report
-              </button>
-            )}
+            {/* Report button removed at user request — backend handler
+                + ReportModal mount remain so re-enabling is one-line. */}
           </div>
 
           <div className="bracket-action-group bracket-action-group--center">

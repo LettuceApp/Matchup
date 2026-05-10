@@ -128,7 +128,11 @@ const CreateBracketPage = () => {
   const [advanceMode, setAdvanceMode] = useState("manual");
   const [roundMinutes, setRoundMinutes] = useState("");
   const [roundSeconds, setRoundSeconds] = useState("");
-  const [mutualsOnly, setMutualsOnly] = useState(false);
+  // Per-bracket visibility — see CreateMatchup for the same triple
+  // (public / followers / mutuals). Replaces the previous mutuals-only
+  // checkbox so a public account can ship a single bracket as
+  // followers-only without flipping their whole profile to private.
+  const [visibility, setVisibility] = useState("public");
   const [tags, setTags] = useState("");
   const [notes, setNotes] = useState("");
   const [entries, setEntries] = useState(Array(8).fill(""));
@@ -227,23 +231,39 @@ const CreateBracketPage = () => {
     [previewSeedOrder, trimmedEntries]
   );
 
+  // The react-tournament-bracket library accepts inline JS values
+  // for its colors — it can't read CSS variables. Branch on the live
+  // data-theme attribute so the preview at least respects the theme
+  // at mount time. Trade-off: toggling theme while this page is open
+  // won't reflow the preview; user'd need to navigate away + back.
+  // Acceptable for one preview surface vs wrapping the library.
+  const isDark = typeof document !== 'undefined'
+    && document.documentElement.dataset.theme === 'dark';
+  // Light-mode cell tints lifted off pure white to a soft indigo
+  // wash so cells visibly separate from the white aside container.
+  // Uses the same indigo family as the secondary accent token —
+  // indigo-50/100/200 in Tailwind. Reads as a gentle white→purple
+  // step rather than a heavy fill.
   const previewStyles = useMemo(
     () => ({
-      backgroundColor: "rgba(15, 23, 42, 0.85)",
-      hoverBackgroundColor: "rgba(30, 41, 59, 0.9)",
-      scoreBackground: "rgba(15, 23, 42, 0.8)",
+      backgroundColor:        isDark ? "rgba(15, 23, 42, 0.85)" : "#eef2ff",
+      hoverBackgroundColor:   isDark ? "rgba(30, 41, 59, 0.9)"  : "#e0e7ff",
+      scoreBackground:        isDark ? "rgba(15, 23, 42, 0.8)"  : "#f5f3ff",
       winningScoreBackground: "rgba(251, 191, 36, 0.9)",
       teamNameStyle: {
-        fill: "#e2e8f0",
+        fill: isDark ? "#e2e8f0" : "#0f172a",
         fontSize: 12,
         fontWeight: 600,
       },
-      teamScoreStyle: { fill: "#0f172a", fontSize: 10 },
-      gameNameStyle: { fill: "#94a3b8", fontSize: 9 },
-      gameTimeStyle: { fill: "#64748b", fontSize: 9 },
-      teamSeparatorStyle: { stroke: "rgba(51,65,85,0.6)", strokeWidth: 1 },
+      teamScoreStyle: { fill: isDark ? "#0f172a" : "#0f172a", fontSize: 10 },
+      gameNameStyle:  { fill: isDark ? "#94a3b8" : "#475569", fontSize: 9 },
+      gameTimeStyle:  { fill: isDark ? "#64748b" : "#64748b", fontSize: 9 },
+      teamSeparatorStyle: {
+        stroke: isDark ? "rgba(51,65,85,0.6)" : "#c7d2fe",
+        strokeWidth: 1,
+      },
     }),
-    []
+    [isDark]
   );
 
   const handleEntryChange = (index, value) => {
@@ -362,8 +382,11 @@ const CreateBracketPage = () => {
       entries: trimmedEntries,
       tags: parsedTags,
     };
-    if (mutualsOnly) {
-      payload.visibility = "mutuals";
+    // Only send a visibility override when it isn't the default —
+    // backend defaults to "public" via Prepare(); silent on the
+    // wire is the same as explicit "public".
+    if (visibility !== "public") {
+      payload.visibility = visibility;
     }
     if (advanceMode === "timer") {
       payload.round_duration_seconds = totalSeconds;
@@ -412,7 +435,7 @@ const CreateBracketPage = () => {
 
   const previewCard = (
     <motion.aside
-      className="relative min-w-0 overflow-hidden rounded-3xl border border-slate-700/60 bg-slate-900/65 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.45)]"
+      className="relative min-w-0 overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/65 p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_16px_40px_rgba(15,23,42,0.08)]"
       layout
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
@@ -420,31 +443,31 @@ const CreateBracketPage = () => {
     >
       <div className="flex flex-col gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-300/70">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-indigo-500 dark:text-slate-300/70">
             Live preview
           </p>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-50">
+          <h2 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-50">
             {title.trim() || "Bracket title preview"}
           </h2>
-          <p className="mt-2 text-sm text-slate-200/70">
+          <p className="mt-2 text-sm text-slate-700 dark:text-slate-200/70">
             {description.trim() || "Describe the debate to help voters jump in."}
           </p>
-          <div className="mt-4 flex flex-wrap gap-3 text-xs font-semibold text-slate-200/70">
-            <span className="rounded-full border border-slate-600/50 px-3 py-1">
+          <div className="mt-4 flex flex-wrap gap-3 text-xs font-semibold text-slate-700 dark:text-slate-200/70">
+            <span className="rounded-full border border-slate-300 dark:border-slate-600/50 px-3 py-1">
               {filledCount}/{size} contenders
             </span>
-            <span className="rounded-full border border-slate-600/50 px-3 py-1">
+            <span className="rounded-full border border-slate-300 dark:border-slate-600/50 px-3 py-1">
               {advanceMode === "manual" ? "Manual advance" : "Timer advance"}
             </span>
-            {mutualsOnly && (
-              <span className="rounded-full border border-amber-400/50 px-3 py-1 text-amber-200">
-                Mutuals only
+            {visibility !== "public" && (
+              <span className="rounded-full border border-amber-300 dark:border-amber-400/50 px-3 py-1 text-amber-700 dark:text-amber-200">
+                {visibility === "mutuals" ? "Mutuals only" : "Followers only"}
               </span>
             )}
           </div>
         </div>
-        <div className="rounded-2xl border border-slate-700/60 bg-slate-950/50 p-4">
-          <div className="mb-3 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-slate-300/60">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-950/50 p-4">
+          <div className="mb-3 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-300/60">
             <span>Bracket preview</span>
             <span>{size}-team</span>
           </div>
@@ -463,41 +486,35 @@ const CreateBracketPage = () => {
   );
 
   return (
-    <div
-      className="min-h-screen overflow-x-hidden text-slate-100"
-      style={{
-        background:
-          "radial-gradient(120% 120% at 0% 0%, rgba(59, 130, 246, 0.35) 0%, rgba(15, 23, 42, 0) 45%), radial-gradient(120% 120% at 100% 0%, rgba(244, 114, 182, 0.35) 0%, rgba(15, 23, 42, 0) 45%), linear-gradient(135deg, #0f172a 0%, #111c3d 100%)",
-      }}
-    >
+    <div className="min-h-screen overflow-x-hidden text-slate-900 dark:text-slate-100">
       <NavigationBar />
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 pb-16 pt-24 xl:px-10">
         <motion.section
-          className="rounded-3xl border border-slate-700/60 bg-slate-900/60 px-6 py-8 shadow-[0_32px_70px_rgba(15,23,42,0.55)] sm:px-10"
+          className="rounded-3xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/60 px-6 py-8 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_24px_48px_rgba(15,23,42,0.08)] sm:px-10"
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45 }}
         >
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-300/80">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-indigo-500 dark:text-slate-300/80">
             Create a bracket
           </p>
-          <h1 className="mt-3 text-3xl font-semibold leading-tight text-slate-50 sm:text-4xl">
+          <h1 className="mt-3 text-3xl font-semibold leading-tight text-slate-900 dark:text-slate-50 sm:text-4xl">
             Build a tournament that feels easy to follow.
           </h1>
-          <p className="mt-3 max-w-2xl text-base text-slate-200/80">
+          <p className="mt-3 max-w-2xl text-base text-slate-700 dark:text-slate-200/80">
             Start with the basics, add your contenders, then preview the bracket live before you
             publish.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button
               onClick={() => navigate("/home")}
-              className="rounded-full border border-slate-600/60 bg-transparent px-5 py-2 text-sm font-semibold text-slate-100 hover:border-slate-400/70"
+              className="rounded-full border border-slate-300 dark:border-slate-600/60 bg-transparent px-5 py-2 text-sm font-semibold text-slate-900 dark:text-slate-100 hover:border-slate-400 dark:hover:border-slate-400/70"
             >
               Back to dashboard
             </Button>
             <Button
               onClick={() => navigate(-1)}
-              className="rounded-full border border-slate-700/50 bg-slate-950/40 px-5 py-2 text-sm font-semibold text-slate-200 hover:border-slate-400/70"
+              className="rounded-full border border-slate-300 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-950/40 px-5 py-2 text-sm font-semibold text-slate-800 dark:text-slate-200 hover:border-slate-400 dark:hover:border-slate-400/70"
             >
               Go back
             </Button>
@@ -513,17 +530,19 @@ const CreateBracketPage = () => {
                 key={item.id}
                 className={`flex items-center gap-3 rounded-full border px-4 py-2 text-sm font-semibold ${
                   isActive
-                    ? "border-sky-400/70 bg-sky-500/10 text-sky-100"
+                    ? "border-indigo-300 dark:border-sky-400/70 bg-indigo-50 dark:bg-sky-500/10 text-indigo-700 dark:text-sky-100"
                     : isComplete
-                      ? "border-emerald-400/60 bg-emerald-500/10 text-emerald-100"
-                      : "border-slate-700/70 bg-slate-900/60 text-slate-200/70"
+                      ? "border-emerald-300 dark:border-emerald-400/60 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-100"
+                      : "border-slate-200 dark:border-slate-700/70 bg-white dark:bg-slate-900/60 text-slate-700 dark:text-slate-200/70"
                 }`}
               >
                 <span
                   className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
                     isComplete
-                      ? "bg-emerald-500/20 text-emerald-200"
-                      : "bg-slate-800/60 text-slate-200"
+                      ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-200"
+                      : isActive
+                        ? "bg-indigo-100 dark:bg-sky-500/20 text-indigo-700 dark:text-sky-100"
+                        : "bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-200"
                   }`}
                 >
                   {item.id}
@@ -536,7 +555,7 @@ const CreateBracketPage = () => {
 
         <div className="grid min-w-0 gap-8 lg:grid-cols-[1.15fr_0.85fr]">
           <motion.form
-            className="min-w-0 rounded-3xl border border-slate-700/60 bg-slate-900/70 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.45)] sm:p-8"
+            className="min-w-0 rounded-3xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/70 p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_16px_40px_rgba(15,23,42,0.08)] sm:p-8"
             onSubmit={handleSubmit}
             layout
           >
@@ -551,18 +570,18 @@ const CreateBracketPage = () => {
                   className="flex flex-col gap-6"
                 >
                   <div>
-                    <h2 className="text-2xl font-semibold text-slate-50">Step 1 - Basics</h2>
-                    <p className="mt-2 text-sm text-slate-200/70">
+                    <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Step 1 - Basics</h2>
+                    <p className="mt-2 text-sm text-slate-700 dark:text-slate-200/70">
                       Add the essentials first so your bracket feels intentional.
                     </p>
                   </div>
                   <div className="flex flex-col gap-4">
-                    <label className="text-sm font-semibold text-slate-200">Title</label>
+                    <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">Title</label>
                     <input
                       type="text"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      className="rounded-2xl border border-slate-700/60 bg-slate-950/50 px-4 py-3 text-base text-slate-100 outline-none transition focus:border-sky-400/70 focus:ring-2 focus:ring-sky-400/20"
+                      className="rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-950/50 px-4 py-3 text-base text-slate-900 dark:text-slate-100 outline-none transition focus:border-indigo-500 dark:focus:border-indigo-300 dark:border-sky-400/70 focus:ring-2 focus:ring-indigo-500/15 dark:focus:ring-sky-400/20"
                       placeholder="Best late-night snack"
                     />
                     {attemptedSubmit && title.trim().length === 0 && (
@@ -570,12 +589,12 @@ const CreateBracketPage = () => {
                     )}
                   </div>
                   <div className="flex flex-col gap-4">
-                    <label className="text-sm font-semibold text-slate-200">Description</label>
+                    <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">Description</label>
                     <textarea
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       rows={3}
-                      className="rounded-2xl border border-slate-700/60 bg-slate-950/50 px-4 py-3 text-base text-slate-100 outline-none transition focus:border-sky-400/70 focus:ring-2 focus:ring-sky-400/20"
+                      className="rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-950/50 px-4 py-3 text-base text-slate-900 dark:text-slate-100 outline-none transition focus:border-indigo-500 dark:focus:border-indigo-300 dark:border-sky-400/70 focus:ring-2 focus:ring-indigo-500/15 dark:focus:ring-sky-400/20"
                       placeholder="Share a quick note about what voters should consider."
                     />
                     {attemptedSubmit && description.trim().length === 0 && (
@@ -584,11 +603,11 @@ const CreateBracketPage = () => {
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="flex flex-col gap-3">
-                      <label className="text-sm font-semibold text-slate-200">Bracket size</label>
+                      <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">Bracket size</label>
                       <select
                         value={size}
                         onChange={(e) => setSize(Number(e.target.value))}
-                        className="rounded-2xl border border-slate-700/60 bg-slate-950/50 px-4 py-3 text-base text-slate-100 outline-none transition focus:border-sky-400/70 focus:ring-2 focus:ring-sky-400/20"
+                        className="rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-950/50 px-4 py-3 text-base text-slate-900 dark:text-slate-100 outline-none transition focus:border-indigo-500 dark:focus:border-indigo-300 dark:border-sky-400/70 focus:ring-2 focus:ring-indigo-500/15 dark:focus:ring-sky-400/20"
                       >
                         {sizeOptions.map((option) => (
                           <option key={option} value={option}>
@@ -598,13 +617,13 @@ const CreateBracketPage = () => {
                       </select>
                     </div>
                     <div className="flex flex-col gap-3">
-                      <label className="text-sm font-semibold text-slate-200">
+                      <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                         Round advancement
                       </label>
                       <select
                         value={advanceMode}
                         onChange={(e) => setAdvanceMode(e.target.value)}
-                        className="rounded-2xl border border-slate-700/60 bg-slate-950/50 px-4 py-3 text-base text-slate-100 outline-none transition focus:border-sky-400/70 focus:ring-2 focus:ring-sky-400/20"
+                        className="rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-950/50 px-4 py-3 text-base text-slate-900 dark:text-slate-100 outline-none transition focus:border-indigo-500 dark:focus:border-indigo-300 dark:border-sky-400/70 focus:ring-2 focus:ring-indigo-500/15 dark:focus:ring-sky-400/20"
                       >
                         {advanceModes.map((option) => (
                           <option key={option.value} value={option.value}>
@@ -614,23 +633,23 @@ const CreateBracketPage = () => {
                       </select>
                     </div>
                   </div>
-                  <p className="text-sm text-slate-200/70">
+                  <p className="text-sm text-slate-700 dark:text-slate-200/70">
                     Manual is the default. Switch to timer only if you want rounds to auto-advance.
                   </p>
                   {advanceMode === "timer" && (
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <label className="flex flex-col gap-2 text-sm text-slate-200">
+                      <label className="flex flex-col gap-2 text-sm text-slate-800 dark:text-slate-200">
                         Round minutes
                         <input
                           type="number"
                           min="0"
                           value={roundMinutes}
                           onChange={(e) => setRoundMinutes(e.target.value)}
-                          className="rounded-2xl border border-slate-700/60 bg-slate-950/50 px-4 py-3 text-base text-slate-100 outline-none transition focus:border-sky-400/70 focus:ring-2 focus:ring-sky-400/20"
+                          className="rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-950/50 px-4 py-3 text-base text-slate-900 dark:text-slate-100 outline-none transition focus:border-indigo-500 dark:focus:border-indigo-300 dark:border-sky-400/70 focus:ring-2 focus:ring-indigo-500/15 dark:focus:ring-sky-400/20"
                           placeholder="0"
                         />
                       </label>
-                      <label className="flex flex-col gap-2 text-sm text-slate-200">
+                      <label className="flex flex-col gap-2 text-sm text-slate-800 dark:text-slate-200">
                         Round seconds
                         <input
                           type="number"
@@ -638,7 +657,7 @@ const CreateBracketPage = () => {
                           max="59"
                           value={roundSeconds}
                           onChange={(e) => setRoundSeconds(e.target.value)}
-                          className="rounded-2xl border border-slate-700/60 bg-slate-950/50 px-4 py-3 text-base text-slate-100 outline-none transition focus:border-sky-400/70 focus:ring-2 focus:ring-sky-400/20"
+                          className="rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-950/50 px-4 py-3 text-base text-slate-900 dark:text-slate-100 outline-none transition focus:border-indigo-500 dark:focus:border-indigo-300 dark:border-sky-400/70 focus:ring-2 focus:ring-indigo-500/15 dark:focus:ring-sky-400/20"
                           placeholder="0"
                         />
                       </label>
@@ -657,21 +676,21 @@ const CreateBracketPage = () => {
                   className="flex flex-col gap-6"
                 >
                   <div>
-                    <h2 className="text-2xl font-semibold text-slate-50">Step 2 - Seeds</h2>
-                    <p className="mt-2 text-sm text-slate-200/70">
+                    <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Step 2 - Seeds</h2>
+                    <p className="mt-2 text-sm text-slate-700 dark:text-slate-200/70">
                       Add {size} contenders for a strong bracket. You can paste a list or fill them
                       manually.
                     </p>
                   </div>
 
                   {(
-                    <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 p-4">
+                    <div className="rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-950/40 p-4">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                          <p className="text-sm font-semibold text-slate-100">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                             Bulk entry tools
                           </p>
-                          <p className="text-xs text-slate-200/70">
+                          <p className="text-xs text-slate-700 dark:text-slate-200/70">
                             Paste contenders (one per line) or upload a CSV.
                           </p>
                         </div>
@@ -679,14 +698,14 @@ const CreateBracketPage = () => {
                           <Button
                             type="button"
                             onClick={handleBulkApply}
-                            className="rounded-full border border-slate-600/60 bg-slate-950/70 px-4 py-2 text-xs font-semibold text-slate-100 hover:border-sky-400/70"
+                            className="rounded-full border border-slate-300 dark:border-slate-600/60 bg-white dark:bg-slate-950/70 px-4 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 hover:border-indigo-300 dark:hover:border-indigo-300 dark:border-sky-400/70"
                           >
                             Apply list
                           </Button>
                           <Button
                             type="button"
                             onClick={handleRandomize}
-                            className="flex items-center gap-2 rounded-full border border-slate-600/60 bg-slate-950/70 px-4 py-2 text-xs font-semibold text-slate-100 hover:border-sky-400/70"
+                            className="flex items-center gap-2 rounded-full border border-slate-300 dark:border-slate-600/60 bg-white dark:bg-slate-950/70 px-4 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 hover:border-indigo-300 dark:hover:border-indigo-300 dark:border-sky-400/70"
                           >
                             <FiShuffle />
                             Randomize seeds
@@ -697,10 +716,10 @@ const CreateBracketPage = () => {
                         value={bulkText}
                         onChange={(e) => setBulkText(e.target.value)}
                         rows={4}
-                        className="mt-4 w-full rounded-2xl border border-slate-700/60 bg-slate-900/60 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-sky-400/70 focus:ring-2 focus:ring-sky-400/20"
+                        className="mt-4 w-full rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/60 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none transition focus:border-indigo-500 dark:focus:border-indigo-300 dark:border-sky-400/70 focus:ring-2 focus:ring-indigo-500/15 dark:focus:ring-sky-400/20"
                         placeholder="Paste team names here (one per line)"
                       />
-                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-200/70">
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-700 dark:text-slate-200/70">
                         <label className="flex cursor-pointer items-center gap-2">
                           <FiUpload />
                           Upload CSV
@@ -726,14 +745,14 @@ const CreateBracketPage = () => {
                     <div className="grid gap-4 sm:grid-cols-2">
                       {Array.from({ length: size }).map((_, index) => (
                         <div key={`seed-${index}`} className="flex flex-col gap-2">
-                          <label className="text-xs font-semibold text-slate-200/70">
+                          <label className="text-xs font-semibold text-slate-700 dark:text-slate-200/70">
                             Seed {index + 1}
                           </label>
                           <input
                             type="text"
                             value={entries[index]}
                             onChange={(e) => handleEntryChange(index, e.target.value)}
-                            className="rounded-xl border border-slate-700/60 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-400/70 focus:ring-2 focus:ring-sky-400/20"
+                            className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/60 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none transition focus:border-indigo-500 dark:focus:border-indigo-300 dark:border-sky-400/70 focus:ring-2 focus:ring-indigo-500/15 dark:focus:ring-sky-400/20"
                             placeholder={`Contender ${index + 1}`}
                           />
                           {seedInputError(index) && (
@@ -756,17 +775,17 @@ const CreateBracketPage = () => {
                         return (
                           <div
                             key={`group-${groupIndex}`}
-                            className="rounded-2xl border border-slate-700/50 bg-slate-950/40"
+                            className="rounded-2xl border border-slate-300 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-950/40"
                           >
                             <button
                               type="button"
                               onClick={() => toggleGroup(groupIndex)}
-                              className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-slate-100"
+                              className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-slate-900 dark:text-slate-100"
                             >
                               <span>
                                 Group {groupIndex + 1} - Seeds {start + 1} to {end}
                               </span>
-                              <span className="flex items-center gap-2 text-xs text-slate-200/70">
+                              <span className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-200/70">
                                 {filledInGroup}/{end - start} filled
                                 {isOpen ? <FiChevronDown /> : <FiChevronRight />}
                               </span>
@@ -788,7 +807,7 @@ const CreateBracketPage = () => {
                                           key={`seed-${seedIndex}`}
                                           className="flex flex-col gap-2"
                                         >
-                                          <label className="text-xs font-semibold text-slate-200/70">
+                                          <label className="text-xs font-semibold text-slate-700 dark:text-slate-200/70">
                                             Seed {seedIndex + 1}
                                           </label>
                                           <input
@@ -797,7 +816,7 @@ const CreateBracketPage = () => {
                                             onChange={(e) =>
                                               handleEntryChange(seedIndex, e.target.value)
                                             }
-                                            className="rounded-xl border border-slate-700/60 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-400/70 focus:ring-2 focus:ring-sky-400/20"
+                                            className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/60 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none transition focus:border-indigo-500 dark:focus:border-indigo-300 dark:border-sky-400/70 focus:ring-2 focus:ring-indigo-500/15 dark:focus:ring-sky-400/20"
                                             placeholder={`Contender ${seedIndex + 1}`}
                                           />
                                           {seedInputError(seedIndex) && (
@@ -841,16 +860,16 @@ const CreateBracketPage = () => {
                   className="flex flex-col gap-6"
                 >
                   <div>
-                    <h2 className="text-2xl font-semibold text-slate-50">Step 3 - Preview</h2>
-                    <p className="mt-2 text-sm text-slate-200/70">
+                    <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Step 3 - Preview</h2>
+                    <p className="mt-2 text-sm text-slate-700 dark:text-slate-200/70">
                       Watch the bracket structure update live. Adjust any seed before you confirm.
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 p-4">
-                    <div className="flex items-start gap-3 text-sm text-slate-200/70">
+                  <div className="rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-950/40 p-4">
+                    <div className="flex items-start gap-3 text-sm text-slate-700 dark:text-slate-200/70">
                       <FiCheckCircle className="text-emerald-300" />
                       <div>
-                        <p className="font-semibold text-slate-100">Preview checklist</p>
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">Preview checklist</p>
                         <p className="mt-1">
                           Ensure your seeds are filled and the matchup pairings feel right.
                         </p>
@@ -876,32 +895,32 @@ const CreateBracketPage = () => {
                   className="flex flex-col gap-6"
                 >
                   <div>
-                    <h2 className="text-2xl font-semibold text-slate-50">Step 4 - Review</h2>
-                    <p className="mt-2 text-sm text-slate-200/70">
+                    <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-50">Step 4 - Review</h2>
+                    <p className="mt-2 text-sm text-slate-700 dark:text-slate-200/70">
                       Confirm everything looks right before you publish.
                     </p>
                   </div>
-                  <div className="grid gap-4 rounded-2xl border border-slate-700/60 bg-slate-950/40 p-4 text-sm text-slate-200/80">
+                  <div className="grid gap-4 rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-950/40 p-4 text-sm text-slate-700 dark:text-slate-200/80">
                     <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Title</p>
-                      <p className="mt-1 text-base font-semibold text-slate-100">
+                      <p className="text-xs uppercase tracking-[0.2em] text-slate-700 dark:text-slate-400">Title</p>
+                      <p className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
                         {title.trim() || "Missing title"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Description</p>
+                      <p className="text-xs uppercase tracking-[0.2em] text-slate-700 dark:text-slate-400">Description</p>
                       <p className="mt-1">{description.trim() || "Missing description"}</p>
                     </div>
-                    <div className="flex flex-wrap gap-3 text-xs font-semibold text-slate-200/70">
-                      <span className="rounded-full border border-slate-600/50 px-3 py-1">
+                    <div className="flex flex-wrap gap-3 text-xs font-semibold text-slate-700 dark:text-slate-200/70">
+                      <span className="rounded-full border border-slate-300 dark:border-slate-600/50 px-3 py-1">
                         {size} contenders
                       </span>
-                      <span className="rounded-full border border-slate-600/50 px-3 py-1">
+                      <span className="rounded-full border border-slate-300 dark:border-slate-600/50 px-3 py-1">
                         {advanceMode === "manual" ? "Manual advance" : "Timer advance"}
                       </span>
-                      {mutualsOnly && (
-                        <span className="rounded-full border border-amber-400/50 px-3 py-1 text-amber-200">
-                          Mutuals only
+                      {visibility !== "public" && (
+                        <span className="rounded-full border border-amber-300 dark:border-amber-400/50 px-3 py-1 text-amber-200">
+                          {visibility === "mutuals" ? "Mutuals only" : "Followers only"}
                         </span>
                       )}
                     </div>
@@ -923,7 +942,7 @@ const CreateBracketPage = () => {
                     )}
                   </div>
 
-                  <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-700/60 bg-slate-950/40 p-4">
+                  <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-950/40 p-4">
                     <input
                       type="checkbox"
                       checked={activateOnCreate}
@@ -931,8 +950,8 @@ const CreateBracketPage = () => {
                       className="mt-0.5 h-4 w-4 shrink-0 accent-sky-400"
                     />
                     <span className="flex flex-col gap-1">
-                      <span className="text-sm font-semibold text-slate-100">Start bracket immediately</span>
-                      <span className="text-xs text-slate-400">Bracket goes live as soon as it's created. Leave unchecked to review and activate manually.</span>
+                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Start bracket immediately</span>
+                      <span className="text-xs text-slate-700 dark:text-slate-400">Bracket goes live as soon as it's created. Leave unchecked to review and activate manually.</span>
                     </span>
                   </label>
 
@@ -950,7 +969,7 @@ const CreateBracketPage = () => {
                   <Button
                     type="button"
                     onClick={prevStep}
-                    className="rounded-full border border-slate-600/60 bg-transparent px-5 py-2 text-sm font-semibold text-slate-100 hover:border-slate-400/70"
+                    className="rounded-full border border-slate-300 dark:border-slate-600/60 bg-transparent px-5 py-2 text-sm font-semibold text-slate-900 dark:text-slate-100 hover:border-slate-400 dark:hover:border-slate-400/70"
                   >
                     Back
                   </Button>
@@ -986,13 +1005,13 @@ const CreateBracketPage = () => {
                       className={`rounded-full px-6 py-2 text-sm font-semibold transition ${
                         canCreate
                           ? "bg-amber-400 text-slate-950 hover:bg-amber-300"
-                          : "border border-slate-600/60 bg-slate-900/40 text-slate-400"
+                          : "border border-slate-300 dark:border-slate-600/60 bg-white dark:bg-slate-900/40 text-slate-700 dark:text-slate-400"
                       }`}
                     >
                       {isSubmitting ? "Creating..." : "Create bracket"}
                     </Button>
                     {!canCreate && (
-                      <span className="text-xs text-slate-300/70">
+                      <span className="text-xs text-slate-500 dark:text-slate-300/70">
                         {isSubmitting
                           ? "Creating bracket..."
                           : !authedUserId
@@ -1015,12 +1034,12 @@ const CreateBracketPage = () => {
           </motion.form>
 
           <div className="min-w-0 flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-700/60 bg-slate-900/50 px-4 py-3 text-sm text-slate-200 lg:hidden">
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-slate-900/50 px-4 py-3 text-sm text-slate-800 dark:text-slate-200 lg:hidden">
               <span className="font-semibold">Preview panel</span>
               <Button
                 type="button"
                 onClick={() => setShowPreview((prev) => !prev)}
-                className="rounded-full border border-slate-600/60 bg-transparent px-4 py-1 text-xs font-semibold text-slate-100"
+                className="rounded-full border border-slate-300 dark:border-slate-600/60 bg-transparent px-4 py-1 text-xs font-semibold text-slate-900 dark:text-slate-100"
               >
                 {showPreview ? "Hide preview" : "Show preview"}
               </Button>
@@ -1028,13 +1047,13 @@ const CreateBracketPage = () => {
             <AnimatePresence>{showPreview && previewCard}</AnimatePresence>
 
             <motion.div
-              className="rounded-3xl border border-slate-700/60 bg-slate-900/70 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.35)]"
+              className="rounded-3xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/70 p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_16px_40px_rgba(15,23,42,0.08)]"
               layout
             >
               <button
                 type="button"
                 onClick={() => setAdvancedOpen((prev) => !prev)}
-                className="flex w-full items-center justify-between text-left text-sm font-semibold text-slate-100"
+                className="flex w-full items-center justify-between text-left text-sm font-semibold text-slate-900 dark:text-slate-100"
               >
                 Advanced settings
                 {advancedOpen ? <FiChevronDown /> : <FiChevronRight />}
@@ -1048,22 +1067,47 @@ const CreateBracketPage = () => {
                     transition={{ duration: 0.3 }}
                     className="mt-4 flex flex-col gap-4 overflow-hidden"
                   >
-                    <label className="flex items-center gap-3 text-sm text-slate-200">
-                      <input
-                        type="checkbox"
-                        checked={mutualsOnly}
-                        onChange={(e) => setMutualsOnly(e.target.checked)}
-                        className="h-4 w-4 accent-sky-400"
-                      />
-                      Mutuals only
-                    </label>
-                    <div className="flex flex-col gap-2 text-sm text-slate-200">
+                    {/* Per-bracket visibility — same triple as the
+                        matchup creator. Public is the default; the
+                        non-default options gate behind a follow edge
+                        (one-way) or a mutual edge (two-way). */}
+                    <fieldset className="flex flex-col gap-2 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/40 p-3">
+                      <legend className="px-1 text-sm font-semibold text-slate-800 dark:text-slate-200">Who can see this bracket?</legend>
+                      {[
+                        { value: "public", label: "Public", help: "Anyone, including signed-out viewers." },
+                        { value: "followers", label: "Followers only", help: "People who follow you." },
+                        { value: "mutuals", label: "Mutuals only", help: "Only people you follow AND who follow you." },
+                      ].map((option) => (
+                        <label
+                          key={option.value}
+                          className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 text-sm ${
+                            visibility === option.value
+                              ? "border-indigo-300 dark:border-sky-400/70 bg-sky-400/10"
+                              : "border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-950/40 hover:border-slate-400 dark:hover:border-slate-500/80"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="bracket-visibility"
+                            value={option.value}
+                            checked={visibility === option.value}
+                            onChange={(e) => setVisibility(e.target.value)}
+                            className="mt-0.5 h-4 w-4 accent-sky-400"
+                          />
+                          <span className="flex flex-col">
+                            <span className="font-semibold text-slate-900 dark:text-slate-100">{option.label}</span>
+                            <span className="text-xs text-slate-700 dark:text-slate-400">{option.help}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </fieldset>
+                    <div className="flex flex-col gap-2 text-sm text-slate-800 dark:text-slate-200">
                       <span>Tags (optional)</span>
                       <input
                         type="text"
                         value={tags}
                         onChange={(e) => setTags(e.target.value)}
-                        className="rounded-xl border border-slate-700/60 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-400/70 focus:ring-2 focus:ring-sky-400/20"
+                        className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/60 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none transition focus:border-indigo-500 dark:focus:border-indigo-300 dark:border-sky-400/70 focus:ring-2 focus:ring-indigo-500/15 dark:focus:ring-sky-400/20"
                         placeholder="Music, Sports, Gaming"
                       />
                       <div className="flex flex-wrap gap-2">
@@ -1077,20 +1121,20 @@ const CreateBracketPage = () => {
                                 setTags(current.length ? current.join(", ") + ", " + preset : preset);
                               }
                             }}
-                            className="rounded-full border border-slate-600/60 bg-slate-900/40 px-3 py-1 text-xs font-semibold text-slate-300 hover:border-sky-400/60 hover:text-sky-200"
+                            className="rounded-full border border-slate-300 dark:border-slate-600/60 bg-white dark:bg-slate-900/40 px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:border-sky-400/60 hover:text-sky-200"
                           >
                             + {preset}
                           </button>
                         ))}
                       </div>
                     </div>
-                    <label className="flex flex-col gap-2 text-sm text-slate-200">
+                    <label className="flex flex-col gap-2 text-sm text-slate-800 dark:text-slate-200">
                       Notes or rules (optional)
                       <textarea
                         rows={3}
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
-                        className="rounded-xl border border-slate-700/60 bg-slate-900/60 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-sky-400/70 focus:ring-2 focus:ring-sky-400/20"
+                        className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/60 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none transition focus:border-indigo-500 dark:focus:border-indigo-300 dark:border-sky-400/70 focus:ring-2 focus:ring-indigo-500/15 dark:focus:ring-sky-400/20"
                         placeholder="Any rules you want contenders to follow."
                       />
                     </label>

@@ -9,6 +9,10 @@ const RegisterPage = () => {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  // Second password field reduces silent-typo signups — a user who
+  // misspells their password would only find out after their first
+  // login attempt (and would likely chalk it up to forgetting it).
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
@@ -28,6 +32,11 @@ const RegisterPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+
+    if (password !== confirmPassword) {
+      setError("Passwords don't match. Please re-type to confirm.");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -130,6 +139,20 @@ const RegisterPage = () => {
               placeholder="Create a secure password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+              required
+            />
+          </div>
+
+          <div className="register-field">
+            <label htmlFor="register-confirm-password">Confirm password</label>
+            <input
+              id="register-confirm-password"
+              type="password"
+              className="register-input"
+              placeholder="Re-type your password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               autoComplete="new-password"
               required
             />

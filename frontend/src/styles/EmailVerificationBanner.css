@@ -3,6 +3,8 @@
    banner tax their top padding. Amber palette reads as "heads up"
    without the alarm-red of an error state. */
 
+/* Warm amber gradient using the primary accent stops — same band reads
+   as a "heads up" in both dark and light themes. */
 .email-verify-banner {
   position: sticky;
   top: 0;
@@ -12,11 +14,11 @@
   justify-content: center;
   gap: 16px;
   padding: 10px 16px;
-  background: linear-gradient(90deg, #78350f 0%, #92400e 100%);
-  color: #fef3c7;
+  background: linear-gradient(90deg, var(--accent-primary-from) 0%, var(--accent-primary-to) 100%);
+  color: var(--text-on-accent);
   font-size: 0.9rem;
-  border-bottom: 1px solid rgba(251, 191, 36, 0.28);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--accent-primary-shadow);
+  box-shadow: var(--shadow-card);
 }
 
 .email-verify-banner__body {
@@ -28,7 +30,7 @@
 }
 
 .email-verify-banner__error {
-  color: #fecaca;
+  color: var(--danger-fg);
   font-size: 0.82rem;
   margin-left: 8px;
 }
@@ -40,19 +42,21 @@
   flex-shrink: 0;
 }
 
+/* Resend button — inverts the banner: dark text on a soft tint so it
+   reads as the actionable element on the warm strip. */
 .email-verify-banner__resend {
   padding: 6px 12px;
   font-size: 0.82rem;
   font-weight: 600;
-  color: #92400e;
-  background: #fef3c7;
+  color: var(--text-on-accent);
+  background: var(--accent-primary-soft);
   border: none;
   border-radius: 999px;
   cursor: pointer;
   transition: background 120ms ease;
 }
 .email-verify-banner__resend:hover:not(:disabled) {
-  background: #fde68a;
+  background: var(--accent-primary-shadow);
 }
 .email-verify-banner__resend:disabled {
   opacity: 0.6;
@@ -68,14 +72,14 @@
   font-size: 1.2rem;
   line-height: 1;
   background: transparent;
-  color: #fef3c7;
+  color: var(--text-on-accent);
   border: none;
   border-radius: 999px;
   cursor: pointer;
   transition: background 120ms ease;
 }
 .email-verify-banner__dismiss:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--accent-primary-soft);
 }
 
 @media (max-width: 600px) {

@@ -1,11 +1,12 @@
 /* AccountSettings — destructive-action home. Dark surface + amber +
    red palette makes the "this is permanent" signal unmissable. */
 
+/* Page wrapper kept transparent so the body's themed gradient shows through. */
 .account-settings {
   min-height: 100vh;
   padding: 5rem 1.25rem 4rem;
-  background: #0a0f1f;
-  color: #e2e8f0;
+  background: transparent;
+  color: var(--text-primary);
 }
 
 .account-settings__content {
@@ -16,39 +17,39 @@
 .account-settings h1 {
   margin: 0 0 2rem;
   font-size: clamp(1.6rem, 2.8vw, 2.1rem);
-  color: #f8fafc;
+  color: var(--text-primary);
 }
 
 .account-settings__section {
   padding: 1.5rem 1.6rem;
-  background: rgba(15, 23, 42, 0.55);
-  border: 1px solid rgba(148, 163, 255, 0.18);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
   border-radius: 14px;
 }
 
 .account-settings__danger {
-  border-color: rgba(248, 113, 113, 0.35);
+  border-color: var(--danger-border);
 }
 
 .account-settings__section h2 {
   margin: 0 0 0.35rem;
   font-size: 1.1rem;
-  color: #fca5a5;
+  color: var(--danger-fg);
 }
 
 .account-settings__section p {
   margin: 0 0 1rem;
-  color: rgba(226, 232, 240, 0.78);
+  color: var(--text-secondary);
   line-height: 1.5;
   font-size: 0.92rem;
 }
 
 .account-settings__danger-button {
   padding: 0.65rem 1.1rem;
-  background: rgba(127, 29, 29, 0.55);
-  border: 1px solid rgba(248, 113, 113, 0.55);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
   border-radius: 999px;
-  color: #fecaca;
+  color: var(--danger-fg);
   font-weight: 600;
   font-size: 0.9rem;
   cursor: pointer;
@@ -57,8 +58,8 @@
 
 .account-settings__danger-button:hover:not(:disabled),
 .account-settings__danger-button:focus-visible:not(:disabled) {
-  background: rgba(127, 29, 29, 0.75);
-  border-color: rgba(248, 113, 113, 0.8);
+  background: var(--danger-bg);
+  border-color: var(--danger-fg);
   outline: none;
 }
 
@@ -78,16 +79,16 @@
   flex-direction: column;
   gap: 0.3rem;
   font-size: 0.88rem;
-  color: rgba(226, 232, 240, 0.88);
+  color: var(--text-secondary);
 }
 
 .account-settings__confirm input,
 .account-settings__confirm textarea {
   padding: 0.55rem 0.75rem;
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(148, 163, 255, 0.25);
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
   border-radius: 8px;
-  color: #f1f5f9;
+  color: var(--text-primary);
   font-size: 0.95rem;
   font-family: inherit;
 }
@@ -100,10 +101,10 @@
 .account-settings__error {
   margin: 0;
   padding: 0.5rem 0.75rem;
-  background: rgba(127, 29, 29, 0.4);
-  border: 1px solid rgba(248, 113, 113, 0.45);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
   border-radius: 8px;
-  color: #fecaca;
+  color: var(--danger-fg);
   font-size: 0.88rem;
 }
 
@@ -117,9 +118,9 @@
 .account-settings__cancel {
   padding: 0.55rem 1rem;
   background: transparent;
-  border: 1px solid rgba(148, 163, 255, 0.3);
+  border: 1px solid var(--border-input);
   border-radius: 999px;
-  color: rgba(226, 232, 240, 0.82);
+  color: var(--text-secondary);
   font-weight: 500;
   font-size: 0.9rem;
   cursor: pointer;
@@ -127,7 +128,7 @@
 
 .account-settings__cancel:hover,
 .account-settings__cancel:focus-visible {
-  color: #f8fafc;
-  border-color: rgba(148, 163, 255, 0.5);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
   outline: none;
 }

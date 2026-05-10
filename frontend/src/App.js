@@ -81,14 +81,18 @@ const AppRoutes = () => {
   }, [location.pathname, location.search, location.hash]);
 
   return (
-    <AnimatePresence mode="wait">
+    <>
       {/* Email-verification nudge for signed-in, unverified users.
-          Mounted outside the per-route Suspense boundary so it
-          persists across navigations; the component self-gates when
+          Lives OUTSIDE AnimatePresence so it persists across route
+          transitions instead of fading in/out with each page (which is
+          what was triggering the duplicate-key warning — AnimatePresence
+          requires its direct children to be uniquely keyed, and we had
+          two un-keyed siblings in there). The component self-gates when
           there's no user or the user's already verified. */}
       <EmailVerificationBanner />
-      <Suspense fallback={<RouteFallback />}>
-      <Routes location={location} key={location.pathname}>
+      <AnimatePresence mode="wait">
+        <Suspense key={location.pathname} fallback={<RouteFallback />}>
+        <Routes location={location}>
         {/* HomePage is anon-friendly. Anonymous visitors get the
             popular feed, can vote on up to 3 standalone matchups,
             and see the Sign up CTA in the navbar. RequireAuth is
@@ -214,14 +218,17 @@ const AppRoutes = () => {
             </RequireAuth>
           }
         />
+        {/* Anon viewers can mount the bracket page so the AnonUpgrade
+            modal fires from inside the component. RequireAuth used to
+            redirect to /login for anon users; replacing with an
+            in-page modal keeps the user on the URL they expected and
+            lets the modal explain why they need to sign up. */}
         <Route
           path="/brackets/:id"
           element={
-            <RequireAuth>
-              <PageTransition>
-                <BracketPage />
-              </PageTransition>
-            </RequireAuth>
+            <PageTransition>
+              <BracketPage />
+            </PageTransition>
           }
         />
         <Route
@@ -284,7 +291,8 @@ const AppRoutes = () => {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </Suspense>
-    </AnimatePresence>
+      </AnimatePresence>
+    </>
   );
 };
 

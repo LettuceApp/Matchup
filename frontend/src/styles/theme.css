@@ -1,0 +1,143 @@
+/* ============================================================
+   theme.css — design tokens for light + dark modes
+   ============================================================
+   Single source of truth for surface / text / accent colors.
+   Component stylesheets reference these via var(--…). Toggle by
+   setting `document.documentElement.dataset.theme` to "dark" or
+   "light"; the corresponding token block applies and every
+   surface re-styles without a JS re-render.
+
+   Dark is the default (shipped first; matches the existing UI).
+   :root and [data-theme="dark"] both define the dark palette so
+   the page is fully styled even before the bootstrap JS in
+   index.js has set the data-theme attribute.
+
+   Don't add hardcoded colors to component stylesheets — extend
+   the token list here instead. If you find yourself adding a
+   one-off rgba() in a component CSS, that's a sign the token
+   list is missing a category.
+   ============================================================ */
+
+:root,
+[data-theme="dark"] {
+  /* Surfaces */
+  --bg-page: #0f172a;
+  /* Page gradient softened from 0.35 → 0.12 alpha so it reads as
+     "atmospheric" rather than competing with the cards. The light
+     theme already used 0.10; bringing dark closer keeps both modes
+     feeling like the same product. */
+  --bg-page-gradient:
+    radial-gradient(120% 120% at 0% 0%, rgba(99, 102, 241, 0.12) 0%, rgba(15, 23, 42, 0) 45%),
+    radial-gradient(120% 120% at 100% 0%, rgba(244, 114, 182, 0.10) 0%, rgba(15, 23, 42, 0) 45%),
+    linear-gradient(135deg, #0f172a 0%, #111c3d 100%);
+  --bg-surface: #111827;          /* cards */
+  --bg-surface-alt: #0b1122;      /* sidebar */
+  --bg-surface-raised: #151928;   /* dropdown panels */
+  --bg-input: rgba(15, 23, 42, 0.8);
+
+  /* Text */
+  --text-primary: #f1f5f9;
+  --text-secondary: rgba(241, 245, 249, 0.92);
+  --text-muted: rgba(196, 205, 255, 0.85);
+  --text-faint: rgba(148, 163, 184, 0.7);
+  --text-on-accent: #0f172a;       /* dark text on warm CTA */
+
+  /* Borders */
+  --border-subtle: rgba(148, 163, 255, 0.18);
+  --border-input: rgba(148, 163, 255, 0.28);
+  --border-strong: rgba(148, 163, 255, 0.4);
+
+  /* Accents */
+  --accent-primary: #f97316;
+  --accent-primary-from: #f97316;  /* warm CTA gradient */
+  --accent-primary-to: #facc15;
+  --accent-primary-soft: rgba(249, 115, 22, 0.18);
+  --accent-primary-shadow: rgba(249, 115, 22, 0.28);
+
+  --accent-secondary: #6366f1;     /* indigo */
+  --accent-secondary-bg-soft: rgba(99, 102, 241, 0.12);
+  --accent-secondary-border-soft: rgba(99, 102, 241, 0.30);
+
+  /* Semantic */
+  --success-bg: rgba(22, 163, 74, 0.22);
+  --success-fg: #bbf7d0;
+  --success-border: rgba(74, 222, 128, 0.35);
+
+  --danger-bg: rgba(248, 113, 113, 0.18);
+  --danger-fg: #f87171;
+  --danger-border: rgba(248, 113, 113, 0.4);
+
+  /* Active filter chip — orange micro-state */
+  --filter-active-bg: rgba(249, 115, 22, 0.18);
+  --filter-active-fg: #fb923c;
+  --filter-active-border: rgba(249, 115, 22, 0.50);
+
+  /* Shadow */
+  --shadow-card: 0 4px 14px rgba(0, 0, 0, 0.25);
+  --shadow-card-hover: 0 12px 30px rgba(0, 0, 0, 0.4);
+  --shadow-panel: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="light"] {
+  /* Surfaces — warm off-white shell with a cream-tinted sidebar so
+     it reads as a separate region without a hard line. Page gradient
+     is far softer than the dark version because the eye picks up
+     less saturation on a light backdrop before it feels noisy. */
+  --bg-page: #f8fafc;
+  --bg-page-gradient:
+    radial-gradient(120% 120% at 0% 0%, rgba(99, 102, 241, 0.10) 0%, rgba(248, 250, 252, 0) 45%),
+    radial-gradient(120% 120% at 100% 0%, rgba(244, 114, 182, 0.10) 0%, rgba(248, 250, 252, 0) 45%),
+    linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  --bg-surface: #ffffff;
+  --bg-surface-alt: #fbfcfe;       /* sidebar slight cream tint */
+  --bg-surface-raised: #ffffff;
+  --bg-input: #ffffff;
+
+  /* Text — slate-900 throughout, slate-500 for muted, slate-700
+     for the in-between body text on cards. */
+  --text-primary: #0f172a;
+  --text-secondary: rgba(15, 23, 42, 0.78);
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
+  --text-on-accent: #0f172a;
+
+  /* Borders — slate-200/300, no alpha so they don't compound
+     against the soft page tint. */
+  --border-subtle: #e2e8f0;
+  --border-input: #cbd5e1;
+  --border-strong: #94a3b8;
+
+  /* Accents — slightly desaturated warm gradient. The full
+     #f97316/#facc15 dark-mode pair burns on white; pulling 6%
+     out of each end keeps the warmth without the glare. */
+  --accent-primary: #f08c2a;
+  --accent-primary-from: #f08c2a;
+  --accent-primary-to: #f4b73a;
+  --accent-primary-soft: #fff1dd;
+  --accent-primary-shadow: rgba(240, 140, 42, 0.22);
+
+  --accent-secondary: #4338ca;     /* indigo-700 — needs more saturation on white */
+  --accent-secondary-bg-soft: #eef2ff;
+  --accent-secondary-border-soft: #c7d2fe;
+
+  /* Semantic — flat (non-alpha) so they read as cleanly tinted
+     pills against the white card surface. */
+  --success-bg: #dcfce7;
+  --success-fg: #166534;
+  --success-border: #bbf7d0;
+
+  --danger-bg: #fee2e2;
+  --danger-fg: #b91c1c;
+  --danger-border: #fecaca;
+
+  --filter-active-bg: #fff1dd;
+  --filter-active-fg: #b45309;
+  --filter-active-border: #fcd9a8;
+
+  /* Shadow — two-tier elevation that mimics paper without going
+     dark-bluish. The dark-mode shadow is inky enough that lifting
+     it 1:1 to light would look like a halo. */
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.06);
+  --shadow-card-hover: 0 4px 8px rgba(15, 23, 42, 0.06), 0 12px 28px rgba(15, 23, 42, 0.08);
+  --shadow-panel: 0 8px 24px rgba(15, 23, 42, 0.12);
+}

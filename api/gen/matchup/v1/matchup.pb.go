@@ -811,7 +811,15 @@ type CreateMatchupRequest struct {
 	Tags            []string               `protobuf:"bytes,10,rep,name=tags,proto3" json:"tags,omitempty"`
 	// S3 object key returned by UploadService.PresignUpload. Optional
 	// because not every matchup has a cover image.
-	UploadKey     *string `protobuf:"bytes,13,opt,name=upload_key,json=uploadKey,proto3,oneof" json:"upload_key,omitempty"`
+	UploadKey *string `protobuf:"bytes,13,opt,name=upload_key,json=uploadKey,proto3,oneof" json:"upload_key,omitempty"`
+	// Per-matchup visibility override. One of "public", "followers",
+	// "mutuals". Defaults to "public" when unset. The backend's
+	// normalizeVisibility coerces unknown values back to "public" for
+	// upgrade-skew safety. A creator with a public account can still
+	// mark an individual matchup as followers- or mutuals-only by
+	// setting this on creation; the same field flows through to
+	// canViewUserContent on every subsequent read.
+	Visibility    *string `protobuf:"bytes,14,opt,name=visibility,proto3,oneof" json:"visibility,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -919,6 +927,13 @@ func (x *CreateMatchupRequest) GetTags() []string {
 func (x *CreateMatchupRequest) GetUploadKey() string {
 	if x != nil && x.UploadKey != nil {
 		return *x.UploadKey
+	}
+	return ""
+}
+
+func (x *CreateMatchupRequest) GetVisibility() string {
+	if x != nil && x.Visibility != nil {
+		return *x.Visibility
 	}
 	return ""
 }
@@ -2549,7 +2564,7 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\x04item\x18\x01 \x01(\tR\x04item\x12\"\n" +
 	"\n" +
 	"upload_key\x18\x02 \x01(\tH\x00R\tuploadKey\x88\x01\x01B\r\n" +
-	"\v_upload_key\"\x84\x04\n" +
+	"\v_upload_key\"\xb8\x04\n" +
 	"\x14CreateMatchupRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x1d\n" +
@@ -2564,7 +2579,10 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\x04tags\x18\n" +
 	" \x03(\tR\x04tags\x12\"\n" +
 	"\n" +
-	"upload_key\x18\r \x01(\tH\x06R\tuploadKey\x88\x01\x01B\n" +
+	"upload_key\x18\r \x01(\tH\x06R\tuploadKey\x88\x01\x01\x12#\n" +
+	"\n" +
+	"visibility\x18\x0e \x01(\tH\aR\n" +
+	"visibility\x88\x01\x01B\n" +
 	"\n" +
 	"\b_contentB\v\n" +
 	"\t_end_modeB\x13\n" +
@@ -2572,7 +2590,8 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\v_bracket_idB\b\n" +
 	"\x06_roundB\a\n" +
 	"\x05_seedB\r\n" +
-	"\v_upload_keyJ\x04\b\v\x10\fJ\x04\b\f\x10\rR\n" +
+	"\v_upload_keyB\r\n" +
+	"\v_visibilityJ\x04\b\v\x10\fJ\x04\b\f\x10\rR\n" +
 	"image_dataR\x12image_content_type\"\x8a\x01\n" +
 	"\x14UpdateMatchupRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +

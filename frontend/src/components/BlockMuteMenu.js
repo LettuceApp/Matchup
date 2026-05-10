@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { FiMoreHorizontal, FiFlag, FiVolumeX, FiVolume2, FiShield, FiShieldOff } from 'react-icons/fi';
+import { FiMoreHorizontal, FiVolumeX, FiVolume2, FiShield, FiShieldOff } from 'react-icons/fi';
 import { blockUser, unblockUser, muteUser, unmuteUser } from '../services/api';
 import ReportModal from './ReportModal';
 import '../styles/BlockMuteMenu.css';
@@ -129,14 +129,8 @@ const BlockMuteMenu = ({
 
       {open && (
         <div className="block-mute-menu__panel" role="menu">
-          <button
-            type="button"
-            className="block-mute-menu__item"
-            role="menuitem"
-            onClick={() => { setOpen(false); setReportOpen(true); }}
-          >
-            <FiFlag /> Report…
-          </button>
+          {/* Report… menu item removed at user request. ReportModal
+              mount below remains so re-enabling is one line. */}
           <button
             type="button"
             className="block-mute-menu__item"

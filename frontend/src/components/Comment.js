@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiFlag } from 'react-icons/fi';
 import Button from './Button';
 import ReportModal from './ReportModal';
 import { deleteComment } from '../services/api';
@@ -80,16 +79,8 @@ const Comment = ({
             Delete
           </Button>
         )}
-        {!isOwner && userId && reportableId && (
-          <button
-            type="button"
-            className="comment-card__report"
-            aria-label="Report this comment"
-            onClick={() => setReportOpen(true)}
-          >
-            <FiFlag aria-hidden="true" /> Report
-          </button>
-        )}
+        {/* Report button removed at user request — backend handler
+            + ReportModal mount below remain so re-enabling is one-line. */}
       </div>
 
       {reportOpen && reportableId && (

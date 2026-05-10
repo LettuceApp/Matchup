@@ -341,13 +341,28 @@ async function uploadViaPresign(kind, file) {
   // S3 rejects with SignatureDoesNotMatch otherwise. `fetch` is the
   // right primitive here — axios wraps headers we don't want to send
   // on a cross-origin S3 request.
-  const putRes = await fetch(upload_url, {
-    method: 'PUT',
-    body: file,
-    headers: { 'Content-Type': file.type },
-  });
+  let putRes;
+  try {
+    putRes = await fetch(upload_url, {
+      method: 'PUT',
+      body: file,
+      headers: { 'Content-Type': file.type },
+    });
+  } catch (netErr) {
+    // fetch only rejects on network-level failures: DNS, TLS, CORS
+    // preflight blocked, server unreachable. CORS is the most
+    // common in local dev when the bucket policy doesn't include
+    // localhost:3000 — the browser cancels the request before the
+    // server sees it. Surface a specific message so the user (and
+    // the catch in ProfilePic) can act on it.
+    console.error('S3 PUT network error', { upload_url, message: netErr?.message, file_type: file.type, file_size: file.size });
+    throw new Error(`S3 upload blocked by browser (likely CORS). Add http://localhost:3000 to the bucket's CORS allowlist. Underlying: ${netErr?.message || 'network error'}`);
+  }
   if (!putRes.ok) {
-    throw new Error(`S3 upload failed: ${putRes.status}`);
+    let body = '';
+    try { body = (await putRes.text()).slice(0, 300); } catch { /* swallow */ }
+    console.error('S3 PUT non-2xx', { status: putRes.status, body });
+    throw new Error(`S3 upload failed: ${putRes.status}${body ? ` — ${body}` : ''}`);
   }
 
   return key;

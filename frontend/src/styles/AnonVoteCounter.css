@@ -1,5 +1,8 @@
 /* AnonVoteCounter — chip-style counter that doubles as a CTA when at
-   the vote cap. Three states share a common base + colour overrides. */
+   the vote cap. Three states share a common base + colour overrides.
+   The amber/orange palette is intentional: this affordance has to
+   read as "warm/encouraging" in both themes, so we lean on the
+   accent-primary (warm) tokens rather than the neutral text scale. */
 
 .anon-vote-counter {
   display: inline-flex;
@@ -16,27 +19,29 @@
   transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
 }
 
-/* Default state — calm, informational. Amber hint. */
+/* Default state — calm, informational. Amber hint via warm accent
+   tokens (soft fill, mid-strength border, primary fg). */
 .anon-vote-counter--ok {
-  color: #fde68a;
-  background: rgba(180, 83, 9, 0.18);
-  border-color: rgba(180, 83, 9, 0.32);
+  color: var(--accent-primary);
+  background: var(--accent-primary-soft);
+  border-color: var(--accent-primary-shadow);
 }
 
-/* One vote left — warmer warning. */
+/* One vote left — warmer warning. Same warm family but with the
+   filter-active border for a slightly stronger frame. */
 .anon-vote-counter--warn {
-  color: #fed7aa;
-  background: rgba(194, 65, 12, 0.22);
-  border-color: rgba(194, 65, 12, 0.45);
+  color: var(--accent-primary);
+  background: var(--filter-active-bg);
+  border-color: var(--filter-active-border);
 }
 
 /* At cap — primary-pill CTA shape. Click-through to /register or
-   parent-supplied modal trigger. */
+   parent-supplied modal trigger. Solid warm gradient + dark text. */
 .anon-vote-counter--cap {
   cursor: pointer;
-  color: #0b0f1c;
-  background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%);
-  border-color: rgba(217, 119, 6, 0.6);
+  color: var(--text-on-accent);
+  background: linear-gradient(90deg, var(--accent-primary-from) 0%, var(--accent-primary-to) 100%);
+  border-color: var(--accent-primary-shadow);
 }
 .anon-vote-counter--cap:hover,
 .anon-vote-counter--cap:focus-visible {

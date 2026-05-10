@@ -1,11 +1,9 @@
 .create-bracket-page {
   min-height: 100vh;
   width: 100%;
-  background:
-    radial-gradient(120% 120% at 0% 0%, rgba(59, 130, 246, 0.35) 0%, rgba(15, 23, 42, 0) 45%),
-    radial-gradient(120% 120% at 100% 0%, rgba(244, 114, 182, 0.35) 0%, rgba(15, 23, 42, 0) 45%),
-    linear-gradient(135deg, #0f172a 0%, #111c3d 100%);
-  color: #e5edff;
+  /* Page wrapper is transparent so the body's themed gradient shows through */
+  background: transparent;
+  color: var(--text-primary);
   display: flex;
   flex-direction: column;
   font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
@@ -22,10 +20,10 @@
 }
 
 .create-bracket-panel {
-  background: rgba(15, 23, 42, 0.72);
+  background: var(--bg-surface);
   border-radius: 28px;
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  box-shadow: 0 32px 70px rgba(15, 23, 42, 0.55);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
   padding: clamp(2rem, 5vw, 3.5rem);
   display: flex;
   flex-direction: column;
@@ -43,7 +41,7 @@
   letter-spacing: 0.18em;
   font-weight: 600;
   font-size: 0.75rem;
-  color: rgba(148, 163, 255, 0.8);
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -51,12 +49,12 @@
   margin: 0;
   font-size: clamp(2rem, 3.6vw, 2.6rem);
   line-height: 1.15;
-  color: #f8fbff;
+  color: var(--text-primary);
 }
 
 .create-bracket-hero p {
   margin: 0;
-  color: rgba(226, 232, 240, 0.84);
+  color: var(--text-secondary);
   max-width: 36rem;
 }
 
@@ -74,7 +72,7 @@
 
 .create-bracket-field label {
   font-weight: 600;
-  color: rgba(226, 232, 240, 0.95);
+  color: var(--text-primary);
 }
 
 .create-bracket-seed-header {
@@ -86,7 +84,7 @@
 
 .create-bracket-hint {
   margin: 0;
-  color: rgba(226, 232, 240, 0.72);
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
@@ -111,7 +109,7 @@
 
 .create-bracket-seed-label {
   font-size: 0.85rem;
-  color: rgba(226, 232, 240, 0.75);
+  color: var(--text-muted);
 }
 
 .create-bracket-mutuals-toggle {
@@ -120,9 +118,9 @@
   gap: 0.5rem;
   padding: 0.5rem 0.95rem;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 255, 0.35);
-  background: rgba(15, 23, 42, 0.6);
-  color: rgba(226, 232, 240, 0.9);
+  border: 1px solid var(--border-input);
+  background: var(--bg-input);
+  color: var(--text-secondary);
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
@@ -130,13 +128,13 @@
 }
 
 .create-bracket-mutuals-toggle input {
-  accent-color: #60a5fa;
+  accent-color: var(--accent-secondary);
 }
 
 .create-bracket-mutuals-toggle:hover,
 .create-bracket-mutuals-toggle:focus-within {
-  border-color: rgba(96, 165, 250, 0.6);
-  background: rgba(59, 130, 246, 0.18);
+  border-color: var(--accent-secondary);
+  background: var(--accent-secondary-bg-soft);
   transform: translateY(-1px);
 }
 
@@ -144,10 +142,10 @@
 .create-bracket-field textarea,
 .create-bracket-field select {
   border-radius: 18px;
-  border: 1px solid rgba(148, 163, 255, 0.3);
+  border: 1px solid var(--border-input);
   padding: 1rem 1.2rem;
-  background: rgba(15, 23, 42, 0.6);
-  color: #f1f5ff;
+  background: var(--bg-input);
+  color: var(--text-primary);
   font-size: 1rem;
   transition: border-color 200ms ease, box-shadow 200ms ease;
 }
@@ -168,24 +166,24 @@
 
 .create-bracket-duration-field span {
   font-size: 0.85rem;
-  color: rgba(226, 232, 240, 0.75);
+  color: var(--text-muted);
 }
 
 .create-bracket-field input:focus,
 .create-bracket-field textarea:focus,
 .create-bracket-field select:focus {
-  border-color: rgba(96, 165, 250, 0.8);
+  border-color: var(--accent-primary);
   outline: none;
-  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
+  box-shadow: 0 0 0 2px var(--accent-primary-shadow);
 }
 
 .create-bracket-error {
   margin: 0;
   padding: 0.85rem 1rem;
   border-radius: 14px;
-  background: rgba(127, 29, 29, 0.65);
-  border: 1px solid rgba(248, 113, 113, 0.5);
-  color: #fee2e2;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: var(--danger-fg);
   font-size: 0.95rem;
 }
 
@@ -196,14 +194,15 @@
   flex-wrap: wrap;
 }
 
+/* Filled CTA — gradient from warm accent token pair, dark text on it */
 .create-bracket-button {
   padding: 0.85rem 1.8rem;
   border-radius: 999px;
   border: none;
   font-weight: 600;
-  color: #0f172a;
-  background: linear-gradient(120deg, #60a5fa, #a855f7, #f97316);
-  box-shadow: 0 18px 35px rgba(96, 165, 250, 0.35);
+  color: var(--text-on-accent);
+  background: linear-gradient(120deg, var(--accent-primary-from), var(--accent-primary-to));
+  box-shadow: 0 18px 35px var(--accent-primary-shadow);
   cursor: pointer;
   transition: transform 200ms ease, box-shadow 200ms ease, filter 200ms ease;
 }
@@ -215,15 +214,15 @@
 }
 
 .create-bracket-button--ghost {
-  color: #e0e7ff;
-  background: rgba(148, 163, 255, 0.2);
+  color: var(--accent-secondary);
+  background: var(--accent-secondary-bg-soft);
   box-shadow: none;
-  border: 1px solid rgba(148, 163, 255, 0.45);
+  border: 1px solid var(--accent-secondary-border-soft);
 }
 
 .create-bracket-button--ghost:hover,
 .create-bracket-button--ghost:focus-visible {
-  background: rgba(148, 163, 255, 0.3);
+  background: var(--accent-secondary-bg-soft);
 }
 
 @media (max-width: 720px) {

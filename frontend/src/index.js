@@ -8,9 +8,21 @@ import ReactDOM from 'react-dom/client';
 // laptops + tests), so this is safe to import unconditionally.
 import './sentry';
 import './posthog';
+// Theme tokens must land BEFORE any component stylesheet runs so
+// the var(--…) references resolve on first paint. theme.css ships
+// the dark palette under both :root and [data-theme="dark"], so
+// the page is fully styled even before bootstrapTheme() flips the
+// data-theme attribute on <html>.
+import './styles/theme.css';
 import './index.css';
+import { bootstrapTheme } from './utils/theme';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+
+// Apply the user's stored theme (or OS preference) to <html>
+// BEFORE React mounts, so light-mode users don't see a dark flash
+// during the first render.
+bootstrapTheme();
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

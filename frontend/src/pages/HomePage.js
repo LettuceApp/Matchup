@@ -1,10 +1,18 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getHomeSummary, getMatchups, logout as serverLogout, signOutLocally } from '../services/api';
+import {
+  getHomeSummary,
+  getMatchups,
+  getUserLikes,
+  getUserBracketLikes,
+  logout as serverLogout,
+  signOutLocally,
+} from '../services/api';
 import HomeSidebar from '../components/HomeSidebar';
 import HomeCard, { deriveTags } from '../components/HomeCard';
 import NotificationBell from '../components/NotificationBell';
 import ProfilePic from '../components/ProfilePic';
+import ThemeToggleItem from '../components/ThemeToggleItem';
 import { track } from '../utils/analytics';
 import '../styles/HomePage.css';
 import '../components/NavigationBar.css';
@@ -17,6 +25,12 @@ const HomePage = () => {
   const [matchups, setMatchups] = useState([]);
   const [brackets, setBrackets] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Per-viewer "what have I already liked" sets. Fetched once on
+  // mount (when authed) so each HomeCard can render its initial heart
+  // state without an N+1 round-trip per card. Anon viewers stay with
+  // empty sets — the like buttons short-circuit to /login on click.
+  const [likedMatchupIds, setLikedMatchupIds] = useState(() => new Set());
+  const [likedBracketIds, setLikedBracketIds] = useState(() => new Set());
 
   const navigate = useNavigate();
   const userId = localStorage.getItem('userId');
@@ -33,6 +47,38 @@ const HomePage = () => {
     // Empty deps — fire once per mount, not per filter change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // One-shot user-likes fetch. Runs in parallel; either failing is
+  // non-fatal (the heart will just render in the unlit state and the
+  // first click will reconcile via optimistic update + server call).
+  // Authentication-gated — anon users skip both calls entirely.
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    Promise.allSettled([
+      getUserLikes(userId),
+      getUserBracketLikes(userId),
+    ]).then(([matchupsRes, bracketsRes]) => {
+      if (cancelled) return;
+      if (matchupsRes.status === 'fulfilled') {
+        const data = matchupsRes.value?.data;
+        const list = data?.likes ?? data?.response ?? data ?? [];
+        const ids = new Set(
+          (Array.isArray(list) ? list : []).map((l) => String(l.matchup_id ?? l.matchupId ?? l.id ?? '')),
+        );
+        setLikedMatchupIds(ids);
+      }
+      if (bracketsRes.status === 'fulfilled') {
+        const data = bracketsRes.value?.data;
+        const list = data?.likes ?? data?.response ?? data ?? [];
+        const ids = new Set(
+          (Array.isArray(list) ? list : []).map((l) => String(l.bracket_id ?? l.bracketId ?? l.id ?? '')),
+        );
+        setLikedBracketIds(ids);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [userId]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -228,14 +274,6 @@ const HomePage = () => {
                           View profile
                         </button>
                       )}
-                      <button
-                        type="button"
-                        className="home-profile-menu__item"
-                        role="menuitem"
-                        onClick={goAndClose('/home')}
-                      >
-                        Home
-                      </button>
                       {localStorage.getItem('isAdmin') === 'true' && (
                         <button
                           type="button"
@@ -246,6 +284,13 @@ const HomePage = () => {
                           Admin
                         </button>
                       )}
+                      {/* Theme toggle — same control here as in the
+                          NavigationBar avatar menu so the user has a
+                          consistent place to switch appearance no
+                          matter which page they're on. */}
+                      <ThemeToggleItem
+                        className="home-profile-menu__item"
+                      />
                       <div className="home-profile-menu__divider" />
                       <button
                         type="button"
@@ -339,13 +384,19 @@ const HomePage = () => {
           </div>
         ) : (
           <div className="home-card-grid">
-            {visibleItems.map((item) => (
-              <HomeCard
-                key={`${item._type}-${item.id}`}
-                item={item}
-                type={item._type}
-              />
-            ))}
+            {visibleItems.map((item) => {
+              const isLikedByMe = item._type === 'bracket'
+                ? likedBracketIds.has(String(item.id))
+                : likedMatchupIds.has(String(item.id));
+              return (
+                <HomeCard
+                  key={`${item._type}-${item.id}`}
+                  item={item}
+                  type={item._type}
+                  initialLiked={isLikedByMe}
+                />
+              );
+            })}
           </div>
         )}
       </div>

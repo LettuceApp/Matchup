@@ -9,13 +9,13 @@
   gap: 0.3rem;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #fb923c;
+  color: var(--accent-primary);
   text-decoration: none;
   transition: color 120ms ease;
 }
 
 .matchup-bracket-crumb__link:hover {
-  color: #fdba74;
+  color: var(--accent-primary);
 }
 
 /* ---- Cover image ---- */
@@ -51,24 +51,30 @@
   margin-bottom: 0.75rem;
 }
 
+/* Tags moved off the warm palette — orange now belongs to primary CTAs
+   alone, so reusing it for non-actionable category chips diluted the
+   "orange = action" signal. The orange-on-orange-50 combination also
+   failed contrast (#fed7aa text on the orange-tinted background was
+   ~1.4:1 in light mode). Indigo on indigo-50 reaches ~8:1. */
 .matchup-tag {
   padding: 0.2rem 0.65rem;
   border-radius: 999px;
-  background: rgba(249, 115, 22, 0.15);
-  color: #fed7aa;
+  background: var(--accent-secondary-bg-soft);
+  color: var(--accent-secondary);
+  border: 1px solid var(--accent-secondary-border-soft);
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.03em;
 }
 
 .matchup-page {
   min-height: 100vh;
   width: 100%;
-  background:
-    radial-gradient(120% 120% at 0% 0%, rgba(59, 130, 246, 0.35) 0%, rgba(15, 23, 42, 0) 45%),
-    radial-gradient(120% 120% at 100% 0%, rgba(244, 114, 182, 0.35) 0%, rgba(15, 23, 42, 0) 45%),
-    linear-gradient(135deg, #0f172a 0%, #111c3d 100%);
-  color: #e5edff;
+  /* Transparent so the body's themed gradient (set in index.css from
+     --bg-page-gradient) shows through. Each page used to paint its
+     own dark gradient; that blocked light mode. */
+  background: transparent;
+  color: var(--text-primary);
   display: flex;
   flex-direction: column;
   font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
@@ -95,38 +101,38 @@
 }
 
 .matchup-status-card {
-  background: rgba(15, 23, 42, 0.72);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: var(--bg-surface);
+  border: 1px solid var(--accent-secondary-bg-soft);
   border-radius: 24px;
   padding: 1.75rem 2rem;
-  color: rgba(226, 232, 240, 0.88);
-  box-shadow: 0 28px 60px rgba(15, 23, 42, 0.5);
+  color: var(--text-secondary);
+  box-shadow: 0 28px 60px rgba(15, 23, 42, 0.4);
 }
 
 .matchup-status-card--error {
   border-color: rgba(248, 113, 113, 0.6);
-  background: rgba(127, 29, 29, 0.7);
-  color: #fee2e2;
+  background: var(--danger-bg);
+  color: var(--danger-fg);
 }
 
 .matchup-status-card--warning {
   border-color: rgba(234, 179, 8, 0.6);
-  background: rgba(113, 63, 18, 0.6);
-  color: #fef3c7;
+  background: var(--filter-active-bg);
+  color: var(--filter-active-fg);
 }
 
 .matchup-status-card--muted {
-  border-color: rgba(148, 163, 255, 0.2);
-  background: rgba(15, 23, 42, 0.6);
-  color: rgba(226, 232, 240, 0.72);
+  border-color: var(--border-input);
+  background: var(--bg-surface);
+  color: var(--text-muted);
   text-align: center;
 }
 
 .matchup-hero {
-  background: rgba(15, 23, 42, 0.68);
+  background: var(--bg-surface);
   border-radius: 28px;
-  border: 1px solid rgba(59, 130, 246, 0.22);
-  box-shadow: 0 32px 70px rgba(15, 23, 42, 0.55);
+  border: 1px solid var(--accent-secondary-bg-soft);
+  box-shadow: 0 32px 70px rgba(15, 23, 42, 0.4);
   padding: clamp(1.5rem, 4vw, 2.4rem);
   display: flex;
   flex-direction: column;
@@ -135,13 +141,10 @@
   overflow: hidden;
 }
 
-.matchup-hero::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(140deg, rgba(59, 130, 246, 0.16), rgba(249, 115, 22, 0.06));
-  pointer-events: none;
-}
+/* Decorative gradient overlay removed — was layering blue+orange
+   tints on top of the hero card, which clashed with the cleaner
+   card-driven aesthetic of the home page. The hero card is now a
+   plain surface in both themes. */
 
 /* Inset cover-image slot: rounded, 16:7, sits at the top of the hero
    card with a subtle gradient scrim to keep any light imagery readable
@@ -153,7 +156,7 @@
   aspect-ratio: 16 / 7;
   border-radius: 18px;
   overflow: hidden;
-  background: rgba(15, 23, 42, 0.6);
+  background: var(--bg-surface);
 }
 
 .matchup-hero__media img {
@@ -167,7 +170,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0) 55%, rgba(15, 23, 42, 0.55));
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0) 55%, var(--bg-surface));
   pointer-events: none;
 }
 
@@ -192,7 +195,7 @@
   letter-spacing: 0.18em;
   font-weight: 600;
   font-size: 0.75rem;
-  color: rgba(148, 163, 255, 0.78);
+  color: var(--accent-secondary);
   margin: 0;
 }
 
@@ -201,22 +204,22 @@
   margin: 0;
   font-size: clamp(2.2rem, 4vw, 2.9rem);
   line-height: 1.08;
-  color: #f8fbff;
+  color: var(--text-primary);
 }
 
 .matchup-overline__time {
-  color: rgba(148, 163, 255, 0.55);
+  color: var(--border-strong);
   font-weight: 500;
 }
 
 .matchup-overline__round {
-  color: #fbbf24;
+  color: var(--accent-primary-to);
   font-weight: 700;
 }
 
 .matchup-description {
   margin: 0;
-  color: rgba(226, 232, 240, 0.84);
+  color: var(--text-secondary);
   line-height: 1.6;
 }
 
@@ -248,16 +251,16 @@
   gap: 0.6rem;
   padding: 0.35rem;
   border-radius: 999px;
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--accent-secondary-bg-soft);
+  background: var(--bg-surface);
 }
 
 .matchup-like-button {
   padding: 0.8rem 1.6rem;
   border-radius: 999px;
-  border: 1px solid rgba(59, 130, 246, 0.4);
-  background: rgba(59, 130, 246, 0.22);
-  color: #dbeafe;
+  border: 1px solid var(--accent-secondary-border-soft);
+  background: var(--accent-secondary-bg-soft);
+  color: var(--accent-secondary);
   font-weight: 600;
   cursor: pointer;
   transition: transform 200ms ease, background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
@@ -266,15 +269,15 @@
 .matchup-like-button:hover,
 .matchup-like-button:focus-visible {
   transform: translateY(-2px);
-  background: rgba(59, 130, 246, 0.32);
-  border-color: rgba(59, 130, 246, 0.6);
-  box-shadow: 0 18px 40px rgba(59, 130, 246, 0.35);
+  background: var(--accent-secondary-border-soft);
+  border-color: var(--accent-secondary-border-soft);
+  box-shadow: 0 18px 40px var(--accent-secondary-border-soft);
 }
 
 .matchup-like-button.is-liked {
-  background: linear-gradient(120deg, #f97316, #facc15);
+  background: linear-gradient(120deg, var(--accent-primary), var(--accent-primary-to));
   border-color: transparent;
-  color: #111827;
+  color: var(--bg-surface);
 }
 
 .matchup-like-button:disabled {
@@ -290,9 +293,9 @@
   gap: 0.4rem;
   padding: 0.5rem 0.9rem;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 255, 0.35);
-  background: rgba(15, 23, 42, 0.6);
-  color: rgba(226, 232, 240, 0.85);
+  border: 1px solid var(--border-input);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
   font-weight: 600;
 }
 
@@ -313,15 +316,15 @@
 
 .matchup-like-count {
   font-size: 1.1rem;
-  color: #f8fbff;
+  color: var(--text-primary);
 }
 
 .matchup-danger-button {
   padding: 0.8rem 1.5rem;
   border-radius: 999px;
   border: 1px solid rgba(248, 113, 113, 0.5);
-  background: rgba(248, 113, 113, 0.18);
-  color: #fee2e2;
+  background: var(--danger-bg);
+  color: var(--danger-fg);
   font-weight: 600;
   cursor: pointer;
   transition: transform 200ms ease, background-color 200ms ease, border-color 200ms ease;
@@ -350,17 +353,17 @@
 
 .matchup-stat-card {
   background: rgba(15, 23, 42, 0.82);
-  border: 1px solid rgba(148, 163, 255, 0.25);
+  border: 1px solid var(--border-input);
   border-radius: 22px;
   padding: 1.6rem;
-  box-shadow: 0 24px 50px rgba(15, 23, 42, 0.55);
+  box-shadow: 0 24px 50px rgba(15, 23, 42, 0.4);
 }
 
 .matchup-stat-label {
   text-transform: uppercase;
   font-size: 0.74rem;
   letter-spacing: 0.16em;
-  color: rgba(148, 163, 255, 0.78);
+  color: var(--accent-secondary);
   font-weight: 600;
 }
 
@@ -369,14 +372,14 @@
   margin-top: 0.6rem;
   font-size: 2.2rem;
   font-weight: 700;
-  color: #facc15;
+  color: var(--accent-primary-to);
 }
 
 .matchup-section {
-  background: rgba(15, 23, 42, 0.68);
+  background: var(--bg-surface);
   border-radius: 26px;
-  border: 1px solid rgba(59, 130, 246, 0.18);
-  box-shadow: 0 28px 60px rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--accent-secondary-bg-soft);
+  box-shadow: 0 28px 60px rgba(15, 23, 42, 0.4);
   padding: clamp(1.8rem, 4vw, 2.6rem);
   display: flex;
   flex-direction: column;
@@ -386,7 +389,7 @@
 .matchup-section-header h2 {
   margin: 0;
   font-size: clamp(1.5rem, 3vw, 1.9rem);
-  color: #f8fbff;
+  color: var(--text-primary);
 }
 
 .matchup-section-header {
@@ -407,25 +410,25 @@
 .matchup-author-link {
   font-size: 0.9rem;
   font-weight: 600;
-  color: rgba(226, 232, 240, 0.8);
+  color: var(--text-secondary);
   text-decoration: none;
 }
 
 .matchup-author-link:hover,
 .matchup-author-link:focus-visible {
-  color: #ffffff;
+  color: var(--text-primary);
   text-decoration: underline;
 }
 
 .matchup-section-header p {
   margin: 0.4rem 0 0;
-  color: rgba(226, 232, 240, 0.78);
+  color: var(--text-secondary);
 }
 
 .matchup-subtitle {
   margin: 0.25rem 0 0.6rem;
   font-size: 0.95rem;
-  color: #fb923c;
+  color: var(--accent-primary);
   font-weight: 500;
 }
 
@@ -444,9 +447,9 @@
   width: 36px;
   height: 36px;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 255, 0.4);
-  background: rgba(15, 23, 42, 0.6);
-  color: #e2e8f0;
+  border: 1px solid var(--border-input);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -464,9 +467,9 @@
   top: 46px;
   min-width: 200px;
   border-radius: 16px;
-  border: 1px solid rgba(148, 163, 255, 0.4);
+  border: 1px solid var(--border-input);
   background: rgba(15, 23, 42, 0.95);
-  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.5);
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.4);
   padding: 0.85rem;
   /* Hide by default. The parent <details> browser-default trick of
      hiding non-summary children only works when the child's display
@@ -491,15 +494,15 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  color: rgba(226, 232, 240, 0.7);
+  color: var(--text-secondary);
 }
 
 .matchup-winner-option {
-  border: 1px solid rgba(148, 163, 255, 0.35);
+  border: 1px solid var(--border-input);
   border-radius: 12px;
   padding: 0.45rem 0.7rem;
-  background: rgba(15, 23, 42, 0.75);
-  color: #e2e8f0;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
   font-size: 0.85rem;
   cursor: pointer;
   text-align: left;
@@ -507,8 +510,8 @@
 
 .matchup-winner-option.is-selected {
   border-color: rgba(34, 197, 94, 0.7);
-  background: rgba(34, 197, 94, 0.18);
-  color: #bbf7d0;
+  background: var(--success-bg);
+  color: var(--success-fg);
 }
 
 /* Outer container — vertical stack of pair-rows. Each row is its
@@ -539,13 +542,26 @@
   grid-template-columns: 1fr;
 }
 
+/* Promoted from a small text label (was nearly invisible against the
+   page background) to a 44×44 circular badge. The "VS" is the
+   symbolic anchor between the two contender cards — making it a
+   deliberate visual element helps users instantly read the page
+   structure. */
 .matchup-vs-divider {
   align-self: center;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  font-size: 0.95rem;
-  color: rgba(148, 163, 255, 0.55);
-  padding: 0 0.75rem;
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.15em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
   user-select: none;
 }
 
@@ -571,9 +587,9 @@
 .matchup-status-pill {
   padding: 0.5rem 1.2rem;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 255, 0.35);
-  background: rgba(15, 23, 42, 0.6);
-  color: rgba(226, 232, 240, 0.85);
+  border: 1px solid var(--border-input);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
   font-weight: 600;
 }
 
@@ -584,31 +600,31 @@
 }
 
 .matchup-status-pill--locked {
-  border-color: rgba(251, 191, 36, 0.6);
-  background: rgba(251, 191, 36, 0.2);
-  color: #fef3c7;
+  border-color: var(--filter-active-border);
+  background: var(--filter-active-bg);
+  color: var(--filter-active-fg);
 }
 
 .matchup-status-pill--ok {
   border-color: rgba(34, 197, 94, 0.6);
-  background: rgba(34, 197, 94, 0.18);
-  color: #bbf7d0;
+  background: var(--success-bg);
+  color: var(--success-fg);
 }
 
 .matchup-status-banner {
   flex: 1 1 100%;
   padding: 0.75rem 1.2rem;
   border-radius: 16px;
-  border: 1px solid rgba(148, 163, 255, 0.35);
-  background: rgba(15, 23, 42, 0.7);
-  color: rgba(226, 232, 240, 0.9);
+  border: 1px solid var(--border-input);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
   font-weight: 600;
 }
 
 .matchup-status-banner--warning {
-  border-color: rgba(251, 191, 36, 0.6);
+  border-color: var(--filter-active-border);
   background: rgba(120, 53, 15, 0.5);
-  color: #fef3c7;
+  color: var(--filter-active-fg);
 }
 
 .matchup-activate {
@@ -628,15 +644,15 @@
   padding: 0.85rem 1.8rem;
   border-radius: 999px;
   font-weight: 600;
-  border: 1px solid rgba(148, 163, 255, 0.4);
-  background: rgba(148, 163, 255, 0.15);
-  color: #e0e7ff;
+  border: 1px solid var(--border-input);
+  background: var(--border-subtle);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: transform 200ms ease, box-shadow 200ms ease, background 200ms ease;
 }
 
 .matchup-readyup-button--armed {
-  background: linear-gradient(120deg, #34d399, #10b981);
+  background: linear-gradient(120deg, var(--success-fg), #10b981);
   color: #052e16;
   border-color: transparent;
   box-shadow: 0 16px 35px rgba(5, 46, 22, 0.35);
@@ -650,28 +666,28 @@
 
 .matchup-readyup-hint {
   font-size: 0.72rem;
-  color: rgba(148, 163, 184, 0.6);
+  color: var(--text-faint);
   text-align: right;
 }
 
 .matchup-readyup-hint--ok {
-  color: #bbf7d0;
+  color: var(--success-fg);
 }
 
 .matchup-badge {
   padding: 0.35rem 0.85rem;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 255, 0.4);
+  border: 1px solid var(--border-input);
   font-size: 0.85rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(226, 232, 240, 0.85);
+  color: var(--text-secondary);
 }
 
 .matchup-badge--locked {
-  border-color: rgba(251, 191, 36, 0.6);
-  background: rgba(251, 191, 36, 0.2);
-  color: #fef3c7;
+  border-color: var(--filter-active-border);
+  background: var(--filter-active-bg);
+  color: var(--filter-active-fg);
 }
 
 .matchup-comments-list {
@@ -687,11 +703,11 @@
 }
 
 .matchup-comment-toggle {
-  border: 1px solid rgba(148, 163, 255, 0.3);
+  border: 1px solid var(--border-input);
   border-radius: 999px;
   padding: 0.4rem 1rem;
-  background: rgba(15, 23, 42, 0.55);
-  color: rgba(226, 232, 240, 0.9);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
   cursor: pointer;
   font-weight: 600;
   transition: transform 200ms ease, border-color 200ms ease;
@@ -700,7 +716,7 @@
 .matchup-comment-toggle:hover,
 .matchup-comment-toggle:focus-visible {
   transform: translateY(-2px);
-  border-color: rgba(148, 163, 255, 0.6);
+  border-color: var(--border-strong);
 }
 
 .matchup-empty-comments {
@@ -709,7 +725,7 @@
   align-items: center;
   gap: 0.4rem;
   padding: 2rem;
-  color: rgba(148, 163, 184, 0.7);
+  color: var(--text-muted);
   font-size: 0.9rem;
   text-align: center;
 }
@@ -720,7 +736,7 @@
 
 .matchup-empty-comments__arrow {
   font-size: 1.3rem;
-  color: #fb923c;
+  color: var(--accent-primary);
   animation: hint-pulse 2s ease-in-out infinite;
 }
 
@@ -749,21 +765,27 @@
   gap: 0.9rem;
   padding: 1.2rem;
   border-radius: 20px;
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--accent-secondary-bg-soft);
+  background: var(--bg-surface);
 }
 
 .matchup-form-label {
   font-weight: 600;
-  color: #f8fbff;
+  color: var(--text-primary);
 }
 
+/* Production bug: background was rgba(15, 23, 42, 0.78) and text
+   used --text-primary which resolves to slate-900 in light mode →
+   typed comment text was invisible against the near-black surface.
+   Now uses --bg-input + --text-primary which resolve correctly in
+   both themes. Focus shows an indigo glow ring for keyboard
+   accessibility (WCAG 2.4.7). */
 .matchup-textarea {
   width: 100%;
   border-radius: 18px;
-  border: 1px solid rgba(148, 163, 255, 0.4);
-  background: rgba(15, 23, 42, 0.78);
-  color: #f8fbff;
+  border: 1px solid var(--border-input);
+  background: var(--bg-input);
+  color: var(--text-primary);
   padding: 1rem 1.2rem;
   font-size: 1rem;
   font-family: inherit;
@@ -774,24 +796,28 @@
   transition: border-color 200ms ease, box-shadow 200ms ease, transform 200ms ease;
 }
 
+.matchup-textarea::placeholder {
+  color: var(--text-muted);
+}
+
 .matchup-textarea:focus,
 .matchup-textarea:hover {
-  border-color: rgba(96, 165, 250, 0.8);
-  box-shadow: 0 18px 40px rgba(59, 130, 246, 0.3);
+  border-color: var(--accent-secondary);
+  box-shadow: 0 0 0 3px var(--accent-secondary-bg-soft);
   outline: none;
   transform: translateY(-1px);
 }
 
 .matchup-inline-error {
   margin: 0;
-  color: #facc15;
+  color: var(--accent-primary-to);
   font-size: 0.9rem;
   font-weight: 500;
 }
 
 .matchup-inline-hint {
   margin: 0;
-  color: rgba(226, 232, 240, 0.75);
+  color: var(--text-secondary);
   font-size: 0.9rem;
 }
 
@@ -805,9 +831,9 @@
   border-radius: 999px;
   border: none;
   font-weight: 600;
-  color: #0f172a;
-  background: linear-gradient(120deg, #60a5fa, #a855f7, #f97316);
-  box-shadow: 0 18px 35px rgba(96, 165, 250, 0.35);
+  color: var(--bg-page);
+  background: linear-gradient(120deg, #60a5fa, #a855f7, var(--accent-primary));
+  box-shadow: 0 18px 35px var(--accent-secondary-bg-soft);
   cursor: pointer;
   transition: transform 200ms ease, box-shadow 200ms ease, filter 200ms ease;
 }
@@ -815,7 +841,7 @@
 .matchup-primary-button:hover:not(:disabled),
 .matchup-primary-button:focus-visible:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 24px 45px rgba(96, 165, 250, 0.4);
+  box-shadow: 0 24px 45px var(--accent-secondary-bg-soft);
   filter: brightness(1.05);
 }
 
@@ -830,9 +856,9 @@
   margin-top: 1.5rem;
   padding: 0.8rem 1.6rem;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 255, 0.45);
-  background: rgba(148, 163, 255, 0.2);
-  color: #e0e7ff;
+  border: 1px solid var(--border-strong);
+  background: var(--border-input);
+  color: var(--text-secondary);
   font-weight: 600;
   cursor: pointer;
   transition: transform 200ms ease, border-color 200ms ease, background-color 200ms ease;
@@ -841,8 +867,8 @@
 .matchup-secondary-button:hover,
 .matchup-secondary-button:focus-visible {
   transform: translateY(-2px);
-  border-color: rgba(148, 163, 255, 0.7);
-  background: rgba(148, 163, 255, 0.28);
+  border-color: var(--border-strong);
+  background: var(--border-input);
 }
 
 .matchup-override-button {
@@ -867,7 +893,7 @@
 .matchup-override-button--active {
   border-color: rgba(34, 197, 94, 0.8);
   background: rgba(34, 197, 94, 0.25);
-  color: #bbf7d0;
+  color: var(--success-fg);
 }
 
 @media (max-width: 960px) {
@@ -938,23 +964,10 @@
   gap: 0.45rem;
 }
 
-.matchup-engagement {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.92rem;
-  color: rgba(226, 232, 240, 0.78);
-}
-
-.matchup-engagement strong {
-  color: #f8fafc;
-  font-weight: 700;
-}
-
-.matchup-engagement__dot {
-  color: rgba(148, 163, 255, 0.5);
-}
+/* .matchup-engagement rules removed — the engagement strip JSX was
+   removed from the title/description block at user request. Like +
+   comment counts still appear in the bottom action bar; vote count
+   shows inline on the contender bars. */
 
 /* Winner reveal banner — only shown when status=completed. The Reveal
    component animates it in on scroll-into-view, which is basically
@@ -967,10 +980,10 @@
   gap: 0.8rem;
   padding: 1rem 1.4rem;
   border-radius: 18px;
-  background: linear-gradient(135deg, rgba(250, 204, 21, 0.18), rgba(249, 115, 22, 0.12));
+  background: linear-gradient(135deg, rgba(250, 204, 21, 0.18), var(--accent-primary-soft));
   border: 1px solid rgba(250, 204, 21, 0.35);
   box-shadow: 0 18px 40px rgba(250, 204, 21, 0.08);
-  color: #fef3c7;
+  color: var(--filter-active-fg);
 }
 
 .matchup-winner-banner__trophy {
@@ -988,7 +1001,7 @@
 
 .matchup-winner-banner__name {
   font-size: 1.4rem;
-  color: #fffbeb;
+  color: var(--filter-active-fg);
 }
 
 /* Vote stage is a light wrapper around the existing .matchup-items
@@ -1026,9 +1039,9 @@
   cursor: pointer;
   padding: 0.55rem 1.4rem;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 255, 0.32);
+  border: 1px solid var(--border-input);
   background: transparent;
-  color: rgba(226, 232, 240, 0.8);
+  color: var(--text-secondary);
   font-size: 0.86rem;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -1037,7 +1050,7 @@
 
 .matchup-nav-btn:hover:not(:disabled) {
   border-color: rgba(251, 191, 36, 0.55);
-  color: #fbbf24;
+  color: var(--accent-primary-to);
 }
 
 .matchup-nav-btn:disabled {
@@ -1059,9 +1072,9 @@
   margin: 0 auto 12px;
   padding: 0.4rem 1.1rem;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.65);
-  border: 1px solid rgba(148, 163, 255, 0.25);
-  color: rgba(226, 232, 240, 0.88);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-input);
+  color: var(--text-secondary);
   font-size: 0.82rem;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -1069,7 +1082,7 @@
 }
 
 .matchup-progress-chip__sep {
-  color: rgba(148, 163, 255, 0.5);
+  color: var(--border-strong);
 }
 
 .matchup-progress-chip__round {
@@ -1083,8 +1096,8 @@
   grid-template-columns: 1fr 1fr 1fr;
   gap: 0.4rem;
   padding: 0.35rem;
-  background: rgba(15, 23, 42, 0.55);
-  border: 1px solid rgba(148, 163, 255, 0.18);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
   border-radius: 18px;
 }
 
@@ -1097,7 +1110,7 @@
   border: none;
   border-radius: 12px;
   background: transparent;
-  color: #e2e8f0;
+  color: var(--text-secondary);
   font-size: 0.92rem;
   font-weight: 600;
   cursor: pointer;
@@ -1107,13 +1120,13 @@
 
 .matchup-action-bar__button:hover,
 .matchup-action-bar__button:focus-visible {
-  background: rgba(148, 163, 255, 0.12);
-  color: #f8fafc;
+  background: var(--accent-secondary-bg-soft);
+  color: var(--text-primary);
   outline: none;
 }
 
 .matchup-action-bar__button:disabled {
-  color: rgba(226, 232, 240, 0.45);
+  color: var(--text-faint);
   cursor: not-allowed;
   background: transparent;
 }
@@ -1145,7 +1158,7 @@
 
 .matchup-action-bar__count {
   font-size: 0.82rem;
-  color: rgba(226, 232, 240, 0.6);
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -1166,11 +1179,15 @@
 /* Owner tray: rare actions, high consequence. Muted container keeps
    the visual weight below the action bar so it doesn't compete with
    the viewer's primary Vote / Like / Comment affordances. */
+/* Was rgba(15, 23, 42, 0.45) — slate-900 at 45% opacity reads as a
+   muddy gray-purple wash on the white card in light mode. Now a
+   slate-50 panel inside the white card with a solid subtle border;
+   reads as an "elevated section" in both themes. */
 .matchup-owner-tray {
   margin-top: 0.4rem;
   padding: 1rem 1.1rem;
-  background: rgba(15, 23, 42, 0.45);
-  border: 1px dashed rgba(148, 163, 255, 0.22);
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border-subtle);
   border-radius: 16px;
 }
 
@@ -1180,7 +1197,7 @@
   letter-spacing: 0.18em;
   font-size: 0.72rem;
   font-weight: 600;
-  color: rgba(148, 163, 255, 0.78);
+  color: var(--accent-secondary);
 }
 
 .matchup-owner-tray__actions {
@@ -1193,14 +1210,18 @@
 /* The shared Button component has zero default styling — it renders
    a bare <motion.button> and relies on className for all visuals.
    Give the tray variant a real skin so it doesn't look unstyled. */
+/* Tray buttons sit inside an already-elevated panel, so the resting
+   state is white card + subtle border rather than a saturated tint
+   that would compete with the tray itself. Hover lifts to a slate-50
+   wash with a stronger border. */
 .matchup-owner-tray__button {
   padding: 0.7rem 1.3rem;
   border-radius: 999px;
   font-weight: 600;
   font-size: 0.9rem;
-  border: 1px solid rgba(148, 163, 255, 0.4);
-  background: rgba(148, 163, 255, 0.15);
-  color: #e0e7ff;
+  border: 1px solid var(--border-input);
+  background: var(--bg-surface);
+  color: var(--text-primary);
   cursor: pointer;
   white-space: nowrap;
   transition: transform 200ms ease, box-shadow 200ms ease,
@@ -1210,9 +1231,9 @@
 .matchup-owner-tray__button:hover:not(:disabled),
 .matchup-owner-tray__button:focus-visible:not(:disabled) {
   transform: translateY(-1px);
-  background: rgba(148, 163, 255, 0.25);
-  border-color: rgba(148, 163, 255, 0.6);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.35);
+  background: var(--bg-surface-alt);
+  border-color: var(--border-strong);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
   outline: none;
 }
 
@@ -1224,24 +1245,30 @@
 }
 
 .matchup-owner-tray__button.is-armed {
-  background: linear-gradient(120deg, #34d399, #10b981);
+  background: linear-gradient(120deg, var(--success-fg), #10b981);
   color: #052e16;
   border-color: transparent;
   box-shadow: 0 12px 28px rgba(5, 46, 22, 0.35);
 }
 
+/* Outlined-red destructive button: white surface with red text +
+   border at rest, light-red wash on hover. Matches the danger pattern
+   used in home-profile-menu__item--danger and
+   navigation-bar__profile-item--danger. NN/g + Material both prefer
+   outlined-destructive over filled-red — accidental clicks on a
+   filled-red button are noticeably more common, especially on touch. */
 .matchup-owner-tray__button--danger {
-  background: rgba(248, 113, 113, 0.15);
-  border-color: rgba(248, 113, 113, 0.5);
-  color: #fecaca;
+  background: var(--bg-surface);
+  color: var(--danger-fg);
+  border-color: var(--danger-border);
 }
 
 .matchup-owner-tray__button--danger:hover:not(:disabled),
 .matchup-owner-tray__button--danger:focus-visible:not(:disabled) {
-  background: rgba(248, 113, 113, 0.3);
-  border-color: rgba(248, 113, 113, 0.7);
-  color: #fef2f2;
-  box-shadow: 0 12px 28px rgba(127, 29, 29, 0.4);
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+  border-color: var(--danger-border);
+  box-shadow: 0 10px 24px rgba(127, 29, 29, 0.18);
 }
 
 /* The override-winner <details> dropdown lives in the owner tray now.
@@ -1260,17 +1287,17 @@
   font-size: 0.9rem;
   font-weight: 600;
   border-radius: 999px;
-  background: rgba(148, 163, 255, 0.15);
-  border: 1px solid rgba(148, 163, 255, 0.4);
-  color: #e0e7ff;
+  background: var(--border-subtle);
+  border: 1px solid var(--border-input);
+  color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
   line-height: 1.2;
 }
 
 .matchup-winner-menu--tray[open] .matchup-winner-summary {
-  background: rgba(148, 163, 255, 0.28);
-  border-color: rgba(148, 163, 255, 0.55);
+  background: var(--border-input);
+  border-color: var(--border-strong);
 }
 
 @media (max-width: 600px) {

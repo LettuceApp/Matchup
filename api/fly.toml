@@ -1,0 +1,63 @@
+# fly.toml — matchup-api
+#
+# This config runs the api server AND the email/cron workers from a
+# single Docker image (built from api/Dockerfile, which produces three
+# binaries: ./server, ./worker, ./cron). Process groups split the same
+# image into roles so we don't pay for three apps.
+#
+# See https://fly.io/docs/reference/configuration/ for full reference.
+
+app = 'matchup-api'
+primary_region = 'iad'
+
+[build]
+
+# Process groups — same image, three different commands. The "app"
+# group is what http_service routes traffic to; "worker" drains the
+# email queue from Redis; "cron" runs the scheduled jobs (replaces the
+# old K8s cron binary).
+[processes]
+  app    = "./server"
+  worker = "./worker"
+  cron   = "./cron"
+
+[http_service]
+  internal_port = 8888
+  force_https = true
+  # auto_stop saves money — when no traffic, Fly shuts the machine
+  # down and cold-starts on the next request (~1s). The worker process
+  # is excluded from this since it needs to stay up to drain the queue.
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+  # Liveness check. A connect-rpc service speaks JSON over HTTP at
+  # /<service>/<method> — there's no plain /healthz. Hitting the
+  # GetHomeSummary RPC with an empty body is a cheap, anon-allowed
+  # ping that proves the api binary is alive + the DB is reachable.
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "15s"
+    method = "POST"
+    path = "/home.v1.HomeService/GetHomeSummary"
+    headers = { "Content-Type" = "application/json", "Connect-Protocol-Version" = "1" }
+
+# VM sizing. The api gets a full 512 MB to handle Go's runtime + a
+# burst of concurrent requests. The worker + cron only need ~256 MB
+# each since they're light queue/timer-driven binaries.
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '512mb'
+  processes = ['app']
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '256mb'
+  processes = ['worker']
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '256mb'
+  processes = ['cron']

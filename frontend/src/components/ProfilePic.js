@@ -56,12 +56,22 @@ const ProfilePic = ({ userId, editable = false, size = 80 }) => {
       }
     } catch (err) {
       console.error('Upload error:', err);
-      // Surface the underlying message (e.g. "File is too large (max 0.5 MB).")
-      // when it came from our presign flow; fall back to a generic string
-      // for network / RPC errors the user can't act on.
-      setError(typeof err?.message === 'string' && err.message.startsWith('File is too large')
+      // Surface the most specific message available, in priority order:
+      //   1. Our presign-flow throws (start with "File is too large" /
+      //      "S3 upload failed" — both contain enough info to act on).
+      //   2. The backend Connect-RPC error body (`response.data.message`)
+      //      when the failure was UpdateAvatar / PresignUpload itself.
+      //   3. A generic fallback for network errors with nothing useful.
+      const presignMsg = typeof err?.message === 'string'
+        && (err.message.startsWith('File is too large')
+          || err.message.startsWith('S3 upload failed')
+          || err.message.startsWith('S3 upload blocked'))
         ? err.message
-        : 'Failed to upload avatar.');
+        : null;
+      const serverMsg = err?.response?.data?.message
+        || err?.response?.data?.error
+        || null;
+      setError(presignMsg || serverMsg || 'Failed to upload avatar. Please try a smaller image or sign in again.');
     }
   };
 

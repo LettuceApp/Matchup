@@ -7,6 +7,9 @@
   display: inline-flex;
 }
 
+/* The button color was hardcoded to slate-200 which made the icon
+   nearly invisible against the white nav bar in light mode. Tokens
+   below give the bell a real readable color in both themes. */
 .notification-bell__button {
   position: relative;
   display: inline-flex;
@@ -16,9 +19,9 @@
   height: 42px;
   padding: 0;
   border-radius: 999px;
-  background: rgba(148, 163, 255, 0.08);
-  border: 1px solid rgba(148, 163, 255, 0.28);
-  color: #e2e8f0;
+  background: var(--accent-secondary-bg-soft);
+  border: 1px solid var(--border-input);
+  color: var(--text-primary);
   font-size: 20px;
   cursor: pointer;
   transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
@@ -26,14 +29,14 @@
 
 .notification-bell__button:hover,
 .notification-bell__button:focus-visible {
-  background: rgba(148, 163, 255, 0.2);
-  border-color: rgba(148, 163, 255, 0.55);
+  background: var(--accent-secondary-bg-soft);
+  border-color: var(--accent-secondary-border-soft);
   outline: none;
 }
 
 .notification-bell__button.is-open {
-  background: rgba(148, 163, 255, 0.28);
-  border-color: rgba(148, 163, 255, 0.7);
+  background: var(--accent-secondary-bg-soft);
+  border-color: var(--accent-secondary);
 }
 
 .notification-bell__button svg {
@@ -41,6 +44,10 @@
   height: 20px;
 }
 
+/* Unread badge stays a saturated warm gradient in both themes —
+   it's a notification indicator and visibility wins over theme
+   harmony. Both gradient stops still contrast against white and
+   navy backdrops alike. */
 .notification-bell__badge {
   position: absolute;
   top: -4px;
@@ -67,10 +74,10 @@
   max-height: min(560px, calc(100vh - 6rem));
   display: flex;
   flex-direction: column;
-  background: #0f172a;
-  border: 1px solid rgba(148, 163, 255, 0.25);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-subtle);
   border-radius: 14px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow-panel);
   z-index: 50;
   overflow: hidden;
 }
@@ -80,15 +87,15 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid rgba(148, 163, 255, 0.12);
-  color: #f8fafc;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
   font-weight: 700;
   font-size: 0.95rem;
   letter-spacing: 0.02em;
 }
 
 .notification-bell__loading {
-  color: rgba(148, 163, 255, 0.7);
+  color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 500;
   letter-spacing: 0.04em;
@@ -117,14 +124,14 @@
 }
 
 .notification-bell__panel-footer {
-  border-top: 1px solid rgba(148, 163, 255, 0.12);
+  border-top: 1px solid var(--border-subtle);
   padding: 0.55rem 1rem;
-  background: rgba(15, 23, 42, 0.85);
+  background: var(--bg-surface-alt);
 }
 
 .notification-bell__see-all {
   display: inline-flex;
-  color: #c7d2fe;
+  color: var(--accent-secondary);
   text-decoration: none;
   font-size: 0.88rem;
   font-weight: 600;
@@ -132,7 +139,7 @@
 
 .notification-bell__see-all:hover,
 .notification-bell__see-all:focus-visible {
-  color: #f0abfc;
+  color: var(--accent-primary);
   text-decoration: underline;
 }
 

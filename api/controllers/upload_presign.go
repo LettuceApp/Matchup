@@ -60,7 +60,14 @@ type uploadKindSpec struct {
 // constant + a new caller of CommitUploadedObject.
 var uploadKinds = map[UploadKind]uploadKindSpec{
 	UploadKindAvatar: {
-		MaxBytes: 500_000,
+		// Was 500_000 (0.5 MB) which rejected nearly every modern phone
+		// screenshot or camera photo. The cap applies to the RAW upload,
+		// not the post-resize stored object — resizeAndUpload downsizes
+		// to thumb/medium/full anyway, so the on-disk footprint per
+		// avatar stays small regardless of input size. 5 MB matches
+		// matchup_cover and is comfortable headroom for any image a
+		// user would reasonably pick from their photo library.
+		MaxBytes: 5_000_000,
 		AllowedTypes: map[string]bool{
 			"image/jpeg": true,
 			"image/png":  true,
