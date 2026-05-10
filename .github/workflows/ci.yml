@@ -33,8 +33,10 @@ jobs:
         # isn't worth a 50-file rewrite right now; go vet (above) still
         # gates real correctness issues. Re-enable as a required check
         # once a focused lint-cleanup pass has landed.
+        # action@v7 is required for golangci-lint v2 (our .golangci.yml
+        # uses v2 schema); v6 only supported v1 and rejects "v2.x" pins.
         continue-on-error: true
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
           working-directory: api
           version: v2.1
