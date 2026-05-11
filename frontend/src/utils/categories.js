@@ -28,6 +28,7 @@ export const CATEGORIES = [
   'Cartoons',
   'Animals',
   'Celebrities',
+  'Random',
   'Other',
 ];
 
