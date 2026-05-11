@@ -94,7 +94,16 @@ const AnonUpgradeModal = ({ reason = 'cap', onClose }) => {
           type="button"
           className="anon-upgrade-modal__dismiss"
           aria-label="Dismiss"
-          onClick={onClose}
+          onClick={() => {
+            // "Maybe later" used to just close the modal and leave the
+            // user on whichever gated page triggered it (bracket detail,
+            // bracket-child matchup, etc.) — which was a dead-end since
+            // the page's own data fetches had 401'd. Send them to the
+            // homepage instead so they have somewhere to go that
+            // actually renders for anon viewers.
+            onClose?.();
+            navigate('/');
+          }}
         >
           Maybe later
         </button>
