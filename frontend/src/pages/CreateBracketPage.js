@@ -471,7 +471,16 @@ const CreateBracketPage = () => {
             <span>Bracket preview</span>
             <span>{size}-team</span>
           </div>
-          <div className="h-[360px] min-w-0 overflow-auto pr-2">
+          {/* Bracket preview viewport. The react-tournament-bracket SVG
+              renders at its own intrinsic width (grows with team count
+              + rounds) — far wider than a phone. overflow-auto gives
+              horizontal panning; -webkit-overflow-scrolling: touch
+              gives iOS momentum. Height steps down on small screens so
+              the preview doesn't dominate the form. */}
+          <div
+            className="h-[240px] sm:h-[360px] min-w-0 overflow-auto pr-2"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+          >
             <Bracket
               game={previewGame}
               styles={previewStyles}

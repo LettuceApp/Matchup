@@ -129,3 +129,21 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+/* Mobile — tighter scrim gutter and stacked action buttons so the
+   form fields aren't squeezed and Cancel/Submit have comfortable
+   tap targets instead of fighting for half a cramped row. */
+@media (max-width: 480px) {
+  .report-modal__scrim { padding: 0.75rem; }
+  .report-modal__card { padding: 1.2rem 1.1rem; border-radius: 12px; }
+  .report-modal__actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+  .report-modal__cancel,
+  .report-modal__primary {
+    width: 100%;
+    padding: 0.7rem 1rem;
+  }
+}

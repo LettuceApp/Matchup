@@ -117,3 +117,22 @@
   color: var(--text-muted);
   outline: none;
 }
+
+/* Mobile — tighter scrim gutter so the card itself can breathe on
+   narrow phones; stack actions vertically so the primary CTA and
+   "Log in" sit on their own rows at 44px+ tap height instead of
+   sharing a cramped row. */
+@media (max-width: 480px) {
+  .anon-upgrade-modal__scrim { padding: 16px; }
+  .anon-upgrade-modal__card { padding: 22px 20px 18px; }
+  .anon-upgrade-modal__title { font-size: 1.2rem; }
+  .anon-upgrade-modal__actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .anon-upgrade-modal__primary,
+  .anon-upgrade-modal__secondary {
+    width: 100%;
+    padding: 13px 24px;
+  }
+}

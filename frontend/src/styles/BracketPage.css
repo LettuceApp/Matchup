@@ -506,6 +506,18 @@
     width: 100%;
     text-align: center;
   }
+
+  /* Comment composer: a touch more vertical room and padding tuned
+     for thumbs. The textarea already supported vertical resize for
+     desktop; mobile users typically don't drag-resize so we give a
+     comfortable starting height. */
+  .bracket-textarea {
+    min-height: 100px;
+    padding: 0.8rem 0.9rem;
+  }
+  .bracket-form-actions {
+    justify-content: stretch;
+  }
 }
 .bracket-button--danger {
   background: linear-gradient(135deg, var(--danger-fg), #dc2626);
