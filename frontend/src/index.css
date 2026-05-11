@@ -26,3 +26,23 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* iOS Safari zooms the viewport when a tapped form field has a
+   font-size below 16px. Several of our inputs sit at 0.9rem/0.95rem
+   (~14–15px) for desktop density, which on mobile causes a janky
+   zoom-in on every focus. Bump form-control font-size to 16px on
+   touch-class viewports — desktop styles stay untouched. */
+@media (max-width: 720px) {
+  input,
+  input[type='text'],
+  input[type='email'],
+  input[type='password'],
+  input[type='search'],
+  input[type='url'],
+  input[type='tel'],
+  input[type='number'],
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}

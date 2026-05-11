@@ -891,3 +891,17 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Mobile touch-target bump for card action icons (Like, Comment,
+   Share). Default padding leaves them ~35px tall — below Apple HIG's
+   44px guideline — which makes tapping the small heart/comment icons
+   feel imprecise. Bump padding so each button is a comfortable
+   44×44 target on touch viewports. */
+@media (max-width: 720px) {
+  .home-card__action {
+    padding: 0.65rem 0.7rem;
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
+}
