@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FiMenu } from 'react-icons/fi';
 import {
   getHomeSummary,
   getMatchups,
@@ -22,6 +23,11 @@ const HomePage = () => {
   const [typeFilter, setTypeFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  // Mobile sidebar drawer state. Below 768px the sidebar lives off-
+  // canvas; this flag slides it in. Closing on a category/sort tap
+  // keeps the drawer from staying open over the content the user
+  // just filtered to.
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [matchups, setMatchups] = useState([]);
   const [brackets, setBrackets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -208,17 +214,45 @@ const HomePage = () => {
     await handleLogout();
   };
 
+  // Filter taps from inside the mobile drawer should close it — the
+  // user expects the result to be visible, not blocked by the drawer
+  // they just used.
+  const handleSortChangeMobile = (next) => { setSortMode(next); setMobileSidebarOpen(false); };
+  const handleCategoryChangeMobile = (next) => { setCategoryFilter(next); setMobileSidebarOpen(false); };
+
   return (
     <div className="home-page">
+      {/* Mobile drawer scrim. Click anywhere outside the sidebar to
+          dismiss. Only renders when the drawer is open so it doesn't
+          intercept clicks at all desktop sizes. */}
+      {mobileSidebarOpen && (
+        <div
+          className="home-sidebar-scrim"
+          role="presentation"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
       <HomeSidebar
         sortMode={sortMode}
-        onSortChange={setSortMode}
+        onSortChange={handleSortChangeMobile}
         categoryFilter={categoryFilter}
-        onCategoryChange={setCategoryFilter}
+        onCategoryChange={handleCategoryChangeMobile}
+        mobileOpen={mobileSidebarOpen}
       />
 
       <div className="home-main">
         <div className="home-topbar">
+          {/* Hamburger — opens the off-canvas sidebar on small screens.
+              Hidden via CSS at desktop sizes so the topbar stays clean. */}
+          <button
+            type="button"
+            className="home-topbar__menu"
+            aria-label="Open menu"
+            aria-expanded={mobileSidebarOpen}
+            onClick={() => setMobileSidebarOpen(true)}
+          >
+            <FiMenu />
+          </button>
           <input
             type="text"
             className="home-search"

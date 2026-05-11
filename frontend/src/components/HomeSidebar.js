@@ -11,7 +11,7 @@ import { CATEGORIES } from '../utils/categories';
 // "Show more" affordance for the rest.
 const COLLAPSED_CATEGORY_COUNT = 6;
 
-const HomeSidebar = ({ sortMode, onSortChange, categoryFilter, onCategoryChange }) => {
+const HomeSidebar = ({ sortMode, onSortChange, categoryFilter, onCategoryChange, mobileOpen = false }) => {
   const navigate = useNavigate();
   const userId = localStorage.getItem('userId');
   const username = localStorage.getItem('username');
@@ -44,7 +44,7 @@ const HomeSidebar = ({ sortMode, onSortChange, categoryFilter, onCategoryChange 
     : userId ? `/users/${userId}` : null;
 
   return (
-    <aside className="home-sidebar">
+    <aside className={`home-sidebar${mobileOpen ? ' home-sidebar--mobile-open' : ''}`}>
       <div className="home-sidebar__brand" onClick={() => navigate('/home')}>
         Matchup Hub
       </div>

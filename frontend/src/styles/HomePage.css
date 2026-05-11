@@ -811,14 +811,79 @@
   }
 }
 
-@media (max-width: 768px) {
-  .home-sidebar {
-    display: none;
-  }
+/* ============================================================
+   Mobile sidebar drawer + hamburger
+   ============================================================
+   Below 768px the sidebar moves off-canvas (translateX(-100%)) and
+   becomes a slide-in drawer triggered by the hamburger button in the
+   topbar. A scrim covers the rest of the viewport while open so
+   outside-tap dismisses cleanly. Above 768px both the hamburger and
+   the scrim collapse to display: none so the desktop layout is
+   untouched. */
+.home-sidebar-scrim { display: none; }
+.home-topbar__menu { display: none; }
 
+@media (max-width: 768px) {
+  /* Off-canvas via `left` rather than `transform`. The transform
+     approach (translateX(-100%) → 0) consistently got stuck mid-
+     transition during dev verification — the cascade resolved
+     correctly but the computed value held the old number, leaving
+     the drawer off-screen. Animating `left` snaps cleanly and
+     sidesteps whatever transition interpolation bug was at play. */
+  .home-sidebar {
+    position: fixed;
+    top: 0;
+    left: -100%;
+    z-index: 60;
+    width: min(80vw, 320px);
+    transition: left 220ms ease-out;
+    box-shadow: 0 30px 65px rgba(5, 10, 24, 0.55);
+  }
+  .home-sidebar.home-sidebar--mobile-open {
+    left: 0;
+  }
+  .home-sidebar-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 10, 24, 0.55);
+    backdrop-filter: blur(2px);
+    z-index: 55;
+  }
+  .home-topbar__menu {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--border-input);
+    border-radius: 10px;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font-size: 1.2rem;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .home-topbar__menu:hover,
+  .home-topbar__menu:focus-visible {
+    border-color: var(--accent-primary);
+    outline: none;
+  }
   .home-main {
     padding: 1rem 1rem 3rem;
   }
+
+  /* Search needs to take the remaining row width once the create
+     buttons drop to a stacked row below. Without min-width: 0 the
+     input keeps its intrinsic width and forces a horizontal scroll. */
+  .home-search {
+    flex: 1 1 100%;
+    min-width: 0;
+    order: 1;
+  }
+  .home-topbar__menu { order: 0; }
+  .home-topbar__actions { order: 2; }
+  .home-create-btn { order: 3; flex: 1 1 calc(50% - 0.4rem); }
 }
 
 @media (max-width: 520px) {
