@@ -441,58 +441,88 @@ export default function BracketPage() {
           )}
         </motion.section>
 
-        <motion.section className="bracket-action-bar" {...sectionMotion}>
-          <div className="bracket-action-group">
-            {viewerId ? (
+        {/* Action bar: split into two regions so public engagement
+            actions (Like, Share) sit visually + structurally apart
+            from owner-only management actions (Advance, Delete). The
+            previous three-group flex pill placed gradient-Delete next
+            to gradient-Advance with equal weight — a misclick hazard.
+            Delete is demoted to a ghost outline; Advance/Activate
+            stays the primary, right-anchored CTA. Tab order is Like
+            → Share → Delete → Advance, so keyboard users hit the
+            destructive action BEFORE the primary one (forces a
+            deliberate tab to advance, makes "I meant to delete"
+            harder to mis-press). */}
+        <motion.section
+          className="bracket-action-bar"
+          aria-label="Bracket actions"
+          {...sectionMotion}
+        >
+          <div className="bracket-action-bar__engagement">
+            {viewerId && (
               <button
                 type="button"
                 className={`bracket-like-button ${isLiked ? "is-liked" : ""}`}
+                aria-pressed={isLiked}
+                aria-label={isLiked
+                  ? `Unlike (${likesCount} likes)`
+                  : `Like (${likesCount} likes)`}
                 onClick={handleLikeToggle}
                 disabled={likePending}
               >
-                {likePending ? "Updating…" : isLiked ? "Liked" : "Like"}
+                <span aria-hidden="true" className="bracket-like-button__icon">
+                  {isLiked ? "♥" : "♡"}
+                </span>
+                <span className="bracket-like-button__label">
+                  {likePending ? "Updating…" : isLiked ? "Liked" : "Like"}
+                </span>
+                <span className="bracket-like-button__count">· {likesCount}</span>
               </button>
-            ) : null}
-            <div className="bracket-like-indicator">
-              <span className="bracket-like-count">{likesCount}</span>
-              <span>Likes</span>
-            </div>
+            )}
+            {!viewerId && (
+              <span className="bracket-like-indicator" aria-label={`${likesCount} likes`}>
+                <span className="bracket-like-count">{likesCount}</span>
+                <span>Likes</span>
+              </span>
+            )}
             <ShareButton item={bracket} type="bracket" />
             {/* Report button removed at user request — backend handler
                 + ReportModal mount remain so re-enabling is one-line. */}
           </div>
 
-          <div className="bracket-action-group bracket-action-group--center">
-            {canEdit && bracket.status === "draft" && (
-              <Button onClick={handleActivate} className="bracket-button">
-                Activate bracket
-              </Button>
-            )}
-
-            {canEdit && bracket.status === "active" && (
-              <Button onClick={handleAdvance} className="bracket-button">
-                Advance to next round
-              </Button>
-            )}
-
-            {!canEdit && (
-              <span className="bracket-action-hint">
-                Votes happening now · follow the winners below
-              </span>
-            )}
-          </div>
-
-          <div className="bracket-action-group bracket-action-group--right">
-            {canEdit && (
-              <Button
+          {/* Owner region — fully absent from the DOM for non-owners
+              (intentional per spec: not a display:none hide, so screen
+              readers and keyboard users don't tab to controls they
+              can't use). */}
+          {canEdit && (
+            <div className="bracket-action-bar__owner">
+              <button
+                type="button"
                 onClick={() => setDeleteModalOpen(true)}
                 disabled={isDeleting}
-                className="bracket-button bracket-button--danger"
+                className="bracket-button bracket-button--danger bracket-button--ghost"
               >
                 {isDeleting ? "Deleting…" : "Delete"}
-              </Button>
-            )}
-          </div>
+              </button>
+              {bracket.status === "draft" && (
+                <button
+                  type="button"
+                  onClick={handleActivate}
+                  className="bracket-button bracket-button--primary"
+                >
+                  Activate bracket
+                </button>
+              )}
+              {bracket.status === "active" && (
+                <button
+                  type="button"
+                  onClick={handleAdvance}
+                  className="bracket-button bracket-button--primary"
+                >
+                  Advance to next round
+                </button>
+              )}
+            </div>
+          )}
 
           {deleteModalOpen && (
             <div className="edit-profile-overlay" onClick={() => setDeleteModalOpen(false)}>
