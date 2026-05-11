@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"Matchup/auth"
-	"Matchup/cache"
 	appdb "Matchup/db"
 	authv1 "Matchup/gen/auth/v1"
 	"Matchup/gen/auth/v1/authv1connect"
@@ -192,14 +191,19 @@ func (h *AuthHandler) ForgotPassword(ctx context.Context, req *connect.Request[a
 	}
 
 	// Hand the actual SendGrid call off to the worker. If Redis is
-	// unavailable (e.g. local dev without `cache` configured), fall
-	// back to the synchronous path so password resets still work.
+	// unavailable (e.g. local dev without `cache` configured) or the
+	// operator has explicitly disabled the queue path via
+	// EMAIL_QUEUE_DISABLED (single-service deploys with no worker),
+	// fall back to the synchronous path so password resets still work.
+	// Sharing shouldUseEmailQueue with the verify-email path keeps
+	// both senders consistent — without it, enabling/disabling the
+	// queue for one had to be done in two places and inevitably drifted.
 	payload, marshalErr := json.Marshal(handlers.EmailJob{
 		Kind:  handlers.EmailKindResetPassword,
 		To:    resetDetails.Email,
 		Token: resetDetails.Token,
 	})
-	if marshalErr == nil && cache.Client != nil {
+	if marshalErr == nil && shouldUseEmailQueue() {
 		if err := jobs.Enqueue(ctx, handlers.EmailQueue, payload); err == nil {
 			return connect.NewResponse(&authv1.ForgotPasswordResponse{Message: neutralMessage}), nil
 		} else {

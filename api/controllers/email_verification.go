@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	authv1 "Matchup/gen/auth/v1"
@@ -153,7 +154,18 @@ func dispatchVerifyEmail(ctx context.Context, toEmail, token string) {
 // (production deploy with a worker draining the email queue). Local
 // dev gets the inline path so signup verification works without
 // running a separate cmd/worker process.
+//
+// EMAIL_QUEUE_DISABLED is an explicit opt-out for single-service
+// deployments where Redis is connected (so cache.Client != nil) but
+// no cmd/worker is running to drain the queue — Render and Fly
+// without a separate worker process are the common cases. Set this
+// to "true" in those environments to force the inline-send fallback,
+// otherwise enqueued emails sit in Redis forever and the user wonders
+// why no email arrived.
 func shouldUseEmailQueue() bool {
+	if strings.EqualFold(os.Getenv("EMAIL_QUEUE_DISABLED"), "true") {
+		return false
+	}
 	if cache.Client == nil {
 		return false
 	}
