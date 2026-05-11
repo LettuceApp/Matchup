@@ -110,7 +110,13 @@ const ProfilePic = ({ userId, editable = false, size = 80 }) => {
   const src    = getSrc(avatarKey);
 
   return (
-    <div style={{ display: 'inline-block', textAlign: 'center' }}>
+    // The container is sized to the avatar exactly — width: sizePx —
+    // so when an upload error renders below the image, the wrapper
+    // doesn't expand horizontally and squeeze the surrounding grid
+    // column (which used to compress the profile hero's title/bio
+    // into a one-word-per-line sliver). Error text wraps inside the
+    // narrow column instead.
+    <div style={{ display: 'inline-block', width: sizePx, textAlign: 'center' }}>
       {editable && (
         <input
           ref={inputRef}
@@ -148,7 +154,19 @@ const ProfilePic = ({ userId, editable = false, size = 80 }) => {
           <span style={{ fontSize: size / 5, color: '#666' }}>Profile</span>
         )}
       </div>
-      {error && <p style={{ color: 'red', marginTop: 4 }}>{error}</p>}
+      {error && (
+        <p
+          style={{
+            color: 'red',
+            marginTop: 6,
+            fontSize: '0.8rem',
+            lineHeight: 1.3,
+            wordBreak: 'break-word',
+          }}
+        >
+          {error}
+        </p>
+      )}
     </div>
   );
 };

@@ -351,12 +351,14 @@ async function uploadViaPresign(kind, file) {
   } catch (netErr) {
     // fetch only rejects on network-level failures: DNS, TLS, CORS
     // preflight blocked, server unreachable. CORS is the most
-    // common in local dev when the bucket policy doesn't include
-    // localhost:3000 — the browser cancels the request before the
-    // server sees it. Surface a specific message so the user (and
-    // the catch in ProfilePic) can act on it.
-    console.error('S3 PUT network error', { upload_url, message: netErr?.message, file_type: file.type, file_size: file.size });
-    throw new Error(`S3 upload blocked by browser (likely CORS). Add http://localhost:3000 to the bucket's CORS allowlist. Underlying: ${netErr?.message || 'network error'}`);
+    // common — the bucket policy needs to list the page's origin,
+    // otherwise the browser cancels the request before the server
+    // sees it. Surface the *actual* origin so the user knows what
+    // to allow-list (the message used to hardcode localhost:3000,
+    // which was wrong everywhere except local dev).
+    const origin = (typeof window !== 'undefined' && window.location?.origin) || '<unknown origin>';
+    console.error('S3 PUT network error', { upload_url, origin, message: netErr?.message, file_type: file.type, file_size: file.size });
+    throw new Error(`S3 upload blocked by browser (likely CORS). Add ${origin} to the bucket's CORS allowlist. Underlying: ${netErr?.message || 'network error'}`);
   }
   if (!putRes.ok) {
     let body = '';
