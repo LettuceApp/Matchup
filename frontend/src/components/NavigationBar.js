@@ -110,6 +110,31 @@ const NavigationBar = () => {
                   </button>
                   {avatarMenuOpen && (
                     <div className="navigation-bar__profile-panel" role="menu">
+                      {/* Mobile-only Home + Admin entries. The standalone
+                          Home / Admin buttons in the top row are hidden
+                          on small screens (CSS) so the action cluster
+                          stays at [bell] [avatar] only — these dropdown
+                          items keep both routes reachable. Desktop sees
+                          the same items here, which is mildly redundant
+                          but harmless. */}
+                      <button
+                        type="button"
+                        className="navigation-bar__profile-item navigation-bar__profile-item--mobile"
+                        role="menuitem"
+                        onClick={goAndClose('/home')}
+                      >
+                        Home
+                      </button>
+                      {localStorage.getItem('isAdmin') === 'true' && (
+                        <button
+                          type="button"
+                          className="navigation-bar__profile-item navigation-bar__profile-item--mobile"
+                          role="menuitem"
+                          onClick={goAndClose('/admin')}
+                        >
+                          Admin
+                        </button>
+                      )}
                       {profileSlug && !onOwnProfile && (
                         <button
                           type="button"
