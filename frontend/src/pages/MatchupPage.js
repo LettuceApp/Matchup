@@ -647,8 +647,14 @@ const MatchupPage = () => {
           await overrideMatchupWinner(matchup.id, winnerId);
           await refreshMatchup();
         } catch (err) {
-          console.error(err);
-          setError("Failed to select winner.");
+          console.error('overrideMatchupWinner failed', err);
+          const serverMsg =
+            err?.response?.data?.message ||
+            err?.response?.data?.error ||
+            err?.message;
+          setError(serverMsg
+            ? `Failed to select winner: ${serverMsg}`
+            : "Failed to select winner.");
         }
       },
     });
@@ -678,8 +684,21 @@ const MatchupPage = () => {
           await completeMatchup(matchup.id);
           await refreshMatchup();
         } catch (err) {
-          console.error(err);
-          setError("Could not update matchup readiness.");
+          // Surface the actual server error rather than a generic
+          // fallback. Owners reported "Ready up does nothing" on prod
+          // because the backend was returning "matchup is tied" but
+          // the UI hid that behind "Could not update matchup readiness."
+          // — they had no clue what to do. Connect-RPC error messages
+          // arrive as either err.response.data.message (HTTP body) or
+          // err.message (after Connect wraps it). Prefer the first.
+          console.error('completeMatchup failed', err);
+          const serverMsg =
+            err?.response?.data?.message ||
+            err?.response?.data?.error ||
+            err?.message;
+          setError(serverMsg
+            ? `Could not update matchup readiness: ${serverMsg}`
+            : "Could not update matchup readiness.");
         } finally {
           setReadyPending(false);
         }
@@ -699,8 +718,14 @@ const MatchupPage = () => {
           await activateMatchup(matchup.id);
           await refreshMatchup();
         } catch (err) {
-          console.error(err);
-          setError("Unable to activate matchup.");
+          console.error('activateMatchup failed', err);
+          const serverMsg =
+            err?.response?.data?.message ||
+            err?.response?.data?.error ||
+            err?.message;
+          setError(serverMsg
+            ? `Unable to activate matchup: ${serverMsg}`
+            : "Unable to activate matchup.");
         } finally {
           setActivatePending(false);
         }
