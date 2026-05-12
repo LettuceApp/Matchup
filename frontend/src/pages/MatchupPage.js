@@ -307,8 +307,6 @@ const MatchupPage = () => {
     matchup.author_id.length > 0 &&
     currentUser.id === matchup.author_id;
 
-  const isAdmin = currentUser?.is_admin === true;
-
   // Dev-only telemetry: when the viewer is identified but the matchup
   // response lacks an author_id, log it once per mount so the next QA
   // repro of the owner-leak bug surfaces a concrete network trace.
@@ -339,7 +337,14 @@ const MatchupPage = () => {
           Number(matchupRound) !==
             Number(bracket?.current_round ?? bracket?.currentRound))));
   const isReady = matchupStatus === "completed";
-  const canReadyUp = (isOwner || isAdmin) && (isOpenStatus || isReady);
+  // Strict owner-only — admins do NOT see Ready up on someone else's
+  // matchup. Per UX call: owner controls are part of the author's
+  // experience, not a generic moderator surface. Admin moderation,
+  // if ever needed, belongs in a dedicated admin view, not inline on
+  // the public matchup page. Backend authorization is the defensive
+  // backstop; this gate keeps the chrome itself off-screen so a
+  // non-owner viewer never sees a button they aren't supposed to use.
+  const canReadyUp = isOwner && (isOpenStatus || isReady);
   const canLike = Boolean(viewerId) && matchupStatus !== "draft";
   const canComment = Boolean(viewerId) && matchupStatus !== "draft";
   const winnerMenuRef = useRef(null);
@@ -389,9 +394,11 @@ const MatchupPage = () => {
     refreshMatchup,
   ]);
 
+  // Strict owner-only — see canReadyUp note. Admins no longer see
+  // Override winner on someone else's bracket matchup.
   const canOverrideWinner =
     isBracketMatchup &&
-    (isOwner || isAdmin) &&
+    isOwner &&
     bracket?.status === "active" &&
     isActiveBracketRound;
 
