@@ -21,6 +21,7 @@ import { RequireAuth, RedirectIfAuth, RequireAdmin } from './auth/guards';
 import { useAuthBootstrap } from './auth/useAuthBootstrap';
 import PageTransition from './components/PageTransition';
 import EmailVerificationBanner from './components/EmailVerificationBanner';
+import ScrollToTop from './components/ScrollToTop';
 import NavigationBar from './components/NavigationBar';
 import { AnonUpgradeProvider } from './contexts/AnonUpgradeContext';
 import { Sentry } from './sentry';
@@ -107,6 +108,13 @@ const AppRoutes = () => {
 
   return (
     <>
+      {/* Hybrid scroll-restore: resets to top on forward navigation,
+          leaves browser back/forward scroll alone so users land where
+          they left off when hitting Back. See components/ScrollToTop.js
+          for the full rationale. Mounts here (outside AnimatePresence)
+          so its useEffect deps tick on every route change instead of
+          remounting fresh each time. */}
+      <ScrollToTop />
       {/* Email-verification nudge for signed-in, unverified users.
           Lives OUTSIDE AnimatePresence so it persists across route
           transitions instead of fading in/out with each page (which is
