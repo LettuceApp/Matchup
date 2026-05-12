@@ -40,6 +40,8 @@ const BlocksAndMutes = lazy(() => import('./pages/BlocksAndMutes'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'));
+const CreateCommunity = lazy(() => import('./pages/CreateCommunity'));
+const CommunityPage = lazy(() => import('./pages/CommunityPage'));
 
 // Tiny inline fallback shown while a lazy chunk is downloading. Kept inline
 // rather than importing a heavyweight spinner so the fallback itself never
@@ -262,6 +264,28 @@ const AppRoutes = () => {
           element={
             <PageTransition>
               <BracketPage />
+            </PageTransition>
+          }
+        />
+
+        {/* Communities — Phase 1b. /communities/new requires auth;
+            /c/:slug is public (anon viewers see the page, but can't
+            join + can't vote in scoped matchups). */}
+        <Route
+          path="/communities/new"
+          element={
+            <RequireAuth>
+              <PageTransition>
+                <CreateCommunity />
+              </PageTransition>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/c/:slug"
+          element={
+            <PageTransition>
+              <CommunityPage />
             </PageTransition>
           }
         />
