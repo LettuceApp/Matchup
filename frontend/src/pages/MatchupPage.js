@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { FiHeart, FiMessageCircle } from "react-icons/fi";
-import NavigationBar from "../components/NavigationBar";
 import MatchupItem from "../components/MatchupItem";
 import AnonVoteCounter from "../components/AnonVoteCounter";
 import { useAnonVoteStatus } from "../hooks/useAnonVoteStatus";
@@ -204,15 +203,25 @@ const MatchupPage = () => {
   }, [matchup?.title]);
 
   useEffect(() => {
+    // Guard against stale state: a fast route change away from the
+    // page (or a re-mount mid-fetch) shouldn't apply this fetch's
+    // result to the now-different page. Without the cancelled flag,
+    // a slow getCurrentUser response could set the viewer state
+    // AFTER the page navigated, contaminating the owner gate on the
+    // next mount.
+    let cancelled = false;
     async function loadMe() {
       try {
         const res = await getCurrentUser();
+        if (cancelled) return;
         setCurrentUser(res.data?.user ?? res.data?.response ?? res.data);
       } catch (err) {
+        if (cancelled) return;
         console.warn("Unable to load current user", err);
       }
     }
     loadMe();
+    return () => { cancelled = true; };
   }, []);
 
   /* ------------------------------------------------------------------ */
@@ -283,9 +292,37 @@ const MatchupPage = () => {
   /* PERMISSIONS + LOCKS */
   /* ------------------------------------------------------------------ */
 
-  const isOwner = currentUser?.id && matchup?.author_id && currentUser.id === matchup.author_id;
+  // Strict-string equality on both sides. Earlier truthy-and-equality
+  // could in theory short-circuit through coercion edge cases (e.g.,
+  // both sides numeric 0, or both undefined after a fast route change
+  // with stale state). Owners reported seeing their Owner tray on
+  // someone else's matchup; the hypothesis is one of (a) stale
+  // currentUser from a prior viewer, (b) a matchup payload missing
+  // author_id. The stricter check below makes both impossible: both
+  // sides must be non-empty strings AND match.
+  const isOwner =
+    typeof currentUser?.id === 'string' &&
+    currentUser.id.length > 0 &&
+    typeof matchup?.author_id === 'string' &&
+    matchup.author_id.length > 0 &&
+    currentUser.id === matchup.author_id;
 
   const isAdmin = currentUser?.is_admin === true;
+
+  // Dev-only telemetry: when the viewer is identified but the matchup
+  // response lacks an author_id, log it once per mount so the next QA
+  // repro of the owner-leak bug surfaces a concrete network trace.
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return;
+    if (!matchup) return;
+    if (currentUser?.id && !matchup.author_id) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[MatchupPage] author_id missing on matchup response — owner gate may misbehave',
+        { matchupId: matchup.id, viewer: currentUser.id },
+      );
+    }
+  }, [matchup, currentUser?.id]);
 
   const isActiveBracketRound =
     isBracketMatchup &&
@@ -745,8 +782,7 @@ const MatchupPage = () => {
   if (isLoading) {
     return (
       <div className="matchup-page">
-        <NavigationBar />
-        <main className="matchup-content">
+          <main className="matchup-content">
           <div className="matchup-skeleton-grid">
             <SkeletonCard lines={3} />
             <SkeletonCard lines={2} />
@@ -759,8 +795,7 @@ const MatchupPage = () => {
   if (!matchup) {
     return (
       <div className="matchup-page">
-        <NavigationBar />
-        <main className="matchup-content">
+          <main className="matchup-content">
           <div className="matchup-status-card matchup-status-card--error">
             Matchup not found.
           </div>
@@ -777,7 +812,6 @@ const MatchupPage = () => {
 
   return (
     <div className="matchup-page">
-      <NavigationBar />
       <main className="matchup-content">
         {error && (
           <div className="matchup-status-card matchup-status-card--error">

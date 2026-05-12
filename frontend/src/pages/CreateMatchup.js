@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { FiChevronDown } from "react-icons/fi";
-import NavigationBar from "../components/NavigationBar";
 import Button from "../components/Button";
 import ConfirmModal from "../components/ConfirmModal";
 import { createMatchup } from "../services/api";
@@ -263,7 +262,6 @@ const CreateMatchup = () => {
   // radial wash that blocked light mode entirely.
   return (
     <div className="min-h-screen text-slate-900 dark:text-slate-100">
-      <NavigationBar />
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 pb-16 pt-24">
         <motion.section
           className="relative overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/60 px-6 py-8 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_24px_48px_rgba(15,23,42,0.08)] sm:px-10"

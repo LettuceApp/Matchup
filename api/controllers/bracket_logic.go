@@ -267,12 +267,23 @@ func (s *Server) advanceBracketInternal(db *sqlx.DB, bracket *models.Bracket) (b
 
 	nextMatchups := rounds[nextRound]
 
-	// If on a timer and the round has expired, auto-determine winners.
+	// Auto-finalize unfinished current-round matchups. Two triggers:
+	//   1. Timer mode + the round end-time has passed (existing behavior).
+	//   2. Manual mode at all (NEW). Owners reported that clicking Advance
+	//      with decisive 1-0 matchups did nothing — the silent-fail was
+	//      because manual mode previously required the owner to Ready up
+	//      each matchup individually, then click Advance. Click Advance
+	//      now auto-picks winners by votes so the owner's mental model
+	//      ("decide the round and move on") matches behavior. Genuine ties
+	//      still fail via determineMatchupWinnerByVotesOrSeed's tie error,
+	//      which the frontend surfaces as a toast pointing at Override.
 	roundExpired := bracket.AdvanceMode == "timer" &&
 		bracket.RoundEndsAt != nil &&
 		!time.Now().Before(*bracket.RoundEndsAt)
+	isManualMode := bracket.AdvanceMode == "manual"
+	shouldAutoFinalize := roundExpired || isManualMode
 
-	if roundExpired {
+	if shouldAutoFinalize {
 		now := time.Now()
 		for i := range currentMatchups {
 			m := &currentMatchups[i]
@@ -281,6 +292,13 @@ func (s *Server) advanceBracketInternal(db *sqlx.DB, bracket *models.Bracket) (b
 			}
 			winnerID, err := determineMatchupWinnerByVotesOrSeed(m)
 			if err != nil {
+				// In manual mode rewrap the tie error with copy that
+				// points at Override winner — the only path out of a
+				// genuine tie. Timer mode keeps its original error
+				// shape so the scheduler's logging stays consistent.
+				if isManualMode {
+					return false, fmt.Errorf("matchup %d tied — pick a winner via Override before advancing", m.ID)
+				}
 				return false, err
 			}
 			if _, err := tx.ExecContext(ctx,

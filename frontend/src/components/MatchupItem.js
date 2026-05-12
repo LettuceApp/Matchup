@@ -167,7 +167,12 @@ const MatchupItem = ({
       ) : (
         <span
           className="matchup-text"
-          onClick={computedCanEdit ? () => setIsEditing(true) : undefined}
+          // stopPropagation: the parent <div> also has onClick={handleVote},
+          // so without it a click on the editable label fired BOTH edit
+          // mode AND a vote. Defensive even when computedCanEdit is false
+          // — keeps the vote/edit semantics from ever overlapping if the
+          // permissions gate is later relaxed.
+          onClick={computedCanEdit ? (e) => { e.stopPropagation(); setIsEditing(true); } : undefined}
           role={computedCanEdit ? 'button' : undefined}
           tabIndex={computedCanEdit ? 0 : undefined}
           onKeyDown={
@@ -175,6 +180,7 @@ const MatchupItem = ({
               ? (e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
+                    e.stopPropagation();
                     setIsEditing(true);
                   }
                 }
@@ -209,7 +215,7 @@ const MatchupItem = ({
         </div>
       )}
 
-      {showVoteBar && !votingDisabled && (
+      {showVoteBar && !votingDisabled && !isVoted && (
         <span className="matchup-vote-hint">Tap to vote</span>
       )}
 

@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import NavigationBar from '../components/NavigationBar';
 import {
   deleteMyAccount,
   getCurrentUser,
@@ -111,7 +110,6 @@ const AccountSettings = () => {
 
   return (
     <>
-      <NavigationBar />
       <div className="account-settings">
         <div className="account-settings__content">
           <h1>Account settings</h1>

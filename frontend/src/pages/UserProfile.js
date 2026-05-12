@@ -28,7 +28,6 @@ import {
   getBracket,
 } from '../services/api';
 
-import NavigationBar from '../components/NavigationBar';
 import ProfilePic from '../components/ProfilePic';
 import Button from '../components/Button';
 import FollowListModal from '../components/FollowListModal';
@@ -820,8 +819,6 @@ const UserProfile = () => {
 
   return (
     <div className="profile-page">
-      <NavigationBar />
-
       <main className="profile-content">
         {loading && (
           <div className="profile-status-card">Loading profile...</div>

@@ -21,6 +21,7 @@ import { RequireAuth, RedirectIfAuth, RequireAdmin } from './auth/guards';
 import { useAuthBootstrap } from './auth/useAuthBootstrap';
 import PageTransition from './components/PageTransition';
 import EmailVerificationBanner from './components/EmailVerificationBanner';
+import NavigationBar from './components/NavigationBar';
 import { AnonUpgradeProvider } from './contexts/AnonUpgradeContext';
 import { Sentry } from './sentry';
 
@@ -80,6 +81,30 @@ const AppRoutes = () => {
     // time after a push-click landing.
   }, [location.pathname, location.search, location.hash]);
 
+  // Routes where NavigationBar is NOT rendered at the app level:
+  //   • `/` and `/home` mount their own dedicated chrome (`.home-topbar`
+  //     with hamburger drawer + search + create buttons).
+  //   • Auth flows (login / register / forgot-password / reset-password /
+  //     verify-email) intentionally render bare so the form is the focus.
+  // Every other route gets the global NavigationBar mounted ABOVE
+  // <AnimatePresence>, which is critical: PageTransition wraps each route
+  // in a `motion.div` with `y: 12 → 0` — that transform creates a
+  // containing block, breaking `position: sticky` on descendants. Hoisting
+  // the header out of the transformed subtree fixes the "header detaches
+  // on scroll, paints blank rectangle" bug AND simultaneously fixes the
+  // off-screen ConfirmModal + invisible bracket-toast issues, which share
+  // the same root cause (position:fixed also resolves against transformed
+  // ancestors).
+  const path = location.pathname;
+  const hideNavigationBar =
+    path === '/' ||
+    path === '/home' ||
+    path === '/login' ||
+    path === '/register' ||
+    path === '/forgot-password' ||
+    path.startsWith('/reset-password') ||
+    path.startsWith('/verify-email');
+
   return (
     <>
       {/* Email-verification nudge for signed-in, unverified users.
@@ -90,6 +115,7 @@ const AppRoutes = () => {
           two un-keyed siblings in there). The component self-gates when
           there's no user or the user's already verified. */}
       <EmailVerificationBanner />
+      {!hideNavigationBar && <NavigationBar />}
       <AnimatePresence mode="wait">
         <Suspense key={location.pathname} fallback={<RouteFallback />}>
         <Routes location={location}>

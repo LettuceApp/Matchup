@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import NavigationBar from "../components/NavigationBar";
 import ConfirmModal from "../components/ConfirmModal";
 import Button from "../components/Button";
 import BracketView from "../components/BracketView";
@@ -251,8 +250,7 @@ export default function BracketPage() {
   if (loading) {
     return (
       <div className="bracket-page">
-        <NavigationBar />
-        <main className="bracket-content">
+          <main className="bracket-content">
           <div className="bracket-skeleton-grid">
             <SkeletonCard lines={3} />
             <SkeletonCard lines={2} />
@@ -265,8 +263,7 @@ export default function BracketPage() {
   if (!bracket) {
     return (
       <div className="bracket-page">
-        <NavigationBar />
-        <main className="bracket-content">
+          <main className="bracket-content">
           <div className="bracket-status-card bracket-status-card--error">
             {error || "Bracket not found."}
           </div>
@@ -327,7 +324,13 @@ export default function BracketPage() {
       // every owner control the user might want to fix the problem
       // with (Select winner on each open matchup, etc.).
       const msg = err?.response?.data?.message || err?.message || '';
-      if (msg.includes('not completed')) {
+      if (msg.includes('tied')) {
+        // Manual-advance backend now auto-finalizes by votes; a tie only
+        // bubbles up when votes are equal AND no seed labels break it.
+        // Surface the actionable next step (Override winner on the
+        // specific matchup).
+        setActionToast("A matchup is tied. Open it and use Override winner to pick the winner, then try Advance again.");
+      } else if (msg.includes('not completed')) {
         setActionToast("All matches in the current round haven't been completed yet.");
       } else if (msg.includes('already populated')) {
         setActionToast('This round has already been advanced.');
@@ -412,7 +415,6 @@ export default function BracketPage() {
 
   return (
     <div className="bracket-page">
-      <NavigationBar />
 
       {/* Toast for transient action errors (Advance failed, Delete
           failed, etc.). Floats over the page so the underlying bracket
