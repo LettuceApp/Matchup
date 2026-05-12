@@ -10,6 +10,7 @@ import (
 	"Matchup/gen/auth/v1/authv1connect"
 	"Matchup/gen/bracket/v1/bracketv1connect"
 	"Matchup/gen/comment/v1/commentv1connect"
+	"Matchup/gen/community/v1/communityv1connect"
 	"Matchup/gen/home/v1/homev1connect"
 	"Matchup/gen/like/v1/likev1connect"
 	"Matchup/gen/matchup/v1/matchupv1connect"
@@ -53,6 +54,7 @@ func initializeConnectRoutes(r chi.Router, db, readDB *sqlx.DB, s3Client *s3.Cli
 	matchupHandler := &MatchupHandler{DB: db, ReadDB: readDB, S3Client: s3Client}
 	matchupItemHandler := &MatchupItemHandler{DB: db, ReadDB: readDB, S3Client: s3Client}
 	bracketHandler := &BracketHandler{DB: db, ReadDB: readDB}
+	communityHandler := &CommunityHandler{DB: db, ReadDB: readDB}
 	commentHandler := &CommentHandler{DB: db, ReadDB: readDB}
 	likeHandler := &LikeHandler{DB: db, ReadDB: readDB}
 	homeHandler := &HomeHandler{DB: db, ReadDB: readDB}
@@ -102,6 +104,13 @@ func initializeConnectRoutes(r chi.Router, db, readDB *sqlx.DB, s3Client *s3.Cli
 		r.Mount(path, h)
 
 		r.Get("/brackets/{bracketID}/events", bracketHandler.BracketEventsSSE)
+
+		// CommunityService — mixed-auth: anon callers can browse + read
+		// (ListCommunities, GetCommunity, CheckSlugAvailable), authed
+		// callers can create / join / leave / moderate. Per-handler
+		// gates enforce role checks against httpctx.CurrentUserID.
+		path, h = communityv1connect.NewCommunityServiceHandler(communityHandler, snakeCodec)
+		r.Mount(path, h)
 
 		path, h = commentv1connect.NewCommentServiceHandler(commentHandler, snakeCodec)
 		r.Mount(path, h)

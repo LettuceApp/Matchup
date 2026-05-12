@@ -1,0 +1,216 @@
+syntax = "proto3";
+package community.v1;
+option go_package = "Matchup/gen/community/v1;communityv1";
+
+// CommunityService — backend for the v1 Communities feature.
+//
+// Roles in v1 are owner / mod / member / banned. Public communities
+// are the only privacy mode wired up at the API layer for now; the
+// `privacy` field accepts other values in the schema so we don't
+// need a migration to enable restricted/private later.
+//
+// Authorisation is enforced inside each handler against
+// httpctx.CurrentUserID:
+//   - CreateCommunity:        any authed, email-verified user
+//   - UpdateCommunity:        owner only
+//   - DeleteCommunity:        owner only
+//   - JoinCommunity:          any authed user (gated by privacy)
+//   - LeaveCommunity:         the member themselves
+//   - UpdateMemberRole:       owner only (promote/demote mods)
+//   - RemoveMember:           mod or above (kick; not the same as
+//                             ban — kick is reversible by re-joining)
+//   - BanMember:              mod or above
+//   - UnbanMember:            mod or above
+//   - GetCommunity / Get…Slug / List / ListMembers: public
+//   - GetMyMembership:        the caller's own role + membership state
+service CommunityService {
+  rpc CreateCommunity(CreateCommunityRequest) returns (CreateCommunityResponse);
+  rpc GetCommunity(GetCommunityRequest) returns (GetCommunityResponse);
+  rpc GetCommunityBySlug(GetCommunityBySlugRequest) returns (GetCommunityBySlugResponse);
+  rpc UpdateCommunity(UpdateCommunityRequest) returns (UpdateCommunityResponse);
+  rpc DeleteCommunity(DeleteCommunityRequest) returns (DeleteCommunityResponse);
+  rpc ListCommunities(ListCommunitiesRequest) returns (ListCommunitiesResponse);
+  rpc CheckSlugAvailable(CheckSlugAvailableRequest) returns (CheckSlugAvailableResponse);
+
+  rpc JoinCommunity(JoinCommunityRequest) returns (JoinCommunityResponse);
+  rpc LeaveCommunity(LeaveCommunityRequest) returns (LeaveCommunityResponse);
+  rpc ListMembers(ListMembersRequest) returns (ListMembersResponse);
+  rpc GetMyMembership(GetMyMembershipRequest) returns (GetMyMembershipResponse);
+  rpc UpdateMemberRole(UpdateMemberRoleRequest) returns (UpdateMemberRoleResponse);
+  rpc RemoveMember(RemoveMemberRequest) returns (RemoveMemberResponse);
+  rpc BanMember(BanMemberRequest) returns (BanMemberResponse);
+  rpc UnbanMember(UnbanMemberRequest) returns (UnbanMemberResponse);
+
+  rpc ListRules(ListRulesRequest) returns (ListRulesResponse);
+  rpc SetRules(SetRulesRequest) returns (SetRulesResponse);
+}
+
+// CommunityData — full community object returned from most endpoints.
+message CommunityData {
+  string id = 1;                  // public_id
+  string slug = 2;
+  string name = 3;
+  string description = 4;
+  string avatar_path = 5;
+  string banner_path = 6;
+  repeated string tags = 7;
+  string privacy = 8;             // 'public' | 'restricted' | 'private'
+  string owner_id = 9;            // owner's public_id
+  string owner_username = 10;
+  int64 member_count = 11;
+  int64 matchup_count = 12;
+  int64 bracket_count = 13;
+  string created_at = 14;
+  string updated_at = 15;
+  // viewer_role is populated when the request is authenticated. Possible
+  // values: 'owner' | 'mod' | 'member' | 'banned' | '' (not a member).
+  // Lets the frontend decide what UI to render without a second RPC.
+  string viewer_role = 16;
+}
+
+message CommunityMember {
+  string id = 1;            // user's public_id
+  string username = 2;
+  string avatar_path = 3;
+  string role = 4;
+  string joined_at = 5;
+}
+
+message CommunityRule {
+  int64 id = 1;
+  int32 position = 2;
+  string title = 3;
+  string body = 4;
+}
+
+// ---- Request / Response ----
+
+message CreateCommunityRequest {
+  string slug = 1;
+  string name = 2;
+  string description = 3;
+  string avatar_path = 4;
+  string banner_path = 5;
+  repeated string tags = 6;
+  // Accepts 'public' for now; other values rejected at the handler.
+  string privacy = 7;
+}
+message CreateCommunityResponse {
+  CommunityData community = 1;
+}
+
+message GetCommunityRequest { string id = 1; }
+message GetCommunityResponse { CommunityData community = 1; }
+
+message GetCommunityBySlugRequest { string slug = 1; }
+message GetCommunityBySlugResponse { CommunityData community = 1; }
+
+message UpdateCommunityRequest {
+  string id = 1;
+  optional string name = 2;
+  optional string description = 3;
+  optional string avatar_path = 4;
+  optional string banner_path = 5;
+  repeated string tags = 6;
+  // privacy is updatable but v1 only accepts 'public'.
+  optional string privacy = 7;
+}
+message UpdateCommunityResponse {
+  CommunityData community = 1;
+}
+
+message DeleteCommunityRequest { string id = 1; }
+message DeleteCommunityResponse { string message = 1; }
+
+message ListCommunitiesRequest {
+  int32 limit = 1;
+  // Cursor: id of the last community from the previous page. Empty
+  // for first page. Stable ordering: member_count DESC, id DESC.
+  string cursor = 2;
+  // Optional filter: only communities that have this tag.
+  string tag = 3;
+  // Optional fulltext search against name + description.
+  string query = 4;
+}
+message ListCommunitiesResponse {
+  repeated CommunityData communities = 1;
+  string next_cursor = 2;
+}
+
+message CheckSlugAvailableRequest { string slug = 1; }
+message CheckSlugAvailableResponse {
+  bool available = 1;
+  // When false, optional reason: 'taken' | 'reserved' | 'invalid'.
+  string reason = 2;
+  // Optional alternative suggestions when slug is invalid/taken.
+  repeated string suggestions = 3;
+}
+
+message JoinCommunityRequest { string id = 1; }
+message JoinCommunityResponse {
+  CommunityData community = 1;
+  string role = 2;
+}
+
+message LeaveCommunityRequest { string id = 1; }
+message LeaveCommunityResponse { string message = 1; }
+
+message ListMembersRequest {
+  string community_id = 1;
+  int32 limit = 2;
+  string cursor = 3;            // last user public_id from previous page
+  // Optional role filter ('mod', 'owner', 'banned'). Empty = all
+  // non-banned members.
+  string role = 4;
+}
+message ListMembersResponse {
+  repeated CommunityMember members = 1;
+  string next_cursor = 2;
+}
+
+message GetMyMembershipRequest { string community_id = 1; }
+message GetMyMembershipResponse {
+  // Empty role = not a member. Otherwise: 'owner' | 'mod' | 'member'
+  // | 'banned'.
+  string role = 1;
+  string joined_at = 2;
+}
+
+message UpdateMemberRoleRequest {
+  string community_id = 1;
+  string user_id = 2;           // target user's public_id
+  string role = 3;              // 'mod' | 'member' (cannot set 'owner' or 'banned' here)
+}
+message UpdateMemberRoleResponse {
+  CommunityMember member = 1;
+}
+
+message RemoveMemberRequest {
+  string community_id = 1;
+  string user_id = 2;
+}
+message RemoveMemberResponse { string message = 1; }
+
+message BanMemberRequest {
+  string community_id = 1;
+  string user_id = 2;
+  string reason = 3;
+}
+message BanMemberResponse { string message = 1; }
+
+message UnbanMemberRequest {
+  string community_id = 1;
+  string user_id = 2;
+}
+message UnbanMemberResponse { string message = 1; }
+
+message ListRulesRequest { string community_id = 1; }
+message ListRulesResponse { repeated CommunityRule rules = 1; }
+
+message SetRulesRequest {
+  string community_id = 1;
+  // Full replacement of the rule list. Server preserves order by
+  // index in this array.
+  repeated CommunityRule rules = 2;
+}
+message SetRulesResponse { repeated CommunityRule rules = 1; }
