@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import NavigationBar from "../components/NavigationBar";
 import ConfirmModal from "../components/ConfirmModal";
 import Button from "../components/Button";
 import BracketView from "../components/BracketView";
@@ -251,8 +250,7 @@ export default function BracketPage() {
   if (loading) {
     return (
       <div className="bracket-page">
-        <NavigationBar />
-        <main className="bracket-content">
+          <main className="bracket-content">
           <div className="bracket-skeleton-grid">
             <SkeletonCard lines={3} />
             <SkeletonCard lines={2} />
@@ -265,8 +263,7 @@ export default function BracketPage() {
   if (!bracket) {
     return (
       <div className="bracket-page">
-        <NavigationBar />
-        <main className="bracket-content">
+          <main className="bracket-content">
           <div className="bracket-status-card bracket-status-card--error">
             {error || "Bracket not found."}
           </div>
@@ -412,7 +409,6 @@ export default function BracketPage() {
 
   return (
     <div className="bracket-page">
-      <NavigationBar />
 
       {/* Toast for transient action errors (Advance failed, Delete
           failed, etc.). Floats over the page so the underlying bracket

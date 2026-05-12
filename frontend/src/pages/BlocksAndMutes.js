@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import NavigationBar from '../components/NavigationBar';
 import ProfilePic from '../components/ProfilePic';
 import {
   listBlocks,
@@ -135,7 +134,6 @@ const BlocksAndMutes = () => {
 
   return (
     <div className="blocks-page">
-      <NavigationBar />
       <main className="blocks-page__main">
         <header className="blocks-page__header">
           <h1>Blocks &amp; mutes</h1>

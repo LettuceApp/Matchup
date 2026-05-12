@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { FiHeart, FiMessageCircle } from "react-icons/fi";
-import NavigationBar from "../components/NavigationBar";
 import MatchupItem from "../components/MatchupItem";
 import AnonVoteCounter from "../components/AnonVoteCounter";
 import { useAnonVoteStatus } from "../hooks/useAnonVoteStatus";
@@ -745,8 +744,7 @@ const MatchupPage = () => {
   if (isLoading) {
     return (
       <div className="matchup-page">
-        <NavigationBar />
-        <main className="matchup-content">
+          <main className="matchup-content">
           <div className="matchup-skeleton-grid">
             <SkeletonCard lines={3} />
             <SkeletonCard lines={2} />
@@ -759,8 +757,7 @@ const MatchupPage = () => {
   if (!matchup) {
     return (
       <div className="matchup-page">
-        <NavigationBar />
-        <main className="matchup-content">
+          <main className="matchup-content">
           <div className="matchup-status-card matchup-status-card--error">
             Matchup not found.
           </div>
@@ -777,7 +774,6 @@ const MatchupPage = () => {
 
   return (
     <div className="matchup-page">
-      <NavigationBar />
       <main className="matchup-content">
         {error && (
           <div className="matchup-status-card matchup-status-card--error">

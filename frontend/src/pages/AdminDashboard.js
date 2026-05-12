@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import NavigationBar from '../components/NavigationBar';
 import ConfirmModal from '../components/ConfirmModal';
 import AdminReports from '../components/AdminReports';
 import {
@@ -288,7 +287,6 @@ const AdminDashboard = () => {
 
   return (
     <div className="admin-dashboard">
-      <NavigationBar />
       <main className="admin-main">
         <header className="admin-header">
           <div>
