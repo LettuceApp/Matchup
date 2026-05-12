@@ -1027,86 +1027,95 @@ const MatchupPage = () => {
               />
             </div>
           )}
-          {/* Pair-row contender layout. Items are chunked into rows of
-              two; each row is its own 1fr auto 1fr grid with a centered
-              VS divider in the middle slot. Odd-count tail rows (3, 5, 7
-              items) get a single-card row with no VS — full-width via the
-              --single modifier.
+          {/* Contender layout — branches on items.length so each shape
+              gets the right visual grammar:
 
-              Earlier versions tried two simpler shapes and both were
-              wrong:
-                - One flat grid for all children: 4 items + 1 divider =
-                  5 children flowing into a 3-col grid → row 2 wraps with
-                  the right column empty.
-                - Vertical stack for items.length !== 2: the 2x2 layout
-                  is what users expect when they create a 4-way poll;
-                  stacking lost the bracket-style visual.
-              Chunked rows handle 1, 2, 3, 4, 5+ cleanly without any
-              special-cases. Each row mirrors one matchup pairing.
-              On <720px every row collapses to a single column (see
-              MatchupPage.css). */}
-          <div className="matchup-items">
-            {(() => {
-              const pairs = [];
-              for (let i = 0; i < items.length; i += 2) {
-                pairs.push(items.slice(i, i + 2));
-              }
-              return pairs.map((pair, pairIdx) => (
-                <div
-                  key={pairIdx}
-                  className={`matchup-pair-row${
-                    pair.length === 1 ? " matchup-pair-row--single" : ""
-                  }`}
-                >
-                  {pair.map((item, idx) => (
-                    <React.Fragment key={item.id}>
-                      {idx === 1 && (
-                        <div
-                          className="matchup-vs-divider"
-                          aria-hidden="true"
-                        >
-                          VS
-                        </div>
-                      )}
-                      <MatchupItem
-                        item={item}
-                        totalVotes={totalVotes}
-                        showVoteBar
-                        isWinner={displayWinnerId === item.id}
-                        isLeading={
-                          displayWinnerId === null &&
-                          leadingVotes !== null &&
-                          Number(item?.votes ?? item?.Votes ?? 0) === Number(leadingVotes)
-                        }
-                        hasWinner={displayWinnerId !== null}
-                        allowEdit={
-                          isOwner &&
-                          (!isBracketMatchup || bracket?.status === "draft")
-                        }
-                        isVotingLocked={isVotingLocked}
-                        isBracketMatchup={isBracketMatchup}
-                        canOverrideWinner={canOverrideWinner}
-                        disabled={isVotingLocked}
-                        onOverrideWinner={() => handleOverrideWinner(item.id)}
-                        onVote={() => {
-                          setVotedItemId(item.id);
-                          if (!viewerId) {
-                            // Anon successful-vote path — bump the counter
-                            // chip immediately + sync against the server.
-                            anonVoteStatus.bumpOptimistic();
-                            anonVoteStatus.refresh();
-                          }
-                          return refreshMatchup();
-                        }}
-                        isOwner={isOwner}
-                        isVoted={votedItemId === item.id}
-                      />
-                    </React.Fragment>
-                  ))}
-                </div>
-              ));
-            })()}
-          </div>
+              - items.length === 2: classic duel. Two cards flanking
+                a circular "VS" divider in a 1fr auto 1fr row. This
+                is what 99% of matchups look like.
+
+              - items.length >= 3: equal-width responsive grid, no
+                "VS" divider. Earlier we chunked into rows of two,
+                which left the 3rd / 5th / 7th item orphaned in a
+                full-width tail row — visually unbalanced. The grid
+                layout treats every contender equally and the column
+                count adjusts per data-count breakpoint in
+                MatchupPage.css (4 → 4-col, 5-6 → 3-col, 7-8 → 4-col,
+                etc), collapsing to 2-col on tablets and 1-col on
+                phones.
+
+              - items.length === 1: the legacy --single tail row
+                still applies for the edge case where a matchup has
+                only one contender (e.g. mid-edit). No VS, full width.
+
+              data-count on .matchup-items is the styling hook for the
+              column-count rules in CSS. */}
+          {(() => {
+            // Shared MatchupItem props so the three branches don't
+            // duplicate the prop spread.
+            const renderItem = (item) => (
+              <MatchupItem
+                key={item.id}
+                item={item}
+                totalVotes={totalVotes}
+                showVoteBar
+                isWinner={displayWinnerId === item.id}
+                isLeading={
+                  displayWinnerId === null &&
+                  leadingVotes !== null &&
+                  Number(item?.votes ?? item?.Votes ?? 0) === Number(leadingVotes)
+                }
+                hasWinner={displayWinnerId !== null}
+                allowEdit={
+                  isOwner &&
+                  (!isBracketMatchup || bracket?.status === "draft")
+                }
+                isVotingLocked={isVotingLocked}
+                isBracketMatchup={isBracketMatchup}
+                canOverrideWinner={canOverrideWinner}
+                disabled={isVotingLocked}
+                onOverrideWinner={() => handleOverrideWinner(item.id)}
+                onVote={() => {
+                  setVotedItemId(item.id);
+                  if (!viewerId) {
+                    // Anon successful-vote path — bump the counter
+                    // chip immediately + sync against the server.
+                    anonVoteStatus.bumpOptimistic();
+                    anonVoteStatus.refresh();
+                  }
+                  return refreshMatchup();
+                }}
+                isOwner={isOwner}
+                isVoted={votedItemId === item.id}
+              />
+            );
+
+            return (
+              <div className="matchup-items" data-count={items.length}>
+                {items.length === 2 ? (
+                  <div className="matchup-pair-row">
+                    {renderItem(items[0])}
+                    <div className="matchup-vs-divider" aria-hidden="true">
+                      VS
+                    </div>
+                    {renderItem(items[1])}
+                  </div>
+                ) : items.length >= 3 ? (
+                  <div
+                    className="matchup-grid"
+                    role="group"
+                    aria-label="Vote options"
+                  >
+                    {items.map(renderItem)}
+                  </div>
+                ) : items.length === 1 ? (
+                  <div className="matchup-pair-row matchup-pair-row--single">
+                    {renderItem(items[0])}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })()}
 
           {/* Twitter-video stream nav: "← Previous" + "Next matchup →".
               Next walks forward through the in-session history (or
