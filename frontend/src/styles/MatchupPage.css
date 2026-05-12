@@ -283,16 +283,15 @@
    green dot; closed (voting ended) is red; completed is indigo;
    draft is muted gray. role="status" on the JSX so a live state
    transition is announced. */
-/* Pill sits absolutely-positioned over the hero image. Original 12%
-   accent backgrounds let the image bleed through and made the label
-   look "overlapped" on busy artwork. A dark base + backdrop-filter
-   blur gives a consistent dark chip that pops off ANY image (light
-   or dark, busy or flat); the state-specific color stays in the
-   border + text, which is what readers actually scan for. */
+/* Pill now flows ABOVE the hero image as a right-aligned flex item
+   (matchup-hero is display: flex; flex-direction: column). It used to
+   be absolutely-positioned on top of the image and users said the
+   overlap looked wrong on busy hero artwork. Sitting it above the
+   image in its own row removes the overlap entirely while keeping
+   the at-a-glance status cue at the top of the card. The dark chip
+   styling stays in case it ever moves back over imagery elsewhere. */
 .matchup-hero__status {
-  position: absolute;
-  top: 16px;
-  right: 20px;
+  align-self: flex-end;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -308,7 +307,9 @@
   border: 1px solid rgba(148, 163, 184, 0.45);
   color: var(--text-secondary);
   box-shadow: 0 8px 24px rgba(2, 6, 23, 0.35);
-  z-index: 2;
+  /* Tighten the flex gap above the image so the pill doesn't introduce
+     a big blank band between the card top and the image. */
+  margin-bottom: -0.8rem;
 }
 .matchup-hero__status[data-state="active"] {
   border-color: rgba(16, 185, 129, 0.65);
