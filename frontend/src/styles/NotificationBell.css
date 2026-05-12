@@ -149,8 +149,18 @@
     height: 38px;
   }
 
+  /* Panel anchors to .notification-bell, which on the home topbar sits
+     to the LEFT of a 44px ProfilePic avatar trigger plus a 0.5rem gap
+     inside .home-topbar__actions. The bell's wrapper is therefore
+     ~52px in from the topbar's right edge — a literal right: -0.4rem
+     leaves the panel's right side dumped ~60px in from the viewport
+     and pushes its left side ~46px past the viewport's left edge
+     ("Activity" header clipped to "vity"). Negative offset below
+     compensates for avatar + gap so the panel lands flush with the
+     viewport edge on mobile. Width is reduced to 100vw - 1rem so the
+     panel ends up 0.5rem inset from both viewport edges. */
   .notification-bell__panel {
-    right: -0.4rem;
+    right: calc(-44px - 0.5rem - 0.5rem);
     width: calc(100vw - 1rem);
     max-height: calc(100vh - 5rem);
   }
