@@ -235,26 +235,37 @@
   text-align: center;
 }
 
+/* Champion banner — saturated gold so a finished bracket reads as
+   "trophy ceremony" at a glance. Dark text on bright gold for AAA
+   contrast; subtle inner highlight (top-edge inset shadow) sells the
+   metallic feel without leaning into heavy gradients that print badly
+   when the surface is small. */
 .bracket-champion {
   margin-bottom: 24px;
   padding: 20px;
   text-align: center;
-  background: linear-gradient(135deg, var(--bg-surface), var(--bg-page));
+  background: linear-gradient(135deg, #fde047 0%, #f59e0b 55%, #d97706 100%);
+  border: 2px solid #fef3c7;
   border-radius: 14px;
-  box-shadow: 0 0 30px rgba(34, 197, 94, 0.35);
+  box-shadow:
+    0 0 35px rgba(251, 191, 36, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
   animation: pop-in 0.4s ease-out;
 }
 
 .champion-label {
   font-size: 14px;
-  color: #a7f3d0;
+  color: #451a03;
   letter-spacing: 1px;
+  font-weight: 700;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .champion-name {
   font-size: 28px;
   font-weight: 700;
-  color: var(--success-fg);
+  color: #1f2937;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 @keyframes pop-in {
