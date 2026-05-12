@@ -9,6 +9,8 @@ import Comment from "../components/Comment";
 import ShareButton from "../components/ShareButton";
 import ReportModal from "../components/ReportModal";
 import SkeletonCard from "../components/SkeletonCard";
+import ProfilePic from "../components/ProfilePic";
+import { relativeTime } from "../utils/time";
 import {
   getBracketSummary,
   getBracketComments,
@@ -390,48 +392,112 @@ export default function BracketPage() {
     <div className="bracket-page">
       <NavigationBar />
       <main className="bracket-content">
-        <motion.section className="bracket-hero-summary" {...sectionMotion}>
-          {/* Title + description wrapped in .bracket-hero-text so the
-              already-defined CSS rule applies (gap + max-width). The
-              wrapper was missing from the JSX previously, so the
-              bracket-overline / h1 / description sat with mismatched
-              spacing. */}
-          <div className="bracket-hero-text">
-            <p className="bracket-overline">
-              Tournament snapshot
-              {(bracket.author?.username || bracket.author_username) && (
-                <>
-                  {" · by "}
+        {/* Twitter-style hero card. Two-column grid: owner avatar on the
+            left, byline + title + description + meta on the right.
+            Status moves out of the meta row into a small pill anchored
+            top-right (pulses green when active). The previous overline
+            "Tournament snapshot · by @x" is replaced with a stacked
+            display-name + @handle + relative-timestamp block. */}
+        <motion.section
+          className="bracket-hero-summary"
+          aria-label="Bracket overview"
+          {...sectionMotion}
+        >
+          {(() => {
+            const ownerUsername = bracket.author?.username || bracket.author_username;
+            const ownerId = bracket.author?.id || bracket.author_id || bracket.authorId;
+            const displayName = bracket.author?.display_name || ownerUsername;
+            const profileSlug = ownerUsername || ownerId;
+            const state = String(bracket.status || "").toLowerCase();
+            const statusLabel = state ? state.toUpperCase() : "UNKNOWN";
+            const createdAt = bracket.created_at || bracket.createdAt;
+            return (
+              <>
+                {/* Status pill — top-right corner. data-state drives the
+                    color treatment + dot animation via CSS. role="status"
+                    so screen readers announce changes if the bracket
+                    transitions live. */}
+                <span
+                  className="bracket-status-pill"
+                  data-state={state || "unknown"}
+                  role="status"
+                >
+                  <span className="bracket-status-pill__dot" aria-hidden="true" />
+                  <span className="bracket-status-pill__label">{statusLabel}</span>
+                </span>
+
+                {/* Avatar — left column. ProfilePic resolves the S3 path
+                    from the user record; the outer <Link> carries the
+                    accessible name so the inner <img> stays decorative. */}
+                {profileSlug && (
                   <Link
-                    to={`/users/${bracket.author?.username || bracket.author_id}`}
-                    className="bracket-author-link"
+                    to={`/users/${profileSlug}`}
+                    className="bracket-hero-avatar"
+                    aria-label={`${displayName || "Owner"} profile`}
                   >
-                    {bracket.author?.username || bracket.author_username}
+                    {ownerId ? (
+                      <ProfilePic userId={ownerId} size={96} />
+                    ) : (
+                      <span className="bracket-hero-avatar__fallback" aria-hidden="true">
+                        {(displayName || "?").charAt(0).toUpperCase()}
+                      </span>
+                    )}
                   </Link>
-                </>
-              )}
-            </p>
-            <h1>{bracket.title}</h1>
-            <p className="bracket-description">
-              {bracket.description || "No description provided yet."}
-            </p>
-          </div>
+                )}
 
-          <div className="bracket-meta-row">
-            <div>
-              <span className="bracket-meta-label">Status</span>
-              <p className="bracket-status-pill">
-                {(bracket.status || "draft").toUpperCase()}
-              </p>
-            </div>
+                <div className="bracket-hero-text">
+                  <header className="bracket-overline">
+                    {ownerUsername ? (
+                      <Link
+                        to={`/users/${profileSlug}`}
+                        className="bracket-byline-name"
+                      >
+                        {displayName}
+                      </Link>
+                    ) : (
+                      <span className="bracket-byline-name">{displayName || "Unknown"}</span>
+                    )}
+                    <span className="bracket-byline-meta">
+                      {ownerUsername && (
+                        <Link
+                          to={`/users/${profileSlug}`}
+                          className="bracket-byline-handle"
+                        >
+                          @{ownerUsername}
+                        </Link>
+                      )}
+                      {createdAt && (
+                        <>
+                          {ownerUsername && <span aria-hidden="true"> · </span>}
+                          <time
+                            className="bracket-byline-time"
+                            dateTime={createdAt}
+                            title={new Date(createdAt).toLocaleString()}
+                          >
+                            {relativeTime(createdAt)}
+                          </time>
+                        </>
+                      )}
+                    </span>
+                  </header>
 
-            <div>
-              <span className="bracket-meta-label">Current round</span>
-              <p className="bracket-meta-value">
-                {bracket.current_round || 1}
-              </p>
-            </div>
-          </div>
+                  <h1 className="bracket-hero-title">{bracket.title}</h1>
+                  <p className="bracket-description">
+                    {bracket.description || "No description provided yet."}
+                  </p>
+                </div>
+
+                <div className="bracket-meta-row">
+                  <div className="bracket-meta-item">
+                    <span className="bracket-meta-label">Current round</span>
+                    <p className="bracket-meta-value">
+                      {bracket.current_round || 1}
+                    </p>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
 
           {bracket.status === "active" && roundEndsAt && (
             <div className="bracket-round-timer">
@@ -441,58 +507,88 @@ export default function BracketPage() {
           )}
         </motion.section>
 
-        <motion.section className="bracket-action-bar" {...sectionMotion}>
-          <div className="bracket-action-group">
-            {viewerId ? (
+        {/* Action bar: split into two regions so public engagement
+            actions (Like, Share) sit visually + structurally apart
+            from owner-only management actions (Advance, Delete). The
+            previous three-group flex pill placed gradient-Delete next
+            to gradient-Advance with equal weight — a misclick hazard.
+            Delete is demoted to a ghost outline; Advance/Activate
+            stays the primary, right-anchored CTA. Tab order is Like
+            → Share → Delete → Advance, so keyboard users hit the
+            destructive action BEFORE the primary one (forces a
+            deliberate tab to advance, makes "I meant to delete"
+            harder to mis-press). */}
+        <motion.section
+          className="bracket-action-bar"
+          aria-label="Bracket actions"
+          {...sectionMotion}
+        >
+          <div className="bracket-action-bar__engagement">
+            {viewerId && (
               <button
                 type="button"
                 className={`bracket-like-button ${isLiked ? "is-liked" : ""}`}
+                aria-pressed={isLiked}
+                aria-label={isLiked
+                  ? `Unlike (${likesCount} likes)`
+                  : `Like (${likesCount} likes)`}
                 onClick={handleLikeToggle}
                 disabled={likePending}
               >
-                {likePending ? "Updating…" : isLiked ? "Liked" : "Like"}
+                <span aria-hidden="true" className="bracket-like-button__icon">
+                  {isLiked ? "♥" : "♡"}
+                </span>
+                <span className="bracket-like-button__label">
+                  {likePending ? "Updating…" : isLiked ? "Liked" : "Like"}
+                </span>
+                <span className="bracket-like-button__count">· {likesCount}</span>
               </button>
-            ) : null}
-            <div className="bracket-like-indicator">
-              <span className="bracket-like-count">{likesCount}</span>
-              <span>Likes</span>
-            </div>
+            )}
+            {!viewerId && (
+              <span className="bracket-like-indicator" aria-label={`${likesCount} likes`}>
+                <span className="bracket-like-count">{likesCount}</span>
+                <span>Likes</span>
+              </span>
+            )}
             <ShareButton item={bracket} type="bracket" />
             {/* Report button removed at user request — backend handler
                 + ReportModal mount remain so re-enabling is one-line. */}
           </div>
 
-          <div className="bracket-action-group bracket-action-group--center">
-            {canEdit && bracket.status === "draft" && (
-              <Button onClick={handleActivate} className="bracket-button">
-                Activate bracket
-              </Button>
-            )}
-
-            {canEdit && bracket.status === "active" && (
-              <Button onClick={handleAdvance} className="bracket-button">
-                Advance to next round
-              </Button>
-            )}
-
-            {!canEdit && (
-              <span className="bracket-action-hint">
-                Votes happening now · follow the winners below
-              </span>
-            )}
-          </div>
-
-          <div className="bracket-action-group bracket-action-group--right">
-            {canEdit && (
-              <Button
+          {/* Owner region — fully absent from the DOM for non-owners
+              (intentional per spec: not a display:none hide, so screen
+              readers and keyboard users don't tab to controls they
+              can't use). */}
+          {canEdit && (
+            <div className="bracket-action-bar__owner">
+              <button
+                type="button"
                 onClick={() => setDeleteModalOpen(true)}
                 disabled={isDeleting}
-                className="bracket-button bracket-button--danger"
+                className="bracket-button bracket-button--danger bracket-button--ghost"
               >
                 {isDeleting ? "Deleting…" : "Delete"}
-              </Button>
-            )}
-          </div>
+              </button>
+              {bracket.status === "draft" && (
+                <button
+                  type="button"
+                  onClick={handleActivate}
+                  className="bracket-button bracket-button--primary"
+                >
+                  Activate bracket
+                </button>
+              )}
+              {bracket.status === "active" && (
+                <button
+                  type="button"
+                  onClick={handleAdvance}
+                  className="bracket-button bracket-button--primary"
+                >
+                  Advance to next round
+                </button>
+              )}
+            </div>
+          )}
 
           {deleteModalOpen && (
             <div className="edit-profile-overlay" onClick={() => setDeleteModalOpen(false)}>

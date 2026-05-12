@@ -47,59 +47,127 @@
   color: var(--filter-active-fg);
 }
 
+/* ===== Twitter-style hero card =====
+   Two-column grid: owner avatar on the left, byline + title +
+   description on the right. Meta row (Current Round only — Status
+   moved to the top-right pill) spans the text column below. */
 .bracket-hero-summary {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "avatar text"
+    "avatar meta";
+  column-gap: 24px;
+  row-gap: 14px;
+  align-items: start;
+  padding: clamp(1.5rem, 3.5vw, 2rem);
+  border-radius: 24px;
   background: var(--bg-surface);
-  border-radius: 28px;
   border: 1px solid var(--accent-secondary-bg-soft);
   box-shadow: 0 28px 60px rgba(15, 23, 42, 0.45);
-  padding: clamp(2rem, 5vw, 3.2rem);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  position: relative;
-  overflow: hidden;
+  /* Pill anchors via position: absolute against this card. Was hidden
+     by overflow:hidden previously, which clipped the pulse halo. */
+  overflow: visible;
 }
 
-/* Decorative gradient overlay removed for parity with the cleaner
-   card aesthetic on the home page. The hero is a plain surface now. */
-
-.bracket-hero-summary > * {
-  position: relative;
-  z-index: 1;
+.bracket-hero-avatar {
+  grid-area: avatar;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid var(--accent-secondary-border-soft);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  display: block;
+  flex-shrink: 0;
+  background: var(--bg-surface-raised);
+}
+.bracket-hero-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bracket-hero-avatar__fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--text-muted);
 }
 
 .bracket-hero-text {
+  grid-area: text;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  position: relative;
-  z-index: 1;
 }
 
+/* Byline — Twitter-style: display name on line 1 (bold, primary
+   color), then @handle and relative timestamp on line 2 (muted).
+   The .bracket-overline class is reused but the upper-case
+   tracked-eyebrow rule is gone — its previous look (caps + wide
+   letter-spacing) doesn't match the new byline pattern. */
 .bracket-overline {
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  font-weight: 600;
-  font-size: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0 0 6px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 15px;
+  line-height: 1.25;
+}
+.bracket-byline-name {
   color: var(--text-primary);
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 15px;
+}
+.bracket-byline-name:hover,
+.bracket-byline-name:focus-visible {
+  text-decoration: underline;
+  outline: none;
+}
+.bracket-byline-meta {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 14px;
+}
+.bracket-byline-handle,
+.bracket-byline-time {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 14px;
+}
+.bracket-byline-handle:hover,
+.bracket-byline-handle:focus-visible {
+  text-decoration: underline;
+  outline: none;
 }
 
-.bracket-hero-summary h1 {
-  margin: 0;
-  font-size: clamp(2.2rem, 3.8vw, 2.9rem);
-  color: var(--text-primary);
-}
-
+/* Legacy alias kept defined so any stray consumer doesn't break. */
 .bracket-author-link {
   color: var(--text-primary);
   text-decoration: none;
   font-weight: 700;
 }
-
 .bracket-author-link:hover,
 .bracket-author-link:focus-visible {
   text-decoration: underline;
+}
+
+.bracket-hero-title {
+  margin: 4px 0 8px;
+  font-size: clamp(1.8rem, 3.4vw, 2.4rem);
+  line-height: 1.15;
+  color: var(--text-primary);
+}
+
+.bracket-hero-summary h1 {
+  margin: 4px 0 8px;
+  font-size: clamp(1.8rem, 3.4vw, 2.4rem);
+  line-height: 1.15;
+  color: var(--text-primary);
 }
 
 .bracket-description {
@@ -109,14 +177,20 @@
 }
 
 .bracket-meta-row {
+  grid-area: meta;
   display: flex;
-  gap: 2rem;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 24px;
+  padding-top: 12px;
+  margin-top: 8px;
+  border-top: 1px solid var(--accent-secondary-bg-soft);
 }
+
+.bracket-meta-item { min-width: 0; }
 
 .bracket-meta-label {
   display: block;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.14em;
   color: var(--text-muted);
@@ -125,24 +199,59 @@
 
 .bracket-meta-value {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--accent-primary-to);
 }
 
+/* ===== Status pill (top-right of the hero) =====
+   data-state drives the color treatment. "active" shows a pulsating
+   green dot via the keyframes below. All other states get a neutral
+   gray look. role="status" on the JSX makes screen readers
+   announce changes if a live update flips the status. */
 .bracket-status-pill {
-  margin: 0;
+  position: absolute;
+  top: 16px;
+  right: 20px;
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.45rem 1rem;
+  gap: 8px;
+  padding: 6px 12px 6px 10px;
   border-radius: 999px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-surface);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.35);
   color: var(--text-secondary);
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  font-size: 0.85rem;
+  margin: 0;
+  z-index: 2;
+}
+.bracket-status-pill[data-state="active"] {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #6ee7b7;
+}
+.bracket-status-pill__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+.bracket-status-pill[data-state="active"] .bracket-status-pill__dot {
+  background: #10b981;
+  animation: bracketStatusPulse 1.6s ease-out infinite;
+}
+@keyframes bracketStatusPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70%  { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bracket-status-pill[data-state="active"] .bracket-status-pill__dot {
+    animation: none;
+  }
 }
 
 /* Was a 3-column grid which forced each cluster to live in its own
@@ -150,34 +259,44 @@
    cluster widths, the row read as misaligned. Flex with
    justify-content: space-between lets the left cluster anchor to the
    left, right cluster to the right, and the center cluster fills + centers. */
+/* Two-region action bar: public engagement on the left, owner-only
+   management on the right. Replaced the previous three-group (left /
+   center / right) layout, which forced Delete (destructive) and
+   Advance (primary) to share the same visual weight as adjacent
+   pills — a misclick risk per NN/g destructive-action guidance. */
 .bracket-action-bar {
   background: var(--bg-surface);
-  border-radius: 999px;
+  border-radius: 16px;
   border: 1px solid var(--accent-secondary-bg-soft);
-  padding: 1rem 1.5rem;
+  padding: 0.9rem 1.25rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.75rem 1rem;
   flex-wrap: wrap;
 }
 
-.bracket-action-group {
+.bracket-action-bar__engagement {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.bracket-action-bar__owner {
   display: inline-flex;
   align-items: center;
   gap: 0.75rem;
+  margin-left: auto; /* anchors owner toolbar to the right */
   flex-wrap: wrap;
 }
 
-.bracket-action-group--center {
-  flex: 1;
-  justify-content: center;
-  text-align: center;
-}
-
-.bracket-action-group--right {
-  justify-content: flex-end;
-}
+/* Legacy three-group classes — kept defined as no-ops so any stray
+   consumer doesn't 404 on the selector. Remove once a repo-wide grep
+   confirms no remaining usages. */
+.bracket-action-group,
+.bracket-action-group--center,
+.bracket-action-group--right { /* deprecated: replaced by __engagement and __owner */ }
 
 .bracket-action-hint {
   font-size: 0.9rem;
@@ -191,29 +310,48 @@
   flex-wrap: wrap;
 }
 
+/* Like button: outlined low-weight pill, merges icon + label + count
+   into a single control. Replaces the prior split of [Like pill] +
+   [N Likes indicator] which read as two separate UI elements. Rose
+   tones distinguish the engagement action from the indigo owner CTA
+   without recruiting either accent token (rose isn't in the theme;
+   inline values are intentional). */
 .bracket-like-button {
-  padding: 0.75rem 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1rem;
   border-radius: 999px;
-  border: 1px solid var(--accent-secondary-border-soft);
-  background: var(--accent-secondary-bg-soft);
-  color: var(--accent-secondary);
+  border: 1px solid rgba(244, 114, 182, 0.4);
+  background: transparent;
+  color: #f472b6;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 200ms ease, background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+  transition: transform 200ms ease, background-color 200ms ease, border-color 200ms ease, color 200ms ease;
 }
 
 .bracket-like-button:hover,
 .bracket-like-button:focus-visible {
-  transform: translateY(-2px);
-  background: var(--accent-secondary-border-soft);
-  border-color: var(--accent-secondary-border-soft);
-  box-shadow: 0 18px 40px var(--accent-secondary-border-soft);
+  background: rgba(244, 114, 182, 0.10);
+  border-color: rgba(244, 114, 182, 0.6);
+  color: #f9a8d4;
+  outline: none;
 }
 
 .bracket-like-button.is-liked {
-  background: linear-gradient(120deg, #60a5fa, #a855f7);
-  border-color: transparent;
-  color: var(--bg-page);
+  background: rgba(244, 63, 94, 0.16);
+  border-color: rgba(244, 63, 94, 0.6);
+  color: #fb7185;
+}
+
+.bracket-like-button__icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.bracket-like-button__count {
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
 }
 
 .bracket-like-button:disabled {
@@ -336,16 +474,11 @@
   gap: 0.75rem;
 }
 
-.bracket-status-pill {
-  padding: 0.45rem 1.1rem;
-  border-radius: 999px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-surface);
-  color: var(--text-secondary);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
+/* (Legacy meta-row .bracket-status-pill rule removed — the hero
+   redesign moved Status out of the meta row into the top-right
+   absolute-positioned pill. The new rule lives above with the hero
+   styles. Leaving this comment so anyone hunting for a missing rule
+   sees where it went.) */
 
 .bracket-ready-badge {
   padding: 0.6rem 1.3rem;
@@ -480,14 +613,16 @@
 
 @media (max-width: 960px) {
   .bracket-action-bar {
-    grid-template-columns: 1fr;
-    border-radius: 24px;
-    text-align: center;
+    border-radius: 20px;
+    /* Engagement (row 1) anchors left, owner (row 2) anchors right.
+       margin-left:auto on __owner already pushes it right; combined
+       with flex-wrap: wrap on the bar, the two regions naturally
+       stack into two rows here. */
   }
-
-  .bracket-action-group,
-  .bracket-action-group--right {
-    justify-content: center;
+  .bracket-action-bar__owner {
+    margin-left: 0;
+    justify-content: flex-end;
+    flex-basis: 100%;
   }
 }
 
@@ -495,6 +630,20 @@
   .bracket-content {
     padding: 5rem 1.25rem 3rem;
   }
+
+  /* Hero collapses to a single column on phones: avatar above text
+     above meta. The status pill stays absolutely positioned at the
+     top-right corner of the card. */
+  .bracket-hero-summary {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "avatar"
+      "text"
+      "meta";
+    justify-items: start;
+  }
+  .bracket-hero-avatar { width: 72px; height: 72px; }
+  .bracket-status-pill { top: 12px; right: 12px; }
 
   .bracket-button,
   .bracket-button--ghost {
@@ -519,9 +668,66 @@
     justify-content: stretch;
   }
 }
-.bracket-button--danger {
-  background: linear-gradient(135deg, var(--danger-fg), #dc2626);
-  color: #fff1f2;
-  border: 1px solid rgba(248, 113, 113, 0.65);
-  box-shadow: 0 18px 35px rgba(248, 113, 113, 0.35);
+/* Primary owner CTA (Advance / Activate). Indigo→purple gradient
+   anchors the action bar's right side as the visually dominant
+   button. --accent-secondary maps to indigo in both themes; the
+   purple stop is literal because the palette doesn't carry a
+   matching token. */
+.bracket-button.bracket-button--primary {
+  padding: 0.65rem 1.4rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #ffffff;
+  border: 1px solid transparent;
+  background-image: linear-gradient(120deg, var(--accent-secondary), #a855f7);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35);
+  cursor: pointer;
+  transition: transform 150ms ease, box-shadow 150ms ease, filter 150ms ease;
+}
+
+.bracket-button.bracket-button--primary:hover,
+.bracket-button.bracket-button--primary:focus-visible {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  outline: none;
+}
+
+.bracket-button.bracket-button--primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Destructive action — DEMOTED. Was a solid red gradient with shadow,
+   which read with the same visual weight as the primary CTA and put
+   a misclick hazard right next to Advance. Now an outline/ghost pill
+   that still signals "danger" via color but recedes visually so
+   Advance is unambiguously the dominant action. */
+.bracket-button--danger,
+.bracket-button--danger.bracket-button--ghost {
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  background: transparent;
+  background-image: none;
+  color: #fca5a5;
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  box-shadow: none;
+  font-weight: 500;
+  opacity: 0.85;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, opacity 150ms ease;
+}
+
+.bracket-button--danger:hover:not(:disabled),
+.bracket-button--danger:focus-visible:not(:disabled) {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fecaca;
+  opacity: 1;
+  outline: none;
+}
+
+.bracket-button--danger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
