@@ -696,9 +696,37 @@
   gap: 1rem;
 }
 
-/* Single-item row (odd-count tail). Full-width card; no VS. */
+/* Single-item row. Full-width card; no VS. Still used for the
+   degenerate items.length === 1 case (mid-edit, etc). The 3+
+   path uses .matchup-grid instead so no contender ever ends up
+   orphaned on its own row. */
 .matchup-pair-row--single {
   grid-template-columns: 1fr;
+}
+
+/* Equal-width responsive grid for 3+ contenders. Column count
+   adjusts per data-count on the wrapper, then collapses to 2-col
+   on tablets and 1-col on phones via the @media rules below. Cards
+   inside use stretch alignment so a contender with a longer name
+   doesn't shrink relative to its peers. */
+.matchup-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--matchup-cols, 3), minmax(0, 1fr));
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.matchup-items[data-count="4"] .matchup-grid { --matchup-cols: 4; }
+.matchup-items[data-count="5"] .matchup-grid,
+.matchup-items[data-count="6"] .matchup-grid { --matchup-cols: 3; }
+.matchup-items[data-count="7"] .matchup-grid,
+.matchup-items[data-count="8"] .matchup-grid { --matchup-cols: 4; }
+
+@media (max-width: 900px) {
+  .matchup-grid { --matchup-cols: 2 !important; }
+}
+@media (max-width: 600px) {
+  .matchup-grid { --matchup-cols: 1 !important; }
 }
 
 /* Promoted from a small text label (was nearly invisible against the
