@@ -105,6 +105,22 @@ const HomeSidebar = ({ sortMode, onSortChange, categoryFilter, onCategoryChange,
           </button>
         )}
 
+        {/* Communities section — only the entry point in v1. Browse
+            directory + "my communities" land in a later phase, by
+            which point this will grow into a multi-item section. */}
+        {isAuthed && (
+          <>
+            <div className="home-sidebar__section-label">Communities</div>
+            <button
+              type="button"
+              className="home-sidebar__nav-item"
+              onClick={() => navigate('/communities/new')}
+            >
+              + Create community
+            </button>
+          </>
+        )}
+
         <div className="home-sidebar__section-label">Account</div>
         {isAuthed ? (
           <>

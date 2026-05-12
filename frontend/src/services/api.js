@@ -736,4 +736,70 @@ export const adminBanUser = (id, reason) =>
 export const adminUnbanUser = (id) =>
   rpc('admin.v1.AdminService', 'UnbanUser', { id });
 
+// -----------------------------------------
+// Community service. v1 ships these endpoints; the rest of the
+// surface (member listing, role mgmt, ban/unban, rules) lights up
+// when the UI for those features lands.
+// -----------------------------------------
+export const createCommunity = (data) =>
+  rpc('community.v1.CommunityService', 'CreateCommunity', {
+    slug: data.slug,
+    name: data.name,
+    description: data.description || '',
+    avatar_path: data.avatarPath || '',
+    banner_path: data.bannerPath || '',
+    tags: data.tags || [],
+    privacy: data.privacy || 'public',
+  });
+
+export const getCommunity = (id) =>
+  rpc('community.v1.CommunityService', 'GetCommunity', { id });
+
+export const getCommunityBySlug = (slug) =>
+  rpc('community.v1.CommunityService', 'GetCommunityBySlug', { slug });
+
+export const listCommunities = (params = {}) =>
+  rpc('community.v1.CommunityService', 'ListCommunities', {
+    limit: params.limit ?? 20,
+    cursor: params.cursor || '',
+    tag: params.tag || '',
+    query: params.query || '',
+  });
+
+// Slug availability — used by the create form for live feedback as
+// the user types. Server returns { available, reason, suggestions }.
+export const checkSlugAvailable = (slug) =>
+  rpc('community.v1.CommunityService', 'CheckSlugAvailable', { slug });
+
+export const joinCommunity = (id) =>
+  rpc('community.v1.CommunityService', 'JoinCommunity', { id });
+
+export const leaveCommunity = (id) =>
+  rpc('community.v1.CommunityService', 'LeaveCommunity', { id });
+
+export const getMyCommunityMembership = (communityId) =>
+  rpc('community.v1.CommunityService', 'GetMyMembership', { community_id: communityId });
+
+export const listCommunityMembers = (params) =>
+  rpc('community.v1.CommunityService', 'ListMembers', {
+    community_id: params.communityId,
+    limit: params.limit ?? 50,
+    cursor: params.cursor || '',
+    role: params.role || '',
+  });
+
+export const updateCommunity = (id, data = {}) =>
+  rpc('community.v1.CommunityService', 'UpdateCommunity', {
+    id,
+    ...(data.name !== undefined ? { name: data.name } : {}),
+    ...(data.description !== undefined ? { description: data.description } : {}),
+    ...(data.avatarPath !== undefined ? { avatar_path: data.avatarPath } : {}),
+    ...(data.bannerPath !== undefined ? { banner_path: data.bannerPath } : {}),
+    ...(data.tags !== undefined ? { tags: data.tags } : {}),
+    ...(data.privacy !== undefined ? { privacy: data.privacy } : {}),
+  });
+
+export const deleteCommunity = (id) =>
+  rpc('community.v1.CommunityService', 'DeleteCommunity', { id });
+
 export default API;

@@ -1,0 +1,279 @@
+.community-create-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1rem 4rem;
+}
+
+.community-create-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 18px;
+  box-shadow: var(--shadow-card);
+  padding: 2rem;
+}
+
+.community-create-header {
+  margin-bottom: 1.5rem;
+}
+
+.community-create-header h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.75rem;
+  color: var(--text-primary);
+}
+
+.community-create-header p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.community-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.community-create-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.community-create-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+
+.community-create-input {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-input);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+  box-sizing: border-box;
+}
+
+.community-create-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-primary-shadow);
+}
+
+.community-create-textarea {
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.5;
+  font-family: inherit;
+}
+
+/* Slug row layout: a leading "/c/" hint sits inline with the input
+   so the user sees the final URL shape as they type. The prefix is
+   visually subdued so it reads as scaffolding, not a field. */
+.community-create-slug-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-input);
+  background: var(--bg-input);
+}
+
+.community-create-slug-prefix {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.75rem;
+  background: var(--bg-surface-alt);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-right: 1px solid var(--border-subtle);
+}
+
+.community-create-input--slug {
+  border: none;
+  border-radius: 0;
+  flex: 1;
+  background: transparent;
+}
+
+.community-create-input--slug:focus {
+  box-shadow: none;
+}
+
+.community-create-slug-row:focus-within {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-primary-shadow);
+}
+
+/* State indicators on the slug field itself. We tint the wrapping
+   row when the inner input has is-available / is-unavailable. */
+.community-create-slug-row:has(.is-available) {
+  border-color: rgba(16, 185, 129, 0.6);
+}
+.community-create-slug-row:has(.is-unavailable) {
+  border-color: rgba(248, 113, 113, 0.6);
+}
+
+.community-create-help {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+
+.community-create-help--ok {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.community-create-help--err {
+  color: #f87171;
+  font-weight: 600;
+}
+
+.community-create-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  align-items: center;
+}
+
+.community-create-suggestion {
+  background: var(--accent-secondary-bg-soft);
+  border: 1px solid var(--accent-secondary-border-soft);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  color: var(--accent-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.community-create-suggestion:hover {
+  background: var(--accent-secondary-border-soft);
+  border-color: var(--accent-secondary);
+}
+
+/* Chip-style tag input. Chips and the bare input share a flex row;
+   focus-within on the wrapper highlights the whole "field" to match
+   the other inputs above. */
+.community-create-tags-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.4rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-input);
+  background: var(--bg-input);
+  min-height: 2.7rem;
+  align-items: center;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.community-create-tags-chips:focus-within {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-primary-shadow);
+}
+
+.community-create-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  background: var(--accent-secondary-bg-soft);
+  color: var(--accent-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.community-create-tag-remove {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+.community-create-tags-input {
+  border: none;
+  padding: 0.3rem 0.4rem;
+  background: transparent;
+  flex: 1;
+  min-width: 8rem;
+}
+
+.community-create-tags-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.community-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.8rem;
+  margin-top: 0.5rem;
+}
+
+.community-create-cancel {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.65rem 1rem;
+  border-radius: 12px;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.community-create-cancel:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface-alt);
+}
+
+.community-create-submit {
+  background: linear-gradient(135deg, var(--accent-primary-from), var(--accent-primary-to));
+  color: #1f2937;
+  border: none;
+  border-radius: 12px;
+  padding: 0.7rem 1.4rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+}
+
+.community-create-submit:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px var(--accent-primary-shadow);
+}
+
+.community-create-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.community-create-error {
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  color: #fca5a5;
+  border-radius: 12px;
+  padding: 0.7rem 1rem;
+  font-size: 0.9rem;
+}
