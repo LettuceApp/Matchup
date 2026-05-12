@@ -54,6 +54,14 @@ export default function BracketPage() {
   const [champion, setChampion] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // `actionToast` is for transient errors from button clicks (Advance,
+  // Delete, Like). They used to share `error` with the load-failure
+  // path, which meant any action error replaced the entire page —
+  // including the action bar the user just clicked — leaving them
+  // stranded on a red banner. Splitting them: `error` is page-level
+  // (load failed, can't render anything sensible), `actionToast` is a
+  // dismissible popup over the normal page.
+  const [actionToast, setActionToast] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [likesCount, setLikesCount] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
@@ -157,6 +165,16 @@ export default function BracketPage() {
     }
   }, [viewerId]);
 
+  // Auto-dismiss the action toast after a few seconds so it doesn't
+  // linger past the user's attention span. They can still click × to
+  // dismiss earlier. The dependency on actionToast (rather than a flag)
+  // means a *new* toast cancels the old timer cleanly.
+  useEffect(() => {
+    if (!actionToast) return undefined;
+    const t = setTimeout(() => setActionToast(null), 5000);
+    return () => clearTimeout(t);
+  }, [actionToast]);
+
   /* ------------------------------------------------------------------ */
   /* TIMER (ROUND COUNTDOWN) */
   /* ------------------------------------------------------------------ */
@@ -244,7 +262,7 @@ export default function BracketPage() {
     );
   }
 
-  if (!bracket || error) {
+  if (!bracket) {
     return (
       <div className="bracket-page">
         <NavigationBar />
@@ -297,23 +315,24 @@ export default function BracketPage() {
 
   const handleAdvance = async () => {
     if (!bracket) return;
-    setError(null);
+    setActionToast(null);
     try {
       await advanceBracket(bracket.id);
       await loadBracket();
     } catch (err) {
-      // Map the backend's verbose error strings to a friendly inline
-      // message rather than letting an uncaught exception surface as
-      // a console error. The "not completed" branch is the common
-      // case — user clicked Advance before all current-round
-      // matchups finished.
+      // Map the backend's verbose error strings to a friendly toast
+      // rather than letting an uncaught exception surface as a console
+      // error. Use setActionToast (not setError) so the page stays
+      // mounted — setError flips the page-level gate and would hide
+      // every owner control the user might want to fix the problem
+      // with (Select winner on each open matchup, etc.).
       const msg = err?.response?.data?.message || err?.message || '';
       if (msg.includes('not completed')) {
-        setError("All matches in the current round haven't been completed yet.");
+        setActionToast("All matches in the current round haven't been completed yet.");
       } else if (msg.includes('already populated')) {
-        setError('This round has already been advanced.');
+        setActionToast('This round has already been advanced.');
       } else {
-        setError("Couldn't advance the round. Please try again.");
+        setActionToast("Couldn't advance the round. Please try again.");
       }
     }
   };
@@ -327,7 +346,10 @@ export default function BracketPage() {
       navigate(authorSlug ? `/users/${authorSlug}` : "/home");
     } catch (err) {
       console.error(err);
-      setError("Unable to delete bracket.");
+      // Toast instead of setError so a failed delete doesn't blank the
+      // bracket the user was trying to delete (they may want to retry,
+      // and they need the page to still be there to do so).
+      setActionToast("Unable to delete bracket.");
     } finally {
       setIsDeleting(false);
     }
@@ -371,7 +393,7 @@ export default function BracketPage() {
         setIsLiked(true);
       } else {
         console.error("Unable to update bracket like", err);
-        setError("Unable to update like.");
+        setActionToast("Unable to update like.");
       }
     } finally {
       setLikePending(false);
@@ -391,6 +413,28 @@ export default function BracketPage() {
   return (
     <div className="bracket-page">
       <NavigationBar />
+
+      {/* Toast for transient action errors (Advance failed, Delete
+          failed, etc.). Floats over the page so the underlying bracket
+          stays interactive — the previous "replace the entire page
+          with a red banner" pattern hid every owner control the user
+          needed to fix the actual problem. Auto-dismisses after ~5s
+          via the useEffect above. Live region so screen readers
+          announce it. */}
+      {actionToast && (
+        <div className="bracket-toast" role="alert" aria-live="assertive">
+          <span className="bracket-toast__msg">{actionToast}</span>
+          <button
+            type="button"
+            className="bracket-toast__close"
+            aria-label="Dismiss"
+            onClick={() => setActionToast(null)}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <main className="bracket-content">
         {/* Twitter-style hero card. Two-column grid: owner avatar on the
             left, byline + title + description + meta on the right.
