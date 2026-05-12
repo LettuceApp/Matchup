@@ -35,13 +35,18 @@
   line-height: 1;
 }
 
-/* Dropdown panel — same raised-surface treatment as other dropdown menus. */
+/* Dropdown panel — same raised-surface treatment as other dropdown menus.
+   max-width clamps the panel to viewport width so a share button near
+   the right edge of a small screen doesn't push its menu off-screen.
+   transform-origin keeps any future open-animation anchored at the
+   button corner instead of the panel center. */
 .share-menu {
   position: absolute;
   top: calc(100% + 0.4rem);
   right: 0;
   z-index: 20;
   min-width: 220px;
+  max-width: min(220px, calc(100vw - 2rem));
   background: var(--bg-surface-raised);
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
@@ -49,6 +54,7 @@
   padding: 0.35rem;
   display: flex;
   flex-direction: column;
+  transform-origin: top right;
 }
 
 .share-menu__item {
@@ -86,6 +92,7 @@
   position: absolute;
   top: calc(100% + 0.4rem);
   right: 0;
+  max-width: min(220px, calc(100vw - 2rem));
   background: var(--bg-page);
   color: var(--text-primary);
   padding: 0.45rem 0.9rem;
@@ -95,7 +102,9 @@
   border: 1px solid var(--border-input);
   box-shadow: var(--shadow-card);
   z-index: 30;
+  transform-origin: top right;
   animation: share-toast-fade 2s ease;
+  white-space: nowrap;
 }
 
 @keyframes share-toast-fade {
