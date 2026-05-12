@@ -587,6 +587,32 @@
   display: none;
 }
 
+/* In the owner tray the summary needs to read as a proper labeled
+   button matching the rest of the tray (Activate, Ready up, Delete).
+   The default 36×36 circular shape was carried over from a much
+   denser action-row placement and made "Override winner ⋯" look like
+   an opaque overflow icon — owners reported "the override button is
+   gone." It wasn't gone; it was just unreadable. */
+.matchup-winner-menu--tray .matchup-winner-summary {
+  width: auto;
+  height: auto;
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  border: 1px solid var(--accent-secondary-border-soft);
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.matchup-winner-menu--tray .matchup-winner-summary:hover,
+.matchup-winner-menu--tray .matchup-winner-summary:focus-visible {
+  background: var(--accent-secondary-bg-soft);
+  border-color: var(--accent-secondary);
+  outline: none;
+}
+
 .matchup-winner-panel {
   position: absolute;
   right: 0;
