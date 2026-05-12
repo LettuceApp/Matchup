@@ -130,7 +130,7 @@ const RegisterPage = () => {
     <div className="register-page">
       <div className="register-card">
         <div className="register-card__header">
-          <h1 className="register-card__title">Join Matchup Hub</h1>
+          <h1 className="register-card__title">Join Matchup</h1>
           <p className="register-card__subtitle">
             Create an account to start crafting and sharing your head-to-head matchups.
           </p>

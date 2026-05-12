@@ -197,8 +197,8 @@ const MatchupPage = () => {
 
   useEffect(() => {
     if (matchup?.title) {
-      document.title = `${matchup.title} | Matchup Hub`;
-      return () => { document.title = 'Matchup Hub'; };
+      document.title = `${matchup.title} | Matchup`;
+      return () => { document.title = 'Matchup'; };
     }
   }, [matchup?.title]);
 
