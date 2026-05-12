@@ -1,5 +1,6 @@
 import React from 'react';
 import Button from './Button';
+import '../styles/ConfirmModal.css';
 
 const ConfirmModal = ({ message, confirmLabel = 'Confirm', onConfirm, onCancel, danger = false }) => (
   <div className="edit-profile-overlay" onClick={onCancel}>
