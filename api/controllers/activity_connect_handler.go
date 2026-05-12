@@ -92,6 +92,22 @@ func (h *ActivityHandler) GetUserActivity(ctx context.Context, req *connect.Requ
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("user not found"))
 	}
 
+	// Activity is owner-only. A non-owner caller (signed in OR
+	// anonymous) sees PermissionDenied — same response shape as the
+	// frontend's owner-only tab gate, so neither leaks "this user
+	// exists, you just can't see them." httpctx.CurrentUserID
+	// returns the canonical internal uint set by the auth middleware;
+	// resolveUserByIdentifier populated `user.ID` from the request's
+	// username-or-public-id, so a direct uint compare is the
+	// strictest match.
+	viewerID, ok := httpctx.CurrentUserID(ctx)
+	if !ok || viewerID == 0 {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("activity is private"))
+	}
+	if viewerID != user.ID {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("activity is private"))
+	}
+
 	// Cursor: RFC3339 timestamp. Items with occurred_at strictly older
 	// than this are returned. Zero-value means "from the top".
 	var before time.Time
