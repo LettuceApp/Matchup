@@ -1,0 +1,39 @@
+/* ConfirmModal — generic confirm/cancel dialog used across the app
+   (UserProfile delete, MatchupPage Ready up / Override winner /
+   Activate, BracketPage delete confirmation, etc.).
+
+   These rules used to live ONLY in UserProfile.css, which meant the
+   modal was *unstyled* on every page that didn't happen to also
+   import UserProfile.css — no position:fixed, no z-index, no
+   backdrop. Clicking Ready up on a matchup detail page silently
+   mounted a borderless div at the bottom of the page; owners
+   reported "nothing happens." Colocating the styles with the
+   component fixes that for every consumer. */
+
+.edit-profile-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.edit-profile-modal {
+  background: var(--bg-surface);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.edit-profile-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
