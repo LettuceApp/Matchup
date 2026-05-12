@@ -128,6 +128,13 @@
   text-align: center;
 }
 
+/* Twitter-style matchup hero. Cover image stacks at the top (when
+   present), then a two-column grid of avatar + text below. Status
+   lives in a small pill absolutely-positioned in the top-right
+   corner so it doesn't compete with the title.
+
+   overflow MUST stay visible so the status pill's pulse halo isn't
+   clipped at the card boundary. */
 .matchup-hero {
   background: var(--bg-surface);
   border-radius: 28px;
@@ -138,7 +145,7 @@
   flex-direction: column;
   gap: 1.6rem;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* Decorative gradient overlay removed — was layering blue+orange
@@ -174,47 +181,166 @@
   pointer-events: none;
 }
 
+/* Body row: avatar | text column. Grid lets the title/byline column
+   shrink past the avatar when the viewport narrows without the
+   avatar going first-line-with-text. */
 .matchup-hero__body {
   position: relative;
   z-index: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 20px;
+  align-items: start;
+}
+
+.matchup-hero__avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid var(--accent-secondary-border-soft);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  display: block;
+  background: var(--bg-surface-raised);
+}
+
+.matchup-hero__text {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-.matchup-hero-text {
+/* Twitter-style byline. Display name on line 1 (bold, primary
+   color); @handle + relative timestamp + optional round label on
+   line 2 (muted). The previous overline (UPPERCASE / wide tracked
+   eyebrow) is gone — its look doesn't match the byline pattern. */
+.matchup-overline {
   display: flex;
   flex-direction: column;
-  gap: 1.4rem;
-  position: relative;
-  z-index: 1;
+  gap: 0;
+  margin: 0 0 4px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 15px;
+  line-height: 1.25;
+  color: var(--text-primary);
+}
+.matchup-byline-name {
+  color: var(--text-primary);
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 15px;
+}
+.matchup-byline-name:hover,
+.matchup-byline-name:focus-visible {
+  text-decoration: underline;
+  outline: none;
+}
+.matchup-byline-meta {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 14px;
+}
+.matchup-byline-handle,
+.matchup-byline-time {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 14px;
+}
+.matchup-byline-handle:hover,
+.matchup-byline-handle:focus-visible {
+  text-decoration: underline;
+  outline: none;
+}
+.matchup-byline-round {
+  color: var(--accent-primary-to);
+  font-weight: 600;
 }
 
-.matchup-overline {
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  font-weight: 600;
-  font-size: 0.75rem;
-  color: var(--accent-secondary);
-  margin: 0;
+/* Legacy alias for any stray consumer. */
+.matchup-author-link {
+  color: var(--text-primary);
+  text-decoration: none;
+  font-weight: 700;
+}
+.matchup-author-link:hover,
+.matchup-author-link:focus-visible {
+  text-decoration: underline;
 }
 
 .matchup-hero-text h1,
-.matchup-hero__body h1 {
-  margin: 0;
-  font-size: clamp(2.2rem, 4vw, 2.9rem);
-  line-height: 1.08;
+.matchup-hero__body h1,
+.matchup-hero__text h1 {
+  margin: 4px 0 0;
+  font-size: clamp(1.9rem, 3.6vw, 2.5rem);
+  line-height: 1.12;
   color: var(--text-primary);
 }
 
-.matchup-overline__time {
-  color: var(--border-strong);
-  font-weight: 500;
+/* ===== Status pill (top-right of the hero) =====
+   Same data-state pattern as the bracket hero pill. Active pulses a
+   green dot; closed (voting ended) is red; completed is indigo;
+   draft is muted gray. role="status" on the JSX so a live state
+   transition is announced. */
+.matchup-hero__status {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: var(--text-secondary);
+  z-index: 2;
 }
-
-.matchup-overline__round {
-  color: var(--accent-primary-to);
-  font-weight: 700;
+.matchup-hero__status[data-state="active"] {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #6ee7b7;
+}
+.matchup-hero__status[data-state="closed"] {
+  background: rgba(248, 113, 113, 0.12);
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fca5a5;
+}
+.matchup-hero__status[data-state="completed"] {
+  background: rgba(99, 102, 241, 0.14);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #c7d2fe;
+}
+.matchup-hero__status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+.matchup-hero__status[data-state="active"] .matchup-hero__status-dot {
+  background: #10b981;
+  animation: matchupStatusPulse 1.6s ease-out infinite;
+}
+.matchup-hero__status[data-state="closed"] .matchup-hero__status-dot {
+  background: #f87171;
+}
+.matchup-hero__status[data-state="completed"] .matchup-hero__status-dot {
+  background: #6366f1;
+}
+@keyframes matchupStatusPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70%  { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .matchup-hero__status[data-state="active"] .matchup-hero__status-dot {
+    animation: none;
+  }
 }
 
 .matchup-description {
@@ -571,6 +697,21 @@
   }
   .matchup-vs-divider {
     display: none;
+  }
+
+  /* Hero collapses to single column: avatar above text. Status pill
+     stays anchored top-right. */
+  .matchup-hero__body {
+    grid-template-columns: 1fr;
+    row-gap: 14px;
+  }
+  .matchup-hero__avatar {
+    width: 64px;
+    height: 64px;
+  }
+  .matchup-hero__status {
+    top: 12px;
+    right: 12px;
   }
 
   /* Comment composer: trim form padding so the textarea reaches the

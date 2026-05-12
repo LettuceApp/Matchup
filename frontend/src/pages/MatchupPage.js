@@ -14,6 +14,7 @@ import ShareButton from "../components/ShareButton";
 import ReportModal from "../components/ReportModal";
 import SkeletonCard from "../components/SkeletonCard";
 import Reveal from "../components/Reveal";
+import ProfilePic from "../components/ProfilePic";
 import {
   getMatchup,
   getUserMatchup,
@@ -751,85 +752,141 @@ const MatchupPage = () => {
           </div>
         )}
 
-        {/* Hero: cover image (inset), overline, H1, description, tags,
-            aggregate engagement, status row. Single-column stacked so
-            the title never plays second fiddle. */}
-        <section className="matchup-hero">
-          {matchup.image_url && (
-            <div className="matchup-hero__media">
-              <img src={matchup.image_url} alt={matchup.title} decoding="async" />
-            </div>
-          )}
-          <div className="matchup-hero__body">
-            <p className="matchup-overline">
-              {isBracketMatchup ? "Tournament" : "Matchup"}
-              {" · by "}
-              <Link
-                to={`/users/${matchup?.author?.username || matchup.author_id}`}
-                className="matchup-author-link"
+        {/* Twitter-style hero. Owner avatar on the left, byline + title
+            + description + tags + countdown on the right. State (active
+            / voting-closed / completed / draft) lives in a top-right
+            corner pill so it doesn't compete with the title. Same
+            structural pattern as the bracket-detail hero. */}
+        {(() => {
+          const ownerUsername = matchup?.author?.username || matchup?.author_username;
+          const ownerId = matchup?.author?.id || matchup?.author_id || matchup?.authorId;
+          const displayName = matchup?.author?.display_name || ownerUsername || authorName;
+          const profileSlug = ownerUsername || ownerId;
+          // State for the corner pill. Order matters: a draft beats
+          // anything else; an expired matchup outranks "active" since
+          // voting is actually closed; "completed" wins over generic
+          // status fallthrough.
+          let pillState = "unknown";
+          let pillLabel = "UNKNOWN";
+          if (matchupStatus === "draft") {
+            pillState = "draft"; pillLabel = "DRAFT";
+          } else if (matchupStatus === "completed") {
+            pillState = "completed"; pillLabel = "COMPLETED";
+          } else if (matchupExpired) {
+            pillState = "closed"; pillLabel = "VOTING CLOSED";
+          } else if (isOpenStatus) {
+            pillState = "active"; pillLabel = "ACTIVE";
+          } else if (matchupStatus) {
+            pillState = String(matchupStatus).toLowerCase();
+            pillLabel = String(matchupStatus).toUpperCase();
+          }
+          return (
+            <section className="matchup-hero" aria-label="Matchup overview">
+              <span
+                className="matchup-hero__status"
+                data-state={pillState}
+                role="status"
               >
-                @{authorName}
-              </Link>
-              {roundLabel && (
-                <>
-                  {" · "}
-                  <span className="matchup-overline__round">{roundLabel}</span>
-                </>
+                <span className="matchup-hero__status-dot" aria-hidden="true" />
+                <span className="matchup-hero__status-label">{pillLabel}</span>
+              </span>
+
+              {matchup.image_url && (
+                <div className="matchup-hero__media">
+                  <img src={matchup.image_url} alt={matchup.title} decoding="async" />
+                </div>
               )}
-              {timeAgo && (
-                <>
-                  {" · "}
-                  <span className="matchup-overline__time">{timeAgo}</span>
-                </>
-              )}
-            </p>
 
-            <h1>{heroTitle}</h1>
+              <div className="matchup-hero__body">
+                {profileSlug && ownerId && (
+                  <Link
+                    to={`/users/${profileSlug}`}
+                    className="matchup-hero__avatar"
+                    aria-label={`${displayName || "Owner"} profile`}
+                  >
+                    <ProfilePic userId={ownerId} size={80} />
+                  </Link>
+                )}
 
-            {heroDescription && (
-              <p className="matchup-description">{heroDescription}</p>
-            )}
+                <div className="matchup-hero__text">
+                  <header className="matchup-overline">
+                    {ownerUsername ? (
+                      <Link
+                        to={`/users/${profileSlug}`}
+                        className="matchup-byline-name"
+                      >
+                        {displayName}
+                      </Link>
+                    ) : (
+                      <span className="matchup-byline-name">{displayName || "Unknown"}</span>
+                    )}
+                    <span className="matchup-byline-meta">
+                      {ownerUsername && (
+                        <Link
+                          to={`/users/${profileSlug}`}
+                          className="matchup-byline-handle"
+                        >
+                          @{ownerUsername}
+                        </Link>
+                      )}
+                      {matchup?.created_at && (
+                        <>
+                          {ownerUsername && <span aria-hidden="true"> · </span>}
+                          <time
+                            className="matchup-byline-time"
+                            dateTime={matchup.created_at}
+                            title={new Date(matchup.created_at).toLocaleString()}
+                          >
+                            {timeAgo}
+                          </time>
+                        </>
+                      )}
+                      {roundLabel && (
+                        <>
+                          <span aria-hidden="true"> · </span>
+                          <span className="matchup-byline-round">{roundLabel}</span>
+                        </>
+                      )}
+                    </span>
+                  </header>
 
-            {Array.isArray(matchup.tags) && matchup.tags.length > 0 && (
-              <div className="matchup-tag-row">
-                {matchup.tags.map((tag) => (
-                  <span key={tag} className="matchup-tag">{tag}</span>
-                ))}
+                  <h1>{heroTitle}</h1>
+
+                  {heroDescription && (
+                    <p className="matchup-description">{heroDescription}</p>
+                  )}
+
+                  {Array.isArray(matchup.tags) && matchup.tags.length > 0 && (
+                    <div className="matchup-tag-row">
+                      {matchup.tags.map((tag) => (
+                        <span key={tag} className="matchup-tag">{tag}</span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Inline status row keeps the live countdown for
+                      active timer-driven matchups. The "Voting closed"
+                      and generic "Status: X" inline pills moved to the
+                      corner status pill above, so this row only carries
+                      forward-looking info now. */}
+                  {matchupEndsAt && !matchupExpired && (
+                    <div className="matchup-status-row">
+                      <div className="matchup-status-pill matchup-status-pill--timer">
+                        ⏳ <strong>{countdown.formatted}</strong>
+                      </div>
+                    </div>
+                  )}
+
+                  {isTieAfterExpiryInActiveRound && (
+                    <div className="matchup-status-banner matchup-status-banner--warning">
+                      ⚠️ Voting ended in a tie. The owner must choose a winner before the round can advance.
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
-
-            {/* Engagement strip removed at user request — votes /
-                likes / comments above the title felt like meta-noise.
-                Like + comment counts are still shown in the action
-                bar at the bottom of the page; vote count appears
-                inline next to each contender's vote bar. */}
-
-            <div className="matchup-status-row">
-              {matchupEndsAt && !matchupExpired && (
-                <div className="matchup-status-pill matchup-status-pill--timer">
-                  ⏳ <strong>{countdown.formatted}</strong>
-                </div>
-              )}
-              {matchupExpired && (
-                <div className="matchup-status-pill matchup-status-pill--locked">
-                  ⛔ Voting closed
-                </div>
-              )}
-              {/* Status pill hides when active — countdown already implies it. */}
-              {matchupStatus && matchupStatus !== "active" && !matchupExpired && (
-                <div className="matchup-status-pill">
-                  Status: <strong>{matchupStatus}</strong>
-                </div>
-              )}
-            </div>
-
-            {isTieAfterExpiryInActiveRound && (
-              <div className="matchup-status-banner matchup-status-banner--warning">
-                ⚠️ Voting ended in a tie. The owner must choose a winner before the round can advance.
-              </div>
-            )}
-          </div>
-        </section>
+            </section>
+          );
+        })()}
 
         {/* Winner reveal — gets its own Reveal-animated banner so
             status=completed feels like an event, not a quiet flag. */}
