@@ -324,7 +324,13 @@ export default function BracketPage() {
       // every owner control the user might want to fix the problem
       // with (Select winner on each open matchup, etc.).
       const msg = err?.response?.data?.message || err?.message || '';
-      if (msg.includes('not completed')) {
+      if (msg.includes('tied')) {
+        // Manual-advance backend now auto-finalizes by votes; a tie only
+        // bubbles up when votes are equal AND no seed labels break it.
+        // Surface the actionable next step (Override winner on the
+        // specific matchup).
+        setActionToast("A matchup is tied. Open it and use Override winner to pick the winner, then try Advance again.");
+      } else if (msg.includes('not completed')) {
         setActionToast("All matches in the current round haven't been completed yet.");
       } else if (msg.includes('already populated')) {
         setActionToast('This round has already been advanced.');
