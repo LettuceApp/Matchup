@@ -1,0 +1,68 @@
+name: Render deploy hooks
+
+# Backup trigger for Render auto-deploy. Render's built-in GitHub App
+# is supposed to auto-deploy on push to main, but in practice the
+# webhook arrives slowly (or not at all when path filters reject the
+# commit). This workflow POSTs directly to each Render service's
+# Deploy Hook URL on every push to main, which kicks off a fresh
+# deploy within ~5s regardless of the GitHub App's state.
+#
+# Setup (one-time):
+#   1. In Render dashboard, open each service → Settings → Deploy Hook.
+#      Copy the URL — looks like https://api.render.com/deploy/srv-...?key=...
+#   2. In this GitHub repo, Settings → Secrets and variables → Actions:
+#      add RENDER_API_DEPLOY_HOOK and RENDER_FRONTEND_DEPLOY_HOOK.
+#      (Skip the secret for any service you don't want this workflow
+#       to trigger — its step will no-op via the `if` guard below.)
+#
+# After setup, every push to main fires both services in parallel.
+# Failures are logged but don't fail the workflow — they're
+# informational only, since Render itself owns the deploy lifecycle.
+
+on:
+  push:
+    branches: [main]
+  # Manual fallback — visible in Actions tab so a human can re-fire
+  # without pushing an empty commit.
+  workflow_dispatch:
+
+concurrency:
+  # Cancel any in-flight run for the same ref. If two commits land
+  # rapidly we only fire Render for the latest one; Render itself
+  # de-dupes deploys for the same commit SHA anyway.
+  group: render-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  trigger-render:
+    name: POST Render deploy hooks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger API service
+        if: ${{ secrets.RENDER_API_DEPLOY_HOOK != '' }}
+        run: |
+          status=$(curl -sS -o /tmp/api-resp.json -w '%{http_code}' \
+            -X POST "${{ secrets.RENDER_API_DEPLOY_HOOK }}")
+          echo "Render API hook returned HTTP $status"
+          cat /tmp/api-resp.json || true
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "::warning::Render API deploy hook returned $status (non-2xx). Auto-deploy may not fire — check the Render dashboard."
+          fi
+
+      - name: Trigger Frontend service
+        if: ${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK != '' }}
+        run: |
+          status=$(curl -sS -o /tmp/frontend-resp.json -w '%{http_code}' \
+            -X POST "${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK }}")
+          echo "Render Frontend hook returned HTTP $status"
+          cat /tmp/frontend-resp.json || true
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "::warning::Render Frontend deploy hook returned $status (non-2xx). Auto-deploy may not fire — check the Render dashboard."
+          fi
+
+      - name: No-op summary
+        if: ${{ secrets.RENDER_API_DEPLOY_HOOK == '' && secrets.RENDER_FRONTEND_DEPLOY_HOOK == '' }}
+        run: |
+          echo "Neither RENDER_API_DEPLOY_HOOK nor RENDER_FRONTEND_DEPLOY_HOOK is set as a secret."
+          echo "Workflow is a no-op until at least one is configured."
+          echo "See header comment in this file for setup instructions."

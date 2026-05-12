@@ -51,7 +51,13 @@ export default function BracketView({
     () => ({
       columnWidth: 260,
       columnGap: 80,
-      matchHeight: 112,
+      // matchHeight needs to accommodate: header (~16-20px) + gap
+      // (8px) + 2 rows (~34px each, including the 3px bottom bar) +
+      // inter-row gap (6px) + outer padding (~21px). 112px was too
+      // tight — the bottom row's percentage bar + border got eaten by
+      // .bracket-match's overflow: hidden, so on a real bracket users
+      // saw clipped match boxes. 140px gives a safe ~10px of headroom.
+      matchHeight: 140,
       matchGap: 24,
       labelOffset: 32,
     }),
