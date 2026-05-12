@@ -112,6 +112,20 @@ const UserProfile = () => {
   const navigate = useNavigate();
 
   const [user, setUser] = useState(null);
+  // Hoisted up so early useEffects (activity load-skip + ?tab=activity
+  // redirect) can read it. The same five derivations also appear
+  // farther down where the JSX uses them; defining once here and
+  // reusing avoids a no-use-before-define lint and a stale-value gap
+  // between the early effects and the render.
+  const viewerId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
+  const viewerUsername = typeof window !== 'undefined' ? localStorage.getItem('username') : null;
+  const profileId = user?.id || identifier;
+  const profileSlug = user?.username || identifier;
+  const isViewer = Boolean(
+    (viewerId && profileId && viewerId === profileId) ||
+    (viewerUsername && user?.username && viewerUsername.toLowerCase() === user.username.toLowerCase())
+  );
+
   const [matchups, setMatchups] = useState([]);
   const [brackets, setBrackets] = useState([]);
   const [followers, setFollowers] = useState([]);
@@ -602,15 +616,10 @@ const UserProfile = () => {
     }
   };
 
-  const viewerId = localStorage.getItem('userId');
-  const viewerUsername = localStorage.getItem('username');
-  const profileId = user?.id || identifier;
-  const profileSlug = user?.username || identifier;
-  const isViewer =
-    (viewerId && profileId && viewerId === profileId) ||
-    (viewerUsername &&
-      user?.username &&
-      user?.username && viewerUsername.toLowerCase() === user.username.toLowerCase());
+  // viewerId / viewerUsername / profileId / profileSlug / isViewer
+  // are now defined at the top of the component (right after the
+  // `user` state) so the early-running useEffects can read them.
+  // This block was a duplicate; removed to keep one source of truth.
   const { promptUpgrade } = useAnonUpgradePrompt();
 
   const matchupEmptyHeading = matchupsError ? 'Matchups unavailable' : 'No matchups yet';
