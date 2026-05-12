@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createUser, login } from '../services/api';
+import { createUser, login, requestEmailVerification } from '../services/api';
 import { clearAnonId, peekAnonId } from '../utils/anonId';
 import { identifyUser, track } from '../utils/analytics';
+import ConfirmModal from '../components/ConfirmModal';
 import '../styles/RegisterPage.css';
 
 const RegisterPage = () => {
@@ -15,6 +16,15 @@ const RegisterPage = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // After successful register+login we open a ConfirmModal asking
+  // whether to send the verification email now. pendingDest holds the
+  // target route so we can navigate AFTER the user picks. We don't
+  // auto-redirect first because the modal's Yes path waits on the
+  // RequestEmailVerification RPC before redirecting (so the banner
+  // can land in its "Sent a new link" state on arrival).
+  const [verifyPromptOpen, setVerifyPromptOpen] = useState(false);
+  const [verifySending, setVerifySending] = useState(false);
+  const [pendingDest, setPendingDest] = useState(null);
   const navigate = useNavigate();
   // After signup we redirect to the new user's profile page (see `dest`
   // below), not to a `from` location. If redirect-after-signup behavior
@@ -74,7 +84,11 @@ const RegisterPage = () => {
         const dest = payload.username
           ? `/users/${payload.username}`
           : '/home';
-        navigate(dest, { replace: true });
+        // Open the verify-email prompt instead of redirecting
+        // immediately. The modal's onConfirm / onCancel handlers
+        // perform the redirect once the user picks.
+        setPendingDest(dest);
+        setVerifyPromptOpen(true);
       } else {
         setError('We could not complete registration. Please try again.');
       }
@@ -88,6 +102,28 @@ const RegisterPage = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSendVerify = async () => {
+    if (verifySending) return;
+    setVerifySending(true);
+    try {
+      await requestEmailVerification();
+    } catch (err) {
+      // Swallow — even if SendGrid hiccups, the banner's Resend
+      // button is still available on the destination page, so no
+      // hard failure on the registration funnel.
+      console.warn('Verification email request failed:', err);
+    } finally {
+      setVerifySending(false);
+      setVerifyPromptOpen(false);
+      if (pendingDest) navigate(pendingDest, { replace: true });
+    }
+  };
+
+  const handleSkipVerify = () => {
+    setVerifyPromptOpen(false);
+    if (pendingDest) navigate(pendingDest, { replace: true });
   };
 
   return (
@@ -182,6 +218,17 @@ const RegisterPage = () => {
           <Link to="/privacy">Privacy Policy</Link>.
         </p>
       </div>
+
+      {verifyPromptOpen && (
+        <ConfirmModal
+          title="Send your verification email?"
+          message="We can email a verification link to your inbox now, or you can verify later from the banner at the top of the page."
+          confirmLabel={verifySending ? 'Sending…' : 'Send link'}
+          cancelLabel="Not now"
+          onConfirm={handleSendVerify}
+          onCancel={handleSkipVerify}
+        />
+      )}
     </div>
   );
 };

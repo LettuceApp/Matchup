@@ -11,6 +11,55 @@ import (
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
 )
 
+// renderVerifyEmailHTML builds the hermes-rendered HTML for the
+// verification email. Extracted from SendVerifyEmail so unit tests
+// can assert on the rendered markup (button color, text, link) without
+// hitting SendGrid's network.
+func renderVerifyEmailHTML(toUser, token string) (string, error) {
+	h := hermes.Hermes{
+		Product: hermes.Product{
+			Name: "Matchup",
+			Link: resetPasswordBaseURL(),
+		},
+	}
+	// Frontend route: /verify-email/:token (listed in AASA exclude
+	// so the native app doesn't try to handle it — verification must
+	// happen in the browser where the user can see + trust the URL).
+	verifyURL := resetPasswordBaseURL() + "/verify-email/" + token
+
+	email := hermes.Email{
+		Body: hermes.Body{
+			Name: toUser,
+			Intros: []string{
+				"Welcome to Matchup! Tap the button below to verify your email.",
+			},
+			Actions: []hermes.Action{
+				{
+					Instructions: "Verify your email so you can start creating matchups and brackets. This link expires in 24 hours.",
+					Button: hermes.Button{
+						// hermes treats Color as the BUTTON BACKGROUND
+						// (text is always painted white). #FFFFFF rendered
+						// a white-on-white invisible button in Gmail —
+						// users reported clicking "nothing" and falling
+						// through to the click-tracker link by accident.
+						// #F97316 = --accent-primary in theme.css, the
+						// warm brand orange that survives Gmail's stripper
+						// and reads as the primary CTA the rest of the app
+						// uses.
+						Color: "#F97316",
+						Text:  "Verify email",
+						Link:  verifyURL,
+					},
+				},
+			},
+			Outros: []string{
+				"If you didn't create a Matchup account, you can safely ignore this email.",
+			},
+		},
+	}
+	return h.GenerateHTML(email)
+}
+
 // SendVerifyEmail is wired into the same `sendMail` struct as
 // SendResetPassword so callers use the single `mailer.SendMail`
 // entry point. Signature mirrors SendResetPassword on purpose —
@@ -36,39 +85,7 @@ func (s *sendMail) SendVerifyEmail(ToUser string, FromAdmin string, Token string
 		return nil, fmt.Errorf("sendgrid creds missing (SENDGRID_API_KEY / SENDGRID_FROM)")
 	}
 
-	h := hermes.Hermes{
-		Product: hermes.Product{
-			Name: "Matchup",
-			Link: resetPasswordBaseURL(),
-		},
-	}
-	// Frontend route: /verify-email/:token (listed in AASA exclude
-	// so the native app doesn't try to handle it — verification must
-	// happen in the browser where the user can see + trust the URL).
-	verifyURL := resetPasswordBaseURL() + "/verify-email/" + Token
-
-	email := hermes.Email{
-		Body: hermes.Body{
-			Name: ToUser,
-			Intros: []string{
-				"Welcome to Matchup! Tap the button below to verify your email.",
-			},
-			Actions: []hermes.Action{
-				{
-					Instructions: "Verify your email so you can start creating matchups and brackets. This link expires in 24 hours.",
-					Button: hermes.Button{
-						Color: "#FFFFFF",
-						Text:  "Verify email",
-						Link:  verifyURL,
-					},
-				},
-			},
-			Outros: []string{
-				"If you didn't create a Matchup account, you can safely ignore this email.",
-			},
-		},
-	}
-	emailBody, err := h.GenerateHTML(email)
+	emailBody, err := renderVerifyEmailHTML(ToUser, Token)
 	if err != nil {
 		return nil, err
 	}

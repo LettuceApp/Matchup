@@ -13,25 +13,25 @@ import '../styles/EmailVerificationBanner.css';
  * Visibility rules:
  *   - Hidden when no user is logged in (no userId in localStorage).
  *   - Hidden when currentUser.is_verified === true.
- *   - Dismissible per-session via the × button. The dismiss flag
- *     lives in sessionStorage (not localStorage) so a hard reload
- *     surfaces it again next time — we don't want users missing it
- *     permanently by accidentally clicking X.
- *   - Reviewers testing the App Store / Play review flow can dismiss
- *     it once and get on with exploring the app.
+ *   - Dismissible via the × button — but dismissal lives in plain
+ *     in-memory state (NOT session/localStorage). Any page reload
+ *     re-surfaces the banner until the user actually verifies. This
+ *     was a deliberate UX call: persisting dismissal across reloads
+ *     let users accidentally click X and never see the prompt again,
+ *     so the only way to make the banner go away for good is to
+ *     verify the email.
  *
  * The banner fetches the current user on mount if the prop isn't
  * supplied. In practice App.js will hand it down from the top-level
  * auth state, but the self-fetch keeps this component drop-in for
  * pages that don't already load the user.
  */
-const DISMISS_KEY = 'emailVerificationBanner:dismissed';
 
 const EmailVerificationBanner = ({ user, onUserRefresh }) => {
   const [currentUser, setCurrentUser] = useState(user || null);
-  const [dismissed, setDismissed] = useState(
-    typeof window !== 'undefined' && sessionStorage.getItem(DISMISS_KEY) === '1'
-  );
+  // In-memory dismissal — resets on every mount, so reload always
+  // re-surfaces the banner if the user still isn't verified.
+  const [dismissed, setDismissed] = useState(false);
   const [sending, setSending] = useState(false);
   const [sentAt, setSentAt] = useState(null);
   const [error, setError] = useState(null);
@@ -76,7 +76,6 @@ const EmailVerificationBanner = ({ user, onUserRefresh }) => {
   };
 
   const handleDismiss = () => {
-    sessionStorage.setItem(DISMISS_KEY, '1');
     setDismissed(true);
   };
 
