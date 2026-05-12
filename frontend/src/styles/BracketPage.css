@@ -47,59 +47,127 @@
   color: var(--filter-active-fg);
 }
 
+/* ===== Twitter-style hero card =====
+   Two-column grid: owner avatar on the left, byline + title +
+   description on the right. Meta row (Current Round only — Status
+   moved to the top-right pill) spans the text column below. */
 .bracket-hero-summary {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "avatar text"
+    "avatar meta";
+  column-gap: 24px;
+  row-gap: 14px;
+  align-items: start;
+  padding: clamp(1.5rem, 3.5vw, 2rem);
+  border-radius: 24px;
   background: var(--bg-surface);
-  border-radius: 28px;
   border: 1px solid var(--accent-secondary-bg-soft);
   box-shadow: 0 28px 60px rgba(15, 23, 42, 0.45);
-  padding: clamp(2rem, 5vw, 3.2rem);
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  position: relative;
-  overflow: hidden;
+  /* Pill anchors via position: absolute against this card. Was hidden
+     by overflow:hidden previously, which clipped the pulse halo. */
+  overflow: visible;
 }
 
-/* Decorative gradient overlay removed for parity with the cleaner
-   card aesthetic on the home page. The hero is a plain surface now. */
-
-.bracket-hero-summary > * {
-  position: relative;
-  z-index: 1;
+.bracket-hero-avatar {
+  grid-area: avatar;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid var(--accent-secondary-border-soft);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  display: block;
+  flex-shrink: 0;
+  background: var(--bg-surface-raised);
+}
+.bracket-hero-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bracket-hero-avatar__fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--text-muted);
 }
 
 .bracket-hero-text {
+  grid-area: text;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  position: relative;
-  z-index: 1;
 }
 
+/* Byline — Twitter-style: display name on line 1 (bold, primary
+   color), then @handle and relative timestamp on line 2 (muted).
+   The .bracket-overline class is reused but the upper-case
+   tracked-eyebrow rule is gone — its previous look (caps + wide
+   letter-spacing) doesn't match the new byline pattern. */
 .bracket-overline {
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  font-weight: 600;
-  font-size: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0 0 6px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 15px;
+  line-height: 1.25;
+}
+.bracket-byline-name {
   color: var(--text-primary);
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 15px;
+}
+.bracket-byline-name:hover,
+.bracket-byline-name:focus-visible {
+  text-decoration: underline;
+  outline: none;
+}
+.bracket-byline-meta {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 14px;
+}
+.bracket-byline-handle,
+.bracket-byline-time {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 14px;
+}
+.bracket-byline-handle:hover,
+.bracket-byline-handle:focus-visible {
+  text-decoration: underline;
+  outline: none;
 }
 
-.bracket-hero-summary h1 {
-  margin: 0;
-  font-size: clamp(2.2rem, 3.8vw, 2.9rem);
-  color: var(--text-primary);
-}
-
+/* Legacy alias kept defined so any stray consumer doesn't break. */
 .bracket-author-link {
   color: var(--text-primary);
   text-decoration: none;
   font-weight: 700;
 }
-
 .bracket-author-link:hover,
 .bracket-author-link:focus-visible {
   text-decoration: underline;
+}
+
+.bracket-hero-title {
+  margin: 4px 0 8px;
+  font-size: clamp(1.8rem, 3.4vw, 2.4rem);
+  line-height: 1.15;
+  color: var(--text-primary);
+}
+
+.bracket-hero-summary h1 {
+  margin: 4px 0 8px;
+  font-size: clamp(1.8rem, 3.4vw, 2.4rem);
+  line-height: 1.15;
+  color: var(--text-primary);
 }
 
 .bracket-description {
@@ -109,14 +177,20 @@
 }
 
 .bracket-meta-row {
+  grid-area: meta;
   display: flex;
-  gap: 2rem;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 24px;
+  padding-top: 12px;
+  margin-top: 8px;
+  border-top: 1px solid var(--accent-secondary-bg-soft);
 }
+
+.bracket-meta-item { min-width: 0; }
 
 .bracket-meta-label {
   display: block;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.14em;
   color: var(--text-muted);
@@ -125,24 +199,59 @@
 
 .bracket-meta-value {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--accent-primary-to);
 }
 
+/* ===== Status pill (top-right of the hero) =====
+   data-state drives the color treatment. "active" shows a pulsating
+   green dot via the keyframes below. All other states get a neutral
+   gray look. role="status" on the JSX makes screen readers
+   announce changes if a live update flips the status. */
 .bracket-status-pill {
-  margin: 0;
+  position: absolute;
+  top: 16px;
+  right: 20px;
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.45rem 1rem;
+  gap: 8px;
+  padding: 6px 12px 6px 10px;
   border-radius: 999px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-surface);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.35);
   color: var(--text-secondary);
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  font-size: 0.85rem;
+  margin: 0;
+  z-index: 2;
+}
+.bracket-status-pill[data-state="active"] {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #6ee7b7;
+}
+.bracket-status-pill__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+.bracket-status-pill[data-state="active"] .bracket-status-pill__dot {
+  background: #10b981;
+  animation: bracketStatusPulse 1.6s ease-out infinite;
+}
+@keyframes bracketStatusPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70%  { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bracket-status-pill[data-state="active"] .bracket-status-pill__dot {
+    animation: none;
+  }
 }
 
 /* Was a 3-column grid which forced each cluster to live in its own
@@ -365,16 +474,11 @@
   gap: 0.75rem;
 }
 
-.bracket-status-pill {
-  padding: 0.45rem 1.1rem;
-  border-radius: 999px;
-  border: 1px solid var(--border-input);
-  background: var(--bg-surface);
-  color: var(--text-secondary);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
+/* (Legacy meta-row .bracket-status-pill rule removed — the hero
+   redesign moved Status out of the meta row into the top-right
+   absolute-positioned pill. The new rule lives above with the hero
+   styles. Leaving this comment so anyone hunting for a missing rule
+   sees where it went.) */
 
 .bracket-ready-badge {
   padding: 0.6rem 1.3rem;
@@ -526,6 +630,20 @@
   .bracket-content {
     padding: 5rem 1.25rem 3rem;
   }
+
+  /* Hero collapses to a single column on phones: avatar above text
+     above meta. The status pill stays absolutely positioned at the
+     top-right corner of the card. */
+  .bracket-hero-summary {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "avatar"
+      "text"
+      "meta";
+    justify-items: start;
+  }
+  .bracket-hero-avatar { width: 72px; height: 72px; }
+  .bracket-status-pill { top: 12px; right: 12px; }
 
   .bracket-button,
   .bracket-button--ghost {

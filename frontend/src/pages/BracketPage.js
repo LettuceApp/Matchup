@@ -9,6 +9,8 @@ import Comment from "../components/Comment";
 import ShareButton from "../components/ShareButton";
 import ReportModal from "../components/ReportModal";
 import SkeletonCard from "../components/SkeletonCard";
+import ProfilePic from "../components/ProfilePic";
+import { relativeTime } from "../utils/time";
 import {
   getBracketSummary,
   getBracketComments,
@@ -390,48 +392,112 @@ export default function BracketPage() {
     <div className="bracket-page">
       <NavigationBar />
       <main className="bracket-content">
-        <motion.section className="bracket-hero-summary" {...sectionMotion}>
-          {/* Title + description wrapped in .bracket-hero-text so the
-              already-defined CSS rule applies (gap + max-width). The
-              wrapper was missing from the JSX previously, so the
-              bracket-overline / h1 / description sat with mismatched
-              spacing. */}
-          <div className="bracket-hero-text">
-            <p className="bracket-overline">
-              Tournament snapshot
-              {(bracket.author?.username || bracket.author_username) && (
-                <>
-                  {" · by "}
+        {/* Twitter-style hero card. Two-column grid: owner avatar on the
+            left, byline + title + description + meta on the right.
+            Status moves out of the meta row into a small pill anchored
+            top-right (pulses green when active). The previous overline
+            "Tournament snapshot · by @x" is replaced with a stacked
+            display-name + @handle + relative-timestamp block. */}
+        <motion.section
+          className="bracket-hero-summary"
+          aria-label="Bracket overview"
+          {...sectionMotion}
+        >
+          {(() => {
+            const ownerUsername = bracket.author?.username || bracket.author_username;
+            const ownerId = bracket.author?.id || bracket.author_id || bracket.authorId;
+            const displayName = bracket.author?.display_name || ownerUsername;
+            const profileSlug = ownerUsername || ownerId;
+            const state = String(bracket.status || "").toLowerCase();
+            const statusLabel = state ? state.toUpperCase() : "UNKNOWN";
+            const createdAt = bracket.created_at || bracket.createdAt;
+            return (
+              <>
+                {/* Status pill — top-right corner. data-state drives the
+                    color treatment + dot animation via CSS. role="status"
+                    so screen readers announce changes if the bracket
+                    transitions live. */}
+                <span
+                  className="bracket-status-pill"
+                  data-state={state || "unknown"}
+                  role="status"
+                >
+                  <span className="bracket-status-pill__dot" aria-hidden="true" />
+                  <span className="bracket-status-pill__label">{statusLabel}</span>
+                </span>
+
+                {/* Avatar — left column. ProfilePic resolves the S3 path
+                    from the user record; the outer <Link> carries the
+                    accessible name so the inner <img> stays decorative. */}
+                {profileSlug && (
                   <Link
-                    to={`/users/${bracket.author?.username || bracket.author_id}`}
-                    className="bracket-author-link"
+                    to={`/users/${profileSlug}`}
+                    className="bracket-hero-avatar"
+                    aria-label={`${displayName || "Owner"} profile`}
                   >
-                    {bracket.author?.username || bracket.author_username}
+                    {ownerId ? (
+                      <ProfilePic userId={ownerId} size={96} />
+                    ) : (
+                      <span className="bracket-hero-avatar__fallback" aria-hidden="true">
+                        {(displayName || "?").charAt(0).toUpperCase()}
+                      </span>
+                    )}
                   </Link>
-                </>
-              )}
-            </p>
-            <h1>{bracket.title}</h1>
-            <p className="bracket-description">
-              {bracket.description || "No description provided yet."}
-            </p>
-          </div>
+                )}
 
-          <div className="bracket-meta-row">
-            <div>
-              <span className="bracket-meta-label">Status</span>
-              <p className="bracket-status-pill">
-                {(bracket.status || "draft").toUpperCase()}
-              </p>
-            </div>
+                <div className="bracket-hero-text">
+                  <header className="bracket-overline">
+                    {ownerUsername ? (
+                      <Link
+                        to={`/users/${profileSlug}`}
+                        className="bracket-byline-name"
+                      >
+                        {displayName}
+                      </Link>
+                    ) : (
+                      <span className="bracket-byline-name">{displayName || "Unknown"}</span>
+                    )}
+                    <span className="bracket-byline-meta">
+                      {ownerUsername && (
+                        <Link
+                          to={`/users/${profileSlug}`}
+                          className="bracket-byline-handle"
+                        >
+                          @{ownerUsername}
+                        </Link>
+                      )}
+                      {createdAt && (
+                        <>
+                          {ownerUsername && <span aria-hidden="true"> · </span>}
+                          <time
+                            className="bracket-byline-time"
+                            dateTime={createdAt}
+                            title={new Date(createdAt).toLocaleString()}
+                          >
+                            {relativeTime(createdAt)}
+                          </time>
+                        </>
+                      )}
+                    </span>
+                  </header>
 
-            <div>
-              <span className="bracket-meta-label">Current round</span>
-              <p className="bracket-meta-value">
-                {bracket.current_round || 1}
-              </p>
-            </div>
-          </div>
+                  <h1 className="bracket-hero-title">{bracket.title}</h1>
+                  <p className="bracket-description">
+                    {bracket.description || "No description provided yet."}
+                  </p>
+                </div>
+
+                <div className="bracket-meta-row">
+                  <div className="bracket-meta-item">
+                    <span className="bracket-meta-label">Current round</span>
+                    <p className="bracket-meta-value">
+                      {bracket.current_round || 1}
+                    </p>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
 
           {bracket.status === "active" && roundEndsAt && (
             <div className="bracket-round-timer">

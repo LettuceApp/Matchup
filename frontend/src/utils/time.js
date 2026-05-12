@@ -1,7 +1,9 @@
 // Compact "time since" formatter used across the app (HomeCard post
-// header, MatchupPage overline, ActivityFeed timestamps). Intentionally
-// minimal — no month/year fallbacks yet because every surface that
-// renders timestamps prefers to stay short.
+// header, MatchupPage overline, ActivityFeed timestamps, bracket
+// hero byline). Twitter/X-style: 1m, 2h, 3d, 4mo, 5y. Months use
+// the 30-day approximation; year boundaries use 365 — close enough
+// for these labels since users care about "recent" vs "old", not
+// calendar precision.
 //
 // Returns '' for missing input so callers can render conditionally
 // (`{timeAgo && <span>{timeAgo}</span>}`).
@@ -13,5 +15,9 @@ export function relativeTime(dateStr) {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
+  if (days < 30) return `${days || 1}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  const years = Math.floor(days / 365);
+  return `${years}y ago`;
 }
