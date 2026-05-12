@@ -646,6 +646,9 @@ const MatchupPage = () => {
         try {
           await overrideMatchupWinner(matchup.id, winnerId);
           await refreshMatchup();
+          // Clear any earlier "matchup is tied" / "could not update"
+          // banner — it's stale now that the winner is locked.
+          setError(null);
         } catch (err) {
           console.error('overrideMatchupWinner failed', err);
           const serverMsg =
@@ -683,6 +686,7 @@ const MatchupPage = () => {
           setReadyPending(true);
           await completeMatchup(matchup.id);
           await refreshMatchup();
+          setError(null);
         } catch (err) {
           // Surface the actual server error rather than a generic
           // fallback. Owners reported "Ready up does nothing" on prod
@@ -717,6 +721,7 @@ const MatchupPage = () => {
           setActivatePending(true);
           await activateMatchup(matchup.id);
           await refreshMatchup();
+          setError(null);
         } catch (err) {
           console.error('activateMatchup failed', err);
           const serverMsg =

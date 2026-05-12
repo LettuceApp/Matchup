@@ -818,6 +818,16 @@ func (h *MatchupHandler) CompleteMatchup(ctx context.Context, req *connect.Reque
 		"SELECT * FROM matchup_items WHERE matchup_id = $1 ORDER BY id ASC", matchup.ID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
+	// Merge pending Redis vote deltas BEFORE the tie-detection logic
+	// runs. matchup_items.votes is the materialized count that the
+	// flush worker updates every ~5s, so a freshly-cast vote can sit in
+	// the Redis buffer for several seconds before landing in the DB
+	// column. Without this merge, determineMatchupWinner reads
+	// stale 0/0 counts on a 1-0 matchup, decides "tied", and rejects
+	// CompleteMatchup with CodeInvalidArgument — owners report Ready up
+	// "does nothing" right after voting because they see the false-tie
+	// 400 with no obvious fix.
+	applyVoteDeltasToItems(ctx, matchup.Items)
 
 	if matchup.AuthorID != userID && !httpctx.IsAdminRequest(ctx) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("not authorized"))
