@@ -60,18 +60,19 @@ const MatchupItem = ({
     if (votingDisabled) return;
     try {
       setVotePending(true);
-      const res = await incrementMatchupItemVotes(item.id);
-      const payload = res?.data?.item ?? res?.data?.response ?? res?.data ?? {};
-      const updatedVotes = payload?.votes ?? payload?.Votes;
-      if (typeof updatedVotes === 'number') {
-        setVotes(Number(updatedVotes));
-      } else {
-        setVotes((prev) => prev + 1);
-      }
-      // Funnel event — fires after the server acknowledged the vote.
-      // is_bracket distinguishes from BracketView's matchup-item votes
-      // so analyses can split the engagement vs. tournament cohorts.
-      // is_anon comes from the analytics wrapper automatically.
+      await incrementMatchupItemVotes(item.id);
+      // Deliberately NOT calling setVotes() from the response. The
+      // optimistic local bump was the cause of the "both items show
+      // 100% after re-voting" bug: the response contains only the
+      // CLICKED item's new count, so on a switch-vote the parent
+      // (previously voted) item's local state stayed at its old count
+      // until refreshMatchup eventually updated its prop. During that
+      // ~200-500ms window both items' percentage bars read full. By
+      // waiting for the parent's refreshMatchup to land we get a single
+      // consistent paint where both old and new percentages are right.
+      // The vote-pending → onVote chain still gives immediate feedback
+      // via the orange-ring transition; the percentage bar updates one
+      // tick later when the refresh propagates.
       track('vote_cast', {
         matchup_id: item.matchup_id ?? item.matchupId,
         item_id: item.id,

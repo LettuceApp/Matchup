@@ -198,9 +198,15 @@
   color: var(--accent-primary);
 }
 
+/* Leading state used to share the same orange border + glow as
+   --voted, which made the "currently in front" card look identical
+   to the user's own pick — viewers reported "both cards selected at
+   once" after switching their vote. The orange ring is now reserved
+   strictly for --voted (the viewer's own pick). The inline "Leading"
+   pill on the card body still tells everyone who's ahead. */
 .matchup-item--leading {
-  border-color: var(--accent-primary);
-  box-shadow: 0 20px 45px var(--accent-primary-shadow);
+  /* intentionally no outline override — defer to the base card border
+     so it can't be confused with --voted. */
 }
 
 /* Winner state — saturated success palette to celebrate the result. */
