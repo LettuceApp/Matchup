@@ -372,7 +372,11 @@ const UserProfile = () => {
   useEffect(() => {
     let isMounted = true;
     const loadActivity = async () => {
-      if (activeTab !== 'activity' || !user || activityLoaded) return;
+      // isViewer guard: activity is owner-only. A non-owner viewer
+      // shouldn't trigger the fetch at all (the backend will reject
+      // with PermissionDenied anyway, but avoiding the round-trip
+      // keeps the network clean).
+      if (activeTab !== 'activity' || !isViewer || !user || activityLoaded) return;
       const userLookupId = user?.id || identifier;
       if (!userLookupId) return;
 
@@ -417,7 +421,17 @@ const UserProfile = () => {
     return () => {
       isMounted = false;
     };
-  }, [activeTab, user, identifier, activityLoaded]);
+  }, [activeTab, user, identifier, activityLoaded, isViewer]);
+
+  // Redirect non-owners away from ?tab=activity. Someone pasting a
+  // shared URL on a friend's profile would otherwise land on a blank
+  // tab (its trigger is hidden but the Tabs.Root value would stick).
+  // Falls back to matchups, the default landing tab.
+  useEffect(() => {
+    if (activeTab === 'activity' && !isViewer) {
+      setActiveTab('matchups');
+    }
+  }, [activeTab, isViewer]);
 
   // Load the next page of activity using the server-provided cursor.
   // Appends to the current list rather than replacing it; the render
@@ -1041,9 +1055,16 @@ const UserProfile = () => {
                 <Tabs.Trigger value="brackets" className="profile-tab">
                   Brackets
                 </Tabs.Trigger>
-                <Tabs.Trigger value="activity" className="profile-tab">
-                  Activity
-                </Tabs.Trigger>
+                {/* Activity is owner-only — strangers don't see what the
+                    profile owner has been doing. Mirrors the strict
+                    owner-only gating used elsewhere (matchup owner
+                    tray, etc). Backend RejectsCodePermissionDenied as
+                    the defensive backstop. */}
+                {isViewer && (
+                  <Tabs.Trigger value="activity" className="profile-tab">
+                    Activity
+                  </Tabs.Trigger>
+                )}
                 <Tabs.Trigger value="likes" className="profile-tab">
                   Likes
                 </Tabs.Trigger>
@@ -1185,6 +1206,11 @@ const UserProfile = () => {
                 </div>
               </Tabs.Content>
 
+              {/* Activity panel only renders for the profile owner. A
+                  non-owner who hand-crafts ?tab=activity gets bumped
+                  back to matchups by the redirect effect below; the
+                  guard here is belt-and-suspenders. */}
+              {isViewer && (
               <Tabs.Content value="activity" className="profile-tab-panel">
                 <div className="profile-tab-section">
                   <header className="profile-section-header">
@@ -1220,6 +1246,7 @@ const UserProfile = () => {
                   )}
                 </div>
               </Tabs.Content>
+              )}
 
               <Tabs.Content value="likes" className="profile-tab-panel">
                 <div className="profile-tab-section">
