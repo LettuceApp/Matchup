@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"Matchup/cache"
@@ -479,6 +480,25 @@ func (h *BracketHandler) CreateBracket(ctx context.Context, req *connect.Request
 		bracket.Description = *req.Msg.Description
 	}
 
+	// Resolve community ID from public ID if provided. Membership
+	// gate identical to CreateMatchup: members / mods / owner only,
+	// banned rejected. Standalone brackets skip the check.
+	if cid := strings.TrimSpace(req.Msg.GetCommunityId()); cid != "" {
+		community, err := resolveCommunityByIdentifier(h.DB, cid)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("community not found"))
+		}
+		var role string
+		err = sqlx.GetContext(ctx, h.DB, &role,
+			"SELECT role FROM community_memberships WHERE community_id = $1 AND user_id = $2",
+			community.ID, userID)
+		if err != nil || role == "" || role == "banned" {
+			return nil, connect.NewError(connect.CodePermissionDenied,
+				errors.New("you must be a member of this community to post here"))
+		}
+		bracket.CommunityID = &community.ID
+	}
+
 	if len(req.Msg.Entries) > 0 && len(req.Msg.Entries) != int(req.Msg.Size) {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("entries must match bracket size"))
 	}
@@ -505,6 +525,16 @@ func (h *BracketHandler) CreateBracket(ctx context.Context, req *connect.Request
 	}
 	if saveErr != nil {
 		return nil, connect.NewError(connect.CodeInternal, errors.New("short_id generation exhausted"))
+	}
+
+	// Bump the community's denormalised bracket_count for fast
+	// community-card rendering. Best-effort.
+	if newBracket.CommunityID != nil {
+		if _, err := h.DB.ExecContext(ctx,
+			"UPDATE communities SET bracket_count = bracket_count + 1 WHERE id = $1",
+			*newBracket.CommunityID); err != nil {
+			log.Printf("CreateBracket: bump community bracket_count: %v", err)
+		}
 	}
 
 	generateFullBracket(h.DB, *newBracket, req.Msg.Entries)

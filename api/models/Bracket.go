@@ -25,6 +25,11 @@ type Bracket struct {
 	Author   User `db:"-" json:"-"`
 	AuthorID uint `db:"author_id" json:"author_id"`
 
+	// CommunityID — nullable. NULL means a standalone bracket (the
+	// pre-communities default). When set, the bracket is scoped to a
+	// community and shows up in that community's feed.
+	CommunityID *uint `db:"community_id" json:"community_id,omitempty"`
+
 	Size         int    `db:"size" json:"size"`
 	Status       string `db:"status" json:"status"`
 	CurrentRound int    `db:"current_round" json:"current_round"`
@@ -120,8 +125,8 @@ func (b *Bracket) SaveBracket(db sqlx.ExtContext) (*Bracket, error) {
 		b.Tags = pq.StringArray{}
 	}
 	query, args, err := appdb.Psql.Insert("brackets").
-		Columns("public_id", "short_id", "title", "description", "author_id", "size", "status", "current_round", "visibility", "advance_mode", "round_duration_seconds", "round_started_at", "round_ends_at", "completed_at", "champion_matchup_id", "champion_item_id", "tags", "created_at", "updated_at").
-		Values(b.PublicID, b.ShortID, b.Title, b.Description, b.AuthorID, b.Size, b.Status, b.CurrentRound, b.Visibility, b.AdvanceMode, b.RoundDurationSeconds, b.RoundStartedAt, b.RoundEndsAt, b.CompletedAt, b.ChampionMatchupID, b.ChampionItemID, b.Tags, b.CreatedAt, b.UpdatedAt).
+		Columns("public_id", "short_id", "title", "description", "author_id", "community_id", "size", "status", "current_round", "visibility", "advance_mode", "round_duration_seconds", "round_started_at", "round_ends_at", "completed_at", "champion_matchup_id", "champion_item_id", "tags", "created_at", "updated_at").
+		Values(b.PublicID, b.ShortID, b.Title, b.Description, b.AuthorID, b.CommunityID, b.Size, b.Status, b.CurrentRound, b.Visibility, b.AdvanceMode, b.RoundDurationSeconds, b.RoundStartedAt, b.RoundEndsAt, b.CompletedAt, b.ChampionMatchupID, b.ChampionItemID, b.Tags, b.CreatedAt, b.UpdatedAt).
 		Suffix("RETURNING *").
 		ToSql()
 	if err != nil {

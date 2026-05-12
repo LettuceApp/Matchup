@@ -34,6 +34,10 @@ type Matchup struct {
 	EndMode         string        `db:"end_mode" json:"end_mode"`
 	DurationSeconds int           `db:"duration_seconds" json:"duration_seconds"`
 	BracketID       *uint         `db:"bracket_id" json:"bracket_id,omitempty"`
+	// CommunityID — nullable. NULL means a standalone matchup (the
+	// pre-communities default). When set, the matchup is scoped to a
+	// community and shows up in that community's feed.
+	CommunityID     *uint         `db:"community_id" json:"community_id,omitempty"`
 	Round           *int          `db:"round" json:"round,omitempty"`
 	Seed            *int          `db:"seed" json:"seed,omitempty"`
 	WinnerItemID    *uint         `db:"winner_item_id" json:"winner_item_id"`
@@ -156,8 +160,8 @@ func (m *Matchup) SaveMatchup(db sqlx.ExtContext) (*Matchup, error) {
 		m.Tags = pq.StringArray{}
 	}
 	query, args, err := appdb.Psql.Insert("matchups").
-		Columns("public_id", "short_id", "title", "author_id", "status", "end_mode", "duration_seconds", "bracket_id", "round", "seed", "winner_item_id", "start_time", "end_time", "visibility", "image_path", "tags", "created_at", "updated_at").
-		Values(m.PublicID, m.ShortID, m.Title, m.AuthorID, m.Status, m.EndMode, m.DurationSeconds, m.BracketID, m.Round, m.Seed, m.WinnerItemID, m.StartTime, m.EndTime, m.Visibility, m.ImagePath, m.Tags, m.CreatedAt, m.UpdatedAt).
+		Columns("public_id", "short_id", "title", "author_id", "status", "end_mode", "duration_seconds", "bracket_id", "community_id", "round", "seed", "winner_item_id", "start_time", "end_time", "visibility", "image_path", "tags", "created_at", "updated_at").
+		Values(m.PublicID, m.ShortID, m.Title, m.AuthorID, m.Status, m.EndMode, m.DurationSeconds, m.BracketID, m.CommunityID, m.Round, m.Seed, m.WinnerItemID, m.StartTime, m.EndTime, m.Visibility, m.ImagePath, m.Tags, m.CreatedAt, m.UpdatedAt).
 		Suffix("RETURNING *").
 		ToSql()
 	if err != nil {

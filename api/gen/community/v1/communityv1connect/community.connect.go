@@ -84,6 +84,9 @@ const (
 	// CommunityServiceSetRulesProcedure is the fully-qualified name of the CommunityService's SetRules
 	// RPC.
 	CommunityServiceSetRulesProcedure = "/community.v1.CommunityService/SetRules"
+	// CommunityServiceGetCommunityFeedProcedure is the fully-qualified name of the CommunityService's
+	// GetCommunityFeed RPC.
+	CommunityServiceGetCommunityFeedProcedure = "/community.v1.CommunityService/GetCommunityFeed"
 )
 
 // CommunityServiceClient is a client for the community.v1.CommunityService service.
@@ -105,6 +108,10 @@ type CommunityServiceClient interface {
 	UnbanMember(context.Context, *connect.Request[v1.UnbanMemberRequest]) (*connect.Response[v1.UnbanMemberResponse], error)
 	ListRules(context.Context, *connect.Request[v1.ListRulesRequest]) (*connect.Response[v1.ListRulesResponse], error)
 	SetRules(context.Context, *connect.Request[v1.SetRulesRequest]) (*connect.Response[v1.SetRulesResponse], error)
+	// Community-scoped feed — matchups + brackets created in this
+	// community. Sorted by created_at DESC; paginate via cursor (the
+	// last item's created_at).
+	GetCommunityFeed(context.Context, *connect.Request[v1.GetCommunityFeedRequest]) (*connect.Response[v1.GetCommunityFeedResponse], error)
 }
 
 // NewCommunityServiceClient constructs a client for the community.v1.CommunityService service. By
@@ -220,6 +227,12 @@ func NewCommunityServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(communityServiceMethods.ByName("SetRules")),
 			connect.WithClientOptions(opts...),
 		),
+		getCommunityFeed: connect.NewClient[v1.GetCommunityFeedRequest, v1.GetCommunityFeedResponse](
+			httpClient,
+			baseURL+CommunityServiceGetCommunityFeedProcedure,
+			connect.WithSchema(communityServiceMethods.ByName("GetCommunityFeed")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -242,6 +255,7 @@ type communityServiceClient struct {
 	unbanMember        *connect.Client[v1.UnbanMemberRequest, v1.UnbanMemberResponse]
 	listRules          *connect.Client[v1.ListRulesRequest, v1.ListRulesResponse]
 	setRules           *connect.Client[v1.SetRulesRequest, v1.SetRulesResponse]
+	getCommunityFeed   *connect.Client[v1.GetCommunityFeedRequest, v1.GetCommunityFeedResponse]
 }
 
 // CreateCommunity calls community.v1.CommunityService.CreateCommunity.
@@ -329,6 +343,11 @@ func (c *communityServiceClient) SetRules(ctx context.Context, req *connect.Requ
 	return c.setRules.CallUnary(ctx, req)
 }
 
+// GetCommunityFeed calls community.v1.CommunityService.GetCommunityFeed.
+func (c *communityServiceClient) GetCommunityFeed(ctx context.Context, req *connect.Request[v1.GetCommunityFeedRequest]) (*connect.Response[v1.GetCommunityFeedResponse], error) {
+	return c.getCommunityFeed.CallUnary(ctx, req)
+}
+
 // CommunityServiceHandler is an implementation of the community.v1.CommunityService service.
 type CommunityServiceHandler interface {
 	CreateCommunity(context.Context, *connect.Request[v1.CreateCommunityRequest]) (*connect.Response[v1.CreateCommunityResponse], error)
@@ -348,6 +367,10 @@ type CommunityServiceHandler interface {
 	UnbanMember(context.Context, *connect.Request[v1.UnbanMemberRequest]) (*connect.Response[v1.UnbanMemberResponse], error)
 	ListRules(context.Context, *connect.Request[v1.ListRulesRequest]) (*connect.Response[v1.ListRulesResponse], error)
 	SetRules(context.Context, *connect.Request[v1.SetRulesRequest]) (*connect.Response[v1.SetRulesResponse], error)
+	// Community-scoped feed — matchups + brackets created in this
+	// community. Sorted by created_at DESC; paginate via cursor (the
+	// last item's created_at).
+	GetCommunityFeed(context.Context, *connect.Request[v1.GetCommunityFeedRequest]) (*connect.Response[v1.GetCommunityFeedResponse], error)
 }
 
 // NewCommunityServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -459,6 +482,12 @@ func NewCommunityServiceHandler(svc CommunityServiceHandler, opts ...connect.Han
 		connect.WithSchema(communityServiceMethods.ByName("SetRules")),
 		connect.WithHandlerOptions(opts...),
 	)
+	communityServiceGetCommunityFeedHandler := connect.NewUnaryHandler(
+		CommunityServiceGetCommunityFeedProcedure,
+		svc.GetCommunityFeed,
+		connect.WithSchema(communityServiceMethods.ByName("GetCommunityFeed")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/community.v1.CommunityService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case CommunityServiceCreateCommunityProcedure:
@@ -495,6 +524,8 @@ func NewCommunityServiceHandler(svc CommunityServiceHandler, opts ...connect.Han
 			communityServiceListRulesHandler.ServeHTTP(w, r)
 		case CommunityServiceSetRulesProcedure:
 			communityServiceSetRulesHandler.ServeHTTP(w, r)
+		case CommunityServiceGetCommunityFeedProcedure:
+			communityServiceGetCommunityFeedHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -570,4 +601,8 @@ func (UnimplementedCommunityServiceHandler) ListRules(context.Context, *connect.
 
 func (UnimplementedCommunityServiceHandler) SetRules(context.Context, *connect.Request[v1.SetRulesRequest]) (*connect.Response[v1.SetRulesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("community.v1.CommunityService.SetRules is not implemented"))
+}
+
+func (UnimplementedCommunityServiceHandler) GetCommunityFeed(context.Context, *connect.Request[v1.GetCommunityFeedRequest]) (*connect.Response[v1.GetCommunityFeedResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("community.v1.CommunityService.GetCommunityFeed is not implemented"))
 }

@@ -62,6 +62,9 @@ message MatchupData {
   // the backfill binary finishes. Client code should fall back to `id`
   // when empty.
   string short_id = 22;
+  // Community public_id when the matchup is community-scoped.
+  // Empty / absent for standalone matchups.
+  optional string community_id = 23;
 }
 
 // CommentData is a comment embedded inside a matchup response.
@@ -155,6 +158,12 @@ message CreateMatchupRequest {
   // setting this on creation; the same field flows through to
   // canViewUserContent on every subsequent read.
   optional string visibility = 14;
+  // Community-scoped matchups carry a community_id (public_id of the
+  // community). The handler validates that the caller is a member of
+  // the community before allowing creation. Standalone matchups omit
+  // the field — community_id stays NULL in DB and the matchup
+  // doesn't appear on any community's feed.
+  optional string community_id = 15;
 }
 
 message UpdateMatchupRequest {

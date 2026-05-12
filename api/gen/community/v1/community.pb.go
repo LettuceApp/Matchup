@@ -7,6 +7,8 @@
 package communityv1
 
 import (
+	v11 "Matchup/gen/bracket/v1"
+	v1 "Matchup/gen/matchup/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -2091,11 +2093,133 @@ func (x *SetRulesResponse) GetRules() []*CommunityRule {
 	return nil
 }
 
+type GetCommunityFeedRequest struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	CommunityId string                 `protobuf:"bytes,1,opt,name=community_id,json=communityId,proto3" json:"community_id,omitempty"`
+	Limit       int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	// RFC3339 timestamp of the last item from the previous page. Empty
+	// for first page.
+	Cursor        string `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCommunityFeedRequest) Reset() {
+	*x = GetCommunityFeedRequest{}
+	mi := &file_community_v1_community_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCommunityFeedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCommunityFeedRequest) ProtoMessage() {}
+
+func (x *GetCommunityFeedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_community_v1_community_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCommunityFeedRequest.ProtoReflect.Descriptor instead.
+func (*GetCommunityFeedRequest) Descriptor() ([]byte, []int) {
+	return file_community_v1_community_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *GetCommunityFeedRequest) GetCommunityId() string {
+	if x != nil {
+		return x.CommunityId
+	}
+	return ""
+}
+
+func (x *GetCommunityFeedRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *GetCommunityFeedRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
+type GetCommunityFeedResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Matchups      []*v1.MatchupData      `protobuf:"bytes,1,rep,name=matchups,proto3" json:"matchups,omitempty"`
+	Brackets      []*v11.BracketData     `protobuf:"bytes,2,rep,name=brackets,proto3" json:"brackets,omitempty"`
+	NextCursor    string                 `protobuf:"bytes,3,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCommunityFeedResponse) Reset() {
+	*x = GetCommunityFeedResponse{}
+	mi := &file_community_v1_community_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCommunityFeedResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCommunityFeedResponse) ProtoMessage() {}
+
+func (x *GetCommunityFeedResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_community_v1_community_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCommunityFeedResponse.ProtoReflect.Descriptor instead.
+func (*GetCommunityFeedResponse) Descriptor() ([]byte, []int) {
+	return file_community_v1_community_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *GetCommunityFeedResponse) GetMatchups() []*v1.MatchupData {
+	if x != nil {
+		return x.Matchups
+	}
+	return nil
+}
+
+func (x *GetCommunityFeedResponse) GetBrackets() []*v11.BracketData {
+	if x != nil {
+		return x.Brackets
+	}
+	return nil
+}
+
+func (x *GetCommunityFeedResponse) GetNextCursor() string {
+	if x != nil {
+		return x.NextCursor
+	}
+	return ""
+}
+
 var File_community_v1_community_proto protoreflect.FileDescriptor
 
 const file_community_v1_community_proto_rawDesc = "" +
 	"\n" +
-	"\x1ccommunity/v1/community.proto\x12\fcommunity.v1\"\xe7\x03\n" +
+	"\x1ccommunity/v1/community.proto\x12\fcommunity.v1\x1a\x18matchup/v1/matchup.proto\x1a\x18bracket/v1/bracket.proto\"\xe7\x03\n" +
 	"\rCommunityData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x12\n" +
@@ -2241,7 +2365,16 @@ const file_community_v1_community_proto_rawDesc = "" +
 	"\fcommunity_id\x18\x01 \x01(\tR\vcommunityId\x121\n" +
 	"\x05rules\x18\x02 \x03(\v2\x1b.community.v1.CommunityRuleR\x05rules\"E\n" +
 	"\x10SetRulesResponse\x121\n" +
-	"\x05rules\x18\x01 \x03(\v2\x1b.community.v1.CommunityRuleR\x05rules2\x9b\f\n" +
+	"\x05rules\x18\x01 \x03(\v2\x1b.community.v1.CommunityRuleR\x05rules\"j\n" +
+	"\x17GetCommunityFeedRequest\x12!\n" +
+	"\fcommunity_id\x18\x01 \x01(\tR\vcommunityId\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06cursor\x18\x03 \x01(\tR\x06cursor\"\xa5\x01\n" +
+	"\x18GetCommunityFeedResponse\x123\n" +
+	"\bmatchups\x18\x01 \x03(\v2\x17.matchup.v1.MatchupDataR\bmatchups\x123\n" +
+	"\bbrackets\x18\x02 \x03(\v2\x17.bracket.v1.BracketDataR\bbrackets\x12\x1f\n" +
+	"\vnext_cursor\x18\x03 \x01(\tR\n" +
+	"nextCursor2\xfe\f\n" +
 	"\x10CommunityService\x12^\n" +
 	"\x0fCreateCommunity\x12$.community.v1.CreateCommunityRequest\x1a%.community.v1.CreateCommunityResponse\x12U\n" +
 	"\fGetCommunity\x12!.community.v1.GetCommunityRequest\x1a\".community.v1.GetCommunityResponse\x12g\n" +
@@ -2259,7 +2392,8 @@ const file_community_v1_community_proto_rawDesc = "" +
 	"\tBanMember\x12\x1e.community.v1.BanMemberRequest\x1a\x1f.community.v1.BanMemberResponse\x12R\n" +
 	"\vUnbanMember\x12 .community.v1.UnbanMemberRequest\x1a!.community.v1.UnbanMemberResponse\x12L\n" +
 	"\tListRules\x12\x1e.community.v1.ListRulesRequest\x1a\x1f.community.v1.ListRulesResponse\x12I\n" +
-	"\bSetRules\x12\x1d.community.v1.SetRulesRequest\x1a\x1e.community.v1.SetRulesResponseB&Z$Matchup/gen/community/v1;communityv1b\x06proto3"
+	"\bSetRules\x12\x1d.community.v1.SetRulesRequest\x1a\x1e.community.v1.SetRulesResponse\x12a\n" +
+	"\x10GetCommunityFeed\x12%.community.v1.GetCommunityFeedRequest\x1a&.community.v1.GetCommunityFeedResponseB&Z$Matchup/gen/community/v1;communityv1b\x06proto3"
 
 var (
 	file_community_v1_community_proto_rawDescOnce sync.Once
@@ -2273,7 +2407,7 @@ func file_community_v1_community_proto_rawDescGZIP() []byte {
 	return file_community_v1_community_proto_rawDescData
 }
 
-var file_community_v1_community_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
+var file_community_v1_community_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
 var file_community_v1_community_proto_goTypes = []any{
 	(*CommunityData)(nil),              // 0: community.v1.CommunityData
 	(*CommunityMember)(nil),            // 1: community.v1.CommunityMember
@@ -2312,6 +2446,10 @@ var file_community_v1_community_proto_goTypes = []any{
 	(*ListRulesResponse)(nil),          // 34: community.v1.ListRulesResponse
 	(*SetRulesRequest)(nil),            // 35: community.v1.SetRulesRequest
 	(*SetRulesResponse)(nil),           // 36: community.v1.SetRulesResponse
+	(*GetCommunityFeedRequest)(nil),    // 37: community.v1.GetCommunityFeedRequest
+	(*GetCommunityFeedResponse)(nil),   // 38: community.v1.GetCommunityFeedResponse
+	(*v1.MatchupData)(nil),             // 39: matchup.v1.MatchupData
+	(*v11.BracketData)(nil),            // 40: bracket.v1.BracketData
 }
 var file_community_v1_community_proto_depIdxs = []int32{
 	0,  // 0: community.v1.CreateCommunityResponse.community:type_name -> community.v1.CommunityData
@@ -2325,45 +2463,49 @@ var file_community_v1_community_proto_depIdxs = []int32{
 	2,  // 8: community.v1.ListRulesResponse.rules:type_name -> community.v1.CommunityRule
 	2,  // 9: community.v1.SetRulesRequest.rules:type_name -> community.v1.CommunityRule
 	2,  // 10: community.v1.SetRulesResponse.rules:type_name -> community.v1.CommunityRule
-	3,  // 11: community.v1.CommunityService.CreateCommunity:input_type -> community.v1.CreateCommunityRequest
-	5,  // 12: community.v1.CommunityService.GetCommunity:input_type -> community.v1.GetCommunityRequest
-	7,  // 13: community.v1.CommunityService.GetCommunityBySlug:input_type -> community.v1.GetCommunityBySlugRequest
-	9,  // 14: community.v1.CommunityService.UpdateCommunity:input_type -> community.v1.UpdateCommunityRequest
-	11, // 15: community.v1.CommunityService.DeleteCommunity:input_type -> community.v1.DeleteCommunityRequest
-	13, // 16: community.v1.CommunityService.ListCommunities:input_type -> community.v1.ListCommunitiesRequest
-	15, // 17: community.v1.CommunityService.CheckSlugAvailable:input_type -> community.v1.CheckSlugAvailableRequest
-	17, // 18: community.v1.CommunityService.JoinCommunity:input_type -> community.v1.JoinCommunityRequest
-	19, // 19: community.v1.CommunityService.LeaveCommunity:input_type -> community.v1.LeaveCommunityRequest
-	21, // 20: community.v1.CommunityService.ListMembers:input_type -> community.v1.ListMembersRequest
-	23, // 21: community.v1.CommunityService.GetMyMembership:input_type -> community.v1.GetMyMembershipRequest
-	25, // 22: community.v1.CommunityService.UpdateMemberRole:input_type -> community.v1.UpdateMemberRoleRequest
-	27, // 23: community.v1.CommunityService.RemoveMember:input_type -> community.v1.RemoveMemberRequest
-	29, // 24: community.v1.CommunityService.BanMember:input_type -> community.v1.BanMemberRequest
-	31, // 25: community.v1.CommunityService.UnbanMember:input_type -> community.v1.UnbanMemberRequest
-	33, // 26: community.v1.CommunityService.ListRules:input_type -> community.v1.ListRulesRequest
-	35, // 27: community.v1.CommunityService.SetRules:input_type -> community.v1.SetRulesRequest
-	4,  // 28: community.v1.CommunityService.CreateCommunity:output_type -> community.v1.CreateCommunityResponse
-	6,  // 29: community.v1.CommunityService.GetCommunity:output_type -> community.v1.GetCommunityResponse
-	8,  // 30: community.v1.CommunityService.GetCommunityBySlug:output_type -> community.v1.GetCommunityBySlugResponse
-	10, // 31: community.v1.CommunityService.UpdateCommunity:output_type -> community.v1.UpdateCommunityResponse
-	12, // 32: community.v1.CommunityService.DeleteCommunity:output_type -> community.v1.DeleteCommunityResponse
-	14, // 33: community.v1.CommunityService.ListCommunities:output_type -> community.v1.ListCommunitiesResponse
-	16, // 34: community.v1.CommunityService.CheckSlugAvailable:output_type -> community.v1.CheckSlugAvailableResponse
-	18, // 35: community.v1.CommunityService.JoinCommunity:output_type -> community.v1.JoinCommunityResponse
-	20, // 36: community.v1.CommunityService.LeaveCommunity:output_type -> community.v1.LeaveCommunityResponse
-	22, // 37: community.v1.CommunityService.ListMembers:output_type -> community.v1.ListMembersResponse
-	24, // 38: community.v1.CommunityService.GetMyMembership:output_type -> community.v1.GetMyMembershipResponse
-	26, // 39: community.v1.CommunityService.UpdateMemberRole:output_type -> community.v1.UpdateMemberRoleResponse
-	28, // 40: community.v1.CommunityService.RemoveMember:output_type -> community.v1.RemoveMemberResponse
-	30, // 41: community.v1.CommunityService.BanMember:output_type -> community.v1.BanMemberResponse
-	32, // 42: community.v1.CommunityService.UnbanMember:output_type -> community.v1.UnbanMemberResponse
-	34, // 43: community.v1.CommunityService.ListRules:output_type -> community.v1.ListRulesResponse
-	36, // 44: community.v1.CommunityService.SetRules:output_type -> community.v1.SetRulesResponse
-	28, // [28:45] is the sub-list for method output_type
-	11, // [11:28] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	39, // 11: community.v1.GetCommunityFeedResponse.matchups:type_name -> matchup.v1.MatchupData
+	40, // 12: community.v1.GetCommunityFeedResponse.brackets:type_name -> bracket.v1.BracketData
+	3,  // 13: community.v1.CommunityService.CreateCommunity:input_type -> community.v1.CreateCommunityRequest
+	5,  // 14: community.v1.CommunityService.GetCommunity:input_type -> community.v1.GetCommunityRequest
+	7,  // 15: community.v1.CommunityService.GetCommunityBySlug:input_type -> community.v1.GetCommunityBySlugRequest
+	9,  // 16: community.v1.CommunityService.UpdateCommunity:input_type -> community.v1.UpdateCommunityRequest
+	11, // 17: community.v1.CommunityService.DeleteCommunity:input_type -> community.v1.DeleteCommunityRequest
+	13, // 18: community.v1.CommunityService.ListCommunities:input_type -> community.v1.ListCommunitiesRequest
+	15, // 19: community.v1.CommunityService.CheckSlugAvailable:input_type -> community.v1.CheckSlugAvailableRequest
+	17, // 20: community.v1.CommunityService.JoinCommunity:input_type -> community.v1.JoinCommunityRequest
+	19, // 21: community.v1.CommunityService.LeaveCommunity:input_type -> community.v1.LeaveCommunityRequest
+	21, // 22: community.v1.CommunityService.ListMembers:input_type -> community.v1.ListMembersRequest
+	23, // 23: community.v1.CommunityService.GetMyMembership:input_type -> community.v1.GetMyMembershipRequest
+	25, // 24: community.v1.CommunityService.UpdateMemberRole:input_type -> community.v1.UpdateMemberRoleRequest
+	27, // 25: community.v1.CommunityService.RemoveMember:input_type -> community.v1.RemoveMemberRequest
+	29, // 26: community.v1.CommunityService.BanMember:input_type -> community.v1.BanMemberRequest
+	31, // 27: community.v1.CommunityService.UnbanMember:input_type -> community.v1.UnbanMemberRequest
+	33, // 28: community.v1.CommunityService.ListRules:input_type -> community.v1.ListRulesRequest
+	35, // 29: community.v1.CommunityService.SetRules:input_type -> community.v1.SetRulesRequest
+	37, // 30: community.v1.CommunityService.GetCommunityFeed:input_type -> community.v1.GetCommunityFeedRequest
+	4,  // 31: community.v1.CommunityService.CreateCommunity:output_type -> community.v1.CreateCommunityResponse
+	6,  // 32: community.v1.CommunityService.GetCommunity:output_type -> community.v1.GetCommunityResponse
+	8,  // 33: community.v1.CommunityService.GetCommunityBySlug:output_type -> community.v1.GetCommunityBySlugResponse
+	10, // 34: community.v1.CommunityService.UpdateCommunity:output_type -> community.v1.UpdateCommunityResponse
+	12, // 35: community.v1.CommunityService.DeleteCommunity:output_type -> community.v1.DeleteCommunityResponse
+	14, // 36: community.v1.CommunityService.ListCommunities:output_type -> community.v1.ListCommunitiesResponse
+	16, // 37: community.v1.CommunityService.CheckSlugAvailable:output_type -> community.v1.CheckSlugAvailableResponse
+	18, // 38: community.v1.CommunityService.JoinCommunity:output_type -> community.v1.JoinCommunityResponse
+	20, // 39: community.v1.CommunityService.LeaveCommunity:output_type -> community.v1.LeaveCommunityResponse
+	22, // 40: community.v1.CommunityService.ListMembers:output_type -> community.v1.ListMembersResponse
+	24, // 41: community.v1.CommunityService.GetMyMembership:output_type -> community.v1.GetMyMembershipResponse
+	26, // 42: community.v1.CommunityService.UpdateMemberRole:output_type -> community.v1.UpdateMemberRoleResponse
+	28, // 43: community.v1.CommunityService.RemoveMember:output_type -> community.v1.RemoveMemberResponse
+	30, // 44: community.v1.CommunityService.BanMember:output_type -> community.v1.BanMemberResponse
+	32, // 45: community.v1.CommunityService.UnbanMember:output_type -> community.v1.UnbanMemberResponse
+	34, // 46: community.v1.CommunityService.ListRules:output_type -> community.v1.ListRulesResponse
+	36, // 47: community.v1.CommunityService.SetRules:output_type -> community.v1.SetRulesResponse
+	38, // 48: community.v1.CommunityService.GetCommunityFeed:output_type -> community.v1.GetCommunityFeedResponse
+	31, // [31:49] is the sub-list for method output_type
+	13, // [13:31] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_community_v1_community_proto_init() }
@@ -2378,7 +2520,7 @@ func file_community_v1_community_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_community_v1_community_proto_rawDesc), len(file_community_v1_community_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   37,
+			NumMessages:   39,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

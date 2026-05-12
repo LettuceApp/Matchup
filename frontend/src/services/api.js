@@ -802,4 +802,14 @@ export const updateCommunity = (id, data = {}) =>
 export const deleteCommunity = (id) =>
   rpc('community.v1.CommunityService', 'DeleteCommunity', { id });
 
+// Feed for a community page — matchups + brackets the community
+// owns, sorted by created_at DESC. cursor is an RFC3339 timestamp
+// returned by the previous page as next_cursor.
+export const getCommunityFeed = (communityId, { limit = 20, cursor = '' } = {}) =>
+  rpc('community.v1.CommunityService', 'GetCommunityFeed', {
+    community_id: communityId,
+    limit,
+    cursor,
+  });
+
 export default API;

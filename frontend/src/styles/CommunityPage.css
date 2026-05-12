@@ -196,28 +196,62 @@
   font-weight: 600;
 }
 
-.community-page__feed-placeholder {
-  margin: 2rem 1rem 0;
+.community-page__create-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 1.25rem 1rem 0;
+}
+
+.community-page__feed {
+  margin: 1.5rem 1rem 0;
+}
+
+.community-page__feed-title {
+  margin: 0 0 0.9rem;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.community-page__feed-empty {
+  margin: 1rem 0;
+  padding: 1.5rem 1.2rem;
   background: var(--bg-surface);
   border: 1px dashed var(--border-subtle);
   border-radius: 14px;
-  padding: 2rem 1.2rem;
   text-align: center;
   color: var(--text-secondary);
-}
-
-.community-page__feed-placeholder h2 {
-  margin: 0 0 0.5rem;
-  color: var(--text-primary);
-  font-size: 1.1rem;
-}
-
-.community-page__feed-placeholder p {
-  margin: 0;
   font-size: 0.95rem;
-  max-width: 36rem;
-  margin-inline: auto;
-  line-height: 1.5;
+}
+
+.community-page__feed-empty--error {
+  border-color: rgba(248, 113, 113, 0.5);
+  color: #fca5a5;
+  border-style: solid;
+}
+
+/* Grid uses the same column layout as the home feed (HomeCard's
+   natural shape) — single-column on mobile, two-up on tablet,
+   three-up on desktop. min-width: 0 on the children prevents long
+   titles from blowing out the grid. */
+.community-page__feed-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 720px) {
+  .community-page__feed-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1080px) {
+  .community-page__feed-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 600px) {

@@ -1,7 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import HomeCard from '../components/HomeCard';
 import {
   getCommunityBySlug,
+  getCommunityFeed,
   joinCommunity,
   leaveCommunity,
 } from '../services/api';
@@ -27,6 +29,14 @@ const CommunityPage = () => {
   const [error, setError] = useState(null);
   const [pendingMembership, setPendingMembership] = useState(false);
 
+  // Feed state — matchups + brackets the community owns. Loaded
+  // separately from the community itself so the header can render
+  // while the feed is still in flight.
+  const [feedMatchups, setFeedMatchups] = useState([]);
+  const [feedBrackets, setFeedBrackets] = useState([]);
+  const [feedLoading, setFeedLoading] = useState(false);
+  const [feedError, setFeedError] = useState(null);
+
   const isAuthed = typeof window !== 'undefined' && Boolean(localStorage.getItem('token'));
 
   const loadCommunity = useCallback(async () => {
@@ -51,6 +61,47 @@ const CommunityPage = () => {
   useEffect(() => {
     loadCommunity();
   }, [loadCommunity]);
+
+  // Fetch the community feed once we know the community's public_id.
+  // Re-runs only on community-change (new slug, or first load) — not
+  // on every membership state change.
+  useEffect(() => {
+    if (!community?.id) return;
+    let cancelled = false;
+    setFeedLoading(true);
+    setFeedError(null);
+    (async () => {
+      try {
+        const res = await getCommunityFeed(community.id, { limit: 20 });
+        if (cancelled) return;
+        setFeedMatchups(res?.data?.matchups || []);
+        setFeedBrackets(res?.data?.brackets || []);
+      } catch (err) {
+        if (cancelled) return;
+        console.warn('Community feed load failed', err);
+        setFeedError('Could not load the community feed.');
+      } finally {
+        if (!cancelled) setFeedLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [community?.id]);
+
+  // Interleave matchups + brackets by created_at DESC for the
+  // unified feed render. Cheap O(n+m) merge since each list already
+  // arrives sorted by created_at from the backend.
+  const feedItems = useMemo(() => {
+    const combined = [
+      ...feedMatchups.map((m) => ({ ...m, _kind: 'matchup' })),
+      ...feedBrackets.map((b) => ({ ...b, _kind: 'bracket' })),
+    ];
+    combined.sort((a, b) => {
+      const ta = new Date(a.created_at).getTime();
+      const tb = new Date(b.created_at).getTime();
+      return tb - ta;
+    });
+    return combined;
+  }, [feedMatchups, feedBrackets]);
 
   const handleJoin = async () => {
     if (!community || pendingMembership) return;
@@ -194,12 +245,53 @@ const CommunityPage = () => {
         </div>
       )}
 
-      <section className="community-page__feed-placeholder">
-        <h2>Community feed</h2>
-        <p>
-          Community-scoped matchups and brackets will show up here. We're
-          shipping that piece next.
-        </p>
+      {/* Member-only CTAs. Owners and mods also count as members for
+          create purposes (the backend's permission gate accepts
+          member / mod / owner). Banned users see nothing here — same
+          posture as the Join button area. */}
+      {isMember && (
+        <div className="community-page__create-row">
+          <Link
+            to={`/users/${community.owner_username || community.id}/create-matchup?community=${community.id}`}
+            className="community-page__btn community-page__btn--primary"
+          >
+            + New matchup
+          </Link>
+          <Link
+            to={`/brackets/new?community=${community.id}`}
+            className="community-page__btn community-page__btn--ghost"
+          >
+            + New bracket
+          </Link>
+        </div>
+      )}
+
+      <section className="community-page__feed">
+        <h2 className="community-page__feed-title">Community feed</h2>
+        {feedLoading && feedItems.length === 0 && (
+          <p className="community-page__feed-empty">Loading…</p>
+        )}
+        {feedError && (
+          <p className="community-page__feed-empty community-page__feed-empty--error">
+            {feedError}
+          </p>
+        )}
+        {!feedLoading && !feedError && feedItems.length === 0 && (
+          <p className="community-page__feed-empty">
+            No matchups or brackets yet. {isMember ? 'Be the first to start one!' : 'Join to create the first one.'}
+          </p>
+        )}
+        {feedItems.length > 0 && (
+          <div className="community-page__feed-grid">
+            {feedItems.map((item) => (
+              <HomeCard
+                key={`${item._kind}-${item.id}`}
+                item={item}
+                type={item._kind}
+              />
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

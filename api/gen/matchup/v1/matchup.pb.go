@@ -50,7 +50,10 @@ type MatchupData struct {
 	// preview URLs. Nullable for rows created before migration 014 until
 	// the backfill binary finishes. Client code should fall back to `id`
 	// when empty.
-	ShortId       string `protobuf:"bytes,22,opt,name=short_id,json=shortId,proto3" json:"short_id,omitempty"`
+	ShortId string `protobuf:"bytes,22,opt,name=short_id,json=shortId,proto3" json:"short_id,omitempty"`
+	// Community public_id when the matchup is community-scoped.
+	// Empty / absent for standalone matchups.
+	CommunityId   *string `protobuf:"bytes,23,opt,name=community_id,json=communityId,proto3,oneof" json:"community_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -235,6 +238,13 @@ func (x *MatchupData) GetTags() []string {
 func (x *MatchupData) GetShortId() string {
 	if x != nil {
 		return x.ShortId
+	}
+	return ""
+}
+
+func (x *MatchupData) GetCommunityId() string {
+	if x != nil && x.CommunityId != nil {
+		return *x.CommunityId
 	}
 	return ""
 }
@@ -819,7 +829,13 @@ type CreateMatchupRequest struct {
 	// mark an individual matchup as followers- or mutuals-only by
 	// setting this on creation; the same field flows through to
 	// canViewUserContent on every subsequent read.
-	Visibility    *string `protobuf:"bytes,14,opt,name=visibility,proto3,oneof" json:"visibility,omitempty"`
+	Visibility *string `protobuf:"bytes,14,opt,name=visibility,proto3,oneof" json:"visibility,omitempty"`
+	// Community-scoped matchups carry a community_id (public_id of the
+	// community). The handler validates that the caller is a member of
+	// the community before allowing creation. Standalone matchups omit
+	// the field — community_id stays NULL in DB and the matchup
+	// doesn't appear on any community's feed.
+	CommunityId   *string `protobuf:"bytes,15,opt,name=community_id,json=communityId,proto3,oneof" json:"community_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -934,6 +950,13 @@ func (x *CreateMatchupRequest) GetUploadKey() string {
 func (x *CreateMatchupRequest) GetVisibility() string {
 	if x != nil && x.Visibility != nil {
 		return *x.Visibility
+	}
+	return ""
+}
+
+func (x *CreateMatchupRequest) GetCommunityId() string {
+	if x != nil && x.CommunityId != nil {
+		return *x.CommunityId
 	}
 	return ""
 }
@@ -2467,7 +2490,7 @@ var File_matchup_v1_matchup_proto protoreflect.FileDescriptor
 const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\n" +
 	"\x18matchup/v1/matchup.proto\x12\n" +
-	"matchup.v1\x1a\x16common/v1/common.proto\"\xc1\x06\n" +
+	"matchup.v1\x1a\x16common/v1/common.proto\"\xfa\x06\n" +
 	"\vMatchupData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
@@ -2496,7 +2519,8 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\x0ewinner_item_id\x18\x13 \x01(\tH\x05R\fwinnerItemId\x88\x01\x01\x12 \n" +
 	"\timage_url\x18\x14 \x01(\tH\x06R\bimageUrl\x88\x01\x01\x12\x12\n" +
 	"\x04tags\x18\x15 \x03(\tR\x04tags\x12\x19\n" +
-	"\bshort_id\x18\x16 \x01(\tR\ashortIdB\r\n" +
+	"\bshort_id\x18\x16 \x01(\tR\ashortId\x12&\n" +
+	"\fcommunity_id\x18\x17 \x01(\tH\aR\vcommunityId\x88\x01\x01B\r\n" +
 	"\v_bracket_idB\b\n" +
 	"\x06_roundB\a\n" +
 	"\x05_seedB\r\n" +
@@ -2504,7 +2528,8 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\t_end_timeB\x11\n" +
 	"\x0f_winner_item_idB\f\n" +
 	"\n" +
-	"_image_url\"\xa4\x01\n" +
+	"_image_urlB\x0f\n" +
+	"\r_community_id\"\xa4\x01\n" +
 	"\vCommentData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1a\n" +
@@ -2564,7 +2589,7 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\x04item\x18\x01 \x01(\tR\x04item\x12\"\n" +
 	"\n" +
 	"upload_key\x18\x02 \x01(\tH\x00R\tuploadKey\x88\x01\x01B\r\n" +
-	"\v_upload_key\"\xb8\x04\n" +
+	"\v_upload_key\"\xf1\x04\n" +
 	"\x14CreateMatchupRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x1d\n" +
@@ -2582,7 +2607,8 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"upload_key\x18\r \x01(\tH\x06R\tuploadKey\x88\x01\x01\x12#\n" +
 	"\n" +
 	"visibility\x18\x0e \x01(\tH\aR\n" +
-	"visibility\x88\x01\x01B\n" +
+	"visibility\x88\x01\x01\x12&\n" +
+	"\fcommunity_id\x18\x0f \x01(\tH\bR\vcommunityId\x88\x01\x01B\n" +
 	"\n" +
 	"\b_contentB\v\n" +
 	"\t_end_modeB\x13\n" +
@@ -2591,7 +2617,8 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\x06_roundB\a\n" +
 	"\x05_seedB\r\n" +
 	"\v_upload_keyB\r\n" +
-	"\v_visibilityJ\x04\b\v\x10\fJ\x04\b\f\x10\rR\n" +
+	"\v_visibilityB\x0f\n" +
+	"\r_community_idJ\x04\b\v\x10\fJ\x04\b\f\x10\rR\n" +
 	"image_dataR\x12image_content_type\"\x8a\x01\n" +
 	"\x14UpdateMatchupRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
