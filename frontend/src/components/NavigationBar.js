@@ -74,7 +74,7 @@ const NavigationBar = () => {
           className="navigation-bar__brand"
           onClick={() => navigate('/home')}
         >
-          Matchup Hub
+          Matchup
         </button>
         <div className="navigation-bar__actions">
           {isAuthed ? (

@@ -46,7 +46,7 @@ const HomeSidebar = ({ sortMode, onSortChange, categoryFilter, onCategoryChange,
   return (
     <aside className={`home-sidebar${mobileOpen ? ' home-sidebar--mobile-open' : ''}`}>
       <div className="home-sidebar__brand" onClick={() => navigate('/home')}>
-        Matchup Hub
+        Matchup
       </div>
 
       <nav className="home-sidebar__nav">

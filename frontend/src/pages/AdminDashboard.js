@@ -291,7 +291,7 @@ const AdminDashboard = () => {
         <header className="admin-header">
           <div>
             <p className="admin-overline">Admin Console</p>
-            <h1>Moderate Matchup Hub</h1>
+            <h1>Moderate Matchup</h1>
             <p>Review users and remove content that violates your guidelines.</p>
           </div>
           {actionMessage && <div className="admin-toast">{actionMessage}</div>}
