@@ -187,7 +187,14 @@ export default function BracketPage() {
 
   const roundCountdown = useCountdown(roundEndsAt);
 
-  // Listen for server-sent bracket advance events to refresh without polling.
+  // Listen for server-sent bracket advance events to refresh without
+  // polling. EventSource handles reconnect automatically on transient
+  // errors; the prior `es.onerror = () => es.close()` made the
+  // listener give up after the first hiccup (which on Render's proxy
+  // happens regularly via response buffering) — leaving the UI
+  // permanently stuck on the old round even though the server kept
+  // advancing. Just letting onerror no-op preserves the built-in
+  // retry-with-backoff behavior.
   useEffect(() => {
     if (bracketAdvanceMode !== "timer" || bracket?.status !== "active" || !bracket?.id) return;
 
@@ -195,10 +202,45 @@ export default function BracketPage() {
     es.onmessage = (e) => {
       if (e.data === "advance") loadBracket({ silent: true });
     };
-    es.onerror = () => es.close();
 
     return () => es.close();
   }, [bracketAdvanceMode, bracket?.status, bracket?.id, loadBracket]);
+
+  // Poll-on-expiry fallback. Even with the SSE listener above, there
+  // are two windows where we can't rely on it:
+  //   1. Render's reverse proxy occasionally buffers SSE responses,
+  //      so the "advance" payload arrives seconds late or not at all.
+  //   2. The server's scheduler runs every ~10s, so there's a gap
+  //      between client-timer-hits-zero and server-actually-advances.
+  // When the client countdown expires we kick off a 5s polling loop
+  // and let it run until either bracket.current_round increments
+  // (which changes this effect's deps and tears the interval down via
+  // cleanup) or bracket.status flips to "completed", or 60s elapses
+  // as a safety cap.
+  useEffect(() => {
+    if (bracketAdvanceMode !== "timer") return;
+    if (bracket?.status !== "active") return;
+    if (!roundCountdown.isExpired) return;
+
+    const startedAt = Date.now();
+    const MAX_WAIT_MS = 60_000;
+    loadBracket({ silent: true });
+    const intervalId = setInterval(() => {
+      if (Date.now() - startedAt > MAX_WAIT_MS) {
+        clearInterval(intervalId);
+        return;
+      }
+      loadBracket({ silent: true });
+    }, 5000);
+    return () => clearInterval(intervalId);
+  }, [
+    bracketAdvanceMode,
+    bracket?.status,
+    bracket?.current_round,
+    bracket?.currentRound,
+    roundCountdown.isExpired,
+    loadBracket,
+  ]);
 
   /* ------------------------------------------------------------------ */
   /* CHAMPION DETECTION */
@@ -547,8 +589,13 @@ export default function BracketPage() {
 
           {bracket.status === "active" && roundEndsAt && (
             <div className="bracket-round-timer">
-              ⏳ Round ends in{" "}
-              <strong>{roundCountdown.formatted}</strong>
+              {roundCountdown.isExpired ? (
+                <>🔄 Round ended — advancing to next round…</>
+              ) : (
+                <>
+                  ⏳ Round ends in <strong>{roundCountdown.formatted}</strong>
+                </>
+              )}
             </div>
           )}
         </motion.section>
