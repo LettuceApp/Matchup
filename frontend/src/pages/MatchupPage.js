@@ -655,7 +655,18 @@ const MatchupPage = () => {
   };
 
   const handleReadyUp = () => {
-    if (!readyEnabled || readyPending) return;
+    if (readyPending) return;
+    // Surface the blocker reason instead of silently no-op'ing on a
+    // disabled click. Owners reported "Ready up doesn't do anything" —
+    // the disabled state was correct (tied vote needs a manual winner
+    // first) but unexplained, so the click felt broken. Route the
+    // click through this guard with a friendly error and the user
+    // immediately sees what to do.
+    if (canReadyUp && !isReady && requiresManualWinner) {
+      setError("Pick a winner first — votes are tied. Use Override winner to choose.");
+      return;
+    }
+    if (!readyEnabled) return;
     const promptMessage = isReady ? "Undo ready?" : "Ready up and lock the winner?";
     setConfirmModal({
       message: promptMessage,
@@ -1133,8 +1144,16 @@ const MatchupPage = () => {
               {canReadyUp && (
                 <Button
                   onClick={handleReadyUp}
-                  disabled={!readyEnabled || readyPending}
-                  title="Closes voting & reveals winner"
+                  /* Only disable during the in-flight API call. The
+                     blocked-by-tied-vote case routes through
+                     handleReadyUp's guard so the click surfaces a
+                     real explanation instead of a silent no-op. */
+                  disabled={readyPending}
+                  title={
+                    !isReady && requiresManualWinner
+                      ? "Tied vote — pick a winner first via Override winner"
+                      : "Closes voting & reveals winner"
+                  }
                   className={`matchup-owner-tray__button ${isReady ? "is-armed" : ""}`}
                 >
                   {readyPending ? (isReady ? "Unlocking…" : "Locking…") : isReady ? "Undo Ready" : "Ready up"}
