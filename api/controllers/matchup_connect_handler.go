@@ -162,6 +162,14 @@ func (h *MatchupHandler) GetMatchup(ctx context.Context, req *connect.Request[ma
 	// Merge any pending Redis vote deltas onto the freshly-loaded items
 	// so the detail view shows live counts, not flush-lagged ones.
 	applyVoteDeltasToItems(ctx, matchup.Items)
+	// Load the matchup's OWN author. For bracket-child matchups this is
+	// the matchup creator and is also the bracket owner — but the lookup
+	// MUST stay keyed off matchup.AuthorID, not bracket.AuthorID. The
+	// frontend owner gate compares currentUser.id to the response's
+	// author_id; if a future refactor accidentally inherits the bracket
+	// owner instead, every bracket viewer would suddenly see Owner
+	// controls on every bracket-child matchup. Don't change this without
+	// also auditing MatchupPage.js's isOwner check.
 	if err := sqlx.GetContext(ctx, h.DB, &matchup.Author,
 		"SELECT * FROM users WHERE id = $1", matchup.AuthorID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
