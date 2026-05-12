@@ -120,7 +120,10 @@ func (s *sendMail) SendWeeklyDigest(payload DigestPayload, fromAdmin, sendgridKe
 		{
 			Instructions: "Jump back in:",
 			Button: hermes.Button{
-				Color: "#FFFFFF",
+				// See verify_email_mail.go for the full note — hermes
+				// paints white text on whatever Color we set, so #FFFFFF
+				// rendered an invisible button.
+				Color: "#F97316",
 				Text:  "Open Matchup",
 				Link:  appBaseURL(),
 			},

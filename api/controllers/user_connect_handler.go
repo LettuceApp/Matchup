@@ -130,18 +130,15 @@ func (h *UserHandler) CreateUser(ctx context.Context, req *connect.Request[userv
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// Fire-and-forget email verification. The dispatch helper picks
-	// the queue path in prod and inline send in dev, so the email
-	// goes out whether or not a worker process is draining Redis.
-	// We never block signup on the result — signup is the most
-	// friction-sensitive surface in the app, and a down SendGrid /
-	// Redis must not prevent new accounts. The soft-nudge banner +
-	// write-path gate take over from here.
-	if token, err := mintEmailVerificationToken(ctx, h.DB, created.ID); err == nil {
-		dispatchVerifyEmail(ctx, created.Email, token)
-	} else {
-		log.Printf("signup: mint verification token failed: %v", err)
-	}
+	// Email verification is NOT auto-sent at signup anymore. The
+	// frontend pops a ConfirmModal right after register+login and
+	// asks the user whether to send the link now — Yes calls
+	// RequestEmailVerification, No just lands them on the page with
+	// the persistent banner up. This was a deliberate UX call: the
+	// previous auto-send fired into spam folders silently and users
+	// thought their email had failed to register entirely. The
+	// banner + write-path gate still keep them honest about
+	// verifying eventually.
 
 	// Migrate anonymous votes from this browser into the new account.
 	// The frontend sends X-Anon-Id whenever localStorage.anonId is

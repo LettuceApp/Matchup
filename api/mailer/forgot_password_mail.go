@@ -67,7 +67,11 @@ func (s *sendMail) SendResetPassword(ToUser string, FromAdmin string, Token stri
 				{
 					Instructions: "Click this link to reset your password. It expires in 2 hours.",
 					Button: hermes.Button{
-						Color: "#FFFFFF",
+						// See verify_email_mail.go for the full note —
+						// hermes uses Color as the button background and
+						// always paints white text, so #FFFFFF rendered
+						// the button invisible against the email body.
+						Color: "#F97316",
 						Text:  "Reset Password",
 						Link:  forgotUrl,
 					},

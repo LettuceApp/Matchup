@@ -9,6 +9,7 @@ import (
 
 	"Matchup/controllers"
 	appdb "Matchup/db"
+	"Matchup/mailer"
 	"Matchup/migrations"
 	"Matchup/scheduler"
 	"Matchup/sentry"
@@ -31,6 +32,11 @@ func Run() {
 	// during shutdown still reach Sentry before the binary exits.
 	flush := sentry.Init()
 	defer flush()
+
+	// One-line yelp at boot when SENDGRID_FROM is missing or on a
+	// generic / unauthenticated domain. Catches "I deployed and my
+	// verification emails went to spam" before users hit the bug.
+	mailer.CheckSenderConfig()
 
 	// Build DSN for migrations (same logic as base.go)
 	var dsn string
