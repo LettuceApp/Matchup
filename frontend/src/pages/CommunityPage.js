@@ -184,8 +184,10 @@ const CommunityPage = () => {
             <h1 className="community-page__name">{community.name}</h1>
             <p className="community-page__slug">/c/{community.slug}</p>
             <p className="community-page__meta">
-              <strong>{community.member_count}</strong>{' '}
-              {community.member_count === 1 ? 'member' : 'members'}
+              <Link to={`/c/${slug}/members`} className="community-page__members-link">
+                <strong>{community.member_count}</strong>{' '}
+                {community.member_count === 1 ? 'member' : 'members'}
+              </Link>
               {community.owner_username && (
                 <>
                   {' · '}Owner{' '}

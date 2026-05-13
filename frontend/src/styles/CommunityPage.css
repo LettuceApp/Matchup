@@ -124,6 +124,20 @@
   text-decoration: none;
 }
 
+.community-page__members-link {
+  color: var(--text-secondary) !important;
+  text-decoration: none;
+}
+
+.community-page__members-link:hover {
+  color: var(--text-primary) !important;
+  text-decoration: underline;
+}
+
+.community-page__members-link strong {
+  color: var(--text-primary);
+}
+
 .community-page__actions {
   display: flex;
   align-items: center;
