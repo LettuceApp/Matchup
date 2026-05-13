@@ -209,8 +209,12 @@ type PopularBracketData struct {
 	Rank            int32                  `protobuf:"varint,10,opt,name=rank,proto3" json:"rank,omitempty"`
 	AuthorUsername  string                 `protobuf:"bytes,11,opt,name=author_username,json=authorUsername,proto3" json:"author_username,omitempty"`
 	CreatedAt       string                 `protobuf:"bytes,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Resolved full URL for the bracket author's profile picture (empty
+	// when unset). Mirrors PopularMatchupData.author_avatar_path so
+	// HomeCard renders the same way for both kinds.
+	AuthorAvatarPath string `protobuf:"bytes,13,opt,name=author_avatar_path,json=authorAvatarPath,proto3" json:"author_avatar_path,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *PopularBracketData) Reset() {
@@ -323,6 +327,13 @@ func (x *PopularBracketData) GetAuthorUsername() string {
 func (x *PopularBracketData) GetCreatedAt() string {
 	if x != nil {
 		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *PopularBracketData) GetAuthorAvatarPath() string {
+	if x != nil {
+		return x.AuthorAvatarPath
 	}
 	return ""
 }
@@ -1786,7 +1797,7 @@ const file_bracket_v1_bracket_proto_rawDesc = "" +
 	"\fcommunity_id\x18\x10 \x01(\tH\x02R\vcommunityId\x88\x01\x01B\x13\n" +
 	"\x11_round_started_atB\x10\n" +
 	"\x0e_round_ends_atB\x0f\n" +
-	"\r_community_id\"\xdf\x02\n" +
+	"\r_community_id\"\x8d\x03\n" +
 	"\x12PopularBracketData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x1b\n" +
@@ -1801,7 +1812,8 @@ const file_bracket_v1_bracket_proto_rawDesc = "" +
 	" \x01(\x05R\x04rank\x12'\n" +
 	"\x0fauthor_username\x18\v \x01(\tR\x0eauthorUsername\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\f \x01(\tR\tcreatedAt\"\xcd\x01\n" +
+	"created_at\x18\f \x01(\tR\tcreatedAt\x12,\n" +
+	"\x12author_avatar_path\x18\r \x01(\tR\x10authorAvatarPath\"\xcd\x01\n" +
 	"\x12BracketSummaryData\x121\n" +
 	"\abracket\x18\x01 \x01(\v2\x17.bracket.v1.BracketDataR\abracket\x123\n" +
 	"\bmatchups\x18\x02 \x03(\v2\x17.matchup.v1.MatchupDataR\bmatchups\x12*\n" +

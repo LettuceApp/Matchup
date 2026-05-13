@@ -14,6 +14,7 @@ import HomeCard, { deriveTags } from '../components/HomeCard';
 import NotificationBell from '../components/NotificationBell';
 import ProfilePic from '../components/ProfilePic';
 import ThemeToggleItem from '../components/ThemeToggleItem';
+import CreateMenu from '../components/CreateMenu';
 import { track } from '../utils/analytics';
 import '../styles/HomePage.css';
 import '../components/NavigationBar.css';
@@ -253,48 +254,88 @@ const HomePage = () => {
           >
             <FiMenu />
           </button>
-          <input
-            type="search"
-            className="home-search"
-            placeholder="Search Matchup…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => {
-              // Enter = universal search across matchups, brackets,
-              // communities, and people. The on-page filter still
-              // narrows the current feed as you type — Enter
-              // escalates to /search?q=… for the full Twitter-style
-              // results page. Mirrors how X's nav search behaves.
-              if (e.key === 'Enter') {
-                const q = searchQuery.trim();
-                if (q.length >= 2) {
-                  e.preventDefault();
-                  navigate(`/search?q=${encodeURIComponent(q)}&f=top`);
+          {/* FIND zone. Single search affordance on the page — the
+              previous standalone "Search" pill was redundant with this
+              input (both escalated to /search). Typing here live-
+              filters the visible feed via `searchQuery`; pressing
+              Enter (≥2 chars) escalates to the full /search results
+              page so users can search beyond what's currently loaded.
+              The ⌘K kbd is a visual hint for sighted users; the actual
+              shortcut isn't wired yet (when a command palette ships,
+              add a document-level keydown listener that opens it). */}
+          <div className="home-search-wrap">
+            <input
+              type="search"
+              className="home-search"
+              placeholder="Search Matchup…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const q = searchQuery.trim();
+                  if (q.length >= 2) {
+                    e.preventDefault();
+                    navigate(`/search?q=${encodeURIComponent(q)}&f=top`);
+                  }
                 }
-              }
-            }}
-          />
+              }}
+            />
+            <kbd className="home-search__hint" aria-hidden="true">⌘K</kbd>
+          </div>
+
+          {/* Universal-search launcher. Sits as a peer to the input
+              instead of inside it — the input live-filters the
+              visible feed as you type, but the magnifier explicitly
+              opens the full /search results page (matchups, brackets,
+              communities, people). Two distinct intents, two
+              affordances: type-here vs. take-me-to-search. The icon
+              button is the discoverable "Explore" entry that survives
+              even when the user doesn't realise the input itself
+              escalates on Enter. */}
           <button
             type="button"
-            className="home-create-btn"
-            onClick={navigateToCreate}
+            className="home-topbar__search-launcher"
+            aria-label="Open universal search"
+            title="Search everything"
+            onClick={() => navigate('/search')}
           >
-            + Create Matchup
-          </button>
-          <button
-            type="button"
-            className="home-create-btn home-create-btn--secondary"
-            onClick={navigateToCreateBracket}
-          >
-            + Create Bracket
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.35-4.35" />
+            </svg>
           </button>
 
-          {/* Topbar right-cluster. Authed users see [bell] [profile▾]
-              with Home / Admin / Logout / View profile collapsed into
-              the profile dropdown. Bell stays visible because its
-              unread count is the whole point — burying it would
-              defeat the indicator. Anon users still see Sign in /
-              Sign up since there's nothing to dropdown into. */}
+          {/* CREATE zone — single primary CTA. The previous pair of
+              "+ Create Matchup" + "+ Create Bracket" buttons doubled
+              up the primary affordance (Hick's Law), so they're now
+              folded into a single dropdown. Auth gating + URL
+              resolution still happens in the parent handlers so anon
+              users keep getting bounced to /login. */}
+          <div className="home-topbar__create">
+            <CreateMenu
+              onMatchup={navigateToCreate}
+              onBracket={navigateToCreateBracket}
+            />
+          </div>
+
+          {/* ACCOUNT zone. Authed users see [bell] [profile▾] with
+              Home / Admin / Logout / View profile collapsed into the
+              profile dropdown. Bell stays visible because its unread
+              count is the whole point — burying it would defeat the
+              indicator. Anon users see Sign in / Sign up since there's
+              nothing to dropdown into. The CSS adds a border-left +
+              padding-left to this zone so Gestalt grouping separates
+              identity actions from the Create CTA. */}
           <div className="home-topbar__actions">
             {isAuthed ? (
               <>

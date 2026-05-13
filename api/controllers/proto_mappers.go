@@ -206,7 +206,13 @@ func matchupToProto(db sqlx.ExtContext, matchup *models.Matchup, comments []mode
 		Title:           matchup.Title,
 		Content:         matchup.Content,
 		AuthorId:        authorID,
-		Author:          &commonv1.UserSummaryResponse{Id: authorID, Username: matchup.Author.Username},
+		// matchup.Author is hydrated by SELECT * FROM users (see
+		// Matchup.LoadAuthor) and Author.ProcessAvatarPath() lifts the
+		// raw DB column to a CDN-style absolute URL. We pass that URL
+		// through as-is on the wire so the frontend doesn't need to
+		// rebuild it; HomeCard renders an <img src> directly when
+		// non-empty and falls back to the username initial otherwise.
+		Author:          &commonv1.UserSummaryResponse{Id: authorID, Username: matchup.Author.Username, AvatarPath: matchup.Author.AvatarPath},
 		Items:           items,
 		Comments:        commentProtos,
 		LikesCount:      int32(matchup.LikesCount),
@@ -242,6 +248,7 @@ func popularMatchupToProto(dto PopularMatchupDTO) *matchupv1.PopularMatchupData 
 		Title:           dto.Title,
 		AuthorId:        dto.AuthorID,
 		AuthorUsername:  dto.AuthorUsername,
+		AuthorAvatarPath: dto.AuthorAvatarPath,
 		BracketId:       dto.BracketID,
 		BracketAuthorId: dto.BracketAuthorID,
 		Round:           round,
@@ -299,7 +306,7 @@ func bracketToProto(db sqlx.ExtContext, bracket *models.Bracket) *bracketv1.Brac
 		Title:                bracket.Title,
 		Description:          bracket.Description,
 		AuthorId:             authorID,
-		Author:               &commonv1.UserSummaryResponse{Id: authorID, Username: bracket.Author.Username},
+		Author:               &commonv1.UserSummaryResponse{Id: authorID, Username: bracket.Author.Username, AvatarPath: bracket.Author.AvatarPath},
 		Size:                 int32(bracket.Size),
 		Status:               bracket.Status,
 		CurrentRound:         int32(bracket.CurrentRound),
@@ -319,6 +326,7 @@ func popularBracketToProto(dto PopularBracketDTO) *bracketv1.PopularBracketData 
 		Title:           dto.Title,
 		AuthorId:        dto.AuthorID,
 		AuthorUsername:  dto.AuthorUsername,
+		AuthorAvatarPath: dto.AuthorAvatarPath,
 		CurrentRound:    int32(dto.CurrentRound),
 		Size:            int32(dto.Size),
 		Votes:           int32(dto.Votes),

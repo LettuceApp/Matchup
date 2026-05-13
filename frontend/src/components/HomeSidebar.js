@@ -27,6 +27,13 @@ const HomeSidebar = ({ sortMode, onSortChange, categoryFilter, onCategoryChange,
   // toggle. If the active filter is one of the collapsed categories
   // we force-expand so the active highlight is reachable.
   const [categoriesExpanded, setCategoriesExpanded] = useState(false);
+  // Communities section collapses by default so the Account section
+  // (avatar + Logout) stays visible without scrolling at standard
+  // laptop heights. Expanding reveals the full joined list +
+  // "+ Create community" CTA. Stays per-mount — re-renders or
+  // re-mounts reset to collapsed (the brief specifies "collapsed on
+  // initial render").
+  const [communitiesExpanded, setCommunitiesExpanded] = useState(false);
   const allCategoriesEntry = CATEGORIES[0];
   const bodyCategories = CATEGORIES.slice(1);
   const topBodyCategories = bodyCategories.slice(0, COLLAPSED_CATEGORY_COUNT);
@@ -138,45 +145,62 @@ const HomeSidebar = ({ sortMode, onSortChange, categoryFilter, onCategoryChange,
             with a role badge (owner / mod / member) so they can jump
             into any of them from the sidebar. "+ Create community"
             stays pinned at the bottom of the section as the
-            recurrent CTA. */}
+            recurrent CTA. Collapsed-by-default per the home-cleanup
+            brief — Communities can grow long enough to push the
+            Account section below the fold, so we hide them behind a
+            disclosure toggle and let the user opt in. */}
         {isAuthed && (
           <>
-            <div className="home-sidebar__section-label">Communities</div>
-            {myCommunities.map((c) => {
-              const role = c.viewer_role || 'member';
-              const initial = (c.name || '?').charAt(0).toUpperCase();
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  className="home-sidebar__community-row"
-                  onClick={() => navigate(`/c/${c.slug}`)}
-                  title={`${c.name} · ${role}`}
-                >
-                  <span className="home-sidebar__community-avatar" aria-hidden="true">
-                    {c.avatar_path ? (
-                      <img src={c.avatar_path} alt="" />
-                    ) : (
-                      <span>{initial}</span>
-                    )}
-                  </span>
-                  <span className="home-sidebar__community-name">{c.name}</span>
-                  <span
-                    className={`home-sidebar__community-role home-sidebar__community-role--${role}`}
-                    aria-label={`Your role: ${role}`}
-                  >
-                    {role === 'owner' ? '👑' : role === 'mod' ? '⚔' : '·'}
-                  </span>
-                </button>
-              );
-            })}
             <button
               type="button"
-              className="home-sidebar__nav-item home-sidebar__nav-item--muted"
-              onClick={() => navigate('/communities/new')}
+              className="home-sidebar__section-toggle"
+              aria-expanded={communitiesExpanded}
+              onClick={() => setCommunitiesExpanded((v) => !v)}
             >
-              + Create community
+              <span>Communities</span>
+              <span aria-hidden="true" className="home-sidebar__section-toggle-caret">
+                {communitiesExpanded ? '▾' : '▸'}
+              </span>
             </button>
+            {communitiesExpanded && (
+              <>
+                {myCommunities.map((c) => {
+                  const role = c.viewer_role || 'member';
+                  const initial = (c.name || '?').charAt(0).toUpperCase();
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="home-sidebar__community-row"
+                      onClick={() => navigate(`/c/${c.slug}`)}
+                      title={`${c.name} · ${role}`}
+                    >
+                      <span className="home-sidebar__community-avatar" aria-hidden="true">
+                        {c.avatar_path ? (
+                          <img src={c.avatar_path} alt="" />
+                        ) : (
+                          <span>{initial}</span>
+                        )}
+                      </span>
+                      <span className="home-sidebar__community-name">{c.name}</span>
+                      <span
+                        className={`home-sidebar__community-role home-sidebar__community-role--${role}`}
+                        aria-label={`Your role: ${role}`}
+                      >
+                        {role === 'owner' ? '👑' : role === 'mod' ? '⚔' : '·'}
+                      </span>
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  className="home-sidebar__nav-item home-sidebar__nav-item--muted"
+                  onClick={() => navigate('/communities/new')}
+                >
+                  + Create community
+                </button>
+              </>
+            )}
           </>
         )}
 

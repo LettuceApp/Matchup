@@ -130,9 +130,14 @@ const SearchResultsPage = () => {
       </nav>
 
       {query.length < 2 && (
-        <div className="search-results__empty">
-          <p>Search matchups, brackets, communities, and people.</p>
-          <p className="search-results__hint">Type at least 2 characters.</p>
+        <div className="search-results__empty search-results__empty--landing">
+          <h2 className="search-results__landing-title">Search Matchup</h2>
+          <p>One search across matchups, brackets, communities, and people.</p>
+          <p className="search-results__hint">
+            Start typing above — we'll fan out across every public surface
+            and show the best of each in <strong>Top</strong>, with deeper
+            slices in the other tabs.
+          </p>
         </div>
       )}
 

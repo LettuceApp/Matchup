@@ -251,6 +251,24 @@
   color: var(--text-muted);
 }
 
+/* Landing variant — shown when the viewer lands on /search with no
+   query yet. Bigger, warmer, anchored by a gradient headline so the
+   empty page reads as a destination instead of a "nothing here" wall. */
+.search-results__empty--landing {
+  padding: 56px 24px;
+}
+
+.search-results__landing-title {
+  margin: 0 0 12px;
+  font-size: 1.6rem;
+  font-weight: 800;
+  background: var(--gradient-stardust);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  letter-spacing: 0.01em;
+}
+
 .search-results__error {
   border-color: rgba(248, 113, 113, 0.4);
   color: #fca5a5;

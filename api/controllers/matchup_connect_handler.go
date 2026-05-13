@@ -300,6 +300,7 @@ func (h *MatchupHandler) GetPopularMatchups(ctx context.Context, req *connect.Re
 			Title:           rows[i].Title,
 			AuthorID:        authorPublicIDs[rows[i].AuthorID],
 			AuthorUsername:  matchup.Author.Username,
+			AuthorAvatarPath: matchup.Author.AvatarPath,
 			BracketID:       bracketID,
 			BracketAuthorID: bracketAuthorID,
 			Round:           rows[i].Round,

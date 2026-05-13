@@ -125,6 +125,7 @@ func (h *BracketHandler) GetPopularBrackets(ctx context.Context, req *connect.Re
 			Title:           rows[i].Title,
 			AuthorID:        authorPublicIDs[rows[i].AuthorID],
 			AuthorUsername:  bracket.Author.Username,
+			AuthorAvatarPath: bracket.Author.AvatarPath,
 			CurrentRound:    rows[i].CurrentRound,
 			Size:            bracket.Size,
 			Votes:           0,

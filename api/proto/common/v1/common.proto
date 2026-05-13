@@ -3,9 +3,16 @@ package common.v1;
 option go_package = "Matchup/gen/common/v1;commonv1";
 
 // UserSummaryResponse is the minimal user shape embedded in matchup/bracket responses.
+//
+// avatar_path is the S3 key (NOT a full URL) for the author's profile
+// picture, or empty when the author hasn't uploaded one. The frontend
+// resolves the key against REACT_APP_S3_BASE + size variant (thumb /
+// medium / full) — same convention as the rest of the app. Embedded
+// here so a feed render doesn't need an N+1 GetUser RPC per card.
 message UserSummaryResponse {
   string id = 1;
   string username = 2;
+  string avatar_path = 3;
 }
 
 // MatchupItemResponse is an item inside a matchup.

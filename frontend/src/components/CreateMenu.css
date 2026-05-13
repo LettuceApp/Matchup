@@ -1,0 +1,85 @@
+/*
+ * CreateMenu styles — pairs with the single-CTA brief on /home. The
+ * trigger uses the same warm gradient as the previous primary Create
+ * button so the visual continuity carries (returning users still
+ * recognize the orange pill as "make something"). Panel matches the
+ * NavigationBar's profile-menu panel (same surface, border, shadow)
+ * so the app's overflow menus read as one component.
+ */
+.create-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.create-menu__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.6rem 1.3rem;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background-image: linear-gradient(120deg, var(--accent-primary-from), var(--accent-primary-to));
+  color: var(--text-on-accent);
+  font-weight: 700;
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  /* Inset shines the top edge so the gradient reads as a pressable
+     pill instead of a flat sticker. Same recipe as .home-create-btn
+     (the button this menu replaces). */
+  box-shadow: 0 4px 14px var(--accent-primary-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.create-menu__trigger:hover,
+.create-menu__trigger:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px var(--accent-primary-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  outline: none;
+}
+
+.create-menu__caret {
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.create-menu__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-panel);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.create-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  width: 100%;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.create-menu__item:hover,
+.create-menu__item:focus-visible {
+  background: var(--accent-secondary-bg-soft);
+  color: var(--text-primary);
+  outline: none;
+}

@@ -824,6 +824,11 @@ export const updateCommunity = (id, data = {}) =>
     ...(data.privacy !== undefined ? { privacy: data.privacy } : {}),
     ...(data.avatarUploadKey ? { avatar_upload_key: data.avatarUploadKey } : {}),
     ...(data.bannerUploadKey ? { banner_upload_key: data.bannerUploadKey } : {}),
+    // theme_gradient is an OPTIONAL string in proto, so empty-string
+    // is a meaningful value ("clear the theme"). Use `!== undefined`
+    // here rather than the truthy-check pattern above so passing ''
+    // actually reaches the server.
+    ...(data.themeGradient !== undefined ? { theme_gradient: data.themeGradient } : {}),
   });
 
 // Upload + commit a community avatar / banner in one call. Returns

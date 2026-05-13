@@ -23,11 +23,15 @@
 }
 
 .navigation-bar__brand {
-  /* Gradient wordmark — clip the stardust gradient onto the brand
-     text so the header anchors the warm brand recipe at the top of
-     every page. Falls back to text-primary on browsers without
-     background-clip support. */
-  background: var(--gradient-stardust);
+  /* Gradient wordmark — clip the gradient onto the brand text so the
+     header anchors the warm brand recipe at the top of every page.
+     `--page-accent-gradient` is set on :root by route-specific
+     wrappers (currently only CommunityPage — it pushes the
+     community's chosen theme gradient up so the brand reflects the
+     surface the viewer is on). Everywhere else the var is unset and
+     we fall through to the global stardust recipe, so the wordmark
+     looks identical on home / profile / etc. */
+  background: var(--page-accent-gradient, var(--gradient-stardust));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -104,6 +108,35 @@
 .navigation-bar__button--icon:hover,
 .navigation-bar__button--icon:focus-visible {
   opacity: 1;
+}
+
+/* Search tab — Twitter's "Explore" pattern. Icon + label on desktop,
+   icon-only on mobile (the label collapses below 720px so the action
+   cluster keeps fitting next to the bell + avatar). The button uses
+   the same pill base as Home so the two tabs look like a matched
+   pair, with the icon adding affordance ("this opens search"). */
+.navigation-bar__button--search {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1.1rem;
+}
+
+.navigation-bar__button-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+/* Active state — when the viewer is already on /search the tab gets
+   the brand accent border + a soft tint so it reads as "you are here"
+   alongside the rest of the nav cluster. Same recipe as is-active on
+   the search-results tab strip for visual continuity. */
+.navigation-bar__button--active,
+.navigation-bar__button--active:hover,
+.navigation-bar__button--active:focus-visible {
+  border-color: var(--accent-primary);
+  background: var(--accent-primary-soft, var(--accent-secondary-bg-soft));
+  color: var(--text-primary);
 }
 
 .navigation-bar__profile {
@@ -246,6 +279,25 @@
      dropdown only appears for authed users. */
   .navigation-bar__actions > .navigation-bar__button:not(.navigation-bar__button--ghost),
   .navigation-bar__actions > .navigation-bar__button--muted {
+    display: none;
+  }
+  /* …except Search, which stays visible on every viewport. Even for
+     anon users (no avatar dropdown) Search has to be reachable from
+     the top bar, otherwise mobile anons have no entry point into
+     /search. The label collapses to keep the cluster narrow; only
+     the magnifier remains.
+
+     Doubled class (`.navigation-bar__button.navigation-bar__button--search`)
+     deliberately bumps specificity to (0,3,0) so it matches the hide
+     rule above — that selector includes `:not()`, which counts as a
+     class — and wins by source order. */
+  .navigation-bar__actions > .navigation-bar__button.navigation-bar__button--search {
+    display: inline-flex;
+    padding: 0.5rem 0.7rem;
+    gap: 0;
+  }
+  .navigation-bar__actions > .navigation-bar__button.navigation-bar__button--search
+    .navigation-bar__button-label {
     display: none;
   }
   /* But keep Sign up (primary CTA, NOT --ghost) for anon viewers.

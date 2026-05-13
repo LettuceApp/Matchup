@@ -121,6 +121,38 @@ func roleAtLeast(have, min string) bool {
 	return rank[have] >= rank[min]
 }
 
+// allowedThemeGradients is the wire-side allow-list of curated
+// gradient slugs an owner can pick from in the settings page. The
+// raw CSS gradient values live in the frontend palette
+// (frontend/src/utils/communityGradients.js) — duplicating them
+// here would force a backend deploy every time we tweak a color.
+// What MUST stay in sync is the slug list: anything not in this
+// set is rejected at write-time so a malicious client can't store
+// arbitrary strings.
+//
+// Empty string is also valid and means "no theme chosen" — the
+// frontend falls back to its default palette.
+var allowedThemeGradients = map[string]struct{}{
+	"":         {}, // explicit "clear theme"
+	"stardust": {},
+	"sunset":   {},
+	"ocean":    {},
+	"mint":     {},
+	"amber":    {},
+	"magenta":  {},
+	"forest":   {},
+	"plum":     {},
+	"rose":     {},
+	"graphite": {},
+}
+
+func validateThemeGradient(slug string) error {
+	if _, ok := allowedThemeGradients[slug]; !ok {
+		return fmt.Errorf("unknown theme gradient %q", slug)
+	}
+	return nil
+}
+
 // communityToProto serialises a community row for the wire. viewerRole
 // is computed against the caller's membership row (empty when anon or
 // non-member) so the frontend can render the right UI in one round-trip.
@@ -149,6 +181,7 @@ func (h *CommunityHandler) communityToProto(ctx context.Context, c *models.Commu
 		CreatedAt:     c.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:     c.UpdatedAt.UTC().Format(time.RFC3339),
 		ViewerRole:    h.viewerRole(ctx, c.ID),
+		ThemeGradient: c.ThemeGradient,
 	}
 }
 
@@ -399,6 +432,18 @@ func (h *CommunityHandler) UpdateCommunity(ctx context.Context, req *connect.Req
 				errors.New("only public communities are supported in this version"))
 		}
 		add("privacy", p)
+	}
+	// Curated gradient slug. Validate against the allow-list so a
+	// malicious client can't store arbitrary strings (which would
+	// then potentially flow into inline-style attributes on the
+	// community page). Empty string is allowed and means "clear the
+	// theme" (frontend falls back to default).
+	if req.Msg.ThemeGradient != nil {
+		g := strings.TrimSpace(*req.Msg.ThemeGradient)
+		if err := validateThemeGradient(g); err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+		add("theme_gradient", g)
 	}
 	if len(setClauses) == 0 {
 		// No-op update — just return the current state.
@@ -1205,15 +1250,24 @@ func (h *CommunityHandler) GetCommunityFeed(ctx context.Context, req *connect.Re
 	// Hydrate author rows and items for matchups (matchupToProto
 	// expects them populated). Best-effort — a failure here just
 	// leaves a card with a missing field, not a 500.
+	// ProcessAvatarPath() turns the raw DB column (S3 key) into a full
+	// CDN URL — without this step the proto carries `avatar-xxx.jpg`
+	// instead of `https://…/UserProfilePics/avatar-xxx.jpg`, the
+	// frontend <img> tries to load it relative to its own origin, and
+	// the avatar never renders.
 	for i := range matchups {
-		_ = sqlx.GetContext(ctx, db, &matchups[i].Author,
-			"SELECT * FROM users WHERE id = $1", matchups[i].AuthorID)
+		if err := sqlx.GetContext(ctx, db, &matchups[i].Author,
+			"SELECT * FROM users WHERE id = $1", matchups[i].AuthorID); err == nil {
+			matchups[i].Author.ProcessAvatarPath()
+		}
 		_ = sqlx.SelectContext(ctx, db, &matchups[i].Items,
 			"SELECT * FROM matchup_items WHERE matchup_id = $1 ORDER BY id ASC", matchups[i].ID)
 	}
 	for i := range brackets {
-		_ = sqlx.GetContext(ctx, db, &brackets[i].Author,
-			"SELECT * FROM users WHERE id = $1", brackets[i].AuthorID)
+		if err := sqlx.GetContext(ctx, db, &brackets[i].Author,
+			"SELECT * FROM users WHERE id = $1", brackets[i].AuthorID); err == nil {
+			brackets[i].Author.ProcessAvatarPath()
+		}
 	}
 
 	resp := &communityv1.GetCommunityFeedResponse{}

@@ -61,6 +61,10 @@ message PopularBracketData {
   int32 rank = 10;
   string author_username = 11;
   string created_at = 12;
+  // Resolved full URL for the bracket author's profile picture (empty
+  // when unset). Mirrors PopularMatchupData.author_avatar_path so
+  // HomeCard renders the same way for both kinds.
+  string author_avatar_path = 13;
 }
 
 // BracketSummaryData combines a bracket, its matchups, and like state.

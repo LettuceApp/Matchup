@@ -104,8 +104,13 @@
   gap: 20px;
   align-items: flex-end;
   justify-content: space-between;
-  margin-top: -56px;
-  padding-top: 0;
+  /* Header sits BELOW the banner. The previous -56px overlap pulled
+     the whole header (including the title block) up into the bright
+     gradient, which killed contrast on owner-picked themes like
+     sunset/amber where the banner runs hot. Only the avatar
+     overlaps now — see its own margin-top below. */
+  margin-top: 0;
+  padding-top: 24px;
   padding-bottom: 20px;
   position: relative;
   z-index: 2;
@@ -113,16 +118,20 @@
 
 .community-page__identity {
   display: flex;
-  align-items: flex-end;
+  /* flex-start so the title block aligns with the TOP of the
+     identity row (below the banner) instead of bottom-aligning to
+     the avatar, which used to drag the h1 up into the banner. */
+  align-items: flex-start;
   gap: 20px;
   min-width: 0;
 }
 
-/* Avatar overlaps the banner seam. Carries the same stardust
-   gradient as the banner so the two read as one continuous brand
-   element; the 4px navy ring punches the avatar cleanly out of the
-   banner's softer edge. White initial with a faint shadow for
-   contrast against the gradient. */
+/* Avatar overlaps the banner seam. The chosen theme gradient is
+   applied inline via JSX when no avatar image is uploaded; this
+   rule provides the fallback for image-based avatars and any
+   pre-theme-picker rows where the inline style is absent. The 4px
+   navy ring punches the avatar cleanly out of the banner edge.
+   margin-top is the ONLY overlap into the banner now. */
 .community-page__avatar {
   width: 104px;
   height: 104px;
@@ -137,7 +146,13 @@
   font-weight: 800;
   overflow: hidden;
   flex-shrink: 0;
-  box-shadow: 0 10px 30px rgba(255, 120, 170, 0.35);
+  margin-top: -68px;
+  /* Neutral dark shadow — the old pink glow (rgba(255,120,170,…))
+     fought with non-pink themes (amber / mint / graphite) where the
+     hot-pink halo looked stuck on. A plain navy drop-shadow works
+     uniformly against every gradient in the palette and still gives
+     the avatar visual lift off the page. */
+  box-shadow: 0 10px 30px rgba(5, 10, 24, 0.45);
 }
 
 .community-page__avatar span {
@@ -153,7 +168,11 @@
 
 .community-page__title-block {
   min-width: 0;
-  padding-bottom: 6px;
+  /* No vertical padding — the title now sits at the top of the
+     identity row (below the banner). The old padding-bottom was a
+     fudge for flex-end alignment with the avatar, which we no
+     longer use. */
+  padding: 0;
 }
 
 .community-page__name {
@@ -335,6 +354,59 @@
   border-radius: 0;
 }
 
+/* Community-tinted feed cards. The page sets
+   `--community-accent-gradient` as an inline CSS custom property on
+   the feed container (HomeCard is used in many places — home page,
+   profile, etc. — so we deliberately scope this accent to descendants
+   of .community-page__feed only, never globally to .home-card).
+   The accent is a thin gradient stripe along the top of each card,
+   so a glance at the feed instantly reads "these belong to a
+   themed community" without the cards turning into peacock chaos. */
+.community-page__feed .home-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.community-page__feed .home-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--community-accent-gradient, var(--gradient-stardust));
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* The author-avatar pill normally carries the global stardust recipe
+   (.home-card__avatar in HomePage.css). Inside a themed community we
+   swap its underlying gradient to the community accent so the soft
+   ring behind each profile picture matches the rest of the theme.
+   When the author has an uploaded avatar, the <img> covers most of
+   the pill — but any rounded-edge transparency, a missing image, or
+   the fallback initial all show this gradient, so it should belong
+   to the community. */
+.community-page__feed .home-card__avatar {
+  background: var(--community-accent-gradient, var(--gradient-stardust));
+}
+
+/* The "MATCHUP" / "Bracket" badge sits over the card and reads as
+   the kind-of-content marker. Tinting it to the community gradient
+   ties it back to the theme without losing its role as a label —
+   we keep the white text + uppercase typography from the base rule
+   and just replace the translucent black background. backdrop-filter
+   is no longer doing useful work over an opaque gradient, but leaving
+   it in place is harmless and saves a property override. */
+.community-page__feed .home-card__badge {
+  background: var(--community-accent-gradient, var(--gradient-stardust));
+  color: #ffffff;
+  /* Mild text-shadow so the label stays legible against bright
+     gradients (amber, mint) where white on full-saturation looks
+     washed out. */
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
 /* Feed title — uppercase eyebrow tinted with the warm stardust
    highlight color so it anchors the feed to the rest of the brand
    recipe. Explicit no-decoration so any inherited accent-bar from
@@ -401,13 +473,28 @@
   .community-page__header {
     flex-direction: column;
     align-items: stretch;
-    margin-top: -48px;
+    /* No header overlap on mobile either — the avatar handles all
+       the banner overlap via its own margin-top below. */
+    margin-top: 0;
+    padding-top: 16px;
   }
   .community-page__identity {
     align-items: center;
     text-align: center;
     flex-direction: column;
     gap: 12px;
+  }
+  .community-page__avatar {
+    /* Slightly less overlap on phones — the banner is shorter and the
+       avatar is the same size, so the proportions feel right at -52. */
+    margin-top: -52px;
+  }
+  .community-page__title-block {
+    text-align: center;
+  }
+  .community-page__slug {
+    /* Re-center the slug pill since the title-block is now centered. */
+    margin: 0 auto;
   }
   .community-page__actions {
     justify-content: center;

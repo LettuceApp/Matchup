@@ -44,7 +44,13 @@ type CommunityData struct {
 	// viewer_role is populated when the request is authenticated. Possible
 	// values: 'owner' | 'mod' | 'member' | 'banned' | ” (not a member).
 	// Lets the frontend decide what UI to render without a second RPC.
-	ViewerRole    string `protobuf:"bytes,16,opt,name=viewer_role,json=viewerRole,proto3" json:"viewer_role,omitempty"`
+	ViewerRole string `protobuf:"bytes,16,opt,name=viewer_role,json=viewerRole,proto3" json:"viewer_role,omitempty"`
+	// theme_gradient is a curated-palette slug picked by the owner in
+	// settings ('stardust' / 'sunset' / etc.). Empty = use default.
+	// Resolved on the frontend against COMMUNITY_GRADIENTS — the slug
+	// is the wire contract, the colors live in the client palette so we
+	// can iterate without schema or proto changes.
+	ThemeGradient string `protobuf:"bytes,17,opt,name=theme_gradient,json=themeGradient,proto3" json:"theme_gradient,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -187,6 +193,13 @@ func (x *CommunityData) GetUpdatedAt() string {
 func (x *CommunityData) GetViewerRole() string {
 	if x != nil {
 		return x.ViewerRole
+	}
+	return ""
+}
+
+func (x *CommunityData) GetThemeGradient() string {
+	if x != nil {
+		return x.ThemeGradient
 	}
 	return ""
 }
@@ -665,8 +678,11 @@ type UpdateCommunityRequest struct {
 	// one save call instead of presign-then-update.
 	AvatarUploadKey *string `protobuf:"bytes,8,opt,name=avatar_upload_key,json=avatarUploadKey,proto3,oneof" json:"avatar_upload_key,omitempty"`
 	BannerUploadKey *string `protobuf:"bytes,9,opt,name=banner_upload_key,json=bannerUploadKey,proto3,oneof" json:"banner_upload_key,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Curated-palette gradient slug. Handler validates against the
+	// backend allow-list before writing.
+	ThemeGradient *string `protobuf:"bytes,10,opt,name=theme_gradient,json=themeGradient,proto3,oneof" json:"theme_gradient,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateCommunityRequest) Reset() {
@@ -758,6 +774,13 @@ func (x *UpdateCommunityRequest) GetAvatarUploadKey() string {
 func (x *UpdateCommunityRequest) GetBannerUploadKey() string {
 	if x != nil && x.BannerUploadKey != nil {
 		return *x.BannerUploadKey
+	}
+	return ""
+}
+
+func (x *UpdateCommunityRequest) GetThemeGradient() string {
+	if x != nil && x.ThemeGradient != nil {
+		return *x.ThemeGradient
 	}
 	return ""
 }
@@ -2427,7 +2450,7 @@ var File_community_v1_community_proto protoreflect.FileDescriptor
 
 const file_community_v1_community_proto_rawDesc = "" +
 	"\n" +
-	"\x1ccommunity/v1/community.proto\x12\fcommunity.v1\x1a\x18matchup/v1/matchup.proto\x1a\x18bracket/v1/bracket.proto\"\xe7\x03\n" +
+	"\x1ccommunity/v1/community.proto\x12\fcommunity.v1\x1a\x18matchup/v1/matchup.proto\x1a\x18bracket/v1/bracket.proto\"\x8e\x04\n" +
 	"\rCommunityData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04slug\x18\x02 \x01(\tR\x04slug\x12\x12\n" +
@@ -2450,7 +2473,8 @@ const file_community_v1_community_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\x0f \x01(\tR\tupdatedAt\x12\x1f\n" +
 	"\vviewer_role\x18\x10 \x01(\tR\n" +
-	"viewerRole\"\x8f\x01\n" +
+	"viewerRole\x12%\n" +
+	"\x0etheme_gradient\x18\x11 \x01(\tR\rthemeGradient\"\x8f\x01\n" +
 	"\x0fCommunityMember\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x1f\n" +
@@ -2482,7 +2506,7 @@ const file_community_v1_community_proto_rawDesc = "" +
 	"\x19GetCommunityBySlugRequest\x12\x12\n" +
 	"\x04slug\x18\x01 \x01(\tR\x04slug\"W\n" +
 	"\x1aGetCommunityBySlugResponse\x129\n" +
-	"\tcommunity\x18\x01 \x01(\v2\x1b.community.v1.CommunityDataR\tcommunity\"\xba\x03\n" +
+	"\tcommunity\x18\x01 \x01(\v2\x1b.community.v1.CommunityDataR\tcommunity\"\xf9\x03\n" +
 	"\x16UpdateCommunityRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\x04name\x18\x02 \x01(\tH\x00R\x04name\x88\x01\x01\x12%\n" +
@@ -2494,7 +2518,9 @@ const file_community_v1_community_proto_rawDesc = "" +
 	"\x04tags\x18\x06 \x03(\tR\x04tags\x12\x1d\n" +
 	"\aprivacy\x18\a \x01(\tH\x04R\aprivacy\x88\x01\x01\x12/\n" +
 	"\x11avatar_upload_key\x18\b \x01(\tH\x05R\x0favatarUploadKey\x88\x01\x01\x12/\n" +
-	"\x11banner_upload_key\x18\t \x01(\tH\x06R\x0fbannerUploadKey\x88\x01\x01B\a\n" +
+	"\x11banner_upload_key\x18\t \x01(\tH\x06R\x0fbannerUploadKey\x88\x01\x01\x12*\n" +
+	"\x0etheme_gradient\x18\n" +
+	" \x01(\tH\aR\rthemeGradient\x88\x01\x01B\a\n" +
 	"\x05_nameB\x0e\n" +
 	"\f_descriptionB\x0e\n" +
 	"\f_avatar_pathB\x0e\n" +
@@ -2502,7 +2528,8 @@ const file_community_v1_community_proto_rawDesc = "" +
 	"\n" +
 	"\b_privacyB\x14\n" +
 	"\x12_avatar_upload_keyB\x14\n" +
-	"\x12_banner_upload_key\"T\n" +
+	"\x12_banner_upload_keyB\x11\n" +
+	"\x0f_theme_gradient\"T\n" +
 	"\x17UpdateCommunityResponse\x129\n" +
 	"\tcommunity\x18\x01 \x01(\v2\x1b.community.v1.CommunityDataR\tcommunity\"(\n" +
 	"\x16DeleteCommunityRequest\x12\x0e\n" +
