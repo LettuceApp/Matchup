@@ -254,11 +254,25 @@ const HomePage = () => {
             <FiMenu />
           </button>
           <input
-            type="text"
+            type="search"
             className="home-search"
-            placeholder="Search matchups..."
+            placeholder="Search Matchup…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              // Enter = universal search across matchups, brackets,
+              // communities, and people. The on-page filter still
+              // narrows the current feed as you type — Enter
+              // escalates to /search?q=… for the full Twitter-style
+              // results page. Mirrors how X's nav search behaves.
+              if (e.key === 'Enter') {
+                const q = searchQuery.trim();
+                if (q.length >= 2) {
+                  e.preventDefault();
+                  navigate(`/search?q=${encodeURIComponent(q)}&f=top`);
+                }
+              }
+            }}
           />
           <button
             type="button"

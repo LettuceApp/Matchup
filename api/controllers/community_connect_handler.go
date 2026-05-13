@@ -13,10 +13,12 @@ import (
 	communityv1 "Matchup/gen/community/v1"
 	"Matchup/gen/community/v1/communityv1connect"
 	"Matchup/models"
+	"Matchup/utils/fileformat"
 	"Matchup/utils/slug"
 	httpctx "Matchup/utils/httpctx"
 
 	"connectrpc.com/connect"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 )
@@ -26,8 +28,9 @@ import (
 // (for read-only paths). dbForRead picks between them based on the
 // request context, same pattern as the other handlers.
 type CommunityHandler struct {
-	DB     *sqlx.DB
-	ReadDB *sqlx.DB
+	DB       *sqlx.DB
+	ReadDB   *sqlx.DB
+	S3Client *s3.Client
 }
 
 var _ communityv1connect.CommunityServiceHandler = (*CommunityHandler)(nil)
@@ -355,6 +358,28 @@ func (h *CommunityHandler) UpdateCommunity(ctx context.Context, req *connect.Req
 	}
 	if req.Msg.BannerPath != nil {
 		add("banner_path", strings.TrimSpace(*req.Msg.BannerPath))
+	}
+
+	// Avatar / banner upload commits. Client presigned + PUT'd the
+	// raw file via UploadService; we commit (validate ownership +
+	// size/type), resize, persist the final path. Both fields can be
+	// set in the same update — settings page lets owners change both
+	// at once.
+	if key := req.Msg.GetAvatarUploadKey(); key != "" {
+		uid, _ := h.requireRole(ctx, c.ID, roleOwner)
+		path, cerr := commitCommunityImage(ctx, h.S3Client, key, UploadKindCommunityAvatar, uid, "CommunityAvatars/avatar.jpg")
+		if cerr != nil {
+			return nil, cerr
+		}
+		add("avatar_path", path)
+	}
+	if key := req.Msg.GetBannerUploadKey(); key != "" {
+		uid, _ := h.requireRole(ctx, c.ID, roleOwner)
+		path, cerr := commitCommunityImage(ctx, h.S3Client, key, UploadKindCommunityBanner, uid, "CommunityBanners/banner.jpg")
+		if cerr != nil {
+			return nil, cerr
+		}
+		add("banner_path", path)
 	}
 	if len(req.Msg.GetTags()) > 0 {
 		// Use the effective name (request override OR current) for the
@@ -1242,6 +1267,26 @@ func filterNameEchoTags(tags []string, name string) []string {
 		out = append(out, t)
 	}
 	return out
+}
+
+// commitCommunityImage runs the standard presign → commit → resize →
+// permanent-key flow for community avatars + banners. Mirrors the
+// matchup-cover commit path so the two share the validation +
+// resize pipeline. Returns the path stored in the community row.
+func commitCommunityImage(ctx context.Context, s3c *s3.Client, key string, kind UploadKind, userID uint, basePrefix string) (string, error) {
+	bucket := bucketFromEnv()
+	buf, commitErr := CommitUploadedObject(ctx, s3c, bucket, key, kind, userID)
+	if commitErr != nil {
+		return "", commitErr
+	}
+	filename := fileformat.UniqueFormat("img.jpg")
+	keyBase := strings.TrimSuffix(basePrefix, ".jpg") + "/" + filename
+	if _, uploadErr := resizeAndUpload(ctx, s3c, bucket, keyBase, buf); uploadErr != nil {
+		return "", connect.NewError(connect.CodeInternal, fmt.Errorf("failed to upload image: %w", uploadErr))
+	}
+	// Best-effort cleanup of the temp upload object.
+	DeleteUploadedObject(ctx, s3c, bucket, key)
+	return filename, nil
 }
 
 // normalizeTags lowercases, trims, dedupes, and caps the tag list at 10.

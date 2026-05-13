@@ -822,7 +822,24 @@ export const updateCommunity = (id, data = {}) =>
     ...(data.bannerPath !== undefined ? { banner_path: data.bannerPath } : {}),
     ...(data.tags !== undefined ? { tags: data.tags } : {}),
     ...(data.privacy !== undefined ? { privacy: data.privacy } : {}),
+    ...(data.avatarUploadKey ? { avatar_upload_key: data.avatarUploadKey } : {}),
+    ...(data.bannerUploadKey ? { banner_upload_key: data.bannerUploadKey } : {}),
   });
+
+// Upload + commit a community avatar / banner in one call. Returns
+// the updated community. Matches the createMatchup pattern: hand a
+// raw File in, the helper does the S3 presign + PUT and threads the
+// resulting key into UpdateCommunity.
+export const updateCommunityImages = async (id, { avatarFile, bannerFile } = {}) => {
+  const payload = {};
+  if (avatarFile) {
+    payload.avatarUploadKey = await uploadViaPresign('community_avatar', avatarFile);
+  }
+  if (bannerFile) {
+    payload.bannerUploadKey = await uploadViaPresign('community_banner', bannerFile);
+  }
+  return updateCommunity(id, payload);
+};
 
 export const deleteCommunity = (id) =>
   rpc('community.v1.CommunityService', 'DeleteCommunity', { id });
@@ -864,6 +881,18 @@ export const unbanCommunityMember = ({ communityId, userId }) =>
   rpc('community.v1.CommunityService', 'UnbanMember', {
     community_id: communityId,
     user_id: userId,
+  });
+
+// -----------------------------------------
+// Search. Universal search across matchups, brackets, communities,
+// users. The `only` param scopes to a single entity ('matchup' |
+// 'bracket' | 'community' | 'user'); omit it to get all four.
+// -----------------------------------------
+export const search = ({ query, only = '', limit = 10 } = {}) =>
+  rpc('search.v1.SearchService', 'Search', {
+    query,
+    only,
+    limit,
   });
 
 export default API;

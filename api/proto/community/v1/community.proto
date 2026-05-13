@@ -133,6 +133,13 @@ message UpdateCommunityRequest {
   repeated string tags = 6;
   // privacy is updatable but v1 only accepts 'public'.
   optional string privacy = 7;
+  // S3 keys from UploadService.PresignUpload with kind =
+  // 'community_avatar' / 'community_banner'. When set, the handler
+  // commits the uploaded object + stamps the resulting permanent
+  // path onto avatar_path / banner_path. Lets the settings UI ship
+  // one save call instead of presign-then-update.
+  optional string avatar_upload_key = 8;
+  optional string banner_upload_key = 9;
 }
 message UpdateCommunityResponse {
   CommunityData community = 1;

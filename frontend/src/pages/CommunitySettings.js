@@ -5,6 +5,7 @@ import {
   deleteCommunity,
   getCommunityBySlug,
   updateCommunity,
+  updateCommunityImages,
 } from '../services/api';
 import '../styles/CommunitySettings.css';
 
@@ -32,6 +33,14 @@ const CommunitySettings = () => {
   const [description, setDescription] = useState('');
   const [tagsInput, setTagsInput] = useState('');
   const [tags, setTags] = useState([]);
+
+  // Avatar + banner upload state. Files only live in memory until
+  // the user clicks Save — that's when we presign + PUT + commit
+  // via updateCommunityImages.
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [bannerFile, setBannerFile] = useState(null);
+  const [bannerPreview, setBannerPreview] = useState(null);
 
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
@@ -97,6 +106,14 @@ const CommunitySettings = () => {
     setSubmitError(null);
     setSaving(true);
     try {
+      // If the user picked new images, upload + commit them via the
+      // sidecar helper first. It returns the updated community
+      // with avatar_path / banner_path stamped. We then re-issue
+      // the text-field update so name/description/tags get saved
+      // too. Two RPCs is fine here (settings save is rare).
+      if (avatarFile || bannerFile) {
+        await updateCommunityImages(community.id, { avatarFile, bannerFile });
+      }
       const res = await updateCommunity(community.id, {
         name: name.trim(),
         description: description.trim(),
@@ -105,6 +122,10 @@ const CommunitySettings = () => {
       const updated = res?.data?.community ?? null;
       if (updated) {
         setCommunity(updated);
+        setAvatarFile(null);
+        setAvatarPreview(null);
+        setBannerFile(null);
+        setBannerPreview(null);
         setSavedAt(new Date());
       }
     } catch (err) {
@@ -116,6 +137,20 @@ const CommunitySettings = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleAvatarPick = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const handleBannerPick = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBannerFile(file);
+    setBannerPreview(URL.createObjectURL(file));
   };
 
   const handleDelete = async () => {
@@ -163,6 +198,57 @@ const CommunitySettings = () => {
       </header>
 
       <form className="community-settings__form" onSubmit={handleSave}>
+        {/* Banner + avatar uploads. New file replaces the saved image
+            once the form is submitted. Both default to whatever the
+            community already has so the previews show context. */}
+        <div className="community-settings__images">
+          <div className="community-settings__banner-field">
+            <span className="community-settings__label">Banner</span>
+            <label className="community-settings__banner-drop">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleBannerPick}
+                hidden
+              />
+              {(bannerPreview || community.banner_path) ? (
+                <img
+                  src={bannerPreview || community.banner_path}
+                  alt=""
+                  className="community-settings__banner-preview"
+                />
+              ) : (
+                <span className="community-settings__banner-empty">
+                  Click to upload a banner (PNG / JPG / WEBP, ≤5 MB)
+                </span>
+              )}
+            </label>
+          </div>
+
+          <div className="community-settings__avatar-field">
+            <span className="community-settings__label">Avatar</span>
+            <label className="community-settings__avatar-drop">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarPick}
+                hidden
+              />
+              {(avatarPreview || community.avatar_path) ? (
+                <img
+                  src={avatarPreview || community.avatar_path}
+                  alt=""
+                  className="community-settings__avatar-preview"
+                />
+              ) : (
+                <span className="community-settings__avatar-empty">
+                  {community.name.charAt(0).toUpperCase()}
+                </span>
+              )}
+            </label>
+          </div>
+        </div>
+
         <label className="community-settings__field">
           <span className="community-settings__label">Name</span>
           <input

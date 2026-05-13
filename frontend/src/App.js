@@ -44,6 +44,7 @@ const CreateCommunity = lazy(() => import('./pages/CreateCommunity'));
 const CommunityPage = lazy(() => import('./pages/CommunityPage'));
 const CommunityMembers = lazy(() => import('./pages/CommunityMembers'));
 const CommunitySettings = lazy(() => import('./pages/CommunitySettings'));
+const SearchResultsPage = lazy(() => import('./pages/SearchResultsPage'));
 
 // Tiny inline fallback shown while a lazy chunk is downloading. Kept inline
 // rather than importing a heavyweight spinner so the fallback itself never
@@ -307,6 +308,14 @@ const AppRoutes = () => {
                 <CommunitySettings />
               </PageTransition>
             </RequireAuth>
+          }
+        />
+        <Route
+          path="/search"
+          element={
+            <PageTransition>
+              <SearchResultsPage />
+            </PageTransition>
           }
         />
         <Route
