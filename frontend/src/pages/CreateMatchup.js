@@ -1,19 +1,46 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { FiChevronDown } from "react-icons/fi";
 import Button from "../components/Button";
 import ConfirmModal from "../components/ConfirmModal";
-import { createMatchup } from "../services/api";
+import { createMatchup, getCommunity } from "../services/api";
 import { track } from "../utils/analytics";
 import { SELECTABLE_CATEGORIES } from "../utils/categories";
 
 const CreateMatchup = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // Prefer the authenticated user id (localStorage), fallback to route param
   const authedUserId = localStorage.getItem("userId") || userId || "";
+
+  // Community context — when arriving from /c/<slug>'s "New matchup"
+  // button the query string carries ?community=<public_id>. We fetch
+  // the full community record so we can show "Creating in /c/foo" and
+  // thread community_id into the create call. The backend enforces
+  // membership; this UI just makes the context obvious + drives the
+  // post-create redirect back to the community page.
+  const requestedCommunityId = searchParams.get('community') || '';
+  const [community, setCommunity] = useState(null);
+  useEffect(() => {
+    if (!requestedCommunityId) {
+      setCommunity(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getCommunity(requestedCommunityId);
+        if (!cancelled) setCommunity(res?.data?.community ?? null);
+      } catch {
+        // Silently drop — the user can still create a standalone matchup.
+        if (!cancelled) setCommunity(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [requestedCommunityId]);
 
   const minItems = 2;
   const maxItems = 4;
@@ -218,6 +245,12 @@ const CreateMatchup = () => {
       matchupData.imageFile = imageFile;
     }
 
+    // Thread the community_id through so the backend can stamp the
+    // matchup's community_id column. Skipped for standalone matchups.
+    if (community?.id) {
+      matchupData.community_id = community.id;
+    }
+
     try {
       setIsSubmitting(true);
       setError(null);
@@ -242,7 +275,15 @@ const CreateMatchup = () => {
 
       setSuccessMessage("Matchup created! Redirecting you to the debate...");
       setTimeout(() => {
-        navigate(`/users/${authorSlug}/matchup/${created.id}`);
+        // Community-scoped matchups land the user back on the community
+        // page where their new matchup will show up in the feed.
+        // Standalone matchups go to the user-scoped detail URL as
+        // before.
+        if (community?.slug) {
+          navigate(`/c/${community.slug}`);
+        } else {
+          navigate(`/users/${authorSlug}/matchup/${created.id}`);
+        }
       }, 450);
     } catch (err) {
       console.error("Error creating matchup:", err);
@@ -272,6 +313,17 @@ const CreateMatchup = () => {
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-indigo-500 dark:text-slate-300/80">
             New matchup
           </p>
+          {/* Community-context banner. Only renders when the user
+              arrived here from /c/<slug>'s "New matchup" CTA so the
+              standalone create flow looks identical to today. */}
+          {community && (
+            <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-indigo-200 dark:border-indigo-400/40 bg-indigo-50 dark:bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-700 dark:text-indigo-200">
+              <span>Creating in</span>
+              <Link to={`/c/${community.slug}`} className="underline decoration-dotted">
+                /c/{community.slug}
+              </Link>
+            </div>
+          )}
           <h1 className="mt-3 text-3xl font-semibold leading-tight text-slate-900 dark:text-slate-50 sm:text-4xl">
             Build a debate that feels good to join.
           </h1>

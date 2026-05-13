@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"Matchup/cache"
@@ -435,6 +436,26 @@ func (h *MatchupHandler) CreateMatchup(ctx context.Context, req *connect.Request
 		matchup.BracketID = &bracketRecord.ID
 	}
 
+	// Resolve community ID from public ID if provided. The caller must
+	// be a member of the community (member, mod, or owner) — non-
+	// members and banned users get PermissionDenied. Standalone
+	// matchups (no community_id passed) bypass this check.
+	if cid := strings.TrimSpace(req.Msg.GetCommunityId()); cid != "" {
+		community, err := resolveCommunityByIdentifier(h.DB, cid)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("community not found"))
+		}
+		var role string
+		err = sqlx.GetContext(ctx, h.DB, &role,
+			"SELECT role FROM community_memberships WHERE community_id = $1 AND user_id = $2",
+			community.ID, userID)
+		if err != nil || role == "" || role == "banned" {
+			return nil, connect.NewError(connect.CodePermissionDenied,
+				errors.New("you must be a member of this community to post here"))
+		}
+		matchup.CommunityID = &community.ID
+	}
+
 	if req.Msg.Round != nil {
 		r := int(*req.Msg.Round)
 		matchup.Round = &r
@@ -580,6 +601,19 @@ func (h *MatchupHandler) CreateMatchup(ctx context.Context, req *connect.Request
 	}
 	if saveErr != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("short_id generation exhausted: %w", saveErr))
+	}
+
+	// Bump the community's denormalised matchup_count for the
+	// directory + community-card hot path. Best-effort — a failure
+	// here doesn't roll back the matchup; it just leaves the count
+	// slightly stale until the next backfill. The same approach lives
+	// in JoinCommunity / LeaveCommunity.
+	if matchupCreated.CommunityID != nil {
+		if _, err := h.DB.ExecContext(ctx,
+			"UPDATE communities SET matchup_count = matchup_count + 1 WHERE id = $1",
+			*matchupCreated.CommunityID); err != nil {
+			log.Printf("CreateMatchup: bump community matchup_count: %v", err)
+		}
 	}
 
 	if err := sqlx.SelectContext(ctx, h.DB, &matchupCreated.Items,

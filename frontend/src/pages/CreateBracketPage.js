@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bracket } from "react-tournament-bracket";
 import {
@@ -11,7 +11,7 @@ import {
   FiUpload,
 } from "react-icons/fi";
 import Button from "../components/Button";
-import { createBracket, updateBracket } from "../services/api";
+import { createBracket, getCommunity, updateBracket } from "../services/api";
 import { track } from "../utils/analytics";
 
 const sizeOptions = [4, 8, 16, 32, 64];
@@ -118,7 +118,29 @@ const parseEntryList = (text) =>
 
 const CreateBracketPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const authedUserId = localStorage.getItem("userId") || "";
+
+  // Community context — set when arriving from /c/<slug>'s "New
+  // bracket" CTA. See CreateMatchup.js for the same pattern.
+  const requestedCommunityId = searchParams.get("community") || "";
+  const [community, setCommunity] = useState(null);
+  useEffect(() => {
+    if (!requestedCommunityId) {
+      setCommunity(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getCommunity(requestedCommunityId);
+        if (!cancelled) setCommunity(res?.data?.community ?? null);
+      } catch {
+        if (!cancelled) setCommunity(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [requestedCommunityId]);
 
   const [step, setStep] = useState(1);
   const [title, setTitle] = useState("");
@@ -390,6 +412,9 @@ const CreateBracketPage = () => {
     if (advanceMode === "timer") {
       payload.round_duration_seconds = totalSeconds;
     }
+    if (community?.id) {
+      payload.community_id = community.id;
+    }
 
     try {
       const response = await createBracket(authedUserId, payload);
@@ -411,7 +436,13 @@ const CreateBracketPage = () => {
       });
       setSuccessMessage("Bracket created! Taking you to the preview...");
       setTimeout(() => {
-        navigate(`/brackets/${created.id}`);
+        // Community-scoped brackets bounce the user back to the
+        // community page so they can see the new bracket in the feed.
+        if (community?.slug) {
+          navigate(`/c/${community.slug}`);
+        } else {
+          navigate(`/brackets/${created.id}`);
+        }
       }, 500);
     } catch (err) {
       console.error("Error creating bracket:", err);

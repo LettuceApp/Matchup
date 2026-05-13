@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"time"
 
 	adminv1 "Matchup/gen/admin/v1"
@@ -188,6 +189,17 @@ func matchupToProto(db sqlx.ExtContext, matchup *models.Matchup, comments []mode
 		shortID = *matchup.ShortID
 	}
 
+	// Resolve community public_id (when present) so the frontend can
+	// detect community-scoped matchups and route accordingly.
+	var communityID *string
+	if matchup.CommunityID != nil {
+		var pid string
+		if err := sqlx.GetContext(context.Background(), db, &pid,
+			"SELECT public_id FROM communities WHERE id = $1", *matchup.CommunityID); err == nil && pid != "" {
+			communityID = &pid
+		}
+	}
+
 	return &matchupv1.MatchupData{
 		Id:              matchup.PublicID,
 		ShortId:         shortID,
@@ -211,6 +223,7 @@ func matchupToProto(db sqlx.ExtContext, matchup *models.Matchup, comments []mode
 		WinnerItemId:    winnerItemID,
 		ImageUrl:        imageURL,
 		Tags:            tags,
+		CommunityId:     communityID,
 	}
 }
 
@@ -270,6 +283,16 @@ func bracketToProto(db sqlx.ExtContext, bracket *models.Bracket) *bracketv1.Brac
 		shortID = *bracket.ShortID
 	}
 
+	// Resolve community public_id when this bracket is community-scoped.
+	var communityID *string
+	if bracket.CommunityID != nil {
+		var pid string
+		if err := sqlx.GetContext(context.Background(), db, &pid,
+			"SELECT public_id FROM communities WHERE id = $1", *bracket.CommunityID); err == nil && pid != "" {
+			communityID = &pid
+		}
+	}
+
 	return &bracketv1.BracketData{
 		Id:                   bracket.PublicID,
 		ShortId:              shortID,
@@ -286,6 +309,7 @@ func bracketToProto(db sqlx.ExtContext, bracket *models.Bracket) *bracketv1.Brac
 		RoundEndsAt:          rfc3339Ptr(bracket.RoundEndsAt),
 		LikesCount:           int32(bracket.LikesCount),
 		Tags:                 tags,
+		CommunityId:          communityID,
 	}
 }
 

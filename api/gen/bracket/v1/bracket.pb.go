@@ -44,7 +44,10 @@ type BracketData struct {
 	// preview URLs. Nullable for rows created before migration 014 until
 	// the backfill binary finishes. Client code should fall back to `id`
 	// when empty.
-	ShortId       string `protobuf:"bytes,15,opt,name=short_id,json=shortId,proto3" json:"short_id,omitempty"`
+	ShortId string `protobuf:"bytes,15,opt,name=short_id,json=shortId,proto3" json:"short_id,omitempty"`
+	// Community public_id when the bracket is community-scoped.
+	// Empty / absent for standalone brackets.
+	CommunityId   *string `protobuf:"bytes,16,opt,name=community_id,json=communityId,proto3,oneof" json:"community_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -180,6 +183,13 @@ func (x *BracketData) GetAuthor() *v1.UserSummaryResponse {
 func (x *BracketData) GetShortId() string {
 	if x != nil {
 		return x.ShortId
+	}
+	return ""
+}
+
+func (x *BracketData) GetCommunityId() string {
+	if x != nil && x.CommunityId != nil {
+		return *x.CommunityId
 	}
 	return ""
 }
@@ -642,8 +652,12 @@ type CreateBracketRequest struct {
 	Visibility           *string                `protobuf:"bytes,8,opt,name=visibility,proto3,oneof" json:"visibility,omitempty"`
 	Entries              []string               `protobuf:"bytes,9,rep,name=entries,proto3" json:"entries,omitempty"`
 	Tags                 []string               `protobuf:"bytes,10,rep,name=tags,proto3" json:"tags,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// Community-scoped brackets carry a community_id (public_id). The
+	// handler validates membership before creation. Standalone brackets
+	// omit the field and stay invisible to community feeds.
+	CommunityId   *string `protobuf:"bytes,11,opt,name=community_id,json=communityId,proto3,oneof" json:"community_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateBracketRequest) Reset() {
@@ -744,6 +758,13 @@ func (x *CreateBracketRequest) GetTags() []string {
 		return x.Tags
 	}
 	return nil
+}
+
+func (x *CreateBracketRequest) GetCommunityId() string {
+	if x != nil && x.CommunityId != nil {
+		return *x.CommunityId
+	}
+	return ""
 }
 
 type UpdateBracketRequest struct {
@@ -1743,7 +1764,7 @@ var File_bracket_v1_bracket_proto protoreflect.FileDescriptor
 const file_bracket_v1_bracket_proto_rawDesc = "" +
 	"\n" +
 	"\x18bracket/v1/bracket.proto\x12\n" +
-	"bracket.v1\x1a\x18matchup/v1/matchup.proto\x1a\x16common/v1/common.proto\"\xa3\x04\n" +
+	"bracket.v1\x1a\x18matchup/v1/matchup.proto\x1a\x16common/v1/common.proto\"\xdc\x04\n" +
 	"\vBracketData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12 \n" +
@@ -1761,9 +1782,11 @@ const file_bracket_v1_bracket_proto_rawDesc = "" +
 	"likesCount\x12\x12\n" +
 	"\x04tags\x18\r \x03(\tR\x04tags\x126\n" +
 	"\x06author\x18\x0e \x01(\v2\x1e.common.v1.UserSummaryResponseR\x06author\x12\x19\n" +
-	"\bshort_id\x18\x0f \x01(\tR\ashortIdB\x13\n" +
+	"\bshort_id\x18\x0f \x01(\tR\ashortId\x12&\n" +
+	"\fcommunity_id\x18\x10 \x01(\tH\x02R\vcommunityId\x88\x01\x01B\x13\n" +
 	"\x11_round_started_atB\x10\n" +
-	"\x0e_round_ends_at\"\xdf\x02\n" +
+	"\x0e_round_ends_atB\x0f\n" +
+	"\r_community_id\"\xdf\x02\n" +
 	"\x12PopularBracketData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x1b\n" +
@@ -1800,7 +1823,7 @@ const file_bracket_v1_bracket_proto_rawDesc = "" +
 	"\x04page\x18\x02 \x01(\x05H\x00R\x04page\x88\x01\x01\x12\x19\n" +
 	"\x05limit\x18\x03 \x01(\x05H\x01R\x05limit\x88\x01\x01B\a\n" +
 	"\x05_pageB\b\n" +
-	"\x06_limit\"\xc6\x03\n" +
+	"\x06_limit\"\xff\x03\n" +
 	"\x14CreateBracketRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12%\n" +
@@ -1814,12 +1837,14 @@ const file_bracket_v1_bracket_proto_rawDesc = "" +
 	"visibility\x88\x01\x01\x12\x18\n" +
 	"\aentries\x18\t \x03(\tR\aentries\x12\x12\n" +
 	"\x04tags\x18\n" +
-	" \x03(\tR\x04tagsB\x0e\n" +
+	" \x03(\tR\x04tags\x12&\n" +
+	"\fcommunity_id\x18\v \x01(\tH\x05R\vcommunityId\x88\x01\x01B\x0e\n" +
 	"\f_descriptionB\x0f\n" +
 	"\r_advance_modeB\x13\n" +
 	"\x11_duration_minutesB\x19\n" +
 	"\x17_round_duration_secondsB\r\n" +
-	"\v_visibility\"\xfe\x02\n" +
+	"\v_visibilityB\x0f\n" +
+	"\r_community_id\"\xfe\x02\n" +
 	"\x14UpdateBracketRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\x05title\x18\x02 \x01(\tH\x00R\x05title\x88\x01\x01\x12%\n" +

@@ -42,6 +42,9 @@ message BracketData {
   // the backfill binary finishes. Client code should fall back to `id`
   // when empty.
   string short_id = 15;
+  // Community public_id when the bracket is community-scoped.
+  // Empty / absent for standalone brackets.
+  optional string community_id = 16;
 }
 
 // PopularBracketData is a lightweight bracket used in the popular feed.
@@ -103,6 +106,10 @@ message CreateBracketRequest {
   optional string visibility = 8;
   repeated string entries = 9;
   repeated string tags = 10;
+  // Community-scoped brackets carry a community_id (public_id). The
+  // handler validates membership before creation. Standalone brackets
+  // omit the field and stay invisible to community feeds.
+  optional string community_id = 11;
 }
 
 message UpdateBracketRequest {

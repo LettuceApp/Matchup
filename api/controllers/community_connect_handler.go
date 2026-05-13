@@ -899,6 +899,122 @@ func (h *CommunityHandler) SetRules(ctx context.Context, req *connect.Request[co
 }
 
 // ----------------------------------------------------------------------
+// Community feed
+// ----------------------------------------------------------------------
+
+// GetCommunityFeed returns the matchups + brackets scoped to this
+// community, sorted by created_at DESC. v1 fetches up to `limit` of
+// each in parallel; the frontend interleaves them by created_at on
+// the client. Cursor pagination is RFC3339 — pass the older of the
+// last seen matchup/bracket created_at to get the next page.
+func (h *CommunityHandler) GetCommunityFeed(ctx context.Context, req *connect.Request[communityv1.GetCommunityFeedRequest]) (*connect.Response[communityv1.GetCommunityFeedResponse], error) {
+	c, err := resolveCommunityByIdentifier(dbForRead(ctx, h.DB, h.ReadDB), req.Msg.GetCommunityId())
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("community not found"))
+		}
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	limit := int(req.Msg.GetLimit())
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	var before time.Time
+	if cursor := strings.TrimSpace(req.Msg.GetCursor()); cursor != "" {
+		t, perr := time.Parse(time.RFC3339, cursor)
+		if perr != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("invalid cursor: %w", perr))
+		}
+		before = t
+	}
+
+	db := dbForRead(ctx, h.DB, h.ReadDB)
+
+	// Matchups for this community. Standalone bracket matchups (the
+	// child rows of a bracket) are filtered out — community pages
+	// show top-level user-created matchups, not the auto-generated
+	// per-round matchups inside a bracket.
+	matchupQuery := `
+        SELECT * FROM matchups
+        WHERE community_id = $1 AND bracket_id IS NULL`
+	matchupArgs := []interface{}{c.ID}
+	if !before.IsZero() {
+		matchupArgs = append(matchupArgs, before)
+		matchupQuery += fmt.Sprintf(" AND created_at < $%d", len(matchupArgs))
+	}
+	matchupArgs = append(matchupArgs, limit)
+	matchupQuery += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d", len(matchupArgs))
+
+	var matchups []models.Matchup
+	if err := sqlx.SelectContext(ctx, db, &matchups, matchupQuery, matchupArgs...); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Brackets for this community.
+	bracketQuery := `SELECT * FROM brackets WHERE community_id = $1`
+	bracketArgs := []interface{}{c.ID}
+	if !before.IsZero() {
+		bracketArgs = append(bracketArgs, before)
+		bracketQuery += fmt.Sprintf(" AND created_at < $%d", len(bracketArgs))
+	}
+	bracketArgs = append(bracketArgs, limit)
+	bracketQuery += fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d", len(bracketArgs))
+
+	var brackets []models.Bracket
+	if err := sqlx.SelectContext(ctx, db, &brackets, bracketQuery, bracketArgs...); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// Hydrate author rows and items for matchups (matchupToProto
+	// expects them populated). Best-effort — a failure here just
+	// leaves a card with a missing field, not a 500.
+	for i := range matchups {
+		_ = sqlx.GetContext(ctx, db, &matchups[i].Author,
+			"SELECT * FROM users WHERE id = $1", matchups[i].AuthorID)
+		_ = sqlx.SelectContext(ctx, db, &matchups[i].Items,
+			"SELECT * FROM matchup_items WHERE matchup_id = $1 ORDER BY id ASC", matchups[i].ID)
+	}
+	for i := range brackets {
+		_ = sqlx.GetContext(ctx, db, &brackets[i].Author,
+			"SELECT * FROM users WHERE id = $1", brackets[i].AuthorID)
+	}
+
+	resp := &communityv1.GetCommunityFeedResponse{}
+	for i := range matchups {
+		resp.Matchups = append(resp.Matchups, matchupToProto(db, &matchups[i], nil))
+	}
+	for i := range brackets {
+		resp.Brackets = append(resp.Brackets, bracketToProto(db, &brackets[i]))
+	}
+
+	// Cursor = oldest created_at across both lists. Frontend uses
+	// this on next-page fetch so neither list misses items.
+	var oldest time.Time
+	if len(matchups) > 0 {
+		oldest = matchups[len(matchups)-1].CreatedAt
+	}
+	if len(brackets) > 0 {
+		bOldest := brackets[len(brackets)-1].CreatedAt
+		if oldest.IsZero() || bOldest.Before(oldest) {
+			oldest = bOldest
+		}
+	}
+	// Only emit a cursor if we hit the page limit on at least one
+	// list — otherwise there's nothing more to fetch.
+	if len(matchups) == limit || len(brackets) == limit {
+		if !oldest.IsZero() {
+			resp.NextCursor = oldest.UTC().Format(time.RFC3339)
+		}
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// ----------------------------------------------------------------------
 // Helpers
 // ----------------------------------------------------------------------
 

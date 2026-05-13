@@ -91,6 +91,12 @@ const MatchupItem = ({
         promptUpgrade('cap');
       } else if (code === 'permission_denied' && message.includes('bracket')) {
         promptUpgrade('bracket');
+      } else if (code === 'permission_denied' && message.includes('community')) {
+        // Community-scoped matchups are members-only. The backend
+        // returns "join this community to vote" — surface it as a
+        // friendlier alert. The matchup hero already shows the
+        // "From /c/<slug>" link so the user has a clear next step.
+        alert('Join this community to vote on its matchups.');
       } else if (code === 'unauthenticated' && !localStorage.getItem('token')) {
         // The legacy 401 path — server rejected an anon vote on a
         // route that doesn't yet allow them. Treat like the cap.

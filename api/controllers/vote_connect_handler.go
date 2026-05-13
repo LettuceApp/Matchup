@@ -155,6 +155,30 @@ func (h *MatchupItemHandler) VoteItem(ctx context.Context, req *connect.Request[
 		}
 	}
 
+	// Community-scoped matchups are members-only for voting. Anon
+	// voters can't possibly be members; non-members + banned authed
+	// users see PermissionDenied. The matchup author bypasses this
+	// since they always have a membership row (creators are members
+	// by definition — see CreateMatchup's membership gate).
+	if item.Matchup.CommunityID != nil {
+		if identity.UserID == nil {
+			return nil, connect.NewError(
+				connect.CodePermissionDenied,
+				fmt.Errorf("join this community to vote"),
+			)
+		}
+		var role string
+		err := sqlx.GetContext(ctx, h.DB, &role,
+			"SELECT role FROM community_memberships WHERE community_id = $1 AND user_id = $2",
+			*item.Matchup.CommunityID, *identity.UserID)
+		if err != nil || role == "" || role == "banned" {
+			return nil, connect.NewError(
+				connect.CodePermissionDenied,
+				fmt.Errorf("join this community to vote"),
+			)
+		}
+	}
+
 	isOwner := identity.UserID != nil && *identity.UserID == item.Matchup.AuthorID
 	if !isOwner {
 		if item.Matchup.Status == matchupStatusCompleted {

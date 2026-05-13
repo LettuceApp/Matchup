@@ -2,6 +2,9 @@ syntax = "proto3";
 package community.v1;
 option go_package = "Matchup/gen/community/v1;communityv1";
 
+import "matchup/v1/matchup.proto";
+import "bracket/v1/bracket.proto";
+
 // CommunityService — backend for the v1 Communities feature.
 //
 // Roles in v1 are owner / mod / member / banned. Public communities
@@ -43,6 +46,11 @@ service CommunityService {
 
   rpc ListRules(ListRulesRequest) returns (ListRulesResponse);
   rpc SetRules(SetRulesRequest) returns (SetRulesResponse);
+
+  // Community-scoped feed — matchups + brackets created in this
+  // community. Sorted by created_at DESC; paginate via cursor (the
+  // last item's created_at).
+  rpc GetCommunityFeed(GetCommunityFeedRequest) returns (GetCommunityFeedResponse);
 }
 
 // CommunityData — full community object returned from most endpoints.
@@ -214,3 +222,16 @@ message SetRulesRequest {
   repeated CommunityRule rules = 2;
 }
 message SetRulesResponse { repeated CommunityRule rules = 1; }
+
+message GetCommunityFeedRequest {
+  string community_id = 1;
+  int32 limit = 2;
+  // RFC3339 timestamp of the last item from the previous page. Empty
+  // for first page.
+  string cursor = 3;
+}
+message GetCommunityFeedResponse {
+  repeated matchup.v1.MatchupData matchups = 1;
+  repeated bracket.v1.BracketData brackets = 2;
+  string next_cursor = 3;
+}

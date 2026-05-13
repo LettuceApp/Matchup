@@ -802,4 +802,43 @@ export const updateCommunity = (id, data = {}) =>
 export const deleteCommunity = (id) =>
   rpc('community.v1.CommunityService', 'DeleteCommunity', { id });
 
+// Feed for a community page — matchups + brackets the community
+// owns, sorted by created_at DESC. cursor is an RFC3339 timestamp
+// returned by the previous page as next_cursor.
+export const getCommunityFeed = (communityId, { limit = 20, cursor = '' } = {}) =>
+  rpc('community.v1.CommunityService', 'GetCommunityFeed', {
+    community_id: communityId,
+    limit,
+    cursor,
+  });
+
+// Member-management RPCs — owner gates UpdateMemberRole; mod+ gates
+// RemoveMember / BanMember / UnbanMember. Backend rejects when the
+// caller doesn't have the right role.
+export const updateCommunityMemberRole = ({ communityId, userId, role }) =>
+  rpc('community.v1.CommunityService', 'UpdateMemberRole', {
+    community_id: communityId,
+    user_id: userId,
+    role,
+  });
+
+export const removeCommunityMember = ({ communityId, userId }) =>
+  rpc('community.v1.CommunityService', 'RemoveMember', {
+    community_id: communityId,
+    user_id: userId,
+  });
+
+export const banCommunityMember = ({ communityId, userId, reason }) =>
+  rpc('community.v1.CommunityService', 'BanMember', {
+    community_id: communityId,
+    user_id: userId,
+    ...(reason ? { reason } : {}),
+  });
+
+export const unbanCommunityMember = ({ communityId, userId }) =>
+  rpc('community.v1.CommunityService', 'UnbanMember', {
+    community_id: communityId,
+    user_id: userId,
+  });
+
 export default API;
