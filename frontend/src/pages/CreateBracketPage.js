@@ -134,7 +134,13 @@ const CreateBracketPage = () => {
     (async () => {
       try {
         const res = await getCommunity(requestedCommunityId);
-        if (!cancelled) setCommunity(res?.data?.community ?? null);
+        if (cancelled) return;
+        const data = res?.data?.community ?? null;
+        setCommunity(data);
+        // Default visibility to community-only when in a community
+        // context. Matches CreateMatchup. The user can still bump it
+        // to public via the radio in the advanced section.
+        if (data) setVisibility('community-only');
       } catch {
         if (!cancelled) setCommunity(null);
       }
@@ -403,10 +409,14 @@ const CreateBracketPage = () => {
       entries: trimmedEntries,
       tags: parsedTags,
     };
-    // Only send a visibility override when it isn't the default —
-    // backend defaults to "public" via Prepare(); silent on the
-    // wire is the same as explicit "public".
-    if (visibility !== "public") {
+    // Visibility wire rules. Standalone brackets: backend defaults
+    // to "public" so skip when that's our value. Community brackets:
+    // ALWAYS forward the choice because the backend's default in
+    // that branch is 'community-only' — a creator who picked Public
+    // must have their choice forwarded.
+    if (community?.id) {
+      payload.visibility = visibility;
+    } else if (visibility !== "public") {
       payload.visibility = visibility;
     }
     if (advanceMode === "timer") {
@@ -1105,17 +1115,25 @@ const CreateBracketPage = () => {
                     transition={{ duration: 0.3 }}
                     className="mt-4 flex flex-col gap-4 overflow-hidden"
                   >
-                    {/* Per-bracket visibility — same triple as the
-                        matchup creator. Public is the default; the
-                        non-default options gate behind a follow edge
-                        (one-way) or a mutual edge (two-way). */}
+                    {/* Per-bracket visibility. Standalone brackets get the
+                        public/followers/mutuals triple; community-scoped
+                        brackets collapse to community-only / public —
+                        followers + mutuals don't apply to content that
+                        lives in a community feed rather than the
+                        creator's profile. */}
                     <fieldset className="flex flex-col gap-2 rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/40 p-3">
                       <legend className="px-1 text-sm font-semibold text-slate-800 dark:text-slate-200">Who can see this bracket?</legend>
-                      {[
-                        { value: "public", label: "Public", help: "Anyone, including signed-out viewers." },
-                        { value: "followers", label: "Followers only", help: "People who follow you." },
-                        { value: "mutuals", label: "Mutuals only", help: "Only people you follow AND who follow you." },
-                      ].map((option) => (
+                      {(community
+                        ? [
+                            { value: "community-only", label: "Community only", help: `Only members of /c/${community.slug} can see this bracket.` },
+                            { value: "public", label: "Public", help: "Anyone can preview, but only community members can vote." },
+                          ]
+                        : [
+                            { value: "public", label: "Public", help: "Anyone, including signed-out viewers." },
+                            { value: "followers", label: "Followers only", help: "People who follow you." },
+                            { value: "mutuals", label: "Mutuals only", help: "Only people you follow AND who follow you." },
+                          ]
+                      ).map((option) => (
                         <label
                           key={option.value}
                           className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 text-sm ${

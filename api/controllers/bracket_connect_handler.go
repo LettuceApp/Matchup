@@ -165,6 +165,24 @@ func (h *BracketHandler) GetBracket(ctx context.Context, req *connect.Request[br
 	}
 
 	viewerID, hasViewer := optionalViewerFromCtx(ctx)
+	// Community visibility gate — non-members can't access
+	// community-only brackets directly. Author bypasses (always a
+	// member of their own community).
+	if found.CommunityID != nil {
+		isAuthor := hasViewer && viewerID == found.AuthorID
+		if !isAuthor {
+			communityAllowed, communityReason, cerr := canViewCommunityContent(
+				h.DB, viewerID, hasViewer, *found.CommunityID, found.Visibility,
+			)
+			if cerr != nil {
+				return nil, connect.NewError(connect.CodeInternal, cerr)
+			}
+			if !communityAllowed {
+				return nil, connect.NewError(connect.CodePermissionDenied,
+					errors.New(visibilityErrorMessage(communityReason)))
+			}
+		}
+	}
 	allowed, reason, err := canViewUserContent(h.DB, viewerID, hasViewer, &found.Author, found.Visibility, httpctx.IsAdminRequest(ctx))
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -209,6 +227,22 @@ func (h *BracketHandler) GetBracketSummary(ctx context.Context, req *connect.Req
 	}
 	bracket = *found
 
+	// Community visibility gate (same as GetBracket above).
+	if bracket.CommunityID != nil {
+		isAuthor := hasViewer && viewerID == bracket.AuthorID
+		if !isAuthor {
+			communityAllowed, communityReason, cerr := canViewCommunityContent(
+				h.DB, viewerID, hasViewer, *bracket.CommunityID, bracket.Visibility,
+			)
+			if cerr != nil {
+				return nil, connect.NewError(connect.CodeInternal, cerr)
+			}
+			if !communityAllowed {
+				return nil, connect.NewError(connect.CodePermissionDenied,
+					errors.New(visibilityErrorMessage(communityReason)))
+			}
+		}
+	}
 	allowed, reason, err := canViewUserContent(h.DB, viewerID, hasViewer, &bracket.Author, bracket.Visibility, httpctx.IsAdminRequest(ctx))
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -378,6 +412,24 @@ func (h *BracketHandler) GetBracketMatchups(ctx context.Context, req *connect.Re
 	}
 
 	viewerID, hasViewer := optionalViewerFromCtx(ctx)
+	// Community visibility gate — non-members can't access
+	// community-only brackets directly. Author bypasses (always a
+	// member of their own community).
+	if found.CommunityID != nil {
+		isAuthor := hasViewer && viewerID == found.AuthorID
+		if !isAuthor {
+			communityAllowed, communityReason, cerr := canViewCommunityContent(
+				h.DB, viewerID, hasViewer, *found.CommunityID, found.Visibility,
+			)
+			if cerr != nil {
+				return nil, connect.NewError(connect.CodeInternal, cerr)
+			}
+			if !communityAllowed {
+				return nil, connect.NewError(connect.CodePermissionDenied,
+					errors.New(visibilityErrorMessage(communityReason)))
+			}
+		}
+	}
 	allowed, reason, err := canViewUserContent(h.DB, viewerID, hasViewer, &found.Author, found.Visibility, httpctx.IsAdminRequest(ctx))
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -497,6 +549,19 @@ func (h *BracketHandler) CreateBracket(ctx context.Context, req *connect.Request
 				errors.New("you must be a member of this community to post here"))
 		}
 		bracket.CommunityID = &community.ID
+
+		// Community brackets only accept 'community-only' (default) or
+		// 'public'. See CreateMatchup for the same rule + rationale.
+		rawVis := ""
+		if req.Msg.Visibility != nil {
+			rawVis = *req.Msg.Visibility
+		}
+		resolvedVis, ok := resolveCommunityVisibility(rawVis)
+		if !ok {
+			return nil, connect.NewError(connect.CodeInvalidArgument,
+				errors.New("community brackets must be 'community-only' or 'public'"))
+		}
+		bracket.Visibility = resolvedVis
 	}
 
 	if len(req.Msg.Entries) > 0 && len(req.Msg.Entries) != int(req.Msg.Size) {

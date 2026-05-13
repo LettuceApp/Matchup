@@ -178,6 +178,26 @@ func (h *MatchupHandler) GetMatchup(ctx context.Context, req *connect.Request[ma
 	matchup.Author.ProcessAvatarPath()
 
 	viewerID, hasViewer := optionalViewerFromCtx(ctx)
+	// Community visibility takes precedence for community-scoped
+	// matchups — non-members can't see community-only content
+	// regardless of the user-level visibility. The owner of the
+	// matchup always passes (community membership was a
+	// precondition for CreateMatchup, so they have a row).
+	if matchup.CommunityID != nil {
+		isAuthor := hasViewer && viewerID == matchup.AuthorID
+		if !isAuthor {
+			communityAllowed, communityReason, cerr := canViewCommunityContent(
+				h.DB, viewerID, hasViewer, *matchup.CommunityID, matchup.Visibility,
+			)
+			if cerr != nil {
+				return nil, connect.NewError(connect.CodeInternal, cerr)
+			}
+			if !communityAllowed {
+				return nil, connect.NewError(connect.CodePermissionDenied,
+					errors.New(visibilityErrorMessage(communityReason)))
+			}
+		}
+	}
 	allowed, reason, err := canViewUserContent(h.DB, viewerID, hasViewer, &matchup.Author, matchup.Visibility, httpctx.IsAdminRequest(ctx))
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -454,6 +474,21 @@ func (h *MatchupHandler) CreateMatchup(ctx context.Context, req *connect.Request
 				errors.New("you must be a member of this community to post here"))
 		}
 		matchup.CommunityID = &community.ID
+
+		// Community matchups only accept 'community-only' (default) or
+		// 'public'. Followers/mutuals don't make sense for content
+		// owned by a community rather than a person — the matchup
+		// lives in the community's feed, not the creator's profile.
+		raw := ""
+		if req.Msg.Visibility != nil {
+			raw = *req.Msg.Visibility
+		}
+		resolved, ok := resolveCommunityVisibility(raw)
+		if !ok {
+			return nil, connect.NewError(connect.CodeInvalidArgument,
+				errors.New("community matchups must be 'community-only' or 'public'"))
+		}
+		matchup.Visibility = resolved
 	}
 
 	if req.Msg.Round != nil {

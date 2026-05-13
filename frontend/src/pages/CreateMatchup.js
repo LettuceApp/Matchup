@@ -33,7 +33,13 @@ const CreateMatchup = () => {
     (async () => {
       try {
         const res = await getCommunity(requestedCommunityId);
-        if (!cancelled) setCommunity(res?.data?.community ?? null);
+        if (cancelled) return;
+        const data = res?.data?.community ?? null;
+        setCommunity(data);
+        // Default visibility to community-only the moment we know
+        // we're creating in a community. The user can still bump
+        // it to public via the radio below.
+        if (data) setVisibility('community-only');
       } catch {
         // Silently drop — the user can still create a standalone matchup.
         if (!cancelled) setCommunity(null);
@@ -55,12 +61,13 @@ const CreateMatchup = () => {
   const [durationMinutes, setDurationMinutes] = useState(5);
   const [confirmLive, setConfirmLive] = useState(false);
   const [durationSeconds, setDurationSeconds] = useState(0);
-  // Per-matchup visibility. "public" (default) — anyone can see;
-  // "followers" — only people who follow the creator; "mutuals" —
-  // only people who follow + are followed back. Replaces the
-  // previous mutuals-only checkbox so a public account can mark a
-  // single matchup as followers-only without flipping their whole
-  // profile to private.
+  // Per-matchup visibility. For standalone matchups: "public"
+  // (default), "followers", or "mutuals". For community-scoped
+  // matchups the options collapse to "community-only" (default)
+  // or "public" — followers/mutuals don't make sense for content
+  // that lives in a community feed rather than the creator's
+  // profile. The community-context useEffect below flips the
+  // default to 'community-only' when ?community=... is set.
   const [visibility, setVisibility] = useState("public");
   const [tags, setTags] = useState("");
   const [imageFile, setImageFile] = useState(null);
@@ -223,10 +230,15 @@ const CreateMatchup = () => {
       end_mode: endMode,
       tags: parsedTags,
     };
-    // Only send a visibility override when it's not the default —
-    // keeps the wire clean and lets the backend Prepare() apply
-    // "public" without us having to send the literal back.
-    if (visibility !== "public") {
+    // Visibility wire rules:
+    // - Standalone matchup: only send when it's not the default
+    //   "public", so the backend's Prepare() applies the default.
+    // - Community matchup: ALWAYS send the explicit choice. The
+    //   backend's default is 'community-only' there, so a creator
+    //   who picked Public must have their choice forwarded.
+    if (community) {
+      matchupData.visibility = visibility;
+    } else if (visibility !== "public") {
       matchupData.visibility = visibility;
     }
     if (endMode === "timer") {
@@ -612,11 +624,17 @@ const CreateMatchup = () => {
                           the docs. */}
                       <fieldset className="flex flex-col gap-2 rounded-2xl border border-slate-300 dark:border-slate-600/60 bg-white dark:bg-slate-950/60 px-4 py-3">
                         <legend className="px-2 text-sm font-semibold text-slate-900 dark:text-slate-100">Who can see this matchup?</legend>
-                        {[
-                          { value: "public", label: "Public", help: "Anyone, including signed-out viewers." },
-                          { value: "followers", label: "Followers only", help: "People who follow you. They don't have to follow you back-er, you don't have to follow them back." },
-                          { value: "mutuals", label: "Mutuals only", help: "Only people you follow AND who follow you." },
-                        ].map((option) => (
+                        {(community
+                          ? [
+                              { value: "community-only", label: `Community only`, help: `Only members of /c/${community.slug} can see this matchup.` },
+                              { value: "public", label: "Public", help: "Anyone can preview, but only members of the community can vote." },
+                            ]
+                          : [
+                              { value: "public", label: "Public", help: "Anyone, including signed-out viewers." },
+                              { value: "followers", label: "Followers only", help: "People who follow you. They don't have to follow you back-er, you don't have to follow them back." },
+                              { value: "mutuals", label: "Mutuals only", help: "Only people you follow AND who follow you." },
+                            ]
+                        ).map((option) => (
                           <label
                             key={option.value}
                             className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2 text-sm ${
@@ -800,7 +818,11 @@ const CreateMatchup = () => {
                   </div>
                   {visibility !== "public" && (
                     <span className="w-fit rounded-full border border-blue-400/60 bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-100">
-                      {visibility === "mutuals" ? "Mutuals only" : "Followers only"}
+                      {visibility === "community-only"
+                        ? "Community only"
+                        : visibility === "mutuals"
+                        ? "Mutuals only"
+                        : "Followers only"}
                     </span>
                   )}
                   <div className="rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-950/40 p-4">

@@ -1123,6 +1123,18 @@ func (h *CommunityHandler) GetCommunityFeed(ctx context.Context, req *connect.Re
 
 	db := dbForRead(ctx, h.DB, h.ReadDB)
 
+	// Non-members only see items the creator marked 'public'. Members
+	// (and the community owner) see everything. This is the feed-level
+	// equivalent of the per-item access gate in GetMatchup/GetBracket.
+	viewerIsMember := false
+	if uid, ok := httpctx.CurrentUserID(ctx); ok && uid != 0 {
+		var role string
+		_ = sqlx.GetContext(ctx, db, &role,
+			"SELECT role FROM community_memberships WHERE community_id = $1 AND user_id = $2",
+			c.ID, uid)
+		viewerIsMember = role != "" && role != "banned"
+	}
+
 	// Matchups for this community. Standalone bracket matchups (the
 	// child rows of a bracket) are filtered out — community pages
 	// show top-level user-created matchups, not the auto-generated
@@ -1131,6 +1143,9 @@ func (h *CommunityHandler) GetCommunityFeed(ctx context.Context, req *connect.Re
         SELECT * FROM matchups
         WHERE community_id = $1 AND bracket_id IS NULL`
 	matchupArgs := []interface{}{c.ID}
+	if !viewerIsMember {
+		matchupQuery += " AND visibility = 'public'"
+	}
 	if !before.IsZero() {
 		matchupArgs = append(matchupArgs, before)
 		matchupQuery += fmt.Sprintf(" AND created_at < $%d", len(matchupArgs))
@@ -1143,9 +1158,13 @@ func (h *CommunityHandler) GetCommunityFeed(ctx context.Context, req *connect.Re
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// Brackets for this community.
+	// Brackets for this community. Same members-only filter as
+	// matchups above.
 	bracketQuery := `SELECT * FROM brackets WHERE community_id = $1`
 	bracketArgs := []interface{}{c.ID}
+	if !viewerIsMember {
+		bracketQuery += " AND visibility = 'public'"
+	}
 	if !before.IsZero() {
 		bracketArgs = append(bracketArgs, before)
 		bracketQuery += fmt.Sprintf(" AND created_at < $%d", len(bracketArgs))

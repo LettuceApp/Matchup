@@ -21,8 +21,11 @@ import {
   unlikeBracket,
   createBracketComment,
   deleteBracketComment,
+  getCommunity,
+  joinCommunity,
 } from "../services/api";
 import "../styles/BracketPage.css";
+import "../styles/CommunityJoinCTA.css";
 import useCountdown from "../hooks/useCountdown";
 import useShareTracking from "../hooks/useShareTracking";
 import { useAnonUpgradePrompt } from "../contexts/AnonUpgradeContext";
@@ -49,6 +52,11 @@ export default function BracketPage() {
   }, []);
 
   const [bracket, setBracket] = useState(null);
+  // Community context for community-scoped brackets. Same shape as
+  // MatchupPage — lazy-fetch when bracket.community_id appears and
+  // drive the sticky Join CTA for non-members.
+  const [bracketCommunity, setBracketCommunity] = useState(null);
+  const [joiningCommunity, setJoiningCommunity] = useState(false);
   const [matchups, setMatchups] = useState([]);
   const [champion, setChampion] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -157,6 +165,26 @@ export default function BracketPage() {
     };
     loadMe();
   }, []);
+
+  // Resolve community context for community-scoped brackets so the
+  // bottom Join CTA can render with the right slug + viewer_role.
+  useEffect(() => {
+    const cid = bracket?.community_id;
+    if (!cid) {
+      setBracketCommunity(null);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getCommunity(cid);
+        if (!cancelled) setBracketCommunity(res?.data?.community ?? null);
+      } catch (err) {
+        if (!cancelled) setBracketCommunity(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [bracket?.community_id]);
 
   useEffect(() => {
     if (!viewerId) {
@@ -792,6 +820,60 @@ export default function BracketPage() {
           onClose={() => setReportOpen(false)}
         />
       )}
+
+      {/* Sticky bottom Join CTA — community-scoped brackets show this
+          for non-members so the preview-vs-participate boundary is
+          obvious. Matches the MatchupPage pattern. */}
+      {bracketCommunity &&
+        bracketCommunity.viewer_role !== 'owner' &&
+        bracketCommunity.viewer_role !== 'mod' &&
+        bracketCommunity.viewer_role !== 'member' &&
+        bracketCommunity.viewer_role !== 'banned' && (
+          <div className="community-join-cta" role="region" aria-label="Join community">
+            <div className="community-join-cta__inner">
+              <div className="community-join-cta__copy">
+                <span className="community-join-cta__title">
+                  You're previewing /c/{bracketCommunity.slug}
+                </span>
+                <span className="community-join-cta__sub">
+                  Join to vote in tournaments, comment, and post your own brackets.
+                </span>
+              </div>
+              <div className="community-join-cta__actions">
+                <Link
+                  to={`/c/${bracketCommunity.slug}`}
+                  className="community-join-cta__btn community-join-cta__btn--ghost"
+                >
+                  View community
+                </Link>
+                <button
+                  type="button"
+                  className="community-join-cta__btn community-join-cta__btn--primary"
+                  onClick={async () => {
+                    if (joiningCommunity) return;
+                    if (!viewerId) {
+                      window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
+                      return;
+                    }
+                    setJoiningCommunity(true);
+                    try {
+                      await joinCommunity(bracketCommunity.id);
+                      const r = await getCommunity(bracketCommunity.id);
+                      setBracketCommunity(r?.data?.community ?? bracketCommunity);
+                    } catch (err) {
+                      console.warn('Join community failed', err);
+                    } finally {
+                      setJoiningCommunity(false);
+                    }
+                  }}
+                  disabled={joiningCommunity}
+                >
+                  {joiningCommunity ? 'Joining…' : 'Join community'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
 }
