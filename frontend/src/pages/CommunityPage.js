@@ -231,21 +231,46 @@ const CommunityPage = () => {
         </div>
       </header>
 
-      {community.description && (
-        <section className="community-page__about">
-          <p>{community.description}</p>
-        </section>
-      )}
+      {/* About section. Hidden when description is empty / whitespace
+          / case-insensitively equal to the community name — old
+          communities had description == name as a placeholder, which
+          made the section look redundant alongside the title. */}
+      {(() => {
+        const desc = (community.description || '').trim();
+        const name = (community.name || '').trim().toLowerCase();
+        const showAbout = desc.length > 0 && desc.toLowerCase() !== name;
+        return showAbout ? (
+          <section className="community-page__about">
+            <p>{community.description}</p>
+          </section>
+        ) : null;
+      })()}
 
-      {community.tags?.length > 0 && (
-        <div className="community-page__tags">
-          {community.tags.map((tag) => (
-            <span key={tag} className="community-page__tag">
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
+      {/* Tags. Filter out anything that case-insensitively matches
+          the community name OR the description's first word — those
+          tags duplicate info that's already in the header / about
+          section and just clutter the chip row. */}
+      {(() => {
+        const name = (community.name || '').trim().toLowerCase();
+        const desc = (community.description || '').trim().toLowerCase();
+        const filtered = (community.tags || []).filter((t) => {
+          const tag = (t || '').trim().toLowerCase();
+          if (!tag) return false;
+          if (tag === name) return false;
+          if (tag === desc) return false;
+          return true;
+        });
+        if (filtered.length === 0) return null;
+        return (
+          <div className="community-page__tags">
+            {filtered.map((tag) => (
+              <span key={tag} className="community-page__tag">
+                {tag}
+              </span>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Member-only CTAs. Owners and mods also count as members for
           create purposes (the backend's permission gate accepts

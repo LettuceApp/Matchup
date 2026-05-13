@@ -189,6 +189,20 @@ func (h *CommunityHandler) CreateCommunity(ctx context.Context, req *connect.Req
 		return nil, connect.NewError(connect.CodeInvalidArgument,
 			errors.New("description must be 500 characters or fewer"))
 	}
+	// When the user provides a description it must be meaningful —
+	// at least 20 chars and not just an echo of the community name.
+	// Owners that don't have a good blurb yet can leave it blank;
+	// the frontend hides the About section entirely in that case.
+	if desc != "" {
+		if len(desc) < 20 {
+			return nil, connect.NewError(connect.CodeInvalidArgument,
+				errors.New("description should be at least 20 characters — leave blank if you don't have one yet"))
+		}
+		if strings.EqualFold(desc, name) {
+			return nil, connect.NewError(connect.CodeInvalidArgument,
+				errors.New("description shouldn't just repeat the community name — try a sentence or two"))
+		}
+	}
 
 	privacy := req.Msg.GetPrivacy()
 	if privacy == "" {
@@ -202,7 +216,10 @@ func (h *CommunityHandler) CreateCommunity(ctx context.Context, req *connect.Req
 			errors.New("only public communities are supported in this version"))
 	}
 
-	tags := normalizeTags(req.Msg.GetTags())
+	// normalizeTags lowercases + dedupes + caps at 10. We additionally
+	// drop any tag that just echoes the community name — those are
+	// always redundant with the title and clutter the chip row.
+	tags := filterNameEchoTags(normalizeTags(req.Msg.GetTags()), name)
 
 	tx, err := h.DB.BeginTxx(ctx, nil)
 	if err != nil {
@@ -311,6 +328,26 @@ func (h *CommunityHandler) UpdateCommunity(ctx context.Context, req *connect.Req
 			return nil, connect.NewError(connect.CodeInvalidArgument,
 				errors.New("description must be 500 characters or fewer"))
 		}
+		// Same length + name-echo rules as Create. Empty stays valid
+		// (clears the description).
+		if desc != "" {
+			// Resolve the effective name — either the updated value
+			// in this request, or the existing community name.
+			effectiveName := c.Name
+			if req.Msg.Name != nil {
+				if n := strings.TrimSpace(*req.Msg.Name); n != "" {
+					effectiveName = n
+				}
+			}
+			if len(desc) < 20 {
+				return nil, connect.NewError(connect.CodeInvalidArgument,
+					errors.New("description should be at least 20 characters — leave blank if you don't have one yet"))
+			}
+			if strings.EqualFold(desc, effectiveName) {
+				return nil, connect.NewError(connect.CodeInvalidArgument,
+					errors.New("description shouldn't just repeat the community name — try a sentence or two"))
+			}
+		}
 		add("description", desc)
 	}
 	if req.Msg.AvatarPath != nil {
@@ -320,7 +357,15 @@ func (h *CommunityHandler) UpdateCommunity(ctx context.Context, req *connect.Req
 		add("banner_path", strings.TrimSpace(*req.Msg.BannerPath))
 	}
 	if len(req.Msg.GetTags()) > 0 {
-		add("tags", pq.Array(normalizeTags(req.Msg.GetTags())))
+		// Use the effective name (request override OR current) for the
+		// name-echo filter so a rename + new tag list both line up.
+		effectiveName := c.Name
+		if req.Msg.Name != nil {
+			if n := strings.TrimSpace(*req.Msg.Name); n != "" {
+				effectiveName = n
+			}
+		}
+		add("tags", pq.Array(filterNameEchoTags(normalizeTags(req.Msg.GetTags()), effectiveName)))
 	}
 	if req.Msg.Privacy != nil {
 		p := *req.Msg.Privacy
@@ -1017,6 +1062,25 @@ func (h *CommunityHandler) GetCommunityFeed(ctx context.Context, req *connect.Re
 // ----------------------------------------------------------------------
 // Helpers
 // ----------------------------------------------------------------------
+
+// filterNameEchoTags drops any tag that case-insensitively matches
+// the community name. Those tags duplicate info already in the title
+// and clutter the chip row. Defensive both on Create and Update so a
+// rename can't leave a stale name-echo tag behind.
+func filterNameEchoTags(tags []string, name string) []string {
+	if name == "" {
+		return tags
+	}
+	normalized := strings.ToLower(strings.TrimSpace(name))
+	out := make([]string, 0, len(tags))
+	for _, t := range tags {
+		if strings.ToLower(strings.TrimSpace(t)) == normalized {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
+}
 
 // normalizeTags lowercases, trims, dedupes, and caps the tag list at 10.
 func normalizeTags(in []string) []string {

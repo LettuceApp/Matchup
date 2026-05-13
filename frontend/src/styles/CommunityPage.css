@@ -1,7 +1,13 @@
+/* CommunityPage — cohesive single-card layout.
+   Sections (header, about, tags, create-row, feed) share a unified
+   surface so they read as one card instead of stacked tiles. Uses
+   theme tokens throughout so the layout works in both dark + light
+   modes without hardcoded color literals. */
+
 .community-page {
   max-width: 960px;
-  margin: 0 auto;
-  padding: 0 1rem 4rem;
+  margin: 24px auto;
+  padding: 0 16px 4rem;
 }
 
 .community-page--loading,
@@ -26,9 +32,7 @@
 }
 
 @keyframes community-spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
 .community-page__home-link {
@@ -37,12 +41,18 @@
   text-decoration: none;
 }
 
+/* Banner — rounded top of the card. Subtle indigo radial + linear
+   blend on top of bg-surface so it works as a background even when
+   no image is uploaded. With an image, the gradient layers behind
+   any transparent edges. */
 .community-page__banner {
-  width: 100%;
-  height: 180px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, var(--bg-surface-raised), var(--bg-surface));
-  margin-top: 1.5rem;
+  height: 200px;
+  border-radius: 18px 18px 0 0;
+  background:
+    radial-gradient(120% 140% at 0% 0%, var(--accent-secondary-bg-soft) 0%, transparent 55%),
+    linear-gradient(135deg, var(--bg-surface-raised), var(--bg-surface));
+  border: 1px solid var(--border-subtle);
+  border-bottom: none;
   overflow: hidden;
 }
 
@@ -53,14 +63,31 @@
   display: block;
 }
 
+/* Body sections share a surface so they fuse into one card. Left +
+   right borders are continuous from the banner top to the feed
+   bottom; padding-x is the gutter shared by every section. */
+.community-page__header,
+.community-page__about,
+.community-page__tags,
+.community-page__create-row,
+.community-page__feed {
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-subtle);
+  padding-left: 28px;
+  padding-right: 28px;
+  margin: 0;
+}
+
 .community-page__header {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem;
+  gap: 20px;
   align-items: flex-end;
   justify-content: space-between;
-  margin-top: -2.5rem;
-  padding: 0 1rem;
+  margin-top: -56px;
+  padding-top: 0;
+  padding-bottom: 20px;
   position: relative;
   z-index: 2;
 }
@@ -68,24 +95,28 @@
 .community-page__identity {
   display: flex;
   align-items: flex-end;
-  gap: 1rem;
+  gap: 20px;
   min-width: 0;
 }
 
+/* Avatar overlaps the banner seam. 4px ring uses bg-page so the
+   "punched out of the banner" effect works in both themes — light
+   gets a white ring, dark gets a navy one. */
 .community-page__avatar {
-  width: 96px;
-  height: 96px;
-  border-radius: 22px;
+  width: 112px;
+  height: 112px;
+  border-radius: 24px;
   background: var(--bg-surface);
-  border: 3px solid var(--bg-page);
+  border: 4px solid var(--bg-page);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--accent-primary);
-  font-size: 2.2rem;
+  font-size: 2.6rem;
   font-weight: 700;
   overflow: hidden;
   flex-shrink: 0;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.35);
 }
 
 .community-page__avatar img {
@@ -96,25 +127,27 @@
 
 .community-page__title-block {
   min-width: 0;
-  padding-bottom: 0.25rem;
+  padding-bottom: 6px;
 }
 
 .community-page__name {
-  margin: 0;
+  margin: 0 0 4px 0;
   font-size: 1.6rem;
+  line-height: 1.15;
   color: var(--text-primary);
 }
 
 .community-page__slug {
-  margin: 0.15rem 0 0;
+  margin: 0;
   color: var(--text-muted);
   font-size: 0.9rem;
   font-weight: 600;
   letter-spacing: 0.02em;
+  opacity: 0.85;
 }
 
 .community-page__meta {
-  margin: 0.4rem 0 0;
+  margin-top: 4px;
   font-size: 0.85rem;
   color: var(--text-secondary);
 }
@@ -141,20 +174,23 @@
 .community-page__actions {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding-bottom: 0.5rem;
+  gap: 10px;
+  align-self: flex-end;
+  margin-bottom: 6px;
 }
 
 .community-page__btn {
-  padding: 0.6rem 1.2rem;
-  border-radius: 999px;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 12px;
   font-size: 0.9rem;
-  font-weight: 700;
+  font-weight: 600;
   border: 1px solid transparent;
   cursor: pointer;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   transition: transform 150ms ease, background 150ms ease, border-color 150ms ease, color 150ms ease;
 }
 
@@ -166,63 +202,87 @@
 .community-page__btn--primary {
   background: linear-gradient(135deg, var(--accent-primary-from), var(--accent-primary-to));
   color: #1f2937;
+  box-shadow: 0 6px 18px var(--accent-primary-shadow);
 }
 
 .community-page__btn--primary:not(:disabled):hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 18px var(--accent-primary-shadow);
 }
 
 .community-page__btn--ghost {
-  background: var(--bg-surface);
+  background: var(--bg-surface-alt);
   color: var(--text-secondary);
   border-color: var(--border-subtle);
 }
 
 .community-page__btn--ghost:not(:disabled):hover {
+  background: var(--bg-surface-raised);
   border-color: var(--border-strong);
   color: var(--text-primary);
 }
 
+/* About section with eyebrow label. Tightened vertical padding so
+   it sits close to the description without feeling cramped. */
 .community-page__about {
-  margin: 1.5rem 1rem 0;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
-  padding: 1rem 1.2rem;
-  color: var(--text-secondary);
+  padding: 18px 28px 6px;
+  position: relative;
+}
+
+.community-page__about::before {
+  content: "About";
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.community-page__about p {
+  margin: 0;
+  font-size: 15px;
   line-height: 1.55;
+  color: var(--text-primary);
 }
 
 .community-page__tags {
+  padding: 6px 28px 20px;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
-  margin: 1rem 1rem 0;
+  gap: 8px;
+  align-items: center;
 }
 
 .community-page__tag {
-  padding: 0.25rem 0.7rem;
-  border-radius: 999px;
   background: var(--accent-secondary-bg-soft);
   color: var(--accent-secondary);
-  font-size: 0.8rem;
+  font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border: 1px solid var(--accent-secondary-border-soft);
+  border-radius: 999px;
 }
 
 .community-page__create-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem;
-  margin: 1.25rem 1rem 0;
+  gap: 12px;
+  padding: 20px 28px 24px;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .community-page__feed {
-  margin: 1.5rem 1rem 0;
+  padding: 22px 28px 28px;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  border-radius: 0 0 18px 18px;
 }
 
 .community-page__feed-title {
-  margin: 0 0 0.9rem;
+  margin: 0 0 14px 0;
   font-size: 1.1rem;
   color: var(--text-primary);
   font-weight: 700;
@@ -230,19 +290,18 @@
 }
 
 .community-page__feed-empty {
-  margin: 1rem 0;
-  padding: 1.5rem 1.2rem;
-  background: var(--bg-surface);
+  background: var(--bg-surface-alt);
   border: 1px dashed var(--border-subtle);
   border-radius: 14px;
+  padding: 22px;
   text-align: center;
   color: var(--text-secondary);
   font-size: 0.95rem;
 }
 
 .community-page__feed-empty--error {
-  border-color: rgba(248, 113, 113, 0.5);
-  color: #fca5a5;
+  border-color: var(--danger-border, rgba(248, 113, 113, 0.5));
+  color: var(--danger-fg, #fca5a5);
   border-style: solid;
 }
 
@@ -272,8 +331,17 @@
   .community-page__header {
     flex-direction: column;
     align-items: stretch;
+    margin-top: -48px;
+  }
+  .community-page__identity {
+    align-items: center;
+    text-align: center;
+    flex-direction: column;
+    gap: 12px;
   }
   .community-page__actions {
-    justify-content: flex-end;
+    justify-content: center;
+    align-self: stretch;
+    flex-wrap: wrap;
   }
 }
