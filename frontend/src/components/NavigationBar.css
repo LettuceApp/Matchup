@@ -6,13 +6,12 @@
   display: flex;
   justify-content: center;
   padding: 1.25rem 1.5rem;
-  /* Translucent surface so the body gradient bleeds through —
-     keeps the header from feeling like a separate dark slab on
-     top of a light page. */
-  background: color-mix(in srgb, var(--bg-surface) 40%, transparent);
-  backdrop-filter: blur(18px);
-  border-bottom: 1px solid var(--border-subtle);
-  box-shadow: var(--shadow-card);
+  /* Glass surface: heavier blur + saturate so the warm body gradient
+     reads through without competing with the bar's content. */
+  background: rgba(15, 20, 45, 0.55);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .navigation-bar__inner {
@@ -24,23 +23,28 @@
 }
 
 .navigation-bar__brand {
-  background: none;
+  /* Gradient wordmark — clip the stardust gradient onto the brand
+     text so the header anchors the warm brand recipe at the top of
+     every page. Falls back to text-primary on browsers without
+     background-clip support. */
+  background: var(--gradient-stardust);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
   border: none;
-  color: var(--text-primary);
   font-size: 1.2rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   cursor: pointer;
   padding: 0.4rem 0.75rem;
   border-radius: 12px;
-  transition: transform 200ms ease, color 200ms ease, background-color 200ms ease;
+  transition: transform 200ms ease, filter 200ms ease;
 }
 
 .navigation-bar__brand:hover,
 .navigation-bar__brand:focus-visible {
   transform: translateY(-2px);
-  color: var(--accent-primary);
-  background: var(--accent-secondary-bg-soft);
+  filter: brightness(1.08);
 }
 
 .navigation-bar__actions {
@@ -51,6 +55,8 @@
 
 .navigation-bar__button {
   padding: 0.6rem 1.3rem;
+  /* Pill shape — sticks regardless of variant for consistency with
+     the rest of the app's pill-button system (community CTAs etc). */
   border-radius: 999px;
   border: 1px solid var(--border-input);
   background: var(--accent-secondary-bg-soft);

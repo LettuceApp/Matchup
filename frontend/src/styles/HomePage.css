@@ -470,20 +470,26 @@
    light + dark themes share the same component class.
    ============================================================ */
 .home-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
+  /* Soft glass surface — translucent fill + 18px corners so the
+     stardust body gradient bleeds through and the cards read as
+     part of the warm atmosphere instead of opaque slabs. Internal
+     layout (header, body, footer) is unchanged. */
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
   overflow: hidden;
   cursor: pointer;
   box-shadow: var(--shadow-card);
   transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
   display: flex;
   flex-direction: column;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .home-card:hover {
   transform: translateY(-2px);
-  border-color: var(--accent-primary-soft);
+  border-color: rgba(255, 255, 255, 0.16);
   box-shadow: var(--shadow-card-hover);
 }
 
@@ -499,9 +505,10 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  /* Author-avatar fallback gradient. Stays static across themes —
-     a light-mode user's first-letter chip looks fine on white. */
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  /* Author-avatar fallback — same stardust recipe as the rest of
+     the brand so the warm aesthetic carries through to the smallest
+     elements. */
+  background: linear-gradient(135deg, #ff9a6c, #b07bff);
   display: inline-flex;
   align-items: center;
   justify-content: center;

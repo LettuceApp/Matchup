@@ -6,8 +6,19 @@
 
 .community-page {
   max-width: 960px;
-  margin: 24px auto;
-  padding: 0 16px 4rem;
+  margin: 24px auto 4rem;
+  padding: 0;
+  /* Glass shell: translucent panel + 24px corners + outer shadow so
+     the body's stardust gradient bleeds through. Continuous border
+     wraps the whole card; the body-section rules below drop their
+     own borders to avoid double-stroking. */
+  background: rgba(20, 26, 56, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .community-page--loading,
@@ -41,19 +52,25 @@
   text-decoration: none;
 }
 
-/* Banner — rounded top of the card. Subtle indigo radial + linear
-   blend on top of bg-surface so it works as a background even when
-   no image is uploaded. With an image, the gradient layers behind
-   any transparent edges. */
+/* Banner — warm stardust gradient (orange → pink → purple) with a
+   subtle navy fade at the bottom so the avatar + header text settle
+   against a darker edge. Borders + corner radius are owned by the
+   .community-page shell now; the banner is just a colored block. */
 .community-page__banner {
-  height: 200px;
-  border-radius: 18px 18px 0 0;
-  background:
-    radial-gradient(120% 140% at 0% 0%, var(--accent-secondary-bg-soft) 0%, transparent 55%),
-    linear-gradient(135deg, var(--bg-surface-raised), var(--bg-surface));
-  border: 1px solid var(--border-subtle);
-  border-bottom: none;
+  height: 180px;
+  border-radius: 0;
+  background: var(--gradient-stardust-banner);
+  border: none;
   overflow: hidden;
+  position: relative;
+}
+
+.community-page__banner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(80% 60% at 50% 100%, rgba(11, 16, 36, 0.85), transparent 70%);
+  pointer-events: none;
 }
 
 .community-page__banner img {
@@ -63,17 +80,19 @@
   display: block;
 }
 
-/* Body sections share a surface so they fuse into one card. Left +
-   right borders are continuous from the banner top to the feed
-   bottom; padding-x is the gutter shared by every section. */
+/* Body sections share the glass shell on the parent .community-page
+   so each section is transparent and only contributes padding. The
+   continuous left/right borders the cohesion-pass added are gone
+   because the outer panel now owns the border. NOTE: the brief
+   explicitly excludes .community-page__about from this restyle —
+   it keeps its prior styling. */
 .community-page__header,
-.community-page__about,
 .community-page__tags,
 .community-page__create-row,
 .community-page__feed {
-  background: var(--bg-surface);
-  border-left: 1px solid var(--border-subtle);
-  border-right: 1px solid var(--border-subtle);
+  background: transparent;
+  border-left: none;
+  border-right: none;
   padding-left: 28px;
   padding-right: 28px;
   margin: 0;
@@ -99,25 +118,31 @@
   min-width: 0;
 }
 
-/* Avatar overlaps the banner seam. Softer than a stark white chip:
-   subtle gradient surface + tighter border so it reads as a settled
-   element instead of "pasted on top of the banner." Initial is the
-   brand orange against a dark surface for contrast in both themes. */
+/* Avatar overlaps the banner seam. Carries the same stardust
+   gradient as the banner so the two read as one continuous brand
+   element; the 4px navy ring punches the avatar cleanly out of the
+   banner's softer edge. White initial with a faint shadow for
+   contrast against the gradient. */
 .community-page__avatar {
   width: 104px;
   height: 104px;
   border-radius: 22px;
-  background: linear-gradient(135deg, var(--bg-surface-raised), var(--bg-surface));
-  border: 3px solid var(--bg-page);
+  background: linear-gradient(135deg, #ff9a6c, #ff6aa6 60%, #a47bff);
+  border: 4px solid #0b1024;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent-primary);
+  color: #ffffff;
   font-size: 2.4rem;
   font-weight: 800;
   overflow: hidden;
   flex-shrink: 0;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.28);
+  box-shadow: 0 10px 30px rgba(255, 120, 170, 0.35);
+}
+
+.community-page__avatar span {
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 .community-page__avatar img {
@@ -138,13 +163,20 @@
   color: var(--text-primary);
 }
 
+/* Slug becomes a small glass pill — distinguishable from the name
+   above without competing with it. */
 .community-page__slug {
+  display: inline-block;
+  width: fit-content;
   margin: 0;
-  color: var(--text-muted);
-  font-size: 0.9rem;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cfd6ff;
+  font-size: 0.85rem;
   font-weight: 600;
   letter-spacing: 0.02em;
-  opacity: 0.85;
 }
 
 .community-page__meta {
@@ -158,18 +190,26 @@
   text-decoration: none;
 }
 
+/* Members count becomes a small glass pill matching the slug. */
 .community-page__members-link {
-  color: var(--text-secondary) !important;
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: #e8ecff !important;
   text-decoration: none;
+  font-size: 0.85rem;
 }
 
 .community-page__members-link:hover {
-  color: var(--text-primary) !important;
-  text-decoration: underline;
+  background: rgba(255, 255, 255, 0.10);
+  color: #ffffff !important;
+  text-decoration: none;
 }
 
 .community-page__members-link strong {
-  color: var(--text-primary);
+  color: #ffffff;
 }
 
 .community-page__actions {
@@ -267,14 +307,14 @@
 }
 
 .community-page__tag {
-  background: var(--accent-secondary-bg-soft);
-  color: var(--accent-secondary);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e8ecff;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 3px 10px;
-  border: 1px solid var(--accent-secondary-border-soft);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
 }
 
@@ -283,29 +323,31 @@
   flex-wrap: wrap;
   gap: 10px;
   padding: 18px 28px 20px;
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .community-page__feed {
   padding: 22px 28px 28px;
-  border-top: 1px solid var(--border-subtle);
-  border-bottom: 1px solid var(--border-subtle);
-  border-radius: 0 0 18px 18px;
+  /* No top/bottom border now that the outer .community-page panel
+     owns the card border. */
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: none;
+  border-radius: 0;
 }
 
-/* Feed title — explicit no-decoration so any inherited accent-bar
-   pseudo-element from a prior design can't reappear here. Uses the
-   same eyebrow rhythm as the ABOUT label above so the two section
-   headers read as a related pair. */
+/* Feed title — uppercase eyebrow tinted with the warm stardust
+   highlight color so it anchors the feed to the rest of the brand
+   recipe. Explicit no-decoration so any inherited accent-bar from
+   a prior design can't reappear here. */
 .community-page__feed-title {
   margin: 0 0 14px 0;
   padding: 0;
   border: none;
   font-size: 0.85rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: #ffb37a;
 }
 
 .community-page__feed-title::before,
@@ -313,18 +355,19 @@
   content: none;
 }
 
-/* Empty-state pill — solid surface that matches the rest of the
-   card body. Dashed border was the loudest "unfilled placeholder"
-   visual on the page; switched to a solid 1px border so it sits as
-   a quiet panel rather than a TODO marker. */
+/* Empty state — matches the new soft-glass surface of the feed
+   cards (see below). Same translucent fill so the two read as the
+   same "card" treatment when the feed has 0 vs 1+ items. */
 .community-page__feed-empty {
-  background: var(--bg-surface-alt);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
   padding: 22px;
   text-align: center;
   color: var(--text-secondary);
   font-size: 0.95rem;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .community-page__feed-empty--error {

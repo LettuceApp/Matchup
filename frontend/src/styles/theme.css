@@ -21,15 +21,25 @@
 :root,
 [data-theme="dark"] {
   /* Surfaces */
-  --bg-page: #0f172a;
-  /* Page gradient softened from 0.35 → 0.12 alpha so it reads as
-     "atmospheric" rather than competing with the cards. The light
-     theme already used 0.10; bringing dark closer keeps both modes
-     feeling like the same product. */
+  --bg-page: #0b1024;
+  /* Stardust backdrop: warm orange in the top-left, magenta in the
+     top-right, indigo at the bottom — same recipe as the community
+     banner gradient so the whole app reads as one warm system. The
+     radial blobs sit on top of a deep navy base so cards still pop.
+     Replaces the previous indigo+pink soft-mist version. */
   --bg-page-gradient:
-    radial-gradient(120% 120% at 0% 0%, rgba(99, 102, 241, 0.12) 0%, rgba(15, 23, 42, 0) 45%),
-    radial-gradient(120% 120% at 100% 0%, rgba(244, 114, 182, 0.10) 0%, rgba(15, 23, 42, 0) 45%),
-    linear-gradient(135deg, #0f172a 0%, #111c3d 100%);
+    radial-gradient(1200px 600px at 15% -10%, rgba(255, 140, 90, 0.28) 0%, transparent 60%),
+    radial-gradient(900px 500px at 85% 0%, rgba(190, 120, 255, 0.22) 0%, transparent 60%),
+    radial-gradient(800px 600px at 50% 110%, rgba(120, 90, 220, 0.18) 0%, transparent 60%),
+    #0b1024;
+  /* Reusable "stardust" gradient — single source of truth for the
+     warm orange → pink → purple recipe used by the community banner,
+     primary CTAs, nav wordmark, etc. Tokenized so a future skin can
+     swap the whole brand by changing one declaration. */
+  --gradient-stardust: linear-gradient(90deg, #ff9a6c 0%, #ff6aa6 50%, #b07bff 100%);
+  --gradient-stardust-banner:
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.22), transparent 40%),
+    linear-gradient(120deg, #ff9a6c 0%, #ff6aa6 45%, #a47bff 100%);
   --bg-surface: #111827;          /* cards */
   --bg-surface-alt: #0b1122;      /* sidebar */
   --bg-surface-raised: #151928;   /* dropdown panels */
@@ -84,10 +94,20 @@
      is far softer than the dark version because the eye picks up
      less saturation on a light backdrop before it feels noisy. */
   --bg-page: #f8fafc;
+  /* Light-mode stardust — same warm-orange / pink / purple recipe
+     as the dark backdrop, but at much lower alpha so it reads as a
+     subtle wash on a cream page rather than fighting the cards. */
   --bg-page-gradient:
-    radial-gradient(120% 120% at 0% 0%, rgba(99, 102, 241, 0.10) 0%, rgba(248, 250, 252, 0) 45%),
-    radial-gradient(120% 120% at 100% 0%, rgba(244, 114, 182, 0.10) 0%, rgba(248, 250, 252, 0) 45%),
-    linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+    radial-gradient(1200px 600px at 15% -10%, rgba(255, 140, 90, 0.10) 0%, transparent 60%),
+    radial-gradient(900px 500px at 85% 0%, rgba(190, 120, 255, 0.08) 0%, transparent 60%),
+    radial-gradient(800px 600px at 50% 110%, rgba(120, 90, 220, 0.06) 0%, transparent 60%),
+    linear-gradient(135deg, #f8fafc 0%, #fff4f1 100%);
+  /* Same stardust pair as dark theme — gradient itself is brand-
+     consistent across modes; only the page backdrop alpha varies. */
+  --gradient-stardust: linear-gradient(90deg, #ff9a6c 0%, #ff6aa6 50%, #b07bff 100%);
+  --gradient-stardust-banner:
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.22), transparent 40%),
+    linear-gradient(120deg, #ff9a6c 0%, #ff6aa6 45%, #a47bff 100%);
   --bg-surface: #ffffff;
   --bg-surface-alt: #fbfcfe;       /* sidebar slight cream tint */
   --bg-surface-raised: #ffffff;
