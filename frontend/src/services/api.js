@@ -7,8 +7,18 @@ let API_BASE_URL = process.env.REACT_APP_API_BASE;
 if (!API_BASE_URL || API_BASE_URL.includes("localhost")) {
   if (window.location.hostname.includes("onrender.com")) {
     API_BASE_URL = "https://matchup-vhl6.onrender.com";
-  } else if (window.location.hostname === "localhost") {
-    API_BASE_URL = "http://localhost:8888";
+  } else if (
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname === "0.0.0.0"
+  ) {
+    // Treat all loopback hostnames the same — opening the dev server
+    // at http://127.0.0.1:3000 (or 0.0.0.0:3000) should point at the
+    // same local API as http://localhost:3000. Previously only the
+    // literal "localhost" matched, so 127.0.0.1 fell through to the
+    // empty-base K8s branch and broke /verify-email + every other
+    // RPC for users coming in via raw IP.
+    API_BASE_URL = `http://${window.location.hostname}:8888`;
   } else {
     // K8s / production: Ingress routes to the API service on the same host
     API_BASE_URL = "";
