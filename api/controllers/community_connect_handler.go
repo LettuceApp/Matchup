@@ -13,10 +13,12 @@ import (
 	communityv1 "Matchup/gen/community/v1"
 	"Matchup/gen/community/v1/communityv1connect"
 	"Matchup/models"
+	"Matchup/utils/fileformat"
 	"Matchup/utils/slug"
 	httpctx "Matchup/utils/httpctx"
 
 	"connectrpc.com/connect"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 )
@@ -26,8 +28,9 @@ import (
 // (for read-only paths). dbForRead picks between them based on the
 // request context, same pattern as the other handlers.
 type CommunityHandler struct {
-	DB     *sqlx.DB
-	ReadDB *sqlx.DB
+	DB       *sqlx.DB
+	ReadDB   *sqlx.DB
+	S3Client *s3.Client
 }
 
 var _ communityv1connect.CommunityServiceHandler = (*CommunityHandler)(nil)
@@ -118,6 +121,38 @@ func roleAtLeast(have, min string) bool {
 	return rank[have] >= rank[min]
 }
 
+// allowedThemeGradients is the wire-side allow-list of curated
+// gradient slugs an owner can pick from in the settings page. The
+// raw CSS gradient values live in the frontend palette
+// (frontend/src/utils/communityGradients.js) — duplicating them
+// here would force a backend deploy every time we tweak a color.
+// What MUST stay in sync is the slug list: anything not in this
+// set is rejected at write-time so a malicious client can't store
+// arbitrary strings.
+//
+// Empty string is also valid and means "no theme chosen" — the
+// frontend falls back to its default palette.
+var allowedThemeGradients = map[string]struct{}{
+	"":         {}, // explicit "clear theme"
+	"stardust": {},
+	"sunset":   {},
+	"ocean":    {},
+	"mint":     {},
+	"amber":    {},
+	"magenta":  {},
+	"forest":   {},
+	"plum":     {},
+	"rose":     {},
+	"graphite": {},
+}
+
+func validateThemeGradient(slug string) error {
+	if _, ok := allowedThemeGradients[slug]; !ok {
+		return fmt.Errorf("unknown theme gradient %q", slug)
+	}
+	return nil
+}
+
 // communityToProto serialises a community row for the wire. viewerRole
 // is computed against the caller's membership row (empty when anon or
 // non-member) so the frontend can render the right UI in one round-trip.
@@ -146,6 +181,7 @@ func (h *CommunityHandler) communityToProto(ctx context.Context, c *models.Commu
 		CreatedAt:     c.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:     c.UpdatedAt.UTC().Format(time.RFC3339),
 		ViewerRole:    h.viewerRole(ctx, c.ID),
+		ThemeGradient: c.ThemeGradient,
 	}
 }
 
@@ -189,6 +225,20 @@ func (h *CommunityHandler) CreateCommunity(ctx context.Context, req *connect.Req
 		return nil, connect.NewError(connect.CodeInvalidArgument,
 			errors.New("description must be 500 characters or fewer"))
 	}
+	// When the user provides a description it must be meaningful —
+	// at least 20 chars and not just an echo of the community name.
+	// Owners that don't have a good blurb yet can leave it blank;
+	// the frontend hides the About section entirely in that case.
+	if desc != "" {
+		if len(desc) < 20 {
+			return nil, connect.NewError(connect.CodeInvalidArgument,
+				errors.New("description should be at least 20 characters — leave blank if you don't have one yet"))
+		}
+		if strings.EqualFold(desc, name) {
+			return nil, connect.NewError(connect.CodeInvalidArgument,
+				errors.New("description shouldn't just repeat the community name — try a sentence or two"))
+		}
+	}
 
 	privacy := req.Msg.GetPrivacy()
 	if privacy == "" {
@@ -202,7 +252,10 @@ func (h *CommunityHandler) CreateCommunity(ctx context.Context, req *connect.Req
 			errors.New("only public communities are supported in this version"))
 	}
 
-	tags := normalizeTags(req.Msg.GetTags())
+	// normalizeTags lowercases + dedupes + caps at 10. We additionally
+	// drop any tag that just echoes the community name — those are
+	// always redundant with the title and clutter the chip row.
+	tags := filterNameEchoTags(normalizeTags(req.Msg.GetTags()), name)
 
 	tx, err := h.DB.BeginTxx(ctx, nil)
 	if err != nil {
@@ -311,6 +364,26 @@ func (h *CommunityHandler) UpdateCommunity(ctx context.Context, req *connect.Req
 			return nil, connect.NewError(connect.CodeInvalidArgument,
 				errors.New("description must be 500 characters or fewer"))
 		}
+		// Same length + name-echo rules as Create. Empty stays valid
+		// (clears the description).
+		if desc != "" {
+			// Resolve the effective name — either the updated value
+			// in this request, or the existing community name.
+			effectiveName := c.Name
+			if req.Msg.Name != nil {
+				if n := strings.TrimSpace(*req.Msg.Name); n != "" {
+					effectiveName = n
+				}
+			}
+			if len(desc) < 20 {
+				return nil, connect.NewError(connect.CodeInvalidArgument,
+					errors.New("description should be at least 20 characters — leave blank if you don't have one yet"))
+			}
+			if strings.EqualFold(desc, effectiveName) {
+				return nil, connect.NewError(connect.CodeInvalidArgument,
+					errors.New("description shouldn't just repeat the community name — try a sentence or two"))
+			}
+		}
 		add("description", desc)
 	}
 	if req.Msg.AvatarPath != nil {
@@ -319,8 +392,38 @@ func (h *CommunityHandler) UpdateCommunity(ctx context.Context, req *connect.Req
 	if req.Msg.BannerPath != nil {
 		add("banner_path", strings.TrimSpace(*req.Msg.BannerPath))
 	}
+
+	// Avatar / banner upload commits. Client presigned + PUT'd the
+	// raw file via UploadService; we commit (validate ownership +
+	// size/type), resize, persist the final path. Both fields can be
+	// set in the same update — settings page lets owners change both
+	// at once.
+	if key := req.Msg.GetAvatarUploadKey(); key != "" {
+		uid, _ := h.requireRole(ctx, c.ID, roleOwner)
+		path, cerr := commitCommunityImage(ctx, h.S3Client, key, UploadKindCommunityAvatar, uid, "CommunityAvatars/avatar.jpg")
+		if cerr != nil {
+			return nil, cerr
+		}
+		add("avatar_path", path)
+	}
+	if key := req.Msg.GetBannerUploadKey(); key != "" {
+		uid, _ := h.requireRole(ctx, c.ID, roleOwner)
+		path, cerr := commitCommunityImage(ctx, h.S3Client, key, UploadKindCommunityBanner, uid, "CommunityBanners/banner.jpg")
+		if cerr != nil {
+			return nil, cerr
+		}
+		add("banner_path", path)
+	}
 	if len(req.Msg.GetTags()) > 0 {
-		add("tags", pq.Array(normalizeTags(req.Msg.GetTags())))
+		// Use the effective name (request override OR current) for the
+		// name-echo filter so a rename + new tag list both line up.
+		effectiveName := c.Name
+		if req.Msg.Name != nil {
+			if n := strings.TrimSpace(*req.Msg.Name); n != "" {
+				effectiveName = n
+			}
+		}
+		add("tags", pq.Array(filterNameEchoTags(normalizeTags(req.Msg.GetTags()), effectiveName)))
 	}
 	if req.Msg.Privacy != nil {
 		p := *req.Msg.Privacy
@@ -329,6 +432,18 @@ func (h *CommunityHandler) UpdateCommunity(ctx context.Context, req *connect.Req
 				errors.New("only public communities are supported in this version"))
 		}
 		add("privacy", p)
+	}
+	// Curated gradient slug. Validate against the allow-list so a
+	// malicious client can't store arbitrary strings (which would
+	// then potentially flow into inline-style attributes on the
+	// community page). Empty string is allowed and means "clear the
+	// theme" (frontend falls back to default).
+	if req.Msg.ThemeGradient != nil {
+		g := strings.TrimSpace(*req.Msg.ThemeGradient)
+		if err := validateThemeGradient(g); err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+		add("theme_gradient", g)
 	}
 	if len(setClauses) == 0 {
 		// No-op update — just return the current state.
@@ -417,6 +532,149 @@ func (h *CommunityHandler) ListCommunities(ctx context.Context, req *connect.Req
 	}
 	if len(rows) == limit {
 		resp.NextCursor = strconv.FormatUint(uint64(rows[len(rows)-1].ID), 10)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// ListMyCommunities — communities the authenticated caller is a
+// non-banned member of, ordered by joined_at DESC so the most-
+// recently-joined sit at the top of the sidebar. Anonymous callers
+// get an empty array (not an error) so the frontend can render the
+// section unconditionally without branching on auth state.
+func (h *CommunityHandler) ListMyCommunities(ctx context.Context, req *connect.Request[communityv1.ListMyCommunitiesRequest]) (*connect.Response[communityv1.ListMyCommunitiesResponse], error) {
+	uid, ok := httpctx.CurrentUserID(ctx)
+	if !ok || uid == 0 {
+		return connect.NewResponse(&communityv1.ListMyCommunitiesResponse{}), nil
+	}
+	limit := int(req.Msg.GetLimit())
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	// One query: join memberships to communities so we get both the
+	// community row and the caller's role without a fan-out. Banned
+	// memberships are excluded — a banned user shouldn't see the
+	// community in their own sidebar.
+	type row struct {
+		models.Community
+		ViewerRole string `db:"viewer_role"`
+	}
+	var rows []row
+	err := sqlx.SelectContext(ctx, dbForRead(ctx, h.DB, h.ReadDB), &rows, `
+        SELECT c.*, m.role AS viewer_role
+        FROM community_memberships m
+        JOIN communities c ON c.id = m.community_id
+        WHERE m.user_id = $1
+          AND m.role <> 'banned'
+          AND c.deleted_at IS NULL
+        ORDER BY m.joined_at DESC
+        LIMIT $2`, uid, limit)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	resp := &communityv1.ListMyCommunitiesResponse{}
+	for i := range rows {
+		// Avoid the extra viewer_role lookup inside communityToProto
+		// (which would issue one query per community for the same
+		// data we already have in `rows[i].ViewerRole`). Build the
+		// proto inline; everything else matches communityToProto.
+		c := &rows[i].Community
+		var ownerUsername string
+		_ = sqlx.GetContext(ctx, dbForRead(ctx, h.DB, h.ReadDB), &ownerUsername,
+			"SELECT username FROM users WHERE id = $1", c.OwnerID)
+		var ownerPublicID string
+		_ = sqlx.GetContext(ctx, dbForRead(ctx, h.DB, h.ReadDB), &ownerPublicID,
+			"SELECT public_id FROM users WHERE id = $1", c.OwnerID)
+		resp.Communities = append(resp.Communities, &communityv1.CommunityData{
+			Id:            c.PublicID,
+			Slug:          c.Slug,
+			Name:          c.Name,
+			Description:   c.Description,
+			AvatarPath:    c.AvatarPath,
+			BannerPath:    c.BannerPath,
+			Tags:          []string(c.Tags),
+			Privacy:       c.Privacy,
+			OwnerId:       ownerPublicID,
+			OwnerUsername: ownerUsername,
+			MemberCount:   c.MemberCount,
+			MatchupCount:  c.MatchupCount,
+			BracketCount:  c.BracketCount,
+			CreatedAt:     c.CreatedAt.UTC().Format(time.RFC3339),
+			UpdatedAt:     c.UpdatedAt.UTC().Format(time.RFC3339),
+			ViewerRole:    rows[i].ViewerRole,
+		})
+	}
+	return connect.NewResponse(resp), nil
+}
+
+// ListUserCommunities — communities the SPECIFIED user is a non-
+// banned member of, public read. Used by the profile page to show a
+// user's communities. `viewer_role` in the response is the TARGET
+// user's role (not the caller's) so the profile-page badges describe
+// the profile owner, not the visitor.
+func (h *CommunityHandler) ListUserCommunities(ctx context.Context, req *connect.Request[communityv1.ListUserCommunitiesRequest]) (*connect.Response[communityv1.ListUserCommunitiesResponse], error) {
+	target, err := resolveUserByIdentifier(dbForRead(ctx, h.DB, h.ReadDB), req.Msg.GetUserId())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("user not found"))
+	}
+	limit := int(req.Msg.GetLimit())
+	if limit <= 0 {
+		limit = 30
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	type row struct {
+		models.Community
+		TargetRole string `db:"target_role"`
+	}
+	var rows []row
+	err = sqlx.SelectContext(ctx, dbForRead(ctx, h.DB, h.ReadDB), &rows, `
+        SELECT c.*, m.role AS target_role
+        FROM community_memberships m
+        JOIN communities c ON c.id = m.community_id
+        WHERE m.user_id = $1
+          AND m.role <> 'banned'
+          AND c.deleted_at IS NULL
+        ORDER BY m.joined_at DESC
+        LIMIT $2`, target.ID, limit)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	resp := &communityv1.ListUserCommunitiesResponse{}
+	for i := range rows {
+		c := &rows[i].Community
+		// Build the CommunityData inline (similar to ListMyCommunities)
+		// so the response carries the TARGET's role in viewer_role.
+		var ownerUsername, ownerPublicID string
+		_ = sqlx.GetContext(ctx, dbForRead(ctx, h.DB, h.ReadDB), &ownerUsername,
+			"SELECT username FROM users WHERE id = $1", c.OwnerID)
+		_ = sqlx.GetContext(ctx, dbForRead(ctx, h.DB, h.ReadDB), &ownerPublicID,
+			"SELECT public_id FROM users WHERE id = $1", c.OwnerID)
+		resp.Communities = append(resp.Communities, &communityv1.CommunityData{
+			Id:            c.PublicID,
+			Slug:          c.Slug,
+			Name:          c.Name,
+			Description:   c.Description,
+			AvatarPath:    c.AvatarPath,
+			BannerPath:    c.BannerPath,
+			Tags:          []string(c.Tags),
+			Privacy:       c.Privacy,
+			OwnerId:       ownerPublicID,
+			OwnerUsername: ownerUsername,
+			MemberCount:   c.MemberCount,
+			MatchupCount:  c.MatchupCount,
+			BracketCount:  c.BracketCount,
+			CreatedAt:     c.CreatedAt.UTC().Format(time.RFC3339),
+			UpdatedAt:     c.UpdatedAt.UTC().Format(time.RFC3339),
+			ViewerRole:    rows[i].TargetRole, // target's role, not caller's
+		})
 	}
 	return connect.NewResponse(resp), nil
 }
@@ -935,6 +1193,18 @@ func (h *CommunityHandler) GetCommunityFeed(ctx context.Context, req *connect.Re
 
 	db := dbForRead(ctx, h.DB, h.ReadDB)
 
+	// Non-members only see items the creator marked 'public'. Members
+	// (and the community owner) see everything. This is the feed-level
+	// equivalent of the per-item access gate in GetMatchup/GetBracket.
+	viewerIsMember := false
+	if uid, ok := httpctx.CurrentUserID(ctx); ok && uid != 0 {
+		var role string
+		_ = sqlx.GetContext(ctx, db, &role,
+			"SELECT role FROM community_memberships WHERE community_id = $1 AND user_id = $2",
+			c.ID, uid)
+		viewerIsMember = role != "" && role != "banned"
+	}
+
 	// Matchups for this community. Standalone bracket matchups (the
 	// child rows of a bracket) are filtered out — community pages
 	// show top-level user-created matchups, not the auto-generated
@@ -943,6 +1213,9 @@ func (h *CommunityHandler) GetCommunityFeed(ctx context.Context, req *connect.Re
         SELECT * FROM matchups
         WHERE community_id = $1 AND bracket_id IS NULL`
 	matchupArgs := []interface{}{c.ID}
+	if !viewerIsMember {
+		matchupQuery += " AND visibility = 'public'"
+	}
 	if !before.IsZero() {
 		matchupArgs = append(matchupArgs, before)
 		matchupQuery += fmt.Sprintf(" AND created_at < $%d", len(matchupArgs))
@@ -955,9 +1228,13 @@ func (h *CommunityHandler) GetCommunityFeed(ctx context.Context, req *connect.Re
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// Brackets for this community.
+	// Brackets for this community. Same members-only filter as
+	// matchups above.
 	bracketQuery := `SELECT * FROM brackets WHERE community_id = $1`
 	bracketArgs := []interface{}{c.ID}
+	if !viewerIsMember {
+		bracketQuery += " AND visibility = 'public'"
+	}
 	if !before.IsZero() {
 		bracketArgs = append(bracketArgs, before)
 		bracketQuery += fmt.Sprintf(" AND created_at < $%d", len(bracketArgs))
@@ -973,15 +1250,24 @@ func (h *CommunityHandler) GetCommunityFeed(ctx context.Context, req *connect.Re
 	// Hydrate author rows and items for matchups (matchupToProto
 	// expects them populated). Best-effort — a failure here just
 	// leaves a card with a missing field, not a 500.
+	// ProcessAvatarPath() turns the raw DB column (S3 key) into a full
+	// CDN URL — without this step the proto carries `avatar-xxx.jpg`
+	// instead of `https://…/UserProfilePics/avatar-xxx.jpg`, the
+	// frontend <img> tries to load it relative to its own origin, and
+	// the avatar never renders.
 	for i := range matchups {
-		_ = sqlx.GetContext(ctx, db, &matchups[i].Author,
-			"SELECT * FROM users WHERE id = $1", matchups[i].AuthorID)
+		if err := sqlx.GetContext(ctx, db, &matchups[i].Author,
+			"SELECT * FROM users WHERE id = $1", matchups[i].AuthorID); err == nil {
+			matchups[i].Author.ProcessAvatarPath()
+		}
 		_ = sqlx.SelectContext(ctx, db, &matchups[i].Items,
 			"SELECT * FROM matchup_items WHERE matchup_id = $1 ORDER BY id ASC", matchups[i].ID)
 	}
 	for i := range brackets {
-		_ = sqlx.GetContext(ctx, db, &brackets[i].Author,
-			"SELECT * FROM users WHERE id = $1", brackets[i].AuthorID)
+		if err := sqlx.GetContext(ctx, db, &brackets[i].Author,
+			"SELECT * FROM users WHERE id = $1", brackets[i].AuthorID); err == nil {
+			brackets[i].Author.ProcessAvatarPath()
+		}
 	}
 
 	resp := &communityv1.GetCommunityFeedResponse{}
@@ -1017,6 +1303,45 @@ func (h *CommunityHandler) GetCommunityFeed(ctx context.Context, req *connect.Re
 // ----------------------------------------------------------------------
 // Helpers
 // ----------------------------------------------------------------------
+
+// filterNameEchoTags drops any tag that case-insensitively matches
+// the community name. Those tags duplicate info already in the title
+// and clutter the chip row. Defensive both on Create and Update so a
+// rename can't leave a stale name-echo tag behind.
+func filterNameEchoTags(tags []string, name string) []string {
+	if name == "" {
+		return tags
+	}
+	normalized := strings.ToLower(strings.TrimSpace(name))
+	out := make([]string, 0, len(tags))
+	for _, t := range tags {
+		if strings.ToLower(strings.TrimSpace(t)) == normalized {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
+}
+
+// commitCommunityImage runs the standard presign → commit → resize →
+// permanent-key flow for community avatars + banners. Mirrors the
+// matchup-cover commit path so the two share the validation +
+// resize pipeline. Returns the path stored in the community row.
+func commitCommunityImage(ctx context.Context, s3c *s3.Client, key string, kind UploadKind, userID uint, basePrefix string) (string, error) {
+	bucket := bucketFromEnv()
+	buf, commitErr := CommitUploadedObject(ctx, s3c, bucket, key, kind, userID)
+	if commitErr != nil {
+		return "", commitErr
+	}
+	filename := fileformat.UniqueFormat("img.jpg")
+	keyBase := strings.TrimSuffix(basePrefix, ".jpg") + "/" + filename
+	if _, uploadErr := resizeAndUpload(ctx, s3c, bucket, keyBase, buf); uploadErr != nil {
+		return "", connect.NewError(connect.CodeInternal, fmt.Errorf("failed to upload image: %w", uploadErr))
+	}
+	// Best-effort cleanup of the temp upload object.
+	DeleteUploadedObject(ctx, s3c, bucket, key)
+	return filename, nil
+}
 
 // normalizeTags lowercases, trims, dedupes, and caps the tag list at 10.
 func normalizeTags(in []string) []string {

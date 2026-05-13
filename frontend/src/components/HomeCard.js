@@ -94,7 +94,7 @@ function withImageSize(url, size) {
   return url.replace(/\.(jpe?g|png|gif|webp)$/i, `_${size}.jpg`);
 }
 
-const HomeCard = ({ item, type, initialLiked = false }) => {
+const HomeCard = ({ item, type, initialLiked = false, fallbackGradient = null }) => {
   const navigate = useNavigate();
   const { promptUpgrade } = useAnonUpgradePrompt();
   const viewerId = typeof window !== 'undefined'
@@ -107,11 +107,32 @@ const HomeCard = ({ item, type, initialLiked = false }) => {
   // and the chip we render is guaranteed to be a sidebar-known
   // category, so filtering on it works.
   const tags = backendTags ?? deriveTags(title);
-  const gradient = titleGradient(title);
+  // `fallbackGradient` overrides the deterministic title-based pick.
+  // Used by CommunityPage to render the community's chosen theme on
+  // every card-without-image inside the community feed — so the
+  // cards visually belong to the themed community instead of falling
+  // through to one of the violet/blue placeholders. Empty / null
+  // means "use the default behaviour" so home, profile, search etc.
+  // are unaffected.
+  const gradient = fallbackGradient || titleGradient(title);
   const imageUrl = withImageSize(item.image_url ?? null, 'thumb');
   const author = authorDisplay(item);
   const initial = authorInitial(item);
   const timeAgo = relativeTime(item.created_at);
+  // Author profile picture. Two shapes flow through HomeCard:
+  //   1. Full MatchupData / BracketData — nested item.author.avatar_path
+  //      (added to common.v1.UserSummaryResponse).
+  //   2. PopularMatchupData / PopularBracketData — flat
+  //      item.author_avatar_path (the trending / most-played feeds
+  //      use the lightweight shape, no nested author).
+  // We check both so the avatar renders regardless of which path the
+  // card came from. Both shapes carry the already-resolved full URL.
+  // Falls through to the letter initial on the gradient pill when
+  // neither is set — same behaviour as before.
+  const authorAvatarRaw = item.author?.avatar_path || item.author_avatar_path || '';
+  const authorAvatarUrl = authorAvatarRaw
+    ? withImageSize(authorAvatarRaw, 'thumb')
+    : null;
   const authorId = item.author_id ?? item.bracket_author_id;
   const initialLikesCount = item.likes_count ?? item.likes ?? 0;
   const commentsCount = Array.isArray(item.comments) ? item.comments.length : (item.comments ?? 0);
@@ -241,7 +262,19 @@ const HomeCard = ({ item, type, initialLiked = false }) => {
     <article className="home-card" onClick={handleClick}>
       {/* Post header */}
       <div className="home-card__header">
-        <span className="home-card__avatar">{initial}</span>
+        <span className="home-card__avatar">
+          {authorAvatarUrl ? (
+            <img
+              src={authorAvatarUrl}
+              alt=""
+              className="home-card__avatar-img"
+              loading="lazy"
+              decoding="async"
+            />
+          ) : (
+            initial
+          )}
+        </span>
         <div className="home-card__header-text">
           <span className="home-card__username">{author}</span>
           {timeAgo && <span className="home-card__time">{timeAgo}</span>}

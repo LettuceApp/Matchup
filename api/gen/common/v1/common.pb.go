@@ -22,10 +22,17 @@ const (
 )
 
 // UserSummaryResponse is the minimal user shape embedded in matchup/bracket responses.
+//
+// avatar_path is the S3 key (NOT a full URL) for the author's profile
+// picture, or empty when the author hasn't uploaded one. The frontend
+// resolves the key against REACT_APP_S3_BASE + size variant (thumb /
+// medium / full) — same convention as the rest of the app. Embedded
+// here so a feed render doesn't need an N+1 GetUser RPC per card.
 type UserSummaryResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
+	AvatarPath    string                 `protobuf:"bytes,3,opt,name=avatar_path,json=avatarPath,proto3" json:"avatar_path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -70,6 +77,13 @@ func (x *UserSummaryResponse) GetId() string {
 func (x *UserSummaryResponse) GetUsername() string {
 	if x != nil {
 		return x.Username
+	}
+	return ""
+}
+
+func (x *UserSummaryResponse) GetAvatarPath() string {
+	if x != nil {
+		return x.AvatarPath
 	}
 	return ""
 }
@@ -220,10 +234,12 @@ var File_common_v1_common_proto protoreflect.FileDescriptor
 
 const file_common_v1_common_proto_rawDesc = "" +
 	"\n" +
-	"\x16common/v1/common.proto\x12\tcommon.v1\"A\n" +
+	"\x16common/v1/common.proto\x12\tcommon.v1\"b\n" +
 	"\x13UserSummaryResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
-	"\busername\x18\x02 \x01(\tR\busername\"l\n" +
+	"\busername\x18\x02 \x01(\tR\busername\x12\x1f\n" +
+	"\vavatar_path\x18\x03 \x01(\tR\n" +
+	"avatarPath\"l\n" +
 	"\x13MatchupItemResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04item\x18\x02 \x01(\tR\x04item\x12\x14\n" +

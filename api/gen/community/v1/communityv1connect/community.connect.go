@@ -51,6 +51,12 @@ const (
 	// CommunityServiceListCommunitiesProcedure is the fully-qualified name of the CommunityService's
 	// ListCommunities RPC.
 	CommunityServiceListCommunitiesProcedure = "/community.v1.CommunityService/ListCommunities"
+	// CommunityServiceListMyCommunitiesProcedure is the fully-qualified name of the CommunityService's
+	// ListMyCommunities RPC.
+	CommunityServiceListMyCommunitiesProcedure = "/community.v1.CommunityService/ListMyCommunities"
+	// CommunityServiceListUserCommunitiesProcedure is the fully-qualified name of the
+	// CommunityService's ListUserCommunities RPC.
+	CommunityServiceListUserCommunitiesProcedure = "/community.v1.CommunityService/ListUserCommunities"
 	// CommunityServiceCheckSlugAvailableProcedure is the fully-qualified name of the CommunityService's
 	// CheckSlugAvailable RPC.
 	CommunityServiceCheckSlugAvailableProcedure = "/community.v1.CommunityService/CheckSlugAvailable"
@@ -97,6 +103,17 @@ type CommunityServiceClient interface {
 	UpdateCommunity(context.Context, *connect.Request[v1.UpdateCommunityRequest]) (*connect.Response[v1.UpdateCommunityResponse], error)
 	DeleteCommunity(context.Context, *connect.Request[v1.DeleteCommunityRequest]) (*connect.Response[v1.DeleteCommunityResponse], error)
 	ListCommunities(context.Context, *connect.Request[v1.ListCommunitiesRequest]) (*connect.Response[v1.ListCommunitiesResponse], error)
+	// Communities the authenticated caller is a non-banned member of,
+	// ordered by most-recently-joined first. Returns empty for anon
+	// callers. Each community includes the viewer's role so the
+	// sidebar can render a role badge without a second round-trip.
+	ListMyCommunities(context.Context, *connect.Request[v1.ListMyCommunitiesRequest]) (*connect.Response[v1.ListMyCommunitiesResponse], error)
+	// Communities a specified user is a non-banned member of. Public
+	// read — used by the profile-page Communities tab. The `viewer_role`
+	// field carries the TARGET user's role in each community (not the
+	// viewer's), so the profile renders "owner / mod / member" badges
+	// for the person whose profile is being viewed.
+	ListUserCommunities(context.Context, *connect.Request[v1.ListUserCommunitiesRequest]) (*connect.Response[v1.ListUserCommunitiesResponse], error)
 	CheckSlugAvailable(context.Context, *connect.Request[v1.CheckSlugAvailableRequest]) (*connect.Response[v1.CheckSlugAvailableResponse], error)
 	JoinCommunity(context.Context, *connect.Request[v1.JoinCommunityRequest]) (*connect.Response[v1.JoinCommunityResponse], error)
 	LeaveCommunity(context.Context, *connect.Request[v1.LeaveCommunityRequest]) (*connect.Response[v1.LeaveCommunityResponse], error)
@@ -159,6 +176,18 @@ func NewCommunityServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			httpClient,
 			baseURL+CommunityServiceListCommunitiesProcedure,
 			connect.WithSchema(communityServiceMethods.ByName("ListCommunities")),
+			connect.WithClientOptions(opts...),
+		),
+		listMyCommunities: connect.NewClient[v1.ListMyCommunitiesRequest, v1.ListMyCommunitiesResponse](
+			httpClient,
+			baseURL+CommunityServiceListMyCommunitiesProcedure,
+			connect.WithSchema(communityServiceMethods.ByName("ListMyCommunities")),
+			connect.WithClientOptions(opts...),
+		),
+		listUserCommunities: connect.NewClient[v1.ListUserCommunitiesRequest, v1.ListUserCommunitiesResponse](
+			httpClient,
+			baseURL+CommunityServiceListUserCommunitiesProcedure,
+			connect.WithSchema(communityServiceMethods.ByName("ListUserCommunities")),
 			connect.WithClientOptions(opts...),
 		),
 		checkSlugAvailable: connect.NewClient[v1.CheckSlugAvailableRequest, v1.CheckSlugAvailableResponse](
@@ -238,24 +267,26 @@ func NewCommunityServiceClient(httpClient connect.HTTPClient, baseURL string, op
 
 // communityServiceClient implements CommunityServiceClient.
 type communityServiceClient struct {
-	createCommunity    *connect.Client[v1.CreateCommunityRequest, v1.CreateCommunityResponse]
-	getCommunity       *connect.Client[v1.GetCommunityRequest, v1.GetCommunityResponse]
-	getCommunityBySlug *connect.Client[v1.GetCommunityBySlugRequest, v1.GetCommunityBySlugResponse]
-	updateCommunity    *connect.Client[v1.UpdateCommunityRequest, v1.UpdateCommunityResponse]
-	deleteCommunity    *connect.Client[v1.DeleteCommunityRequest, v1.DeleteCommunityResponse]
-	listCommunities    *connect.Client[v1.ListCommunitiesRequest, v1.ListCommunitiesResponse]
-	checkSlugAvailable *connect.Client[v1.CheckSlugAvailableRequest, v1.CheckSlugAvailableResponse]
-	joinCommunity      *connect.Client[v1.JoinCommunityRequest, v1.JoinCommunityResponse]
-	leaveCommunity     *connect.Client[v1.LeaveCommunityRequest, v1.LeaveCommunityResponse]
-	listMembers        *connect.Client[v1.ListMembersRequest, v1.ListMembersResponse]
-	getMyMembership    *connect.Client[v1.GetMyMembershipRequest, v1.GetMyMembershipResponse]
-	updateMemberRole   *connect.Client[v1.UpdateMemberRoleRequest, v1.UpdateMemberRoleResponse]
-	removeMember       *connect.Client[v1.RemoveMemberRequest, v1.RemoveMemberResponse]
-	banMember          *connect.Client[v1.BanMemberRequest, v1.BanMemberResponse]
-	unbanMember        *connect.Client[v1.UnbanMemberRequest, v1.UnbanMemberResponse]
-	listRules          *connect.Client[v1.ListRulesRequest, v1.ListRulesResponse]
-	setRules           *connect.Client[v1.SetRulesRequest, v1.SetRulesResponse]
-	getCommunityFeed   *connect.Client[v1.GetCommunityFeedRequest, v1.GetCommunityFeedResponse]
+	createCommunity     *connect.Client[v1.CreateCommunityRequest, v1.CreateCommunityResponse]
+	getCommunity        *connect.Client[v1.GetCommunityRequest, v1.GetCommunityResponse]
+	getCommunityBySlug  *connect.Client[v1.GetCommunityBySlugRequest, v1.GetCommunityBySlugResponse]
+	updateCommunity     *connect.Client[v1.UpdateCommunityRequest, v1.UpdateCommunityResponse]
+	deleteCommunity     *connect.Client[v1.DeleteCommunityRequest, v1.DeleteCommunityResponse]
+	listCommunities     *connect.Client[v1.ListCommunitiesRequest, v1.ListCommunitiesResponse]
+	listMyCommunities   *connect.Client[v1.ListMyCommunitiesRequest, v1.ListMyCommunitiesResponse]
+	listUserCommunities *connect.Client[v1.ListUserCommunitiesRequest, v1.ListUserCommunitiesResponse]
+	checkSlugAvailable  *connect.Client[v1.CheckSlugAvailableRequest, v1.CheckSlugAvailableResponse]
+	joinCommunity       *connect.Client[v1.JoinCommunityRequest, v1.JoinCommunityResponse]
+	leaveCommunity      *connect.Client[v1.LeaveCommunityRequest, v1.LeaveCommunityResponse]
+	listMembers         *connect.Client[v1.ListMembersRequest, v1.ListMembersResponse]
+	getMyMembership     *connect.Client[v1.GetMyMembershipRequest, v1.GetMyMembershipResponse]
+	updateMemberRole    *connect.Client[v1.UpdateMemberRoleRequest, v1.UpdateMemberRoleResponse]
+	removeMember        *connect.Client[v1.RemoveMemberRequest, v1.RemoveMemberResponse]
+	banMember           *connect.Client[v1.BanMemberRequest, v1.BanMemberResponse]
+	unbanMember         *connect.Client[v1.UnbanMemberRequest, v1.UnbanMemberResponse]
+	listRules           *connect.Client[v1.ListRulesRequest, v1.ListRulesResponse]
+	setRules            *connect.Client[v1.SetRulesRequest, v1.SetRulesResponse]
+	getCommunityFeed    *connect.Client[v1.GetCommunityFeedRequest, v1.GetCommunityFeedResponse]
 }
 
 // CreateCommunity calls community.v1.CommunityService.CreateCommunity.
@@ -286,6 +317,16 @@ func (c *communityServiceClient) DeleteCommunity(ctx context.Context, req *conne
 // ListCommunities calls community.v1.CommunityService.ListCommunities.
 func (c *communityServiceClient) ListCommunities(ctx context.Context, req *connect.Request[v1.ListCommunitiesRequest]) (*connect.Response[v1.ListCommunitiesResponse], error) {
 	return c.listCommunities.CallUnary(ctx, req)
+}
+
+// ListMyCommunities calls community.v1.CommunityService.ListMyCommunities.
+func (c *communityServiceClient) ListMyCommunities(ctx context.Context, req *connect.Request[v1.ListMyCommunitiesRequest]) (*connect.Response[v1.ListMyCommunitiesResponse], error) {
+	return c.listMyCommunities.CallUnary(ctx, req)
+}
+
+// ListUserCommunities calls community.v1.CommunityService.ListUserCommunities.
+func (c *communityServiceClient) ListUserCommunities(ctx context.Context, req *connect.Request[v1.ListUserCommunitiesRequest]) (*connect.Response[v1.ListUserCommunitiesResponse], error) {
+	return c.listUserCommunities.CallUnary(ctx, req)
 }
 
 // CheckSlugAvailable calls community.v1.CommunityService.CheckSlugAvailable.
@@ -356,6 +397,17 @@ type CommunityServiceHandler interface {
 	UpdateCommunity(context.Context, *connect.Request[v1.UpdateCommunityRequest]) (*connect.Response[v1.UpdateCommunityResponse], error)
 	DeleteCommunity(context.Context, *connect.Request[v1.DeleteCommunityRequest]) (*connect.Response[v1.DeleteCommunityResponse], error)
 	ListCommunities(context.Context, *connect.Request[v1.ListCommunitiesRequest]) (*connect.Response[v1.ListCommunitiesResponse], error)
+	// Communities the authenticated caller is a non-banned member of,
+	// ordered by most-recently-joined first. Returns empty for anon
+	// callers. Each community includes the viewer's role so the
+	// sidebar can render a role badge without a second round-trip.
+	ListMyCommunities(context.Context, *connect.Request[v1.ListMyCommunitiesRequest]) (*connect.Response[v1.ListMyCommunitiesResponse], error)
+	// Communities a specified user is a non-banned member of. Public
+	// read — used by the profile-page Communities tab. The `viewer_role`
+	// field carries the TARGET user's role in each community (not the
+	// viewer's), so the profile renders "owner / mod / member" badges
+	// for the person whose profile is being viewed.
+	ListUserCommunities(context.Context, *connect.Request[v1.ListUserCommunitiesRequest]) (*connect.Response[v1.ListUserCommunitiesResponse], error)
 	CheckSlugAvailable(context.Context, *connect.Request[v1.CheckSlugAvailableRequest]) (*connect.Response[v1.CheckSlugAvailableResponse], error)
 	JoinCommunity(context.Context, *connect.Request[v1.JoinCommunityRequest]) (*connect.Response[v1.JoinCommunityResponse], error)
 	LeaveCommunity(context.Context, *connect.Request[v1.LeaveCommunityRequest]) (*connect.Response[v1.LeaveCommunityResponse], error)
@@ -414,6 +466,18 @@ func NewCommunityServiceHandler(svc CommunityServiceHandler, opts ...connect.Han
 		CommunityServiceListCommunitiesProcedure,
 		svc.ListCommunities,
 		connect.WithSchema(communityServiceMethods.ByName("ListCommunities")),
+		connect.WithHandlerOptions(opts...),
+	)
+	communityServiceListMyCommunitiesHandler := connect.NewUnaryHandler(
+		CommunityServiceListMyCommunitiesProcedure,
+		svc.ListMyCommunities,
+		connect.WithSchema(communityServiceMethods.ByName("ListMyCommunities")),
+		connect.WithHandlerOptions(opts...),
+	)
+	communityServiceListUserCommunitiesHandler := connect.NewUnaryHandler(
+		CommunityServiceListUserCommunitiesProcedure,
+		svc.ListUserCommunities,
+		connect.WithSchema(communityServiceMethods.ByName("ListUserCommunities")),
 		connect.WithHandlerOptions(opts...),
 	)
 	communityServiceCheckSlugAvailableHandler := connect.NewUnaryHandler(
@@ -502,6 +566,10 @@ func NewCommunityServiceHandler(svc CommunityServiceHandler, opts ...connect.Han
 			communityServiceDeleteCommunityHandler.ServeHTTP(w, r)
 		case CommunityServiceListCommunitiesProcedure:
 			communityServiceListCommunitiesHandler.ServeHTTP(w, r)
+		case CommunityServiceListMyCommunitiesProcedure:
+			communityServiceListMyCommunitiesHandler.ServeHTTP(w, r)
+		case CommunityServiceListUserCommunitiesProcedure:
+			communityServiceListUserCommunitiesHandler.ServeHTTP(w, r)
 		case CommunityServiceCheckSlugAvailableProcedure:
 			communityServiceCheckSlugAvailableHandler.ServeHTTP(w, r)
 		case CommunityServiceJoinCommunityProcedure:
@@ -557,6 +625,14 @@ func (UnimplementedCommunityServiceHandler) DeleteCommunity(context.Context, *co
 
 func (UnimplementedCommunityServiceHandler) ListCommunities(context.Context, *connect.Request[v1.ListCommunitiesRequest]) (*connect.Response[v1.ListCommunitiesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("community.v1.CommunityService.ListCommunities is not implemented"))
+}
+
+func (UnimplementedCommunityServiceHandler) ListMyCommunities(context.Context, *connect.Request[v1.ListMyCommunitiesRequest]) (*connect.Response[v1.ListMyCommunitiesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("community.v1.CommunityService.ListMyCommunities is not implemented"))
+}
+
+func (UnimplementedCommunityServiceHandler) ListUserCommunities(context.Context, *connect.Request[v1.ListUserCommunitiesRequest]) (*connect.Response[v1.ListUserCommunitiesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("community.v1.CommunityService.ListUserCommunities is not implemented"))
 }
 
 func (UnimplementedCommunityServiceHandler) CheckSlugAvailable(context.Context, *connect.Request[v1.CheckSlugAvailableRequest]) (*connect.Response[v1.CheckSlugAvailableResponse], error) {

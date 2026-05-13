@@ -93,6 +93,11 @@ message PopularMatchupData {
   int32 rank = 12;
   string author_username = 13;
   string created_at = 14;
+  // Resolved full URL for the author's profile picture (empty when
+  // unset). Embedded so the home / trending feed can render real
+  // avatars on each card instead of falling back to the username
+  // initial — same UX contract as MatchupData.author.avatar_path.
+  string author_avatar_path = 15;
 }
 
 // MatchupVoteData is a single vote record.

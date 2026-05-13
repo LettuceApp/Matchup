@@ -5,7 +5,13 @@ import {
   deleteCommunity,
   getCommunityBySlug,
   updateCommunity,
+  updateCommunityImages,
 } from '../services/api';
+import {
+  COMMUNITY_GRADIENTS,
+  DEFAULT_GRADIENT_SLUG,
+  gradientForSlug,
+} from '../utils/communityGradients';
 import '../styles/CommunitySettings.css';
 
 const MAX_NAME = 64;
@@ -32,6 +38,20 @@ const CommunitySettings = () => {
   const [description, setDescription] = useState('');
   const [tagsInput, setTagsInput] = useState('');
   const [tags, setTags] = useState([]);
+  // Curated theme gradient slug. Empty + missing both mean "no theme
+  // picked yet" — the avatar fallback + banner background fall through
+  // to the default stardust palette. Selecting a swatch sets a slug;
+  // the live preview above updates instantly so the owner sees the
+  // change before saving.
+  const [themeGradient, setThemeGradient] = useState('');
+
+  // Avatar + banner upload state. Files only live in memory until
+  // the user clicks Save — that's when we presign + PUT + commit
+  // via updateCommunityImages.
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [bannerFile, setBannerFile] = useState(null);
+  const [bannerPreview, setBannerPreview] = useState(null);
 
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
@@ -52,6 +72,7 @@ const CommunitySettings = () => {
         setName(c?.name || '');
         setDescription(c?.description || '');
         setTags(c?.tags || []);
+        setThemeGradient(c?.theme_gradient || '');
       } catch (err) {
         if (cancelled) return;
         setError(err?.response?.status === 404 ? 'Community not found.' : 'Could not load this community.');
@@ -97,14 +118,27 @@ const CommunitySettings = () => {
     setSubmitError(null);
     setSaving(true);
     try {
+      // If the user picked new images, upload + commit them via the
+      // sidecar helper first. It returns the updated community
+      // with avatar_path / banner_path stamped. We then re-issue
+      // the text-field update so name/description/tags get saved
+      // too. Two RPCs is fine here (settings save is rare).
+      if (avatarFile || bannerFile) {
+        await updateCommunityImages(community.id, { avatarFile, bannerFile });
+      }
       const res = await updateCommunity(community.id, {
         name: name.trim(),
         description: description.trim(),
         tags,
+        themeGradient,
       });
       const updated = res?.data?.community ?? null;
       if (updated) {
         setCommunity(updated);
+        setAvatarFile(null);
+        setAvatarPreview(null);
+        setBannerFile(null);
+        setBannerPreview(null);
         setSavedAt(new Date());
       }
     } catch (err) {
@@ -116,6 +150,20 @@ const CommunitySettings = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleAvatarPick = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const handleBannerPick = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBannerFile(file);
+    setBannerPreview(URL.createObjectURL(file));
   };
 
   const handleDelete = async () => {
@@ -163,6 +211,99 @@ const CommunitySettings = () => {
       </header>
 
       <form className="community-settings__form" onSubmit={handleSave}>
+        {/* Banner + avatar uploads. New file replaces the saved image
+            once the form is submitted. Both default to whatever the
+            community already has so the previews show context. */}
+        <div className="community-settings__images">
+          <div className="community-settings__banner-field">
+            <span className="community-settings__label">Banner</span>
+            <label className="community-settings__banner-drop">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleBannerPick}
+                hidden
+              />
+              {(bannerPreview || community.banner_path) ? (
+                <img
+                  src={bannerPreview || community.banner_path}
+                  alt=""
+                  className="community-settings__banner-preview"
+                />
+              ) : (
+                <span className="community-settings__banner-empty">
+                  Click to upload a banner (PNG / JPG / WEBP, ≤5 MB)
+                </span>
+              )}
+            </label>
+          </div>
+
+          <div className="community-settings__avatar-field">
+            <span className="community-settings__label">Avatar</span>
+            <label
+              className="community-settings__avatar-drop"
+              style={{
+                // The avatar fallback's gradient should preview the
+                // currently-chosen theme so the owner can see how the
+                // initial-on-gradient avatar will look without
+                // navigating back to the community page.
+                background: gradientForSlug(themeGradient || DEFAULT_GRADIENT_SLUG),
+              }}
+            >
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarPick}
+                hidden
+              />
+              {(avatarPreview || community.avatar_path) ? (
+                <img
+                  src={avatarPreview || community.avatar_path}
+                  alt=""
+                  className="community-settings__avatar-preview"
+                />
+              ) : (
+                <span className="community-settings__avatar-empty">
+                  {community.name.charAt(0).toUpperCase()}
+                </span>
+              )}
+            </label>
+          </div>
+        </div>
+
+        {/* Theme gradient picker. Renders a strip of swatches; clicking
+            sets the slug, which the avatar/banner previews above
+            immediately reflect. Empty (no selection) means the
+            community falls back to the default stardust palette on
+            the public page — which is also what we render here when
+            the field is unset, so the previews never go blank. */}
+        <fieldset className="community-settings__theme-field">
+          <legend className="community-settings__label">Theme</legend>
+          <p className="community-settings__help">
+            Pick a gradient — it fills the banner when no image is
+            uploaded and tints the fallback avatar.
+          </p>
+          <div className="community-settings__swatches" role="radiogroup" aria-label="Community theme">
+            {COMMUNITY_GRADIENTS.map((g) => {
+              const isActive = themeGradient === g.id;
+              return (
+                <button
+                  key={g.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={isActive}
+                  className={`community-settings__swatch${isActive ? ' community-settings__swatch--active' : ''}`}
+                  style={{ background: g.css }}
+                  title={g.name}
+                  onClick={() => setThemeGradient(g.id)}
+                >
+                  <span className="community-settings__swatch-label">{g.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+
         <label className="community-settings__field">
           <span className="community-settings__label">Name</span>
           <input

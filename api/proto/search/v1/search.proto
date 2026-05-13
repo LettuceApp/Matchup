@@ -1,0 +1,93 @@
+syntax = "proto3";
+package search.v1;
+option go_package = "Matchup/gen/search/v1;searchv1";
+
+// SearchService — Twitter-style universal search.
+//
+// One RPC fans out across matchups, brackets, communities, and users
+// and returns the top N of each plus a unified "top" mix. The
+// frontend renders tabs and the user can refine which entity type
+// they're looking at.
+//
+// Visibility (critical):
+//   - Matchups + brackets: only visibility='public' AND community
+//     (when set) has the community-only filter respected. Community-
+//     only items NEVER surface in search to non-members. Followers-
+//     only / mutuals-only items NEVER surface to non-followers.
+//   - Communities: only non-deleted communities. Private communities
+//     are excluded.
+//   - Users: only non-deleted, non-banned users. Soft-deleted users
+//     are blanked from search.
+//
+// Anon-friendly: no auth required.
+service SearchService {
+  rpc Search(SearchRequest) returns (SearchResponse);
+}
+
+message SearchRequest {
+  // The user's query string. Server normalizes (trim + lowercase) +
+  // applies ILIKE on the relevant columns. Min 2 chars (server
+  // returns empty for shorter to avoid hammering the DB).
+  string query = 1;
+  // Per-type cap. Server clamps to 1-50. Defaults to 10 — enough
+  // for the "Top" mixed tab without bloating the response.
+  int32 limit = 2;
+  // Optional filter: 'matchup' | 'bracket' | 'community' | 'user'.
+  // When set, only that one slice is populated (the others are
+  // empty in the response). Empty = return all four.
+  string only = 3;
+}
+
+message SearchResponse {
+  repeated SearchMatchup matchups = 1;
+  repeated SearchBracket brackets = 2;
+  repeated SearchCommunity communities = 3;
+  repeated SearchUser users = 4;
+}
+
+// Lightweight projections — just what a card needs. Avoids fanning
+// out to fetch full MatchupData for every result.
+message SearchMatchup {
+  string id = 1;                // public_id
+  string short_id = 2;
+  string title = 3;
+  string author_id = 4;         // public_id
+  string author_username = 5;
+  string created_at = 6;
+  int32 likes_count = 7;
+  int32 comments_count = 8;
+  optional string image_url = 9;
+  repeated string tags = 10;
+}
+
+message SearchBracket {
+  string id = 1;
+  string short_id = 2;
+  string title = 3;
+  string description = 4;
+  string author_id = 5;
+  string author_username = 6;
+  string created_at = 7;
+  int32 size = 8;
+  int32 likes_count = 9;
+  repeated string tags = 10;
+}
+
+message SearchCommunity {
+  string id = 1;
+  string slug = 2;
+  string name = 3;
+  string description = 4;
+  string avatar_path = 5;
+  string banner_path = 6;
+  int64 member_count = 7;
+  repeated string tags = 8;
+}
+
+message SearchUser {
+  string id = 1;
+  string username = 2;
+  string avatar_path = 3;
+  int64 followers_count = 4;
+  optional string bio = 5;
+}

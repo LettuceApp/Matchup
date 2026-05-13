@@ -37,6 +37,11 @@ type PopularMatchupDTO struct {
 	Title           string
 	AuthorID        string
 	AuthorUsername  string
+	// AuthorAvatarPath is the resolved full URL for the author's
+	// profile pic (empty when unset). The handler that builds this DTO
+	// is responsible for running the raw DB path through
+	// db.ProcessAvatarPath so the proto carries a ready-to-use src.
+	AuthorAvatarPath string
 	BracketID       *string
 	BracketAuthorID *string
 	Round           *int
@@ -54,6 +59,8 @@ type PopularBracketDTO struct {
 	Title           string
 	AuthorID        string
 	AuthorUsername  string
+	// AuthorAvatarPath — see PopularMatchupDTO.AuthorAvatarPath.
+	AuthorAvatarPath string
 	CurrentRound    int
 	Size            int
 	Votes           int64

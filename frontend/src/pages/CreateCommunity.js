@@ -103,16 +103,31 @@ const CreateCommunity = () => {
     return () => clearTimeout(debounceTimer.current);
   }, [slug]);
 
+  // Whether the last attempted tag-add was rejected for matching
+  // the community name. Drives the inline hint below the chip row.
+  const [tagNameEcho, setTagNameEcho] = useState(false);
+
   const addTagsFromInput = useCallback(() => {
     const parts = tagsInput
       .split(',')
       .map((t) => t.trim().toLowerCase())
       .filter(Boolean);
     if (parts.length === 0) return;
+    const normalizedName = name.trim().toLowerCase();
+    let rejectedNameEcho = false;
     setTags((prev) => {
       const next = [...prev];
       for (const part of parts) {
         if (next.length >= MAX_TAGS) break;
+        // Reject tags that just echo the community name — they're
+        // always redundant with the title. Server re-validates +
+        // strips on save, but catching it here means the user sees
+        // the inline hint immediately instead of getting a confusing
+        // "your tag disappeared after save".
+        if (normalizedName && part === normalizedName) {
+          rejectedNameEcho = true;
+          continue;
+        }
         // Skip duplicates + values with unsafe characters; server
         // re-validates so this is just for UX.
         if (!next.includes(part) && /^[a-z0-9-]+$/.test(part)) {
@@ -122,7 +137,8 @@ const CreateCommunity = () => {
       return next;
     });
     setTagsInput('');
-  }, [tagsInput]);
+    setTagNameEcho(rejectedNameEcho);
+  }, [tagsInput, name]);
 
   const handleTagsKeyDown = (e) => {
     // Comma + Enter both confirm a tag. Backspace on an empty input
@@ -264,7 +280,7 @@ const CreateCommunity = () => {
             <span className="community-create-label">Description</span>
             <textarea
               className="community-create-input community-create-textarea"
-              placeholder="What's this community about? (optional)"
+              placeholder="What is this community about? Who is it for? (optional, but if filled, at least 20 chars)"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               maxLength={MAX_DESC_LEN}
@@ -303,7 +319,13 @@ const CreateCommunity = () => {
               />
             </div>
             <span className="community-create-help">
-              {tags.length}/{MAX_TAGS} tags. Press Enter or comma to add.
+              {tagNameEcho ? (
+                <span className="community-create-help--err">
+                  That tag matches the community name — try a more specific tag.
+                </span>
+              ) : (
+                <>{tags.length}/{MAX_TAGS} tags. Press Enter or comma to add.</>
+              )}
             </span>
           </label>
 

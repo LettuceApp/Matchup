@@ -5,6 +5,7 @@ import (
 
 	"Matchup/gen/activity/v1/activityv1connect"
 	"Matchup/gen/report/v1/reportv1connect"
+	"Matchup/gen/search/v1/searchv1connect"
 	"Matchup/gen/upload/v1/uploadv1connect"
 	"Matchup/gen/admin/v1/adminv1connect"
 	"Matchup/gen/auth/v1/authv1connect"
@@ -54,7 +55,8 @@ func initializeConnectRoutes(r chi.Router, db, readDB *sqlx.DB, s3Client *s3.Cli
 	matchupHandler := &MatchupHandler{DB: db, ReadDB: readDB, S3Client: s3Client}
 	matchupItemHandler := &MatchupItemHandler{DB: db, ReadDB: readDB, S3Client: s3Client}
 	bracketHandler := &BracketHandler{DB: db, ReadDB: readDB}
-	communityHandler := &CommunityHandler{DB: db, ReadDB: readDB}
+	communityHandler := &CommunityHandler{DB: db, ReadDB: readDB, S3Client: s3Client}
+	searchHandler := &SearchHandler{DB: db, ReadDB: readDB}
 	commentHandler := &CommentHandler{DB: db, ReadDB: readDB}
 	likeHandler := &LikeHandler{DB: db, ReadDB: readDB}
 	homeHandler := &HomeHandler{DB: db, ReadDB: readDB}
@@ -110,6 +112,14 @@ func initializeConnectRoutes(r chi.Router, db, readDB *sqlx.DB, s3Client *s3.Cli
 		// callers can create / join / leave / moderate. Per-handler
 		// gates enforce role checks against httpctx.CurrentUserID.
 		path, h = communityv1connect.NewCommunityServiceHandler(communityHandler, snakeCodec)
+		r.Mount(path, h)
+
+		// SearchService — universal search across matchups, brackets,
+		// communities, and users. Public read; the handler does the
+		// visibility filtering inline so private content never
+		// surfaces (only-public matchups/brackets, public communities,
+		// non-banned non-deleted users).
+		path, h = searchv1connect.NewSearchServiceHandler(searchHandler, snakeCodec)
 		r.Mount(path, h)
 
 		path, h = commentv1connect.NewCommentServiceHandler(commentHandler, snakeCodec)

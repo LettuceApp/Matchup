@@ -66,6 +66,12 @@ const NavigationBar = () => {
     await handleLogout();
   };
 
+  // Active-tab signal for the Search nav entry. Mirrors the way
+  // Twitter highlights /explore in the left rail — when the viewer is
+  // on the search route the button picks up the brand-accent border
+  // so the tab anchors as the current location.
+  const onSearchPage = location.pathname === '/search';
+
   return (
     <header className="navigation-bar">
       <div className="navigation-bar__inner">
@@ -76,6 +82,14 @@ const NavigationBar = () => {
         >
           Matchup
         </button>
+        {/* Search lives as a dedicated nav tab (Twitter's "Explore"
+            model) instead of an inline input. A tab is more
+            discoverable than a pill — the pill looked like a passive
+            filter, but the destination is the universal /search page.
+            The /search page already mounts its own search input at
+            the top, so users can type once they land. Home keeps its
+            own topbar search since that doubles as a live filter on
+            the visible feed. */}
         <div className="navigation-bar__actions">
           {isAuthed ? (
             <>
@@ -85,6 +99,15 @@ const NavigationBar = () => {
                 onClick={() => navigate('/home')}
               >
                 Home
+              </button>
+              <button
+                type="button"
+                className={`navigation-bar__button navigation-bar__button--search${onSearchPage ? ' navigation-bar__button--active' : ''}`}
+                aria-current={onSearchPage ? 'page' : undefined}
+                onClick={() => navigate('/search')}
+              >
+                <span className="navigation-bar__button-icon" aria-hidden="true">🔍</span>
+                <span className="navigation-bar__button-label">Search</span>
               </button>
               <NotificationBell />
               {localStorage.getItem('isAdmin') === 'true' && (
@@ -124,6 +147,14 @@ const NavigationBar = () => {
                         onClick={goAndClose('/home')}
                       >
                         Home
+                      </button>
+                      <button
+                        type="button"
+                        className="navigation-bar__profile-item navigation-bar__profile-item--mobile"
+                        role="menuitem"
+                        onClick={goAndClose('/search')}
+                      >
+                        Search
                       </button>
                       {localStorage.getItem('isAdmin') === 'true' && (
                         <button
@@ -178,6 +209,19 @@ const NavigationBar = () => {
             </>
           ) : (
             <>
+              {/* Anon users can search the public catalog too —
+                  matchups, brackets, communities, profiles all live
+                  in the public index — so Search sits in the nav
+                  before the conversion CTAs. */}
+              <button
+                type="button"
+                className={`navigation-bar__button navigation-bar__button--search${onSearchPage ? ' navigation-bar__button--active' : ''}`}
+                aria-current={onSearchPage ? 'page' : undefined}
+                onClick={() => navigate('/search')}
+              >
+                <span className="navigation-bar__button-icon" aria-hidden="true">🔍</span>
+                <span className="navigation-bar__button-label">Search</span>
+              </button>
               {/* Sign up is the primary anon CTA — anon users browse +
                   vote up to 3 times, and the conversion target is
                   signup. Sign in stays available as a quieter ghost

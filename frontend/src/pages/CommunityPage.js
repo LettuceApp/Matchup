@@ -7,6 +7,7 @@ import {
   joinCommunity,
   leaveCommunity,
 } from '../services/api';
+import { gradientForSlug } from '../utils/communityGradients';
 import '../styles/CommunityPage.css';
 
 /*
@@ -61,6 +62,21 @@ const CommunityPage = () => {
   useEffect(() => {
     loadCommunity();
   }, [loadCommunity]);
+
+  // Push the community's chosen gradient up to :root as
+  // --page-accent-gradient so global elements (currently the
+  // NavigationBar brand wordmark) repaint with the community's
+  // theme instead of the app's default stardust. Cleanup removes
+  // the var so navigating away from /c/* restores the global
+  // recipe — without this, the brand would stay tinted forever.
+  useEffect(() => {
+    if (!community) return undefined;
+    const themeGradient = gradientForSlug(community.theme_gradient || '');
+    document.documentElement.style.setProperty('--page-accent-gradient', themeGradient);
+    return () => {
+      document.documentElement.style.removeProperty('--page-accent-gradient');
+    };
+  }, [community]);
 
   // Fetch the community feed once we know the community's public_id.
   // Re-runs only on community-change (new slug, or first load) — not
@@ -161,11 +177,23 @@ const CommunityPage = () => {
   const isMember = viewerRole === 'member' || viewerRole === 'mod' || viewerRole === 'owner';
   const isBanned = viewerRole === 'banned';
 
+  // Theme-aware backgrounds. The owner's chosen gradient slug fills
+  // the banner whenever no banner image is uploaded, and tints the
+  // initial-letter avatar fallback when no avatar image is set.
+  // Unknown / empty slug → default stardust palette so the page
+  // never renders a flat dead surface.
+  const themeGradient = gradientForSlug(community.theme_gradient || '');
+
   return (
     <div className="community-page">
-      {/* Banner. Empty for newly-created communities until banner
-          upload lands in a follow-up. */}
-      <div className="community-page__banner" aria-hidden="true">
+      {/* Banner. When the owner has uploaded a banner image it wins;
+          otherwise the chosen theme gradient fills the strip so a
+          freshly-created community already feels themed. */}
+      <div
+        className="community-page__banner"
+        aria-hidden="true"
+        style={community.banner_path ? undefined : { background: themeGradient }}
+      >
         {community.banner_path && (
           <img src={community.banner_path} alt="" />
         )}
@@ -173,7 +201,10 @@ const CommunityPage = () => {
 
       <header className="community-page__header">
         <div className="community-page__identity">
-          <div className="community-page__avatar">
+          <div
+            className="community-page__avatar"
+            style={community.avatar_path ? undefined : { background: themeGradient }}
+          >
             {community.avatar_path ? (
               <img src={community.avatar_path} alt="" />
             ) : (
@@ -215,7 +246,10 @@ const CommunityPage = () => {
               {pendingMembership ? 'Leaving…' : 'Leave'}
             </button>
           ) : viewerRole === 'owner' ? (
-            <Link to={`/c/${slug}/settings`} className="community-page__btn community-page__btn--ghost">
+            <Link
+              to={`/c/${slug}/settings`}
+              className="community-page__btn community-page__btn--ghost community-page__btn--settings"
+            >
               Settings
             </Link>
           ) : (
@@ -231,21 +265,46 @@ const CommunityPage = () => {
         </div>
       </header>
 
-      {community.description && (
-        <section className="community-page__about">
-          <p>{community.description}</p>
-        </section>
-      )}
+      {/* About section. Hidden when description is empty / whitespace
+          / case-insensitively equal to the community name — old
+          communities had description == name as a placeholder, which
+          made the section look redundant alongside the title. */}
+      {(() => {
+        const desc = (community.description || '').trim();
+        const name = (community.name || '').trim().toLowerCase();
+        const showAbout = desc.length > 0 && desc.toLowerCase() !== name;
+        return showAbout ? (
+          <section className="community-page__about">
+            <p>{community.description}</p>
+          </section>
+        ) : null;
+      })()}
 
-      {community.tags?.length > 0 && (
-        <div className="community-page__tags">
-          {community.tags.map((tag) => (
-            <span key={tag} className="community-page__tag">
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
+      {/* Tags. Filter out anything that case-insensitively matches
+          the community name OR the description's first word — those
+          tags duplicate info that's already in the header / about
+          section and just clutter the chip row. */}
+      {(() => {
+        const name = (community.name || '').trim().toLowerCase();
+        const desc = (community.description || '').trim().toLowerCase();
+        const filtered = (community.tags || []).filter((t) => {
+          const tag = (t || '').trim().toLowerCase();
+          if (!tag) return false;
+          if (tag === name) return false;
+          if (tag === desc) return false;
+          return true;
+        });
+        if (filtered.length === 0) return null;
+        return (
+          <div className="community-page__tags">
+            {filtered.map((tag) => (
+              <span key={tag} className="community-page__tag">
+                {tag}
+              </span>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Member-only CTAs. Owners and mods also count as members for
           create purposes (the backend's permission gate accepts
@@ -268,7 +327,18 @@ const CommunityPage = () => {
         </div>
       )}
 
-      <section className="community-page__feed">
+      {/* The chosen theme gradient is exposed as a CSS custom
+          property on the feed container so each HomeCard inside
+          picks up a 4px gradient stripe at its top (see the
+          `.community-page__feed .home-card::before` rule in
+          CommunityPage.css). Scoped here intentionally — HomeCard
+          is reused across home / profile / search, and we only
+          want the tint when the card is rendered inside a themed
+          community feed. */}
+      <section
+        className="community-page__feed"
+        style={{ '--community-accent-gradient': themeGradient }}
+      >
         <h2 className="community-page__feed-title">Community feed</h2>
         {feedLoading && feedItems.length === 0 && (
           <p className="community-page__feed-empty">Loading…</p>
@@ -290,6 +360,15 @@ const CommunityPage = () => {
                 key={`${item._kind}-${item.id}`}
                 item={item}
                 type={item._kind}
+                // Replace the deterministic violet/blue HomeCard
+                // placeholder gradient with the community's chosen
+                // theme — so cards-without-images visibly belong to
+                // the themed community instead of falling through to
+                // the global app palette. Cards WITH images are
+                // unaffected (the image still wins inside the media
+                // div). HomeCards rendered on home / profile / search
+                // don't pass this prop, so this is strictly opt-in.
+                fallbackGradient={themeGradient}
               />
             ))}
           </div>

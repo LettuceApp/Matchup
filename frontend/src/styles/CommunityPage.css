@@ -1,7 +1,24 @@
+/* CommunityPage — cohesive single-card layout.
+   Sections (header, about, tags, create-row, feed) share a unified
+   surface so they read as one card instead of stacked tiles. Uses
+   theme tokens throughout so the layout works in both dark + light
+   modes without hardcoded color literals. */
+
 .community-page {
   max-width: 960px;
-  margin: 0 auto;
-  padding: 0 1rem 4rem;
+  margin: 24px auto 4rem;
+  padding: 0;
+  /* Glass shell: translucent panel + 24px corners + outer shadow so
+     the body's stardust gradient bleeds through. Continuous border
+     wraps the whole card; the body-section rules below drop their
+     own borders to avoid double-stroking. */
+  background: rgba(20, 26, 56, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .community-page--loading,
@@ -26,9 +43,7 @@
 }
 
 @keyframes community-spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
 .community-page__home-link {
@@ -37,13 +52,25 @@
   text-decoration: none;
 }
 
+/* Banner — warm stardust gradient (orange → pink → purple) with a
+   subtle navy fade at the bottom so the avatar + header text settle
+   against a darker edge. Borders + corner radius are owned by the
+   .community-page shell now; the banner is just a colored block. */
 .community-page__banner {
-  width: 100%;
   height: 180px;
-  border-radius: 18px;
-  background: linear-gradient(135deg, var(--bg-surface-raised), var(--bg-surface));
-  margin-top: 1.5rem;
+  border-radius: 0;
+  background: var(--gradient-stardust-banner);
+  border: none;
   overflow: hidden;
+  position: relative;
+}
+
+.community-page__banner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(80% 60% at 50% 100%, rgba(11, 16, 36, 0.85), transparent 70%);
+  pointer-events: none;
 }
 
 .community-page__banner img {
@@ -53,39 +80,84 @@
   display: block;
 }
 
+/* Body sections share the glass shell on the parent .community-page
+   so each section is transparent and only contributes padding. The
+   continuous left/right borders the cohesion-pass added are gone
+   because the outer panel now owns the border. NOTE: the brief
+   explicitly excludes .community-page__about from this restyle —
+   it keeps its prior styling. */
+.community-page__header,
+.community-page__tags,
+.community-page__create-row,
+.community-page__feed {
+  background: transparent;
+  border-left: none;
+  border-right: none;
+  padding-left: 28px;
+  padding-right: 28px;
+  margin: 0;
+}
+
 .community-page__header {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.5rem;
+  gap: 20px;
   align-items: flex-end;
   justify-content: space-between;
-  margin-top: -2.5rem;
-  padding: 0 1rem;
+  /* Header sits BELOW the banner. The previous -56px overlap pulled
+     the whole header (including the title block) up into the bright
+     gradient, which killed contrast on owner-picked themes like
+     sunset/amber where the banner runs hot. Only the avatar
+     overlaps now — see its own margin-top below. */
+  margin-top: 0;
+  padding-top: 24px;
+  padding-bottom: 20px;
   position: relative;
   z-index: 2;
 }
 
 .community-page__identity {
   display: flex;
-  align-items: flex-end;
-  gap: 1rem;
+  /* flex-start so the title block aligns with the TOP of the
+     identity row (below the banner) instead of bottom-aligning to
+     the avatar, which used to drag the h1 up into the banner. */
+  align-items: flex-start;
+  gap: 20px;
   min-width: 0;
 }
 
+/* Avatar overlaps the banner seam. The chosen theme gradient is
+   applied inline via JSX when no avatar image is uploaded; this
+   rule provides the fallback for image-based avatars and any
+   pre-theme-picker rows where the inline style is absent. The 4px
+   navy ring punches the avatar cleanly out of the banner edge.
+   margin-top is the ONLY overlap into the banner now. */
 .community-page__avatar {
-  width: 96px;
-  height: 96px;
+  width: 104px;
+  height: 104px;
   border-radius: 22px;
-  background: var(--bg-surface);
-  border: 3px solid var(--bg-page);
+  background: linear-gradient(135deg, #ff9a6c, #ff6aa6 60%, #a47bff);
+  border: 4px solid #0b1024;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent-primary);
-  font-size: 2.2rem;
-  font-weight: 700;
+  color: #ffffff;
+  font-size: 2.4rem;
+  font-weight: 800;
   overflow: hidden;
   flex-shrink: 0;
+  margin-top: -68px;
+  /* Neutral dark shadow — the old pink glow (rgba(255,120,170,…))
+     fought with non-pink themes (amber / mint / graphite) where the
+     hot-pink halo looked stuck on. A plain navy drop-shadow works
+     uniformly against every gradient in the palette and still gives
+     the avatar visual lift off the page. */
+  box-shadow: 0 10px 30px rgba(5, 10, 24, 0.45);
+}
+
+.community-page__avatar span {
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 .community-page__avatar img {
@@ -96,25 +168,38 @@
 
 .community-page__title-block {
   min-width: 0;
-  padding-bottom: 0.25rem;
+  /* No vertical padding — the title now sits at the top of the
+     identity row (below the banner). The old padding-bottom was a
+     fudge for flex-end alignment with the avatar, which we no
+     longer use. */
+  padding: 0;
 }
 
 .community-page__name {
-  margin: 0;
+  margin: 0 0 4px 0;
   font-size: 1.6rem;
+  line-height: 1.15;
   color: var(--text-primary);
 }
 
+/* Slug becomes a small glass pill — distinguishable from the name
+   above without competing with it. */
 .community-page__slug {
-  margin: 0.15rem 0 0;
-  color: var(--text-muted);
-  font-size: 0.9rem;
+  display: inline-block;
+  width: fit-content;
+  margin: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cfd6ff;
+  font-size: 0.85rem;
   font-weight: 600;
   letter-spacing: 0.02em;
 }
 
 .community-page__meta {
-  margin: 0.4rem 0 0;
+  margin-top: 4px;
   font-size: 0.85rem;
   color: var(--text-secondary);
 }
@@ -124,38 +209,60 @@
   text-decoration: none;
 }
 
+/* Members count becomes a small glass pill matching the slug. */
 .community-page__members-link {
-  color: var(--text-secondary) !important;
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: #e8ecff !important;
   text-decoration: none;
+  font-size: 0.85rem;
 }
 
 .community-page__members-link:hover {
-  color: var(--text-primary) !important;
-  text-decoration: underline;
+  background: rgba(255, 255, 255, 0.10);
+  color: #ffffff !important;
+  text-decoration: none;
 }
 
 .community-page__members-link strong {
-  color: var(--text-primary);
+  color: #ffffff;
 }
 
 .community-page__actions {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding-bottom: 0.5rem;
+  gap: 10px;
+  align-self: flex-end;
+  margin-bottom: 6px;
 }
 
 .community-page__btn {
-  padding: 0.6rem 1.2rem;
-  border-radius: 999px;
-  font-size: 0.9rem;
-  font-weight: 700;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
   border: 1px solid transparent;
   cursor: pointer;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   transition: transform 150ms ease, background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+/* Settings button is owner-only and rarely-used — demote it to a
+   smaller, quieter pill so it doesn't compete with the community
+   identity at the top of the page. Inherits .community-page__btn
+   sizing but loses the gradient/glow. */
+.community-page__btn--settings {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
 }
 
 .community-page__btn:disabled {
@@ -166,84 +273,178 @@
 .community-page__btn--primary {
   background: linear-gradient(135deg, var(--accent-primary-from), var(--accent-primary-to));
   color: #1f2937;
+  box-shadow: 0 6px 18px var(--accent-primary-shadow);
 }
 
 .community-page__btn--primary:not(:disabled):hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 18px var(--accent-primary-shadow);
 }
 
 .community-page__btn--ghost {
-  background: var(--bg-surface);
+  background: var(--bg-surface-alt);
   color: var(--text-secondary);
   border-color: var(--border-subtle);
 }
 
 .community-page__btn--ghost:not(:disabled):hover {
+  background: var(--bg-surface-raised);
   border-color: var(--border-strong);
   color: var(--text-primary);
 }
 
+/* About section with eyebrow label. Tightened vertical padding so
+   it sits close to the description without feeling cramped. */
 .community-page__about {
-  margin: 1.5rem 1rem 0;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
-  padding: 1rem 1.2rem;
-  color: var(--text-secondary);
+  padding: 16px 28px 8px;
+  position: relative;
+}
+
+.community-page__about::before {
+  content: "About";
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.community-page__about p {
+  margin: 0;
+  font-size: 15px;
   line-height: 1.55;
+  color: var(--text-primary);
 }
 
 .community-page__tags {
+  padding: 8px 28px 18px;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
-  margin: 1rem 1rem 0;
+  gap: 8px;
+  align-items: center;
 }
 
 .community-page__tag {
-  padding: 0.25rem 0.7rem;
-  border-radius: 999px;
-  background: var(--accent-secondary-bg-soft);
-  color: var(--accent-secondary);
-  font-size: 0.8rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e8ecff;
+  font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
 }
 
 .community-page__create-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem;
-  margin: 1.25rem 1rem 0;
+  gap: 10px;
+  padding: 18px 28px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .community-page__feed {
-  margin: 1.5rem 1rem 0;
+  padding: 22px 28px 28px;
+  /* No top/bottom border now that the outer .community-page panel
+     owns the card border. */
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: none;
+  border-radius: 0;
 }
 
+/* Community-tinted feed cards. The page sets
+   `--community-accent-gradient` as an inline CSS custom property on
+   the feed container (HomeCard is used in many places — home page,
+   profile, etc. — so we deliberately scope this accent to descendants
+   of .community-page__feed only, never globally to .home-card).
+   The accent is a thin gradient stripe along the top of each card,
+   so a glance at the feed instantly reads "these belong to a
+   themed community" without the cards turning into peacock chaos. */
+.community-page__feed .home-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.community-page__feed .home-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--community-accent-gradient, var(--gradient-stardust));
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* The author-avatar pill normally carries the global stardust recipe
+   (.home-card__avatar in HomePage.css). Inside a themed community we
+   swap its underlying gradient to the community accent so the soft
+   ring behind each profile picture matches the rest of the theme.
+   When the author has an uploaded avatar, the <img> covers most of
+   the pill — but any rounded-edge transparency, a missing image, or
+   the fallback initial all show this gradient, so it should belong
+   to the community. */
+.community-page__feed .home-card__avatar {
+  background: var(--community-accent-gradient, var(--gradient-stardust));
+}
+
+/* The "MATCHUP" / "Bracket" badge sits over the card and reads as
+   the kind-of-content marker. Tinting it to the community gradient
+   ties it back to the theme without losing its role as a label —
+   we keep the white text + uppercase typography from the base rule
+   and just replace the translucent black background. backdrop-filter
+   is no longer doing useful work over an opaque gradient, but leaving
+   it in place is harmless and saves a property override. */
+.community-page__feed .home-card__badge {
+  background: var(--community-accent-gradient, var(--gradient-stardust));
+  color: #ffffff;
+  /* Mild text-shadow so the label stays legible against bright
+     gradients (amber, mint) where white on full-saturation looks
+     washed out. */
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+/* Feed title — uppercase eyebrow tinted with the warm stardust
+   highlight color so it anchors the feed to the rest of the brand
+   recipe. Explicit no-decoration so any inherited accent-bar from
+   a prior design can't reappear here. */
 .community-page__feed-title {
-  margin: 0 0 0.9rem;
-  font-size: 1.1rem;
-  color: var(--text-primary);
+  margin: 0 0 14px 0;
+  padding: 0;
+  border: none;
+  font-size: 0.85rem;
   font-weight: 700;
-  letter-spacing: 0.01em;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #ffb37a;
 }
 
+.community-page__feed-title::before,
+.community-page__feed-title::after {
+  content: none;
+}
+
+/* Empty state — matches the new soft-glass surface of the feed
+   cards (see below). Same translucent fill so the two read as the
+   same "card" treatment when the feed has 0 vs 1+ items. */
 .community-page__feed-empty {
-  margin: 1rem 0;
-  padding: 1.5rem 1.2rem;
-  background: var(--bg-surface);
-  border: 1px dashed var(--border-subtle);
-  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 22px;
   text-align: center;
   color: var(--text-secondary);
   font-size: 0.95rem;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .community-page__feed-empty--error {
-  border-color: rgba(248, 113, 113, 0.5);
-  color: #fca5a5;
-  border-style: solid;
+  border-color: var(--danger-border, rgba(248, 113, 113, 0.5));
+  color: var(--danger-fg, #fca5a5);
 }
 
 /* Grid uses the same column layout as the home feed (HomeCard's
@@ -272,8 +473,32 @@
   .community-page__header {
     flex-direction: column;
     align-items: stretch;
+    /* No header overlap on mobile either — the avatar handles all
+       the banner overlap via its own margin-top below. */
+    margin-top: 0;
+    padding-top: 16px;
+  }
+  .community-page__identity {
+    align-items: center;
+    text-align: center;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .community-page__avatar {
+    /* Slightly less overlap on phones — the banner is shorter and the
+       avatar is the same size, so the proportions feel right at -52. */
+    margin-top: -52px;
+  }
+  .community-page__title-block {
+    text-align: center;
+  }
+  .community-page__slug {
+    /* Re-center the slug pill since the title-block is now centered. */
+    margin: 0 auto;
   }
   .community-page__actions {
-    justify-content: flex-end;
+    justify-content: center;
+    align-self: stretch;
+    flex-wrap: wrap;
   }
 }

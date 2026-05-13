@@ -67,6 +67,40 @@
   padding: 1.1rem 0.6rem 0.35rem;
 }
 
+/* Collapsible section header — same typography as the static
+   .section-label above so the two sit visually as siblings, but as a
+   button (clickable disclosure) with a small caret. Used by the
+   Communities section per the home-cleanup brief. */
+.home-sidebar__section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  padding: 1.1rem 0.6rem 0.35rem;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.home-sidebar__section-toggle:hover,
+.home-sidebar__section-toggle:focus-visible {
+  color: var(--text-secondary);
+  outline: none;
+}
+
+.home-sidebar__section-toggle-caret {
+  font-size: 0.85rem;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
 .home-sidebar__nav-item {
   display: block;
   width: 100%;
@@ -141,6 +175,89 @@
   background: var(--accent-secondary-bg-soft);
 }
 
+/* My-community sidebar row. Compact 3-column layout: avatar |
+   name (flex) | role badge. Matches the visual weight of
+   __nav-item so the section reads as one continuous list. */
+.home-sidebar__community-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease;
+  font-family: inherit;
+}
+
+.home-sidebar__community-row:hover {
+  background: var(--accent-secondary-bg-soft);
+  color: var(--text-primary);
+}
+
+.home-sidebar__community-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--bg-input);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-primary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.home-sidebar__community-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.home-sidebar__community-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Role badge — small emoji or dot. Colored backdrop signals role
+   even without parsing the symbol: gold = owner, indigo = mod,
+   neutral = member. Tiny tooltip on the row reveals the role
+   name on hover. */
+.home-sidebar__community-role {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  line-height: 1;
+  flex-shrink: 0;
+  background: var(--bg-input);
+  color: var(--text-muted);
+}
+
+.home-sidebar__community-role--owner {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+}
+
+.home-sidebar__community-role--mod {
+  background: rgba(99, 102, 241, 0.18);
+  color: #a5b4fc;
+}
+
 /* ============================================================
    Main content
    ============================================================ */
@@ -158,6 +275,11 @@
    The actions cluster pushes to the right; on narrow viewports the
    row wraps so the create buttons drop below search instead of
    crushing the actions cluster off-screen. */
+/* Home top bar — three zones laid out left-to-right:
+     [ FIND (search input, flex-grows) ]  [ CREATE ]  [ ACCOUNT ]
+   ACCOUNT picks up a left border so identity controls visually
+   group together instead of blurring into Create (Gestalt). On
+   mobile the flex wraps to three rows: see the @media block below. */
 .home-topbar {
   display: flex;
   gap: 0.75rem;
@@ -165,14 +287,64 @@
   flex-wrap: wrap;
 }
 
-/* Container for the inlined nav actions (bell + profile-pic dropdown
-   trigger). ml: auto pushes them to the right end of the row regardless
-   of how many create buttons sit between. */
+/* FIND — the search input wrap. Grows to take available row width
+   up to a sensible cap so it doesn't stretch absurdly wide on
+   ultra-wide displays. `position: relative` anchors the ⌘K kbd hint
+   inside. */
+.home-search-wrap {
+  position: relative;
+  flex: 1 1 240px;
+  min-width: 0;
+  max-width: 640px;
+}
+
+/* Universal-search launcher — discoverable magnifier button that
+   opens the full /search results page. Visually quieter than the
+   primary Create CTA (no gradient) so it doesn't compete; reads as
+   "go somewhere" rather than "do something". Circular icon-only
+   button for compactness — text label would crowd the topbar at
+   smaller widths. */
+.home-topbar__search-launcher {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--border-input);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: color 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+
+.home-topbar__search-launcher:hover,
+.home-topbar__search-launcher:focus-visible {
+  color: var(--text-primary);
+  border-color: var(--accent-primary);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+/* CREATE zone — a flex item that doesn't grow, so the search input
+   gets the slack. Holds the CreateMenu trigger + its dropdown. */
+.home-topbar__create {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+/* ACCOUNT zone — sits at the right edge. Margin-left:auto pins it
+   regardless of how the middle items lay out, and the border-left
+   provides Gestalt separation from Create per the cleanup brief. */
 .home-topbar__actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   margin-left: auto;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--border-subtle);
 }
 
 /* Profile-pic dropdown — avatar is the trigger, panel hosts Home /
@@ -255,25 +427,47 @@
 
 /* Search input — magnifier glyph sits inside via background-image so
    we avoid the wrapper-element + flex-positioning dance. The SVG is
-   inlined so we don't pay a request per render. Note: the SVG stroke
-   color is hardcoded slate-400; CSS background-image can't reference
-   custom properties, so the icon stays mid-tone in both themes —
-   readable on dark and light backgrounds without theme switching. */
+   inlined so we don't pay a request per render. The stroke color is
+   `#c9c9d6` (slate-300 equivalent) — the home-topbar cleanup brief
+   bumped this from the old slate-500 because non-text contrast was
+   below WCAG AA 3:1 against the input's dark surface; the brighter
+   tone still reads in both themes. Right-side padding has room for
+   the absolutely-positioned ⌘K hint chip. */
 .home-search {
-  flex: 1;
-  padding: 0.6rem 1rem 0.6rem 2.4rem;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.7rem 3.4rem 0.7rem 2.6rem;
   border-radius: 999px;
   border: 1px solid var(--border-input);
   background-color: var(--bg-input);
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='rgb(100,116,139)' stroke-width='2'><circle cx='11' cy='11' r='7'/><path stroke-linecap='round' d='M21 21l-4.35-4.35'/></svg>");
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23c9c9d6' stroke-width='2'><circle cx='11' cy='11' r='7'/><path stroke-linecap='round' d='M21 21l-4.35-4.35'/></svg>");
   background-repeat: no-repeat;
-  background-position: 0.85rem center;
+  background-position: 0.95rem center;
   background-size: 1rem 1rem;
   color: var(--text-primary);
   font-size: 0.9rem;
   font-family: inherit;
   outline: none;
   transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+/* ⌘K keyboard hint — visual-only affordance pinned to the right edge
+   of the input. Marked aria-hidden in JSX because it's decorative;
+   when a real command palette ships, a document-level keydown
+   listener would consume Cmd/Ctrl+K. `pointer-events: none` so the
+   user clicking the chip still lands focus in the input. */
+.home-search__hint {
+  position: absolute;
+  right: 0.7rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font: 600 0.7rem ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 2px 6px;
+  pointer-events: none;
 }
 
 .home-search::placeholder {
@@ -336,11 +530,17 @@
   box-shadow: none;
 }
 
-/* ---- Type filter chips ---- */
+/* ---- Type filter chips ----
+   Sits between the topbar and the feed grid. The margin pulls it
+   away from the topbar (24px above) and gives the cards (12px below)
+   breathing room without crowding into either neighbour. The brief
+   moved the filter row out of the header explicitly so it reads as
+   "filters for the feed below" rather than "global header toggles". */
 .home-filters {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+  margin: 24px 0 12px;
 }
 
 .home-filter-chip {
@@ -387,20 +587,26 @@
    light + dark themes share the same component class.
    ============================================================ */
 .home-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
+  /* Soft glass surface — translucent fill + 18px corners so the
+     stardust body gradient bleeds through and the cards read as
+     part of the warm atmosphere instead of opaque slabs. Internal
+     layout (header, body, footer) is unchanged. */
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
   overflow: hidden;
   cursor: pointer;
   box-shadow: var(--shadow-card);
   transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
   display: flex;
   flex-direction: column;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .home-card:hover {
   transform: translateY(-2px);
-  border-color: var(--accent-primary-soft);
+  border-color: rgba(255, 255, 255, 0.16);
   box-shadow: var(--shadow-card-hover);
 }
 
@@ -416,9 +622,12 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  /* Author-avatar fallback gradient. Stays static across themes —
-     a light-mode user's first-letter chip looks fine on white. */
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  /* Author-avatar fallback — same stardust recipe as the rest of
+     the brand so the warm aesthetic carries through to the smallest
+     elements. Shows behind the <img> on cards where the author has
+     uploaded one (image covers the gradient), and as the pill behind
+     the initial when they haven't. */
+  background: linear-gradient(135deg, #ff9a6c, #b07bff);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -426,6 +635,14 @@
   font-weight: 700;
   color: #fff;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.home-card__avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .home-card__header-text {
@@ -880,21 +1097,38 @@
   }
 
   /* Mobile topbar order (single column of rows top-to-bottom):
-       row 1: [hamburger ........ actions cluster (Sign in/up or bell+avatar)]
+       row 1: [hamburger ........ 🔍 launcher ........ account cluster]
        row 2: [search — full width]
-       row 3: [Create Matchup | Create Bracket]
-     Hamburger and the actions cluster sit at the same `order: 0` so
-     they share the top row; the actions cluster pushes itself right
-     via margin-left:auto on its own rule. Search uses flex-basis 100%
-     to claim its own row below. Create buttons split the next row. */
+       row 3: [+ Create ▾ — full width]
+     The hamburger, search launcher, and account cluster all share
+     order:0 so they read as "row 1"; the account cluster pushes
+     itself right via margin-left:auto. Search and Create each take a
+     full row of their own. */
   .home-topbar__menu { order: 0; }
-  .home-topbar__actions { order: 0; }
-  .home-search {
+  .home-topbar__search-launcher { order: 0; }
+  .home-topbar__actions {
+    order: 0;
+    /* The border-left separator looks heavy on a phone where the
+       cluster sits in its own row anyway, so drop it on mobile. */
+    border-left: 0;
+    padding-left: 0;
+  }
+  .home-search-wrap {
     flex: 1 1 100%;
-    min-width: 0;
+    max-width: none;
     order: 1;
   }
-  .home-create-btn { order: 2; flex: 1 1 calc(50% - 0.4rem); }
+  .home-topbar__create {
+    order: 2;
+    flex: 1 1 100%;
+  }
+  /* CreateMenu and its trigger stretch to the full row on mobile so
+     the CTA is reachable with a single thumb. */
+  .home-topbar__create .create-menu,
+  .home-topbar__create .create-menu__trigger {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 @media (max-width: 520px) {

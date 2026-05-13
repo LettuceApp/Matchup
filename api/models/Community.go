@@ -25,6 +25,11 @@ type Community struct {
 	BannerPath   string         `db:"banner_path" json:"banner_path"`
 	Tags         pq.StringArray `db:"tags" json:"tags"`
 	Privacy      string         `db:"privacy" json:"privacy"`
+	// ThemeGradient is a curated-palette slug (e.g. 'stardust' /
+	// 'sunset'). Empty = no theme chosen → frontend falls back to the
+	// default stardust palette. Stored as a slug, not raw CSS, so we
+	// can iterate on the palette without a migration.
+	ThemeGradient string         `db:"theme_gradient" json:"theme_gradient"`
 	OwnerID      uint           `db:"owner_id" json:"owner_id"`
 	MemberCount  int64          `db:"member_count" json:"member_count"`
 	MatchupCount int64          `db:"matchup_count" json:"matchup_count"`

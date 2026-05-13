@@ -351,8 +351,13 @@ type PopularMatchupData struct {
 	Rank            int32                  `protobuf:"varint,12,opt,name=rank,proto3" json:"rank,omitempty"`
 	AuthorUsername  string                 `protobuf:"bytes,13,opt,name=author_username,json=authorUsername,proto3" json:"author_username,omitempty"`
 	CreatedAt       string                 `protobuf:"bytes,14,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Resolved full URL for the author's profile picture (empty when
+	// unset). Embedded so the home / trending feed can render real
+	// avatars on each card instead of falling back to the username
+	// initial — same UX contract as MatchupData.author.avatar_path.
+	AuthorAvatarPath string `protobuf:"bytes,15,opt,name=author_avatar_path,json=authorAvatarPath,proto3" json:"author_avatar_path,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *PopularMatchupData) Reset() {
@@ -479,6 +484,13 @@ func (x *PopularMatchupData) GetAuthorUsername() string {
 func (x *PopularMatchupData) GetCreatedAt() string {
 	if x != nil {
 		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *PopularMatchupData) GetAuthorAvatarPath() string {
+	if x != nil {
+		return x.AuthorAvatarPath
 	}
 	return ""
 }
@@ -2538,7 +2550,7 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x05 \x01(\tR\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\x06 \x01(\tR\tupdatedAt\"\x81\x04\n" +
+	"updated_at\x18\x06 \x01(\tR\tupdatedAt\"\xaf\x04\n" +
 	"\x12PopularMatchupData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x1b\n" +
@@ -2556,7 +2568,8 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\x04rank\x18\f \x01(\x05R\x04rank\x12'\n" +
 	"\x0fauthor_username\x18\r \x01(\tR\x0eauthorUsername\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\x0e \x01(\tR\tcreatedAtB\r\n" +
+	"created_at\x18\x0e \x01(\tR\tcreatedAt\x12,\n" +
+	"\x12author_avatar_path\x18\x0f \x01(\tR\x10authorAvatarPathB\r\n" +
 	"\v_bracket_idB\x14\n" +
 	"\x12_bracket_author_idB\b\n" +
 	"\x06_roundB\x10\n" +

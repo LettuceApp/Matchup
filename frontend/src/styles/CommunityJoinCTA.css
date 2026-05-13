@@ -1,0 +1,115 @@
+/* Sticky bottom CTA shown on MatchupPage + BracketPage when the
+   matchup/bracket is community-scoped and the viewer isn't a
+   member. Mirrors Twitter's "Sign in to X" bottom bar — anchored to
+   the viewport so it stays visible while the user scrolls. */
+
+.community-join-cta {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 80;
+  background: linear-gradient(180deg, transparent 0%, rgba(15, 23, 42, 0.18) 12%, var(--bg-surface) 30%);
+  padding: 16px 16px max(16px, env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+
+.community-join-cta__inner {
+  max-width: 720px;
+  margin: 0 auto;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.35);
+  pointer-events: auto;
+}
+
+.community-join-cta__copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.community-join-cta__title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.community-join-cta__sub {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.community-join-cta__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.community-join-cta__btn {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 150ms ease, background 150ms ease, border-color 150ms ease;
+}
+
+.community-join-cta__btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.community-join-cta__btn--primary {
+  background: linear-gradient(135deg, var(--accent-primary-from), var(--accent-primary-to));
+  color: #1f2937;
+}
+
+.community-join-cta__btn--primary:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px var(--accent-primary-shadow);
+}
+
+.community-join-cta__btn--ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--border-subtle);
+}
+
+.community-join-cta__btn--ghost:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+@media (max-width: 600px) {
+  .community-join-cta__inner {
+    flex-wrap: wrap;
+    padding: 12px 14px;
+  }
+  .community-join-cta__title {
+    font-size: 0.9rem;
+  }
+  .community-join-cta__sub {
+    font-size: 0.78rem;
+  }
+  .community-join-cta__actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

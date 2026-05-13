@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProfilePic from './ProfilePic';
-import { logout as serverLogout, signOutLocally } from '../services/api';
+import {
+  listMyCommunities,
+  logout as serverLogout,
+  signOutLocally,
+} from '../services/api';
 import { CATEGORIES } from '../utils/categories';
 
 // How many categories to show in the collapsed state. With 14 total
@@ -23,12 +27,44 @@ const HomeSidebar = ({ sortMode, onSortChange, categoryFilter, onCategoryChange,
   // toggle. If the active filter is one of the collapsed categories
   // we force-expand so the active highlight is reachable.
   const [categoriesExpanded, setCategoriesExpanded] = useState(false);
+  // Communities section collapses by default so the Account section
+  // (avatar + Logout) stays visible without scrolling at standard
+  // laptop heights. Expanding reveals the full joined list +
+  // "+ Create community" CTA. Stays per-mount — re-renders or
+  // re-mounts reset to collapsed (the brief specifies "collapsed on
+  // initial render").
+  const [communitiesExpanded, setCommunitiesExpanded] = useState(false);
   const allCategoriesEntry = CATEGORIES[0];
   const bodyCategories = CATEGORIES.slice(1);
   const topBodyCategories = bodyCategories.slice(0, COLLAPSED_CATEGORY_COUNT);
   const hiddenBodyCategories = bodyCategories.slice(COLLAPSED_CATEGORY_COUNT);
   const activeIsHidden = hiddenBodyCategories.includes(categoryFilter);
   const showHidden = categoriesExpanded || activeIsHidden;
+
+  // My-communities sidebar list. Fetched once on mount for authed
+  // users; anon viewers get an empty array from the server (no error)
+  // so the section just doesn't render. Re-fetched whenever the auth
+  // state changes — most often when the user signs in or creates a
+  // new community (we listen for a route-driven refresh trigger).
+  const [myCommunities, setMyCommunities] = useState([]);
+  useEffect(() => {
+    if (!isAuthed) {
+      setMyCommunities([]);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await listMyCommunities({ limit: 30 });
+        if (cancelled) return;
+        setMyCommunities(res?.data?.communities || []);
+      } catch (err) {
+        if (cancelled) return;
+        console.warn('listMyCommunities failed', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isAuthed]);
 
   const handleLogout = async () => {
     const refreshToken = localStorage.getItem('refresh_token');
@@ -105,19 +141,66 @@ const HomeSidebar = ({ sortMode, onSortChange, categoryFilter, onCategoryChange,
           </button>
         )}
 
-        {/* Communities section — only the entry point in v1. Browse
-            directory + "my communities" land in a later phase, by
-            which point this will grow into a multi-item section. */}
+        {/* Communities section. Lists the user's joined communities
+            with a role badge (owner / mod / member) so they can jump
+            into any of them from the sidebar. "+ Create community"
+            stays pinned at the bottom of the section as the
+            recurrent CTA. Collapsed-by-default per the home-cleanup
+            brief — Communities can grow long enough to push the
+            Account section below the fold, so we hide them behind a
+            disclosure toggle and let the user opt in. */}
         {isAuthed && (
           <>
-            <div className="home-sidebar__section-label">Communities</div>
             <button
               type="button"
-              className="home-sidebar__nav-item"
-              onClick={() => navigate('/communities/new')}
+              className="home-sidebar__section-toggle"
+              aria-expanded={communitiesExpanded}
+              onClick={() => setCommunitiesExpanded((v) => !v)}
             >
-              + Create community
+              <span>Communities</span>
+              <span aria-hidden="true" className="home-sidebar__section-toggle-caret">
+                {communitiesExpanded ? '▾' : '▸'}
+              </span>
             </button>
+            {communitiesExpanded && (
+              <>
+                {myCommunities.map((c) => {
+                  const role = c.viewer_role || 'member';
+                  const initial = (c.name || '?').charAt(0).toUpperCase();
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="home-sidebar__community-row"
+                      onClick={() => navigate(`/c/${c.slug}`)}
+                      title={`${c.name} · ${role}`}
+                    >
+                      <span className="home-sidebar__community-avatar" aria-hidden="true">
+                        {c.avatar_path ? (
+                          <img src={c.avatar_path} alt="" />
+                        ) : (
+                          <span>{initial}</span>
+                        )}
+                      </span>
+                      <span className="home-sidebar__community-name">{c.name}</span>
+                      <span
+                        className={`home-sidebar__community-role home-sidebar__community-role--${role}`}
+                        aria-label={`Your role: ${role}`}
+                      >
+                        {role === 'owner' ? '👑' : role === 'mod' ? '⚔' : '·'}
+                      </span>
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  className="home-sidebar__nav-item home-sidebar__nav-item--muted"
+                  onClick={() => navigate('/communities/new')}
+                >
+                  + Create community
+                </button>
+              </>
+            )}
           </>
         )}
 

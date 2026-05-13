@@ -8,6 +8,7 @@ import {
   FiTrendingUp,
   FiMessageCircle,
   FiChevronDown,
+  FiUsers,
 } from 'react-icons/fi';
 import {
   getUserMatchups,
@@ -26,6 +27,7 @@ import {
   getUserActivity,
   getMatchup,
   getBracket,
+  listUserCommunities,
 } from '../services/api';
 
 import ProfilePic from '../components/ProfilePic';
@@ -182,7 +184,7 @@ const UserProfile = () => {
   const [searchParams] = useSearchParams();
   const initialTab = (() => {
     const raw = searchParams.get('tab');
-    if (raw && ['matchups', 'brackets', 'activity', 'likes'].includes(raw)) {
+    if (raw && ['matchups', 'brackets', 'communities', 'activity', 'likes'].includes(raw)) {
       return raw;
     }
     return 'matchups';
@@ -200,6 +202,15 @@ const UserProfile = () => {
   const [likedMatchups, setLikedMatchups] = useState([]);
   const [likedBrackets, setLikedBrackets] = useState([]);
   const [likesLoaded, setLikesLoaded] = useState(false);
+
+  // Communities tab state — lazy-loaded the first time the tab is
+  // opened. viewer_role on each result is the TARGET user's role in
+  // that community (owner / mod / member), so the badge describes the
+  // profile owner, not the visitor.
+  const [communitiesList, setCommunitiesList] = useState([]);
+  const [communitiesLoading, setCommunitiesLoading] = useState(false);
+  const [communitiesLoaded, setCommunitiesLoaded] = useState(false);
+  const [communitiesError, setCommunitiesError] = useState(null);
 
   // Activity tab state — same lazy-load pattern as Likes. The
   // `activityLastSeenAt` snapshot is taken at tab-open time so every
@@ -378,6 +389,42 @@ const UserProfile = () => {
       isMounted = false;
     };
   }, [activeTab, user, identifier, likesLoaded]);
+
+  // Lazy-load the Communities tab once on first open. Anyone can
+  // view a user's communities (public read).
+  useEffect(() => {
+    let isMounted = true;
+    const loadCommunities = async () => {
+      if (activeTab !== 'communities' || !user || communitiesLoaded) return;
+      const userLookupId = user?.id || identifier;
+      if (!userLookupId) return;
+
+      setCommunitiesLoading(true);
+      setCommunitiesError(null);
+      try {
+        const res = await listUserCommunities(userLookupId, { limit: 50 });
+        if (!isMounted) return;
+        setCommunitiesList(res?.data?.communities || []);
+        setCommunitiesLoaded(true);
+      } catch (err) {
+        console.warn('Communities unavailable', err);
+        if (!isMounted) return;
+        setCommunitiesError('Communities unavailable.');
+      } finally {
+        if (isMounted) setCommunitiesLoading(false);
+      }
+    };
+    loadCommunities();
+    return () => { isMounted = false; };
+  }, [activeTab, user, identifier, communitiesLoaded]);
+
+  // Wipe communities state when viewing a different profile.
+  useEffect(() => {
+    setCommunitiesLoaded(false);
+    setCommunitiesList([]);
+    setCommunitiesError(null);
+    setCommunitiesLoading(false);
+  }, [identifier]);
 
   // Lazy-load the Activity feed on first tab-open. Reads + writes the
   // localStorage "last seen" timestamp so unread dots survive reloads.
@@ -1064,6 +1111,9 @@ const UserProfile = () => {
                 <Tabs.Trigger value="brackets" className="profile-tab">
                   Brackets
                 </Tabs.Trigger>
+                <Tabs.Trigger value="communities" className="profile-tab">
+                  Communities
+                </Tabs.Trigger>
                 {/* Activity is owner-only — strangers don't see what the
                     profile owner has been doing. Mirrors the strict
                     owner-only gating used elsewhere (matchup owner
@@ -1212,6 +1262,85 @@ const UserProfile = () => {
                       />
                     )}
                   </div>
+                </div>
+              </Tabs.Content>
+
+              <Tabs.Content value="communities" className="profile-tab-panel">
+                <div className="profile-tab-section">
+                  <header className="profile-section-header">
+                    <div>
+                      <h2>{isViewer ? 'Your Communities' : `${displayName}'s Communities`}</h2>
+                      <p>Spaces this user runs, mods, or just hangs out in.</p>
+                    </div>
+                    {isViewer && (
+                      <Button
+                        onClick={() => navigate('/communities/new')}
+                        className="profile-secondary-button"
+                      >
+                        New community
+                      </Button>
+                    )}
+                  </header>
+
+                  {communitiesLoading && communitiesList.length === 0 && (
+                    <div className="profile-grid profile-grid--compact">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <SkeletonCard key={`comm-skel-${i}`} />
+                      ))}
+                    </div>
+                  )}
+
+                  {communitiesError && (
+                    <p className="profile-tab-section__error">{communitiesError}</p>
+                  )}
+
+                  {!communitiesLoading && !communitiesError && communitiesList.length === 0 && (
+                    <EmptyStateCard
+                      title={isViewer ? "You're not in any communities yet" : `${displayName} isn't in any communities yet`}
+                      description={isViewer
+                        ? "Join one to vote on community-specific matchups, or spin up your own."
+                        : "Come back when they've joined or created one."}
+                      ctaLabel={isViewer ? 'Create community' : 'Browse home'}
+                      onCta={() => isViewer ? navigate('/communities/new') : navigate('/home')}
+                      icon={FiUsers}
+                    />
+                  )}
+
+                  {communitiesList.length > 0 && (
+                    <div className="profile-community-list">
+                      {communitiesList.map((c) => {
+                        const role = c.viewer_role || 'member';
+                        const initial = (c.name || '?').charAt(0).toUpperCase();
+                        return (
+                          <Link
+                            key={c.id}
+                            to={`/c/${c.slug}`}
+                            className="profile-community-row"
+                          >
+                            <span className="profile-community-row__avatar" aria-hidden="true">
+                              {c.avatar_path ? (
+                                <img src={c.avatar_path} alt="" />
+                              ) : (
+                                <span>{initial}</span>
+                              )}
+                            </span>
+                            <span className="profile-community-row__text">
+                              <span className="profile-community-row__name">{c.name}</span>
+                              <span className="profile-community-row__slug">/c/{c.slug}</span>
+                            </span>
+                            <span className="profile-community-row__meta">
+                              <span className="profile-community-row__count">
+                                {c.member_count} {c.member_count === 1 ? 'member' : 'members'}
+                              </span>
+                              <span className={`profile-community-row__role profile-community-row__role--${role}`}>
+                                {role === 'owner' ? '👑 Owner' : role === 'mod' ? '⚔ Mod' : 'Member'}
+                              </span>
+                            </span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </Tabs.Content>
 

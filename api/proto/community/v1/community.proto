@@ -33,6 +33,17 @@ service CommunityService {
   rpc UpdateCommunity(UpdateCommunityRequest) returns (UpdateCommunityResponse);
   rpc DeleteCommunity(DeleteCommunityRequest) returns (DeleteCommunityResponse);
   rpc ListCommunities(ListCommunitiesRequest) returns (ListCommunitiesResponse);
+  // Communities the authenticated caller is a non-banned member of,
+  // ordered by most-recently-joined first. Returns empty for anon
+  // callers. Each community includes the viewer's role so the
+  // sidebar can render a role badge without a second round-trip.
+  rpc ListMyCommunities(ListMyCommunitiesRequest) returns (ListMyCommunitiesResponse);
+  // Communities a specified user is a non-banned member of. Public
+  // read — used by the profile-page Communities tab. The `viewer_role`
+  // field carries the TARGET user's role in each community (not the
+  // viewer's), so the profile renders "owner / mod / member" badges
+  // for the person whose profile is being viewed.
+  rpc ListUserCommunities(ListUserCommunitiesRequest) returns (ListUserCommunitiesResponse);
   rpc CheckSlugAvailable(CheckSlugAvailableRequest) returns (CheckSlugAvailableResponse);
 
   rpc JoinCommunity(JoinCommunityRequest) returns (JoinCommunityResponse);
@@ -74,6 +85,12 @@ message CommunityData {
   // values: 'owner' | 'mod' | 'member' | 'banned' | '' (not a member).
   // Lets the frontend decide what UI to render without a second RPC.
   string viewer_role = 16;
+  // theme_gradient is a curated-palette slug picked by the owner in
+  // settings ('stardust' / 'sunset' / etc.). Empty = use default.
+  // Resolved on the frontend against COMMUNITY_GRADIENTS — the slug
+  // is the wire contract, the colors live in the client palette so we
+  // can iterate without schema or proto changes.
+  string theme_gradient = 17;
 }
 
 message CommunityMember {
@@ -122,6 +139,16 @@ message UpdateCommunityRequest {
   repeated string tags = 6;
   // privacy is updatable but v1 only accepts 'public'.
   optional string privacy = 7;
+  // S3 keys from UploadService.PresignUpload with kind =
+  // 'community_avatar' / 'community_banner'. When set, the handler
+  // commits the uploaded object + stamps the resulting permanent
+  // path onto avatar_path / banner_path. Lets the settings UI ship
+  // one save call instead of presign-then-update.
+  optional string avatar_upload_key = 8;
+  optional string banner_upload_key = 9;
+  // Curated-palette gradient slug. Handler validates against the
+  // backend allow-list before writing.
+  optional string theme_gradient = 10;
 }
 message UpdateCommunityResponse {
   CommunityData community = 1;
@@ -143,6 +170,24 @@ message ListCommunitiesRequest {
 message ListCommunitiesResponse {
   repeated CommunityData communities = 1;
   string next_cursor = 2;
+}
+
+message ListMyCommunitiesRequest {
+  // Optional caps. Server clamps to a sane max so a forgetful caller
+  // can't ask for "all my communities" and hammer the DB.
+  int32 limit = 1;
+}
+message ListMyCommunitiesResponse {
+  repeated CommunityData communities = 1;
+}
+
+message ListUserCommunitiesRequest {
+  // Username OR public_id of the user whose communities to list.
+  string user_id = 1;
+  int32 limit = 2;
+}
+message ListUserCommunitiesResponse {
+  repeated CommunityData communities = 1;
 }
 
 message CheckSlugAvailableRequest { string slug = 1; }

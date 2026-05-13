@@ -31,8 +31,11 @@ import {
   getBracketMatchups,
   getMatchups,
   skipMatchup,
+  getCommunity,
+  joinCommunity,
 } from "../services/api";
 import "../styles/MatchupPage.css";
+import "../styles/CommunityJoinCTA.css";
 import useCountdown from "../hooks/useCountdown";
 import useShareTracking from "../hooks/useShareTracking";
 import { relativeTime } from "../utils/time";
@@ -55,6 +58,12 @@ const MatchupPage = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [matchup, setMatchup] = useState(null);
   const [bracket, setBracket] = useState(null);
+  // Community context for community-scoped matchups. Lazy-loaded when
+  // matchup.community_id appears in the response. Used to render the
+  // sticky bottom Join CTA for non-members + the at-a-glance "from
+  // /c/<slug>" link in the hero.
+  const [matchupCommunity, setMatchupCommunity] = useState(null);
+  const [joiningCommunity, setJoiningCommunity] = useState(false);
   // Sibling matchups in the same bracket. Used to compute the
   // "Match X of Y · Round N" progress chip — pairwise-comparison
   // research is consistent that surfacing where you are in the
@@ -104,6 +113,48 @@ const MatchupPage = () => {
   /* ------------------------------------------------------------------ */
   /* DATA LOADING */
   /* ------------------------------------------------------------------ */
+
+  // Fetch the community whenever the matchup is community-scoped so
+  // the page can render a "from /c/<slug>" link and a sticky Join
+  // CTA for non-members. Re-runs only when the matchup's community
+  // id changes (which is at most once per page load).
+  useEffect(() => {
+    const cid = matchup?.community_id;
+    if (!cid) {
+      setMatchupCommunity(null);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getCommunity(cid);
+        if (!cancelled) setMatchupCommunity(res?.data?.community ?? null);
+      } catch (err) {
+        if (!cancelled) setMatchupCommunity(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [matchup?.community_id]);
+
+  const handleJoinCommunity = async () => {
+    if (!matchupCommunity || joiningCommunity) return;
+    if (!viewerId) {
+      // Anon → bounce to login with a return path.
+      window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
+      return;
+    }
+    setJoiningCommunity(true);
+    try {
+      await joinCommunity(matchupCommunity.id);
+      // Re-fetch community so viewer_role updates → bottom CTA hides.
+      const res = await getCommunity(matchupCommunity.id);
+      setMatchupCommunity(res?.data?.community ?? matchupCommunity);
+    } catch (err) {
+      console.warn('Join community failed', err);
+    } finally {
+      setJoiningCommunity(false);
+    }
+  };
 
   const refreshMatchup = useCallback(async () => {
     // ✅ Prefer "get by ID" so bracket matchups never 404 due to uid mismatch
@@ -1369,6 +1420,46 @@ const MatchupPage = () => {
           onCancel={() => setConfirmModal(null)}
         />
       )}
+
+      {/* Twitter-style sticky bottom CTA — community-scoped matchups
+          surface a Join button for non-members so the "preview vs
+          participate" boundary is obvious. Hidden once the viewer
+          becomes a member (viewer_role flips), and also for banned
+          users (who explicitly shouldn't see a Join CTA). */}
+      {matchupCommunity &&
+        matchupCommunity.viewer_role !== 'owner' &&
+        matchupCommunity.viewer_role !== 'mod' &&
+        matchupCommunity.viewer_role !== 'member' &&
+        matchupCommunity.viewer_role !== 'banned' && (
+          <div className="community-join-cta" role="region" aria-label="Join community">
+            <div className="community-join-cta__inner">
+              <div className="community-join-cta__copy">
+                <span className="community-join-cta__title">
+                  You're previewing /c/{matchupCommunity.slug}
+                </span>
+                <span className="community-join-cta__sub">
+                  Join to vote, comment, and post your own matchups.
+                </span>
+              </div>
+              <div className="community-join-cta__actions">
+                <Link
+                  to={`/c/${matchupCommunity.slug}`}
+                  className="community-join-cta__btn community-join-cta__btn--ghost"
+                >
+                  View community
+                </Link>
+                <button
+                  type="button"
+                  className="community-join-cta__btn community-join-cta__btn--primary"
+                  onClick={handleJoinCommunity}
+                  disabled={joiningCommunity}
+                >
+                  {joiningCommunity ? 'Joining…' : 'Join community'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
 };

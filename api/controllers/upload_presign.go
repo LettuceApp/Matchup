@@ -45,6 +45,10 @@ const (
 	// covers (items are tile-sized in the contender card layout, so a
 	// 2 MB cap is plenty for a sharp upload that resizes well).
 	UploadKindMatchupItem UploadKind = "matchup_item"
+	// Community avatar + banner — written by the owner via the
+	// Settings page. Same 5 MB cap as user avatars / matchup covers.
+	UploadKindCommunityAvatar UploadKind = "community_avatar"
+	UploadKindCommunityBanner UploadKind = "community_banner"
 )
 
 // uploadKindSpec is the per-kind policy: what's allowed + how large.
@@ -86,6 +90,24 @@ var uploadKinds = map[UploadKind]uploadKindSpec{
 	},
 	UploadKindMatchupItem: {
 		MaxBytes: 2_000_000,
+		AllowedTypes: map[string]bool{
+			"image/jpeg": true,
+			"image/png":  true,
+			"image/webp": true,
+			"image/gif":  true,
+		},
+	},
+	UploadKindCommunityAvatar: {
+		MaxBytes: 5_000_000,
+		AllowedTypes: map[string]bool{
+			"image/jpeg": true,
+			"image/png":  true,
+			"image/webp": true,
+			"image/gif":  true,
+		},
+	},
+	UploadKindCommunityBanner: {
+		MaxBytes: 5_000_000,
 		AllowedTypes: map[string]bool{
 			"image/jpeg": true,
 			"image/png":  true,
