@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProfilePic from './ProfilePic';
-import { logout as serverLogout, signOutLocally } from '../services/api';
+import {
+  listMyCommunities,
+  logout as serverLogout,
+  signOutLocally,
+} from '../services/api';
 import { CATEGORIES } from '../utils/categories';
 
 // How many categories to show in the collapsed state. With 14 total
@@ -29,6 +33,31 @@ const HomeSidebar = ({ sortMode, onSortChange, categoryFilter, onCategoryChange,
   const hiddenBodyCategories = bodyCategories.slice(COLLAPSED_CATEGORY_COUNT);
   const activeIsHidden = hiddenBodyCategories.includes(categoryFilter);
   const showHidden = categoriesExpanded || activeIsHidden;
+
+  // My-communities sidebar list. Fetched once on mount for authed
+  // users; anon viewers get an empty array from the server (no error)
+  // so the section just doesn't render. Re-fetched whenever the auth
+  // state changes — most often when the user signs in or creates a
+  // new community (we listen for a route-driven refresh trigger).
+  const [myCommunities, setMyCommunities] = useState([]);
+  useEffect(() => {
+    if (!isAuthed) {
+      setMyCommunities([]);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await listMyCommunities({ limit: 30 });
+        if (cancelled) return;
+        setMyCommunities(res?.data?.communities || []);
+      } catch (err) {
+        if (cancelled) return;
+        console.warn('listMyCommunities failed', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isAuthed]);
 
   const handleLogout = async () => {
     const refreshToken = localStorage.getItem('refresh_token');
@@ -105,15 +134,45 @@ const HomeSidebar = ({ sortMode, onSortChange, categoryFilter, onCategoryChange,
           </button>
         )}
 
-        {/* Communities section — only the entry point in v1. Browse
-            directory + "my communities" land in a later phase, by
-            which point this will grow into a multi-item section. */}
+        {/* Communities section. Lists the user's joined communities
+            with a role badge (owner / mod / member) so they can jump
+            into any of them from the sidebar. "+ Create community"
+            stays pinned at the bottom of the section as the
+            recurrent CTA. */}
         {isAuthed && (
           <>
             <div className="home-sidebar__section-label">Communities</div>
+            {myCommunities.map((c) => {
+              const role = c.viewer_role || 'member';
+              const initial = (c.name || '?').charAt(0).toUpperCase();
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  className="home-sidebar__community-row"
+                  onClick={() => navigate(`/c/${c.slug}`)}
+                  title={`${c.name} · ${role}`}
+                >
+                  <span className="home-sidebar__community-avatar" aria-hidden="true">
+                    {c.avatar_path ? (
+                      <img src={c.avatar_path} alt="" />
+                    ) : (
+                      <span>{initial}</span>
+                    )}
+                  </span>
+                  <span className="home-sidebar__community-name">{c.name}</span>
+                  <span
+                    className={`home-sidebar__community-role home-sidebar__community-role--${role}`}
+                    aria-label={`Your role: ${role}`}
+                  >
+                    {role === 'owner' ? '👑' : role === 'mod' ? '⚔' : '·'}
+                  </span>
+                </button>
+              );
+            })}
             <button
               type="button"
-              className="home-sidebar__nav-item"
+              className="home-sidebar__nav-item home-sidebar__nav-item--muted"
               onClick={() => navigate('/communities/new')}
             >
               + Create community

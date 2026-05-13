@@ -766,6 +766,12 @@ export const listCommunities = (params = {}) =>
     query: params.query || '',
   });
 
+// Communities the authenticated caller belongs to, most-recently-joined
+// first. Returns an empty array for anon callers (NOT an error) so the
+// sidebar can render the section without branching on auth.
+export const listMyCommunities = ({ limit = 30 } = {}) =>
+  rpc('community.v1.CommunityService', 'ListMyCommunities', { limit });
+
 // Slug availability — used by the create form for live feedback as
 // the user types. Server returns { available, reason, suggestions }.
 export const checkSlugAvailable = (slug) =>

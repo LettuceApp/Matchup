@@ -33,6 +33,11 @@ service CommunityService {
   rpc UpdateCommunity(UpdateCommunityRequest) returns (UpdateCommunityResponse);
   rpc DeleteCommunity(DeleteCommunityRequest) returns (DeleteCommunityResponse);
   rpc ListCommunities(ListCommunitiesRequest) returns (ListCommunitiesResponse);
+  // Communities the authenticated caller is a non-banned member of,
+  // ordered by most-recently-joined first. Returns empty for anon
+  // callers. Each community includes the viewer's role so the
+  // sidebar can render a role badge without a second round-trip.
+  rpc ListMyCommunities(ListMyCommunitiesRequest) returns (ListMyCommunitiesResponse);
   rpc CheckSlugAvailable(CheckSlugAvailableRequest) returns (CheckSlugAvailableResponse);
 
   rpc JoinCommunity(JoinCommunityRequest) returns (JoinCommunityResponse);
@@ -143,6 +148,15 @@ message ListCommunitiesRequest {
 message ListCommunitiesResponse {
   repeated CommunityData communities = 1;
   string next_cursor = 2;
+}
+
+message ListMyCommunitiesRequest {
+  // Optional caps. Server clamps to a sane max so a forgetful caller
+  // can't ask for "all my communities" and hammer the DB.
+  int32 limit = 1;
+}
+message ListMyCommunitiesResponse {
+  repeated CommunityData communities = 1;
 }
 
 message CheckSlugAvailableRequest { string slug = 1; }

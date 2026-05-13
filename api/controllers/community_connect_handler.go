@@ -466,6 +466,81 @@ func (h *CommunityHandler) ListCommunities(ctx context.Context, req *connect.Req
 	return connect.NewResponse(resp), nil
 }
 
+// ListMyCommunities — communities the authenticated caller is a
+// non-banned member of, ordered by joined_at DESC so the most-
+// recently-joined sit at the top of the sidebar. Anonymous callers
+// get an empty array (not an error) so the frontend can render the
+// section unconditionally without branching on auth state.
+func (h *CommunityHandler) ListMyCommunities(ctx context.Context, req *connect.Request[communityv1.ListMyCommunitiesRequest]) (*connect.Response[communityv1.ListMyCommunitiesResponse], error) {
+	uid, ok := httpctx.CurrentUserID(ctx)
+	if !ok || uid == 0 {
+		return connect.NewResponse(&communityv1.ListMyCommunitiesResponse{}), nil
+	}
+	limit := int(req.Msg.GetLimit())
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	// One query: join memberships to communities so we get both the
+	// community row and the caller's role without a fan-out. Banned
+	// memberships are excluded — a banned user shouldn't see the
+	// community in their own sidebar.
+	type row struct {
+		models.Community
+		ViewerRole string `db:"viewer_role"`
+	}
+	var rows []row
+	err := sqlx.SelectContext(ctx, dbForRead(ctx, h.DB, h.ReadDB), &rows, `
+        SELECT c.*, m.role AS viewer_role
+        FROM community_memberships m
+        JOIN communities c ON c.id = m.community_id
+        WHERE m.user_id = $1
+          AND m.role <> 'banned'
+          AND c.deleted_at IS NULL
+        ORDER BY m.joined_at DESC
+        LIMIT $2`, uid, limit)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	resp := &communityv1.ListMyCommunitiesResponse{}
+	for i := range rows {
+		// Avoid the extra viewer_role lookup inside communityToProto
+		// (which would issue one query per community for the same
+		// data we already have in `rows[i].ViewerRole`). Build the
+		// proto inline; everything else matches communityToProto.
+		c := &rows[i].Community
+		var ownerUsername string
+		_ = sqlx.GetContext(ctx, dbForRead(ctx, h.DB, h.ReadDB), &ownerUsername,
+			"SELECT username FROM users WHERE id = $1", c.OwnerID)
+		var ownerPublicID string
+		_ = sqlx.GetContext(ctx, dbForRead(ctx, h.DB, h.ReadDB), &ownerPublicID,
+			"SELECT public_id FROM users WHERE id = $1", c.OwnerID)
+		resp.Communities = append(resp.Communities, &communityv1.CommunityData{
+			Id:            c.PublicID,
+			Slug:          c.Slug,
+			Name:          c.Name,
+			Description:   c.Description,
+			AvatarPath:    c.AvatarPath,
+			BannerPath:    c.BannerPath,
+			Tags:          []string(c.Tags),
+			Privacy:       c.Privacy,
+			OwnerId:       ownerPublicID,
+			OwnerUsername: ownerUsername,
+			MemberCount:   c.MemberCount,
+			MatchupCount:  c.MatchupCount,
+			BracketCount:  c.BracketCount,
+			CreatedAt:     c.CreatedAt.UTC().Format(time.RFC3339),
+			UpdatedAt:     c.UpdatedAt.UTC().Format(time.RFC3339),
+			ViewerRole:    rows[i].ViewerRole,
+		})
+	}
+	return connect.NewResponse(resp), nil
+}
+
 func (h *CommunityHandler) CheckSlugAvailable(ctx context.Context, req *connect.Request[communityv1.CheckSlugAvailableRequest]) (*connect.Response[communityv1.CheckSlugAvailableResponse], error) {
 	s := slug.Normalize(req.Msg.GetSlug())
 	if reason := slug.Validate(s); reason != "" {
