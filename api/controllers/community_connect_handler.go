@@ -541,6 +541,74 @@ func (h *CommunityHandler) ListMyCommunities(ctx context.Context, req *connect.R
 	return connect.NewResponse(resp), nil
 }
 
+// ListUserCommunities — communities the SPECIFIED user is a non-
+// banned member of, public read. Used by the profile page to show a
+// user's communities. `viewer_role` in the response is the TARGET
+// user's role (not the caller's) so the profile-page badges describe
+// the profile owner, not the visitor.
+func (h *CommunityHandler) ListUserCommunities(ctx context.Context, req *connect.Request[communityv1.ListUserCommunitiesRequest]) (*connect.Response[communityv1.ListUserCommunitiesResponse], error) {
+	target, err := resolveUserByIdentifier(dbForRead(ctx, h.DB, h.ReadDB), req.Msg.GetUserId())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("user not found"))
+	}
+	limit := int(req.Msg.GetLimit())
+	if limit <= 0 {
+		limit = 30
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	type row struct {
+		models.Community
+		TargetRole string `db:"target_role"`
+	}
+	var rows []row
+	err = sqlx.SelectContext(ctx, dbForRead(ctx, h.DB, h.ReadDB), &rows, `
+        SELECT c.*, m.role AS target_role
+        FROM community_memberships m
+        JOIN communities c ON c.id = m.community_id
+        WHERE m.user_id = $1
+          AND m.role <> 'banned'
+          AND c.deleted_at IS NULL
+        ORDER BY m.joined_at DESC
+        LIMIT $2`, target.ID, limit)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	resp := &communityv1.ListUserCommunitiesResponse{}
+	for i := range rows {
+		c := &rows[i].Community
+		// Build the CommunityData inline (similar to ListMyCommunities)
+		// so the response carries the TARGET's role in viewer_role.
+		var ownerUsername, ownerPublicID string
+		_ = sqlx.GetContext(ctx, dbForRead(ctx, h.DB, h.ReadDB), &ownerUsername,
+			"SELECT username FROM users WHERE id = $1", c.OwnerID)
+		_ = sqlx.GetContext(ctx, dbForRead(ctx, h.DB, h.ReadDB), &ownerPublicID,
+			"SELECT public_id FROM users WHERE id = $1", c.OwnerID)
+		resp.Communities = append(resp.Communities, &communityv1.CommunityData{
+			Id:            c.PublicID,
+			Slug:          c.Slug,
+			Name:          c.Name,
+			Description:   c.Description,
+			AvatarPath:    c.AvatarPath,
+			BannerPath:    c.BannerPath,
+			Tags:          []string(c.Tags),
+			Privacy:       c.Privacy,
+			OwnerId:       ownerPublicID,
+			OwnerUsername: ownerUsername,
+			MemberCount:   c.MemberCount,
+			MatchupCount:  c.MatchupCount,
+			BracketCount:  c.BracketCount,
+			CreatedAt:     c.CreatedAt.UTC().Format(time.RFC3339),
+			UpdatedAt:     c.UpdatedAt.UTC().Format(time.RFC3339),
+			ViewerRole:    rows[i].TargetRole, // target's role, not caller's
+		})
+	}
+	return connect.NewResponse(resp), nil
+}
+
 func (h *CommunityHandler) CheckSlugAvailable(ctx context.Context, req *connect.Request[communityv1.CheckSlugAvailableRequest]) (*connect.Response[communityv1.CheckSlugAvailableResponse], error) {
 	s := slug.Normalize(req.Msg.GetSlug())
 	if reason := slug.Validate(s); reason != "" {

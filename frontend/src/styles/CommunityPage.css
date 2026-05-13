@@ -99,24 +99,25 @@
   min-width: 0;
 }
 
-/* Avatar overlaps the banner seam. 4px ring uses bg-page so the
-   "punched out of the banner" effect works in both themes — light
-   gets a white ring, dark gets a navy one. */
+/* Avatar overlaps the banner seam. Softer than a stark white chip:
+   subtle gradient surface + tighter border so it reads as a settled
+   element instead of "pasted on top of the banner." Initial is the
+   brand orange against a dark surface for contrast in both themes. */
 .community-page__avatar {
-  width: 112px;
-  height: 112px;
-  border-radius: 24px;
-  background: var(--bg-surface);
-  border: 4px solid var(--bg-page);
+  width: 104px;
+  height: 104px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, var(--bg-surface-raised), var(--bg-surface));
+  border: 3px solid var(--bg-page);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--accent-primary);
-  font-size: 2.6rem;
-  font-weight: 700;
+  font-size: 2.4rem;
+  font-weight: 800;
   overflow: hidden;
   flex-shrink: 0;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.35);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.28);
 }
 
 .community-page__avatar img {
@@ -180,10 +181,10 @@
 }
 
 .community-page__btn {
-  height: 42px;
-  padding: 0 18px;
-  border-radius: 12px;
-  font-size: 0.9rem;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-size: 0.85rem;
   font-weight: 600;
   border: 1px solid transparent;
   cursor: pointer;
@@ -192,6 +193,17 @@
   align-items: center;
   justify-content: center;
   transition: transform 150ms ease, background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+/* Settings button is owner-only and rarely-used — demote it to a
+   smaller, quieter pill so it doesn't compete with the community
+   identity at the top of the page. Inherits .community-page__btn
+   sizing but loses the gradient/glow. */
+.community-page__btn--settings {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
 }
 
 .community-page__btn:disabled {
@@ -224,7 +236,7 @@
 /* About section with eyebrow label. Tightened vertical padding so
    it sits close to the description without feeling cramped. */
 .community-page__about {
-  padding: 18px 28px 6px;
+  padding: 16px 28px 8px;
   position: relative;
 }
 
@@ -247,7 +259,7 @@
 }
 
 .community-page__tags {
-  padding: 6px 28px 20px;
+  padding: 8px 28px 18px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -269,8 +281,8 @@
 .community-page__create-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  padding: 20px 28px 24px;
+  gap: 10px;
+  padding: 18px 28px 20px;
   border-top: 1px solid var(--border-subtle);
 }
 
@@ -281,17 +293,33 @@
   border-radius: 0 0 18px 18px;
 }
 
+/* Feed title — explicit no-decoration so any inherited accent-bar
+   pseudo-element from a prior design can't reappear here. Uses the
+   same eyebrow rhythm as the ABOUT label above so the two section
+   headers read as a related pair. */
 .community-page__feed-title {
   margin: 0 0 14px 0;
-  font-size: 1.1rem;
-  color: var(--text-primary);
+  padding: 0;
+  border: none;
+  font-size: 0.85rem;
   font-weight: 700;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
+.community-page__feed-title::before,
+.community-page__feed-title::after {
+  content: none;
+}
+
+/* Empty-state pill — solid surface that matches the rest of the
+   card body. Dashed border was the loudest "unfilled placeholder"
+   visual on the page; switched to a solid 1px border so it sits as
+   a quiet panel rather than a TODO marker. */
 .community-page__feed-empty {
   background: var(--bg-surface-alt);
-  border: 1px dashed var(--border-subtle);
+  border: 1px solid var(--border-subtle);
   border-radius: 14px;
   padding: 22px;
   text-align: center;
@@ -302,7 +330,6 @@
 .community-page__feed-empty--error {
   border-color: var(--danger-border, rgba(248, 113, 113, 0.5));
   color: var(--danger-fg, #fca5a5);
-  border-style: solid;
 }
 
 /* Grid uses the same column layout as the home feed (HomeCard's

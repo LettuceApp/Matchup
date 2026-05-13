@@ -772,6 +772,15 @@ export const listCommunities = (params = {}) =>
 export const listMyCommunities = ({ limit = 30 } = {}) =>
   rpc('community.v1.CommunityService', 'ListMyCommunities', { limit });
 
+// Communities a specified user belongs to. Public read — used by the
+// profile-page Communities tab. viewer_role on each result carries
+// the target user's role in that community (owner / mod / member).
+export const listUserCommunities = (userId, { limit = 30 } = {}) =>
+  rpc('community.v1.CommunityService', 'ListUserCommunities', {
+    user_id: userId,
+    limit,
+  });
+
 // Slug availability — used by the create form for live feedback as
 // the user types. Server returns { available, reason, suggestions }.
 export const checkSlugAvailable = (slug) =>

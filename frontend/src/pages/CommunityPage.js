@@ -215,7 +215,10 @@ const CommunityPage = () => {
               {pendingMembership ? 'Leaving…' : 'Leave'}
             </button>
           ) : viewerRole === 'owner' ? (
-            <Link to={`/c/${slug}/settings`} className="community-page__btn community-page__btn--ghost">
+            <Link
+              to={`/c/${slug}/settings`}
+              className="community-page__btn community-page__btn--ghost community-page__btn--settings"
+            >
               Settings
             </Link>
           ) : (

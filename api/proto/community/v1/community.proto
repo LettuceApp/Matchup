@@ -38,6 +38,12 @@ service CommunityService {
   // callers. Each community includes the viewer's role so the
   // sidebar can render a role badge without a second round-trip.
   rpc ListMyCommunities(ListMyCommunitiesRequest) returns (ListMyCommunitiesResponse);
+  // Communities a specified user is a non-banned member of. Public
+  // read — used by the profile-page Communities tab. The `viewer_role`
+  // field carries the TARGET user's role in each community (not the
+  // viewer's), so the profile renders "owner / mod / member" badges
+  // for the person whose profile is being viewed.
+  rpc ListUserCommunities(ListUserCommunitiesRequest) returns (ListUserCommunitiesResponse);
   rpc CheckSlugAvailable(CheckSlugAvailableRequest) returns (CheckSlugAvailableResponse);
 
   rpc JoinCommunity(JoinCommunityRequest) returns (JoinCommunityResponse);
@@ -156,6 +162,15 @@ message ListMyCommunitiesRequest {
   int32 limit = 1;
 }
 message ListMyCommunitiesResponse {
+  repeated CommunityData communities = 1;
+}
+
+message ListUserCommunitiesRequest {
+  // Username OR public_id of the user whose communities to list.
+  string user_id = 1;
+  int32 limit = 2;
+}
+message ListUserCommunitiesResponse {
   repeated CommunityData communities = 1;
 }
 
