@@ -67,22 +67,22 @@ const CommunityPage = () => {
     loadCommunity();
   }, [loadCommunity]);
 
-  // Push the community's chosen gradient up to :root so global
-  // elements (NavigationBar brand wordmark, feed-card stripes, etc.)
-  // repaint with the community's theme. The accent + hover + soft
-  // vars are extracted from the gradient's mid + dark stops so
-  // single-color UI (buttons, owner @-links) can consume them
-  // without re-deriving them at render time.
+  // Push the community's chosen gradient up to :root + flip on the
+  // community-light-mode body class. Three things land here:
+  //   1. --page-accent-gradient — the full CSS gradient used by the
+  //      banner, avatar background, NavigationBar brand wordmark, and
+  //      feed-card accents.
+  //   2. --c-accent / --c-accent-hover / --c-accent-soft — solid color
+  //      siblings extracted from the gradient's mid + dark stops.
+  //      Buttons, owner @-links, and other single-color UI consume
+  //      these instead of trying to flatten a gradient at render time.
+  //   3. body.community-light-mode — toggles the deliberate light shell
+  //      on the community page. The brief from browser-Claude pinned
+  //      the page to a neutral light surface regardless of the
+  //      viewer's app-wide theme; this is the scope hook.
   //
-  // The community page follows the app-wide theme (dark by default)
-  // like every other page — no forced light-mode override. An earlier
-  // cycle pinned the page to a light shell regardless of the viewer's
-  // theme; reverted at the user's request because pages flipping
-  // modes mid-navigation felt jarring. The accent var work stays
-  // because it's the brand-theming hook the rest of the page uses.
-  //
-  // Cleanup removes the vars on unmount so the brand wordmark
-  // reverts to stardust off-community.
+  // Cleanup removes everything on unmount so navigating to /home /
+  // /users/* etc. restores the global dark theme + stardust brand.
   useEffect(() => {
     if (!community) return undefined;
     const slug = community.theme_gradient || '';
@@ -97,11 +97,13 @@ const CommunityPage = () => {
       '--c-accent-soft',
       `color-mix(in srgb, ${accent} 16%, transparent)`,
     );
+    document.body.classList.add('community-light-mode');
     return () => {
       root.style.removeProperty('--page-accent-gradient');
       root.style.removeProperty('--c-accent');
       root.style.removeProperty('--c-accent-hover');
       root.style.removeProperty('--c-accent-soft');
+      document.body.classList.remove('community-light-mode');
     };
   }, [community]);
 
