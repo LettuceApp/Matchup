@@ -98,9 +98,18 @@ type MatchupItemResponse struct {
 	// no image. Resolved server-side via ProcessMatchupItemImagePath
 	// (which lifts the relative DB path to a CDN-style URL). Empty
 	// strings are valid; the frontend falls back to a text-only card.
-	ImageUrl      string `protobuf:"bytes,4,opt,name=image_url,json=imageUrl,proto3" json:"image_url,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ImageUrl string `protobuf:"bytes,4,opt,name=image_url,json=imageUrl,proto3" json:"image_url,omitempty"`
+	// user_id — populated when this item is a "user contender". The
+	// frontend renders the user's avatar + @username in place of the
+	// text label. Empty for plain text/image items. The user_username
+	// + user_avatar_path siblings are hydrated server-side so the
+	// feed render doesn't need an N+1 GetUser RPC per item.
+	UserId       string `protobuf:"bytes,5,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserUsername string `protobuf:"bytes,6,opt,name=user_username,json=userUsername,proto3" json:"user_username,omitempty"`
+	// Resolved full S3 URL (already lifted via appdb.ProcessAvatarPath).
+	UserAvatarPath string `protobuf:"bytes,7,opt,name=user_avatar_path,json=userAvatarPath,proto3" json:"user_avatar_path,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *MatchupItemResponse) Reset() {
@@ -157,6 +166,27 @@ func (x *MatchupItemResponse) GetVotes() int32 {
 func (x *MatchupItemResponse) GetImageUrl() string {
 	if x != nil {
 		return x.ImageUrl
+	}
+	return ""
+}
+
+func (x *MatchupItemResponse) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *MatchupItemResponse) GetUserUsername() string {
+	if x != nil {
+		return x.UserUsername
+	}
+	return ""
+}
+
+func (x *MatchupItemResponse) GetUserAvatarPath() string {
+	if x != nil {
+		return x.UserAvatarPath
 	}
 	return ""
 }
@@ -239,12 +269,15 @@ const file_common_v1_common_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x1f\n" +
 	"\vavatar_path\x18\x03 \x01(\tR\n" +
-	"avatarPath\"l\n" +
+	"avatarPath\"\xd4\x01\n" +
 	"\x13MatchupItemResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04item\x18\x02 \x01(\tR\x04item\x12\x14\n" +
 	"\x05votes\x18\x03 \x01(\x05R\x05votes\x12\x1b\n" +
-	"\timage_url\x18\x04 \x01(\tR\bimageUrl\"m\n" +
+	"\timage_url\x18\x04 \x01(\tR\bimageUrl\x12\x17\n" +
+	"\auser_id\x18\x05 \x01(\tR\x06userId\x12#\n" +
+	"\ruser_username\x18\x06 \x01(\tR\fuserUsername\x12(\n" +
+	"\x10user_avatar_path\x18\a \x01(\tR\x0euserAvatarPath\"m\n" +
 	"\n" +
 	"Pagination\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x14\n" +

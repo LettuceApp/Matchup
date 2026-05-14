@@ -146,20 +146,44 @@ const MatchupItem = ({
           : undefined
       }
     >
-      {/* Optional thumbnail (cycle 6c). Mounts BEFORE the text label so
-          it leads visually — pairwise-comparison research is consistent
-          that visual richness on contender cards improves recognizability.
-          The rendered <img> uses the proto's resolved image_url; empty
-          paths skip the element entirely so existing text-only cards
-          stay unchanged. Decoded async so Safari doesn't block paint. */}
-      {item?.image_url && (
-        <img
-          src={item.image_url}
-          alt={itemName}
-          className="matchup-item__thumb"
-          decoding="async"
-          loading="lazy"
-        />
+      {/* User-as-contender (Phase 2 of the social-loop cycle). When
+          the item references a user, their avatar replaces the
+          item's plain thumbnail and the @username becomes the label.
+          Priority over image_url because the user's identity is the
+          richer signal than whatever generic thumbnail might have
+          been pre-uploaded; if both are set, user wins. */}
+      {item?.user_username ? (
+        <>
+          {item.user_avatar_path ? (
+            <img
+              src={item.user_avatar_path}
+              alt={item.user_username}
+              className="matchup-item__thumb matchup-item__thumb--user"
+              decoding="async"
+              loading="lazy"
+            />
+          ) : (
+            <span className="matchup-item__thumb matchup-item__thumb--user-fallback">
+              {(item.user_username || '?').charAt(0).toUpperCase()}
+            </span>
+          )}
+        </>
+      ) : (
+        /* Optional thumbnail (cycle 6c). Mounts BEFORE the text label so
+            it leads visually — pairwise-comparison research is consistent
+            that visual richness on contender cards improves recognizability.
+            The rendered <img> uses the proto's resolved image_url; empty
+            paths skip the element entirely so existing text-only cards
+            stay unchanged. Decoded async so Safari doesn't block paint. */
+        item?.image_url && (
+          <img
+            src={item.image_url}
+            alt={itemName}
+            className="matchup-item__thumb"
+            decoding="async"
+            loading="lazy"
+          />
+        )
       )}
 
       {isEditing && computedCanEdit ? (

@@ -507,9 +507,19 @@ export const createMatchup = async (userId, data = {}) => {
 
   const coverPromise = uploadMatchupCoverImage(imageFile);
   const itemsPromise = Promise.all(
-    (rawItems ?? []).map(async ({ imageFile: itemFile, ...itemRest }) => {
+    (rawItems ?? []).map(async ({ imageFile: itemFile, userHandle, ...itemRest }) => {
       const upload_key = await uploadMatchupItemImage(itemFile);
-      return { ...itemRest, ...(upload_key ? { upload_key } : {}) };
+      return {
+        ...itemRest,
+        ...(upload_key ? { upload_key } : {}),
+        // userHandle (camelCase from the React form) → proto's
+        // snake_case `user_handle`. When set, the backend resolves it
+        // to a user, validates the mutual/community-member rule, and
+        // writes user_id onto the item row. The text label stays as
+        // the visible caption; empty `item` falls back to @username
+        // server-side.
+        ...(userHandle ? { user_handle: userHandle } : {}),
+      };
     }),
   );
 

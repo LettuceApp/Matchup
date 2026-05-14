@@ -1,0 +1,171 @@
+/*
+ * MentionPicker styles. Two visual states:
+ *   1. Input + dropdown — the "pick someone" state. Looks like a
+ *      narrow input with an absolute-positioned suggestion list
+ *      underneath, same surface recipe as MentionAutocomplete.
+ *   2. Chip — after a user is picked. Compact pill with avatar +
+ *      @username + clear button.
+ */
+
+.mention-picker {
+  position: relative;
+  width: 100%;
+}
+
+.mention-picker__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.55rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-input);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  font-family: inherit;
+}
+
+.mention-picker__input::placeholder {
+  color: var(--text-muted);
+}
+
+.mention-picker__input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-primary-soft);
+}
+
+.mention-picker__panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  list-style: none;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-panel);
+  z-index: 50;
+}
+
+.mention-picker__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background 120ms ease, color 120ms ease;
+  user-select: none;
+}
+
+.mention-picker__item:hover,
+.mention-picker__item--active {
+  background: var(--accent-secondary-bg-soft);
+  color: var(--text-primary);
+}
+
+.mention-picker__avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #ff9a6c, #b07bff);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.mention-picker__avatar--initial {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.mention-picker__username {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.mention-picker__empty {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  z-index: 50;
+}
+
+/* Chip state — replaces the input once a user is picked. Matches the
+   "selected pill" recipe used by the community-tags input on the
+   settings page so the two read as the same control family. */
+.mention-picker--chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 4px;
+  border-radius: 999px;
+  background: var(--accent-secondary-bg-soft);
+  border: 1px solid var(--border-input);
+  width: fit-content;
+}
+
+.mention-picker__chip-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #ff9a6c, #b07bff);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.mention-picker__chip-avatar--initial {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.mention-picker__chip-username {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.mention-picker__chip-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  margin-left: 2px;
+}
+
+.mention-picker__chip-clear:hover,
+.mention-picker__chip-clear:focus-visible {
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+  outline: none;
+}

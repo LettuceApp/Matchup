@@ -238,7 +238,7 @@ func (h *MatchupItemHandler) VoteItem(ctx context.Context, req *connect.Request[
 			// the response matches what other endpoints would show.
 			applyVoteDeltaToItem(ctx, &updatedItem)
 			resp := connect.NewResponse(&matchupv1.VoteItemResponse{
-				Item:         matchupItemToProto(updatedItem),
+				Item:         matchupItemToProto(h.DB, updatedItem),
 				AlreadyVoted: true,
 			})
 			setReadPrimaryCookie(resp.Header())
@@ -401,7 +401,7 @@ func (h *MatchupItemHandler) VoteItem(ctx context.Context, req *connect.Request[
 		_ = cache.PublishActivity(ctx, voterID)
 	}
 
-	resp := connect.NewResponse(&matchupv1.VoteItemResponse{Item: matchupItemToProto(updatedItem)})
+	resp := connect.NewResponse(&matchupv1.VoteItemResponse{Item: matchupItemToProto(h.DB, updatedItem)})
 	setReadPrimaryCookie(resp.Header())
 	return resp, nil
 }
@@ -647,7 +647,7 @@ func (h *MatchupItemHandler) AddItem(ctx context.Context, req *connect.Request[m
 	if m.BracketID != nil {
 		invalidateBracketSummaryCache(*m.BracketID)
 	}
-	resp := connect.NewResponse(&matchupv1.AddItemResponse{Item: matchupItemToProto(item)})
+	resp := connect.NewResponse(&matchupv1.AddItemResponse{Item: matchupItemToProto(h.DB, item)})
 	setReadPrimaryCookie(resp.Header())
 	return resp, nil
 }
@@ -703,7 +703,7 @@ func (h *MatchupItemHandler) UpdateItem(ctx context.Context, req *connect.Reques
 	if m.BracketID != nil {
 		invalidateBracketSummaryCache(*m.BracketID)
 	}
-	resp := connect.NewResponse(&matchupv1.UpdateItemResponse{Item: matchupItemToProto(*itemRecord)})
+	resp := connect.NewResponse(&matchupv1.UpdateItemResponse{Item: matchupItemToProto(h.DB, *itemRecord)})
 	setReadPrimaryCookie(resp.Header())
 	return resp, nil
 }

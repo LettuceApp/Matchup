@@ -134,6 +134,15 @@ message MatchupItemCreate {
   // "matchup_item"). When set, the item lands with a thumbnail; the
   // server commits + resizes + stores image_path. Migration 026.
   optional string upload_key = 2;
+  // Optional @username (with or without the leading `@`) or user
+  // public_id. When set, the item references that user as a
+  // "contender". Server validates: standalone matchup → target must
+  // be a mutual of the creator; community matchup → target must be
+  // a non-banned member of the community. Rejects with
+  // InvalidArgument otherwise. The `item` text field can be empty
+  // when user_handle is set — the frontend renders @username as the
+  // label.
+  optional string user_handle = 3;
 }
 
 message CreateMatchupRequest {
