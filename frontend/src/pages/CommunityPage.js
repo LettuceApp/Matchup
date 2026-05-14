@@ -7,7 +7,11 @@ import {
   joinCommunity,
   leaveCommunity,
 } from '../services/api';
-import { gradientForSlug } from '../utils/communityGradients';
+import {
+  accentForSlug,
+  accentHoverForSlug,
+  gradientForSlug,
+} from '../utils/communityGradients';
 import '../styles/CommunityPage.css';
 
 /*
@@ -63,18 +67,43 @@ const CommunityPage = () => {
     loadCommunity();
   }, [loadCommunity]);
 
-  // Push the community's chosen gradient up to :root as
-  // --page-accent-gradient so global elements (currently the
-  // NavigationBar brand wordmark) repaint with the community's
-  // theme instead of the app's default stardust. Cleanup removes
-  // the var so navigating away from /c/* restores the global
-  // recipe — without this, the brand would stay tinted forever.
+  // Push the community's chosen gradient up to :root + flip on the
+  // community-light-mode body class. Three things land here:
+  //   1. --page-accent-gradient — the full CSS gradient used by the
+  //      banner, avatar background, NavigationBar brand wordmark, and
+  //      feed-card accents.
+  //   2. --c-accent / --c-accent-hover / --c-accent-soft — solid color
+  //      siblings extracted from the gradient's mid + dark stops.
+  //      Buttons, owner @-links, and other single-color UI consume
+  //      these instead of trying to flatten a gradient at render time.
+  //   3. body.community-light-mode — toggles the deliberate light shell
+  //      on the community page. The brief from browser-Claude pinned
+  //      the page to a neutral light surface regardless of the
+  //      viewer's app-wide theme; this is the scope hook.
+  //
+  // Cleanup removes everything on unmount so navigating to /home /
+  // /users/* etc. restores the global dark theme + stardust brand.
   useEffect(() => {
     if (!community) return undefined;
-    const themeGradient = gradientForSlug(community.theme_gradient || '');
-    document.documentElement.style.setProperty('--page-accent-gradient', themeGradient);
+    const slug = community.theme_gradient || '';
+    const themeGradient = gradientForSlug(slug);
+    const accent = accentForSlug(slug);
+    const accentHover = accentHoverForSlug(slug);
+    const root = document.documentElement;
+    root.style.setProperty('--page-accent-gradient', themeGradient);
+    root.style.setProperty('--c-accent', accent);
+    root.style.setProperty('--c-accent-hover', accentHover);
+    root.style.setProperty(
+      '--c-accent-soft',
+      `color-mix(in srgb, ${accent} 16%, transparent)`,
+    );
+    document.body.classList.add('community-light-mode');
     return () => {
-      document.documentElement.style.removeProperty('--page-accent-gradient');
+      root.style.removeProperty('--page-accent-gradient');
+      root.style.removeProperty('--c-accent');
+      root.style.removeProperty('--c-accent-hover');
+      root.style.removeProperty('--c-accent-soft');
+      document.body.classList.remove('community-light-mode');
     };
   }, [community]);
 
