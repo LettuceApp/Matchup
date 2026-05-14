@@ -75,6 +75,7 @@ func userToProto(user *models.User) *userv1.UserProfile {
 		Bio:            bio,
 		IsVerified:     user.EmailVerifiedAt != nil,
 		ThemeGradient:  user.ThemeGradient,
+		WinsCount:      user.WinsCount,
 	}
 }
 

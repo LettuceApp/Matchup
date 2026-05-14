@@ -1,0 +1,188 @@
+/*
+ * CommunityChampions — leaderboard styling. Inherits the dark glass
+ * surface from the app-wide theme; doesn't force light mode (that
+ * deliberate scope was reverted after the cohesion brief — every page
+ * follows the global theme now).
+ */
+
+.community-champions {
+  max-width: 720px;
+  margin: 24px auto 4rem;
+  padding: 0 16px;
+}
+
+.community-champions--loading,
+.community-champions--error {
+  min-height: 50vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 1rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.community-champions__spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid var(--border-subtle);
+  border-top-color: var(--accent-primary);
+  animation: champions-spin 0.8s linear infinite;
+}
+
+@keyframes champions-spin {
+  to { transform: rotate(360deg); }
+}
+
+.community-champions__header {
+  margin-bottom: 1.4rem;
+}
+
+.community-champions__overline a {
+  font-size: 0.85rem;
+  color: var(--accent-secondary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.community-champions__title {
+  margin: 0.2rem 0 0.3rem;
+  font-size: 1.7rem;
+  /* Picks up the picked community gradient on the wordmark — the
+     hero of this page is the leaderboard, not the title itself, but
+     a themed eyebrow keeps the page identified as belonging to a
+     specific community. */
+  background: var(--page-accent-gradient, var(--gradient-stardust));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.community-champions__subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.community-champions__empty {
+  margin-top: 1.5rem;
+  padding: 1.4rem;
+  border-radius: 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+}
+
+.community-champions__empty h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  color: var(--text-primary);
+}
+
+.community-champions__empty p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.community-champions__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.community-champions__row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  grid-template-areas:
+    "rank profile wins"
+    ".    last    last";
+  align-items: center;
+  gap: 0.6rem 1rem;
+  padding: 0.8rem 1rem;
+  border-radius: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Top-3 rows get a subtle gradient ring so the podium reads at a
+   glance — keeps the rest of the list visually quiet. */
+.community-champions__row:nth-child(1) {
+  border-color: rgba(255, 215, 90, 0.55);
+  box-shadow: 0 6px 18px rgba(255, 215, 90, 0.12);
+}
+.community-champions__row:nth-child(2) {
+  border-color: rgba(192, 192, 192, 0.55);
+}
+.community-champions__row:nth-child(3) {
+  border-color: rgba(205, 127, 50, 0.55);
+}
+
+.community-champions__rank {
+  grid-area: rank;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.community-champions__profile {
+  grid-area: profile;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  text-decoration: none;
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.community-champions__avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #ff9a6c, #b07bff);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.community-champions__avatar--initial {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.community-champions__username {
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.community-champions__wins {
+  grid-area: wins;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.community-champions__wins strong {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.community-champions__last-won {
+  grid-area: last;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin-left: 48px; /* aligns under the username, past the avatar */
+}

@@ -85,6 +85,11 @@ message UserProfile {
   // same COMMUNITY_GRADIENTS palette communities use, so profile and
   // community theming stay in lock-step.
   string theme_gradient = 14;
+  // wins_count — total matchups this user has won as a user-item
+  // contender (migration 031). Backs the "Wins" stat tile on the
+  // profile hero. Per-community wins are tracked separately in
+  // community_member_wins for the Champions tab.
+  int64 wins_count = 15;
 }
 
 // FollowListUser is a user with viewer relationship fields, used in follower/following lists.

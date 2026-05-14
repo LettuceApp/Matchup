@@ -906,6 +906,14 @@ export const listMentionableMembers = (communityId, { query, limit, cursor } = {
     ...(cursor !== undefined ? { cursor } : {}),
   });
 
+// GetCommunityChampions — top users in a community by per-community
+// wins. Powers the Champions tab. Public read; no auth required.
+export const getCommunityChampions = (communityId, { limit = 20 } = {}) =>
+  rpc('community.v1.CommunityService', 'GetCommunityChampions', {
+    community_id: communityId,
+    limit,
+  });
+
 // Member-management RPCs — owner gates UpdateMemberRole; mod+ gates
 // RemoveMember / BanMember / UnbanMember. Backend rejects when the
 // caller doesn't have the right role.

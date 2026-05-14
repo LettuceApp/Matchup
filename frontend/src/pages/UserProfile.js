@@ -901,6 +901,11 @@ const UserProfile = () => {
     },
     { label: 'Matchups', value: formatStat(matchupCount) },
     { label: 'Brackets', value: formatStat(bracketCount) },
+    // Phase 4 wins tile — global wins_count from the user proto.
+    // Surfaces immediately for everyone; per-community wins live on
+    // the Champions tab. Always rendered (even at 0) so the social
+    // shape of the profile stays consistent across viewers.
+    { label: 'Wins', value: formatStat(user?.wins_count ?? 0) },
   ];
 
   return (

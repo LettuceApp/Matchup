@@ -1366,6 +1366,74 @@ func (h *CommunityHandler) ListMentionableMembers(ctx context.Context, req *conn
 	}), nil
 }
 
+// GetCommunityChampions — top users in a community by per-community
+// wins. Reads community_member_wins (populated by stampMatchupWinner
+// when a user-backed matchup item wins inside this community).
+//
+// Public read: no auth required. The leaderboard is the community's
+// social signal — restricting it would defeat the discovery vector.
+// Banned + soft-deleted users are filtered out at the JOIN.
+//
+// Ordering: (wins_count DESC, last_won_at DESC). The leaderboard
+// index added by migration 031 covers this exact sort.
+func (h *CommunityHandler) GetCommunityChampions(ctx context.Context, req *connect.Request[communityv1.GetCommunityChampionsRequest]) (*connect.Response[communityv1.GetCommunityChampionsResponse], error) {
+	c, err := resolveCommunityByIdentifier(dbForRead(ctx, h.DB, h.ReadDB), req.Msg.GetCommunityId())
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("community not found"))
+		}
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	limit := 20
+	if l := req.Msg.GetLimit(); l > 0 {
+		limit = int(l)
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	type row struct {
+		PublicID   string    `db:"public_id"`
+		Username   string    `db:"username"`
+		AvatarPath string    `db:"avatar_path"`
+		WinsCount  int64     `db:"wins_count"`
+		LastWonAt  *time.Time `db:"last_won_at"`
+	}
+	var rows []row
+	err = sqlx.SelectContext(ctx, dbForRead(ctx, h.DB, h.ReadDB), &rows, `
+		SELECT u.public_id, u.username, u.avatar_path, w.wins_count, w.last_won_at
+		FROM community_member_wins w
+		JOIN users u ON u.id = w.user_id
+		WHERE w.community_id = $1
+		  AND u.deleted_at IS NULL
+		  AND u.banned_at IS NULL
+		ORDER BY w.wins_count DESC, w.last_won_at DESC NULLS LAST
+		LIMIT $2
+	`, c.ID, limit)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	out := make([]*communityv1.CommunityChampion, 0, len(rows))
+	for _, r := range rows {
+		lastWon := ""
+		if r.LastWonAt != nil {
+			lastWon = r.LastWonAt.UTC().Format(time.RFC3339)
+		}
+		out = append(out, &communityv1.CommunityChampion{
+			UserId:     r.PublicID,
+			Username:   r.Username,
+			AvatarPath: appdb.ProcessAvatarPath(r.AvatarPath),
+			WinsCount:  r.WinsCount,
+			LastWonAt:  lastWon,
+		})
+	}
+	return connect.NewResponse(&communityv1.GetCommunityChampionsResponse{
+		Champions: out,
+	}), nil
+}
+
 // ----------------------------------------------------------------------
 // Helpers
 // ----------------------------------------------------------------------

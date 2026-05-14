@@ -54,6 +54,11 @@ type UserProfile struct {
 	// same COMMUNITY_GRADIENTS palette communities use, so profile and
 	// community theming stay in lock-step.
 	ThemeGradient string `protobuf:"bytes,14,opt,name=theme_gradient,json=themeGradient,proto3" json:"theme_gradient,omitempty"`
+	// wins_count — total matchups this user has won as a user-item
+	// contender (migration 031). Backs the "Wins" stat tile on the
+	// profile hero. Per-community wins are tracked separately in
+	// community_member_wins for the Champions tab.
+	WinsCount     int64 `protobuf:"varint,15,opt,name=wins_count,json=winsCount,proto3" json:"wins_count,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -184,6 +189,13 @@ func (x *UserProfile) GetThemeGradient() string {
 		return x.ThemeGradient
 	}
 	return ""
+}
+
+func (x *UserProfile) GetWinsCount() int64 {
+	if x != nil {
+		return x.WinsCount
+	}
+	return 0
 }
 
 // FollowListUser is a user with viewer relationship fields, used in follower/following lists.
@@ -2685,7 +2697,7 @@ var File_user_v1_user_proto protoreflect.FileDescriptor
 
 const file_user_v1_user_proto_rawDesc = "" +
 	"\n" +
-	"\x12user/v1/user.proto\x12\auser.v1\x1a\x16common/v1/common.proto\"\xc0\x03\n" +
+	"\x12user/v1/user.proto\x12\auser.v1\x1a\x16common/v1/common.proto\"\xdf\x03\n" +
 	"\vUserProfile\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x14\n" +
@@ -2707,7 +2719,9 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"is_deleted\x18\f \x01(\bR\tisDeleted\x12\x1f\n" +
 	"\vis_verified\x18\r \x01(\bR\n" +
 	"isVerified\x12%\n" +
-	"\x0etheme_gradient\x18\x0e \x01(\tR\rthemeGradientB\x06\n" +
+	"\x0etheme_gradient\x18\x0e \x01(\tR\rthemeGradient\x12\x1d\n" +
+	"\n" +
+	"wins_count\x18\x0f \x01(\x03R\twinsCountB\x06\n" +
 	"\x04_bio\"\xd1\x02\n" +
 	"\x0eFollowListUser\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +

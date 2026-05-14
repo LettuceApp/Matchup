@@ -96,6 +96,9 @@ const (
 	// CommunityServiceListMentionableMembersProcedure is the fully-qualified name of the
 	// CommunityService's ListMentionableMembers RPC.
 	CommunityServiceListMentionableMembersProcedure = "/community.v1.CommunityService/ListMentionableMembers"
+	// CommunityServiceGetCommunityChampionsProcedure is the fully-qualified name of the
+	// CommunityService's GetCommunityChampions RPC.
+	CommunityServiceGetCommunityChampionsProcedure = "/community.v1.CommunityService/GetCommunityChampions"
 )
 
 // CommunityServiceClient is a client for the community.v1.CommunityService service.
@@ -139,6 +142,11 @@ type CommunityServiceClient interface {
 	// scoped content. Auth: any authed user can call; banned members
 	// are excluded from the result regardless of the caller's role.
 	ListMentionableMembers(context.Context, *connect.Request[v1.ListMentionableMembersRequest]) (*connect.Response[v1.ListMentionableMembersResponse], error)
+	// Top users in the community by wins (matchups won where their
+	// user-item carried the winning vote). Powers the Champions tab on
+	// the community page. Ordered by wins_count DESC, last_won_at DESC
+	// (recency tiebreak). Public read — anyone can see who's winning.
+	GetCommunityChampions(context.Context, *connect.Request[v1.GetCommunityChampionsRequest]) (*connect.Response[v1.GetCommunityChampionsResponse], error)
 }
 
 // NewCommunityServiceClient constructs a client for the community.v1.CommunityService service. By
@@ -278,6 +286,12 @@ func NewCommunityServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(communityServiceMethods.ByName("ListMentionableMembers")),
 			connect.WithClientOptions(opts...),
 		),
+		getCommunityChampions: connect.NewClient[v1.GetCommunityChampionsRequest, v1.GetCommunityChampionsResponse](
+			httpClient,
+			baseURL+CommunityServiceGetCommunityChampionsProcedure,
+			connect.WithSchema(communityServiceMethods.ByName("GetCommunityChampions")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -304,6 +318,7 @@ type communityServiceClient struct {
 	setRules               *connect.Client[v1.SetRulesRequest, v1.SetRulesResponse]
 	getCommunityFeed       *connect.Client[v1.GetCommunityFeedRequest, v1.GetCommunityFeedResponse]
 	listMentionableMembers *connect.Client[v1.ListMentionableMembersRequest, v1.ListMentionableMembersResponse]
+	getCommunityChampions  *connect.Client[v1.GetCommunityChampionsRequest, v1.GetCommunityChampionsResponse]
 }
 
 // CreateCommunity calls community.v1.CommunityService.CreateCommunity.
@@ -411,6 +426,11 @@ func (c *communityServiceClient) ListMentionableMembers(ctx context.Context, req
 	return c.listMentionableMembers.CallUnary(ctx, req)
 }
 
+// GetCommunityChampions calls community.v1.CommunityService.GetCommunityChampions.
+func (c *communityServiceClient) GetCommunityChampions(ctx context.Context, req *connect.Request[v1.GetCommunityChampionsRequest]) (*connect.Response[v1.GetCommunityChampionsResponse], error) {
+	return c.getCommunityChampions.CallUnary(ctx, req)
+}
+
 // CommunityServiceHandler is an implementation of the community.v1.CommunityService service.
 type CommunityServiceHandler interface {
 	CreateCommunity(context.Context, *connect.Request[v1.CreateCommunityRequest]) (*connect.Response[v1.CreateCommunityResponse], error)
@@ -452,6 +472,11 @@ type CommunityServiceHandler interface {
 	// scoped content. Auth: any authed user can call; banned members
 	// are excluded from the result regardless of the caller's role.
 	ListMentionableMembers(context.Context, *connect.Request[v1.ListMentionableMembersRequest]) (*connect.Response[v1.ListMentionableMembersResponse], error)
+	// Top users in the community by wins (matchups won where their
+	// user-item carried the winning vote). Powers the Champions tab on
+	// the community page. Ordered by wins_count DESC, last_won_at DESC
+	// (recency tiebreak). Public read — anyone can see who's winning.
+	GetCommunityChampions(context.Context, *connect.Request[v1.GetCommunityChampionsRequest]) (*connect.Response[v1.GetCommunityChampionsResponse], error)
 }
 
 // NewCommunityServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -587,6 +612,12 @@ func NewCommunityServiceHandler(svc CommunityServiceHandler, opts ...connect.Han
 		connect.WithSchema(communityServiceMethods.ByName("ListMentionableMembers")),
 		connect.WithHandlerOptions(opts...),
 	)
+	communityServiceGetCommunityChampionsHandler := connect.NewUnaryHandler(
+		CommunityServiceGetCommunityChampionsProcedure,
+		svc.GetCommunityChampions,
+		connect.WithSchema(communityServiceMethods.ByName("GetCommunityChampions")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/community.v1.CommunityService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case CommunityServiceCreateCommunityProcedure:
@@ -631,6 +662,8 @@ func NewCommunityServiceHandler(svc CommunityServiceHandler, opts ...connect.Han
 			communityServiceGetCommunityFeedHandler.ServeHTTP(w, r)
 		case CommunityServiceListMentionableMembersProcedure:
 			communityServiceListMentionableMembersHandler.ServeHTTP(w, r)
+		case CommunityServiceGetCommunityChampionsProcedure:
+			communityServiceGetCommunityChampionsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -722,4 +755,8 @@ func (UnimplementedCommunityServiceHandler) GetCommunityFeed(context.Context, *c
 
 func (UnimplementedCommunityServiceHandler) ListMentionableMembers(context.Context, *connect.Request[v1.ListMentionableMembersRequest]) (*connect.Response[v1.ListMentionableMembersResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("community.v1.CommunityService.ListMentionableMembers is not implemented"))
+}
+
+func (UnimplementedCommunityServiceHandler) GetCommunityChampions(context.Context, *connect.Request[v1.GetCommunityChampionsRequest]) (*connect.Response[v1.GetCommunityChampionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("community.v1.CommunityService.GetCommunityChampions is not implemented"))
 }

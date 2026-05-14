@@ -71,6 +71,12 @@ service CommunityService {
   // scoped content. Auth: any authed user can call; banned members
   // are excluded from the result regardless of the caller's role.
   rpc ListMentionableMembers(ListMentionableMembersRequest) returns (ListMentionableMembersResponse);
+
+  // Top users in the community by wins (matchups won where their
+  // user-item carried the winning vote). Powers the Champions tab on
+  // the community page. Ordered by wins_count DESC, last_won_at DESC
+  // (recency tiebreak). Public read — anyone can see who's winning.
+  rpc GetCommunityChampions(GetCommunityChampionsRequest) returns (GetCommunityChampionsResponse);
 }
 
 // CommunityData — full community object returned from most endpoints.
@@ -304,4 +310,31 @@ message ListMentionableMembersRequest {
 message ListMentionableMembersResponse {
   repeated common.v1.UserSummaryResponse users = 1;
   string next_cursor = 2;
+}
+
+message GetCommunityChampionsRequest {
+  string community_id = 1;
+  // Cap on rows returned. Server clamps to a sane max (100). Default
+  // ~20 — enough for a "Top of all time" tab without paginating.
+  int32 limit = 2;
+}
+
+// One row in the Champions leaderboard. wins_count is the per-
+// community tally (not the user's global). last_won_at lets the
+// frontend show "won 3d ago" relative timestamps + drives the
+// secondary sort.
+message CommunityChampion {
+  string user_id = 1;
+  string username = 2;
+  // Already-resolved full CDN URL (appdb.ProcessAvatarPath applied).
+  string avatar_path = 3;
+  int64 wins_count = 4;
+  // RFC3339 timestamp of the most recent win. Empty when the row
+  // exists with zero wins (shouldn't normally happen — included for
+  // defensive deserialization).
+  string last_won_at = 5;
+}
+
+message GetCommunityChampionsResponse {
+  repeated CommunityChampion champions = 1;
 }

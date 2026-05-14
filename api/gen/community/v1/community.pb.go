@@ -2571,6 +2571,188 @@ func (x *ListMentionableMembersResponse) GetNextCursor() string {
 	return ""
 }
 
+type GetCommunityChampionsRequest struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	CommunityId string                 `protobuf:"bytes,1,opt,name=community_id,json=communityId,proto3" json:"community_id,omitempty"`
+	// Cap on rows returned. Server clamps to a sane max (100). Default
+	// ~20 — enough for a "Top of all time" tab without paginating.
+	Limit         int32 `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCommunityChampionsRequest) Reset() {
+	*x = GetCommunityChampionsRequest{}
+	mi := &file_community_v1_community_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCommunityChampionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCommunityChampionsRequest) ProtoMessage() {}
+
+func (x *GetCommunityChampionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_community_v1_community_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCommunityChampionsRequest.ProtoReflect.Descriptor instead.
+func (*GetCommunityChampionsRequest) Descriptor() ([]byte, []int) {
+	return file_community_v1_community_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *GetCommunityChampionsRequest) GetCommunityId() string {
+	if x != nil {
+		return x.CommunityId
+	}
+	return ""
+}
+
+func (x *GetCommunityChampionsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+// One row in the Champions leaderboard. wins_count is the per-
+// community tally (not the user's global). last_won_at lets the
+// frontend show "won 3d ago" relative timestamps + drives the
+// secondary sort.
+type CommunityChampion struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	UserId   string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Username string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
+	// Already-resolved full CDN URL (appdb.ProcessAvatarPath applied).
+	AvatarPath string `protobuf:"bytes,3,opt,name=avatar_path,json=avatarPath,proto3" json:"avatar_path,omitempty"`
+	WinsCount  int64  `protobuf:"varint,4,opt,name=wins_count,json=winsCount,proto3" json:"wins_count,omitempty"`
+	// RFC3339 timestamp of the most recent win. Empty when the row
+	// exists with zero wins (shouldn't normally happen — included for
+	// defensive deserialization).
+	LastWonAt     string `protobuf:"bytes,5,opt,name=last_won_at,json=lastWonAt,proto3" json:"last_won_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CommunityChampion) Reset() {
+	*x = CommunityChampion{}
+	mi := &file_community_v1_community_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CommunityChampion) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CommunityChampion) ProtoMessage() {}
+
+func (x *CommunityChampion) ProtoReflect() protoreflect.Message {
+	mi := &file_community_v1_community_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CommunityChampion.ProtoReflect.Descriptor instead.
+func (*CommunityChampion) Descriptor() ([]byte, []int) {
+	return file_community_v1_community_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *CommunityChampion) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *CommunityChampion) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *CommunityChampion) GetAvatarPath() string {
+	if x != nil {
+		return x.AvatarPath
+	}
+	return ""
+}
+
+func (x *CommunityChampion) GetWinsCount() int64 {
+	if x != nil {
+		return x.WinsCount
+	}
+	return 0
+}
+
+func (x *CommunityChampion) GetLastWonAt() string {
+	if x != nil {
+		return x.LastWonAt
+	}
+	return ""
+}
+
+type GetCommunityChampionsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Champions     []*CommunityChampion   `protobuf:"bytes,1,rep,name=champions,proto3" json:"champions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCommunityChampionsResponse) Reset() {
+	*x = GetCommunityChampionsResponse{}
+	mi := &file_community_v1_community_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCommunityChampionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCommunityChampionsResponse) ProtoMessage() {}
+
+func (x *GetCommunityChampionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_community_v1_community_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCommunityChampionsResponse.ProtoReflect.Descriptor instead.
+func (*GetCommunityChampionsResponse) Descriptor() ([]byte, []int) {
+	return file_community_v1_community_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *GetCommunityChampionsResponse) GetChampions() []*CommunityChampion {
+	if x != nil {
+		return x.Champions
+	}
+	return nil
+}
+
 var File_community_v1_community_proto protoreflect.FileDescriptor
 
 const file_community_v1_community_proto_rawDesc = "" +
@@ -2759,7 +2941,20 @@ const file_community_v1_community_proto_rawDesc = "" +
 	"\x1eListMentionableMembersResponse\x124\n" +
 	"\x05users\x18\x01 \x03(\v2\x1e.common.v1.UserSummaryResponseR\x05users\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
-	"nextCursor2\xc5\x0f\n" +
+	"nextCursor\"W\n" +
+	"\x1cGetCommunityChampionsRequest\x12!\n" +
+	"\fcommunity_id\x18\x01 \x01(\tR\vcommunityId\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\"\xa8\x01\n" +
+	"\x11CommunityChampion\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
+	"\busername\x18\x02 \x01(\tR\busername\x12\x1f\n" +
+	"\vavatar_path\x18\x03 \x01(\tR\n" +
+	"avatarPath\x12\x1d\n" +
+	"\n" +
+	"wins_count\x18\x04 \x01(\x03R\twinsCount\x12\x1e\n" +
+	"\vlast_won_at\x18\x05 \x01(\tR\tlastWonAt\"^\n" +
+	"\x1dGetCommunityChampionsResponse\x12=\n" +
+	"\tchampions\x18\x01 \x03(\v2\x1f.community.v1.CommunityChampionR\tchampions2\xb7\x10\n" +
 	"\x10CommunityService\x12^\n" +
 	"\x0fCreateCommunity\x12$.community.v1.CreateCommunityRequest\x1a%.community.v1.CreateCommunityResponse\x12U\n" +
 	"\fGetCommunity\x12!.community.v1.GetCommunityRequest\x1a\".community.v1.GetCommunityResponse\x12g\n" +
@@ -2781,7 +2976,8 @@ const file_community_v1_community_proto_rawDesc = "" +
 	"\tListRules\x12\x1e.community.v1.ListRulesRequest\x1a\x1f.community.v1.ListRulesResponse\x12I\n" +
 	"\bSetRules\x12\x1d.community.v1.SetRulesRequest\x1a\x1e.community.v1.SetRulesResponse\x12a\n" +
 	"\x10GetCommunityFeed\x12%.community.v1.GetCommunityFeedRequest\x1a&.community.v1.GetCommunityFeedResponse\x12s\n" +
-	"\x16ListMentionableMembers\x12+.community.v1.ListMentionableMembersRequest\x1a,.community.v1.ListMentionableMembersResponseB&Z$Matchup/gen/community/v1;communityv1b\x06proto3"
+	"\x16ListMentionableMembers\x12+.community.v1.ListMentionableMembersRequest\x1a,.community.v1.ListMentionableMembersResponse\x12p\n" +
+	"\x15GetCommunityChampions\x12*.community.v1.GetCommunityChampionsRequest\x1a+.community.v1.GetCommunityChampionsResponseB&Z$Matchup/gen/community/v1;communityv1b\x06proto3"
 
 var (
 	file_community_v1_community_proto_rawDescOnce sync.Once
@@ -2795,7 +2991,7 @@ func file_community_v1_community_proto_rawDescGZIP() []byte {
 	return file_community_v1_community_proto_rawDescData
 }
 
-var file_community_v1_community_proto_msgTypes = make([]protoimpl.MessageInfo, 45)
+var file_community_v1_community_proto_msgTypes = make([]protoimpl.MessageInfo, 48)
 var file_community_v1_community_proto_goTypes = []any{
 	(*CommunityData)(nil),                  // 0: community.v1.CommunityData
 	(*CommunityMember)(nil),                // 1: community.v1.CommunityMember
@@ -2842,9 +3038,12 @@ var file_community_v1_community_proto_goTypes = []any{
 	(*GetCommunityFeedResponse)(nil),       // 42: community.v1.GetCommunityFeedResponse
 	(*ListMentionableMembersRequest)(nil),  // 43: community.v1.ListMentionableMembersRequest
 	(*ListMentionableMembersResponse)(nil), // 44: community.v1.ListMentionableMembersResponse
-	(*v1.MatchupData)(nil),                 // 45: matchup.v1.MatchupData
-	(*v11.BracketData)(nil),                // 46: bracket.v1.BracketData
-	(*v12.UserSummaryResponse)(nil),        // 47: common.v1.UserSummaryResponse
+	(*GetCommunityChampionsRequest)(nil),   // 45: community.v1.GetCommunityChampionsRequest
+	(*CommunityChampion)(nil),              // 46: community.v1.CommunityChampion
+	(*GetCommunityChampionsResponse)(nil),  // 47: community.v1.GetCommunityChampionsResponse
+	(*v1.MatchupData)(nil),                 // 48: matchup.v1.MatchupData
+	(*v11.BracketData)(nil),                // 49: bracket.v1.BracketData
+	(*v12.UserSummaryResponse)(nil),        // 50: common.v1.UserSummaryResponse
 }
 var file_community_v1_community_proto_depIdxs = []int32{
 	0,  // 0: community.v1.CreateCommunityResponse.community:type_name -> community.v1.CommunityData
@@ -2860,56 +3059,59 @@ var file_community_v1_community_proto_depIdxs = []int32{
 	2,  // 10: community.v1.ListRulesResponse.rules:type_name -> community.v1.CommunityRule
 	2,  // 11: community.v1.SetRulesRequest.rules:type_name -> community.v1.CommunityRule
 	2,  // 12: community.v1.SetRulesResponse.rules:type_name -> community.v1.CommunityRule
-	45, // 13: community.v1.GetCommunityFeedResponse.matchups:type_name -> matchup.v1.MatchupData
-	46, // 14: community.v1.GetCommunityFeedResponse.brackets:type_name -> bracket.v1.BracketData
-	47, // 15: community.v1.ListMentionableMembersResponse.users:type_name -> common.v1.UserSummaryResponse
-	3,  // 16: community.v1.CommunityService.CreateCommunity:input_type -> community.v1.CreateCommunityRequest
-	5,  // 17: community.v1.CommunityService.GetCommunity:input_type -> community.v1.GetCommunityRequest
-	7,  // 18: community.v1.CommunityService.GetCommunityBySlug:input_type -> community.v1.GetCommunityBySlugRequest
-	9,  // 19: community.v1.CommunityService.UpdateCommunity:input_type -> community.v1.UpdateCommunityRequest
-	11, // 20: community.v1.CommunityService.DeleteCommunity:input_type -> community.v1.DeleteCommunityRequest
-	13, // 21: community.v1.CommunityService.ListCommunities:input_type -> community.v1.ListCommunitiesRequest
-	15, // 22: community.v1.CommunityService.ListMyCommunities:input_type -> community.v1.ListMyCommunitiesRequest
-	17, // 23: community.v1.CommunityService.ListUserCommunities:input_type -> community.v1.ListUserCommunitiesRequest
-	19, // 24: community.v1.CommunityService.CheckSlugAvailable:input_type -> community.v1.CheckSlugAvailableRequest
-	21, // 25: community.v1.CommunityService.JoinCommunity:input_type -> community.v1.JoinCommunityRequest
-	23, // 26: community.v1.CommunityService.LeaveCommunity:input_type -> community.v1.LeaveCommunityRequest
-	25, // 27: community.v1.CommunityService.ListMembers:input_type -> community.v1.ListMembersRequest
-	27, // 28: community.v1.CommunityService.GetMyMembership:input_type -> community.v1.GetMyMembershipRequest
-	29, // 29: community.v1.CommunityService.UpdateMemberRole:input_type -> community.v1.UpdateMemberRoleRequest
-	31, // 30: community.v1.CommunityService.RemoveMember:input_type -> community.v1.RemoveMemberRequest
-	33, // 31: community.v1.CommunityService.BanMember:input_type -> community.v1.BanMemberRequest
-	35, // 32: community.v1.CommunityService.UnbanMember:input_type -> community.v1.UnbanMemberRequest
-	37, // 33: community.v1.CommunityService.ListRules:input_type -> community.v1.ListRulesRequest
-	39, // 34: community.v1.CommunityService.SetRules:input_type -> community.v1.SetRulesRequest
-	41, // 35: community.v1.CommunityService.GetCommunityFeed:input_type -> community.v1.GetCommunityFeedRequest
-	43, // 36: community.v1.CommunityService.ListMentionableMembers:input_type -> community.v1.ListMentionableMembersRequest
-	4,  // 37: community.v1.CommunityService.CreateCommunity:output_type -> community.v1.CreateCommunityResponse
-	6,  // 38: community.v1.CommunityService.GetCommunity:output_type -> community.v1.GetCommunityResponse
-	8,  // 39: community.v1.CommunityService.GetCommunityBySlug:output_type -> community.v1.GetCommunityBySlugResponse
-	10, // 40: community.v1.CommunityService.UpdateCommunity:output_type -> community.v1.UpdateCommunityResponse
-	12, // 41: community.v1.CommunityService.DeleteCommunity:output_type -> community.v1.DeleteCommunityResponse
-	14, // 42: community.v1.CommunityService.ListCommunities:output_type -> community.v1.ListCommunitiesResponse
-	16, // 43: community.v1.CommunityService.ListMyCommunities:output_type -> community.v1.ListMyCommunitiesResponse
-	18, // 44: community.v1.CommunityService.ListUserCommunities:output_type -> community.v1.ListUserCommunitiesResponse
-	20, // 45: community.v1.CommunityService.CheckSlugAvailable:output_type -> community.v1.CheckSlugAvailableResponse
-	22, // 46: community.v1.CommunityService.JoinCommunity:output_type -> community.v1.JoinCommunityResponse
-	24, // 47: community.v1.CommunityService.LeaveCommunity:output_type -> community.v1.LeaveCommunityResponse
-	26, // 48: community.v1.CommunityService.ListMembers:output_type -> community.v1.ListMembersResponse
-	28, // 49: community.v1.CommunityService.GetMyMembership:output_type -> community.v1.GetMyMembershipResponse
-	30, // 50: community.v1.CommunityService.UpdateMemberRole:output_type -> community.v1.UpdateMemberRoleResponse
-	32, // 51: community.v1.CommunityService.RemoveMember:output_type -> community.v1.RemoveMemberResponse
-	34, // 52: community.v1.CommunityService.BanMember:output_type -> community.v1.BanMemberResponse
-	36, // 53: community.v1.CommunityService.UnbanMember:output_type -> community.v1.UnbanMemberResponse
-	38, // 54: community.v1.CommunityService.ListRules:output_type -> community.v1.ListRulesResponse
-	40, // 55: community.v1.CommunityService.SetRules:output_type -> community.v1.SetRulesResponse
-	42, // 56: community.v1.CommunityService.GetCommunityFeed:output_type -> community.v1.GetCommunityFeedResponse
-	44, // 57: community.v1.CommunityService.ListMentionableMembers:output_type -> community.v1.ListMentionableMembersResponse
-	37, // [37:58] is the sub-list for method output_type
-	16, // [16:37] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	48, // 13: community.v1.GetCommunityFeedResponse.matchups:type_name -> matchup.v1.MatchupData
+	49, // 14: community.v1.GetCommunityFeedResponse.brackets:type_name -> bracket.v1.BracketData
+	50, // 15: community.v1.ListMentionableMembersResponse.users:type_name -> common.v1.UserSummaryResponse
+	46, // 16: community.v1.GetCommunityChampionsResponse.champions:type_name -> community.v1.CommunityChampion
+	3,  // 17: community.v1.CommunityService.CreateCommunity:input_type -> community.v1.CreateCommunityRequest
+	5,  // 18: community.v1.CommunityService.GetCommunity:input_type -> community.v1.GetCommunityRequest
+	7,  // 19: community.v1.CommunityService.GetCommunityBySlug:input_type -> community.v1.GetCommunityBySlugRequest
+	9,  // 20: community.v1.CommunityService.UpdateCommunity:input_type -> community.v1.UpdateCommunityRequest
+	11, // 21: community.v1.CommunityService.DeleteCommunity:input_type -> community.v1.DeleteCommunityRequest
+	13, // 22: community.v1.CommunityService.ListCommunities:input_type -> community.v1.ListCommunitiesRequest
+	15, // 23: community.v1.CommunityService.ListMyCommunities:input_type -> community.v1.ListMyCommunitiesRequest
+	17, // 24: community.v1.CommunityService.ListUserCommunities:input_type -> community.v1.ListUserCommunitiesRequest
+	19, // 25: community.v1.CommunityService.CheckSlugAvailable:input_type -> community.v1.CheckSlugAvailableRequest
+	21, // 26: community.v1.CommunityService.JoinCommunity:input_type -> community.v1.JoinCommunityRequest
+	23, // 27: community.v1.CommunityService.LeaveCommunity:input_type -> community.v1.LeaveCommunityRequest
+	25, // 28: community.v1.CommunityService.ListMembers:input_type -> community.v1.ListMembersRequest
+	27, // 29: community.v1.CommunityService.GetMyMembership:input_type -> community.v1.GetMyMembershipRequest
+	29, // 30: community.v1.CommunityService.UpdateMemberRole:input_type -> community.v1.UpdateMemberRoleRequest
+	31, // 31: community.v1.CommunityService.RemoveMember:input_type -> community.v1.RemoveMemberRequest
+	33, // 32: community.v1.CommunityService.BanMember:input_type -> community.v1.BanMemberRequest
+	35, // 33: community.v1.CommunityService.UnbanMember:input_type -> community.v1.UnbanMemberRequest
+	37, // 34: community.v1.CommunityService.ListRules:input_type -> community.v1.ListRulesRequest
+	39, // 35: community.v1.CommunityService.SetRules:input_type -> community.v1.SetRulesRequest
+	41, // 36: community.v1.CommunityService.GetCommunityFeed:input_type -> community.v1.GetCommunityFeedRequest
+	43, // 37: community.v1.CommunityService.ListMentionableMembers:input_type -> community.v1.ListMentionableMembersRequest
+	45, // 38: community.v1.CommunityService.GetCommunityChampions:input_type -> community.v1.GetCommunityChampionsRequest
+	4,  // 39: community.v1.CommunityService.CreateCommunity:output_type -> community.v1.CreateCommunityResponse
+	6,  // 40: community.v1.CommunityService.GetCommunity:output_type -> community.v1.GetCommunityResponse
+	8,  // 41: community.v1.CommunityService.GetCommunityBySlug:output_type -> community.v1.GetCommunityBySlugResponse
+	10, // 42: community.v1.CommunityService.UpdateCommunity:output_type -> community.v1.UpdateCommunityResponse
+	12, // 43: community.v1.CommunityService.DeleteCommunity:output_type -> community.v1.DeleteCommunityResponse
+	14, // 44: community.v1.CommunityService.ListCommunities:output_type -> community.v1.ListCommunitiesResponse
+	16, // 45: community.v1.CommunityService.ListMyCommunities:output_type -> community.v1.ListMyCommunitiesResponse
+	18, // 46: community.v1.CommunityService.ListUserCommunities:output_type -> community.v1.ListUserCommunitiesResponse
+	20, // 47: community.v1.CommunityService.CheckSlugAvailable:output_type -> community.v1.CheckSlugAvailableResponse
+	22, // 48: community.v1.CommunityService.JoinCommunity:output_type -> community.v1.JoinCommunityResponse
+	24, // 49: community.v1.CommunityService.LeaveCommunity:output_type -> community.v1.LeaveCommunityResponse
+	26, // 50: community.v1.CommunityService.ListMembers:output_type -> community.v1.ListMembersResponse
+	28, // 51: community.v1.CommunityService.GetMyMembership:output_type -> community.v1.GetMyMembershipResponse
+	30, // 52: community.v1.CommunityService.UpdateMemberRole:output_type -> community.v1.UpdateMemberRoleResponse
+	32, // 53: community.v1.CommunityService.RemoveMember:output_type -> community.v1.RemoveMemberResponse
+	34, // 54: community.v1.CommunityService.BanMember:output_type -> community.v1.BanMemberResponse
+	36, // 55: community.v1.CommunityService.UnbanMember:output_type -> community.v1.UnbanMemberResponse
+	38, // 56: community.v1.CommunityService.ListRules:output_type -> community.v1.ListRulesResponse
+	40, // 57: community.v1.CommunityService.SetRules:output_type -> community.v1.SetRulesResponse
+	42, // 58: community.v1.CommunityService.GetCommunityFeed:output_type -> community.v1.GetCommunityFeedResponse
+	44, // 59: community.v1.CommunityService.ListMentionableMembers:output_type -> community.v1.ListMentionableMembersResponse
+	47, // 60: community.v1.CommunityService.GetCommunityChampions:output_type -> community.v1.GetCommunityChampionsResponse
+	39, // [39:61] is the sub-list for method output_type
+	17, // [17:39] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_community_v1_community_proto_init() }
@@ -2925,7 +3127,7 @@ func file_community_v1_community_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_community_v1_community_proto_rawDesc), len(file_community_v1_community_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   45,
+			NumMessages:   48,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

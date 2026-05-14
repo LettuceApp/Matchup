@@ -248,6 +248,8 @@ const CommunityPage = () => {
                 <strong>{community.member_count}</strong>{' '}
                 {community.member_count === 1 ? 'member' : 'members'}
               </Link>
+              {' · '}
+              <Link to={`/c/${slug}/champions`}>Champions</Link>
               {community.owner_username && (
                 <>
                   {' · '}Owner{' '}
