@@ -225,19 +225,15 @@ func (h *CommunityHandler) CreateCommunity(ctx context.Context, req *connect.Req
 		return nil, connect.NewError(connect.CodeInvalidArgument,
 			errors.New("description must be 500 characters or fewer"))
 	}
-	// When the user provides a description it must be meaningful —
-	// at least 20 chars and not just an echo of the community name.
-	// Owners that don't have a good blurb yet can leave it blank;
-	// the frontend hides the About section entirely in that case.
-	if desc != "" {
-		if len(desc) < 20 {
-			return nil, connect.NewError(connect.CodeInvalidArgument,
-				errors.New("description should be at least 20 characters — leave blank if you don't have one yet"))
-		}
-		if strings.EqualFold(desc, name) {
-			return nil, connect.NewError(connect.CodeInvalidArgument,
-				errors.New("description shouldn't just repeat the community name — try a sentence or two"))
-		}
+	// Empty description stays valid — frontend hides the About section
+	// when blank. The previous 20-char minimum was scrapped because it
+	// blocked legitimate short blurbs (e.g. "a Patriots fan group")
+	// and didn't really catch low-quality content anyway. Only the
+	// name-echo guard remains: if the owner types the community name
+	// into the description field, ask them to write something else.
+	if desc != "" && strings.EqualFold(desc, name) {
+		return nil, connect.NewError(connect.CodeInvalidArgument,
+			errors.New("description shouldn't just repeat the community name — try a sentence or two"))
 	}
 
 	privacy := req.Msg.GetPrivacy()
@@ -364,8 +360,10 @@ func (h *CommunityHandler) UpdateCommunity(ctx context.Context, req *connect.Req
 			return nil, connect.NewError(connect.CodeInvalidArgument,
 				errors.New("description must be 500 characters or fewer"))
 		}
-		// Same length + name-echo rules as Create. Empty stays valid
-		// (clears the description).
+		// Mirrors the Create rule: empty is valid (clears the field),
+		// short descriptions are allowed, only the name-echo check
+		// remains. See CreateCommunity for the full rationale on
+		// dropping the 20-char minimum.
 		if desc != "" {
 			// Resolve the effective name — either the updated value
 			// in this request, or the existing community name.
@@ -374,10 +372,6 @@ func (h *CommunityHandler) UpdateCommunity(ctx context.Context, req *connect.Req
 				if n := strings.TrimSpace(*req.Msg.Name); n != "" {
 					effectiveName = n
 				}
-			}
-			if len(desc) < 20 {
-				return nil, connect.NewError(connect.CodeInvalidArgument,
-					errors.New("description should be at least 20 characters — leave blank if you don't have one yet"))
 			}
 			if strings.EqualFold(desc, effectiveName) {
 				return nil, connect.NewError(connect.CodeInvalidArgument,
