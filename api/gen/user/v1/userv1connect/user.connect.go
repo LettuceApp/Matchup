@@ -75,6 +75,8 @@ const (
 	// UserServiceGetRelationshipProcedure is the fully-qualified name of the UserService's
 	// GetRelationship RPC.
 	UserServiceGetRelationshipProcedure = "/user.v1.UserService/GetRelationship"
+	// UserServiceListMutualsProcedure is the fully-qualified name of the UserService's ListMutuals RPC.
+	UserServiceListMutualsProcedure = "/user.v1.UserService/ListMutuals"
 	// UserServiceBlockUserProcedure is the fully-qualified name of the UserService's BlockUser RPC.
 	UserServiceBlockUserProcedure = "/user.v1.UserService/BlockUser"
 	// UserServiceUnblockUserProcedure is the fully-qualified name of the UserService's UnblockUser RPC.
@@ -112,6 +114,13 @@ type UserServiceClient interface {
 	FollowUser(context.Context, *connect.Request[v1.FollowUserRequest]) (*connect.Response[v1.FollowUserResponse], error)
 	UnfollowUser(context.Context, *connect.Request[v1.UnfollowUserRequest]) (*connect.Response[v1.UnfollowUserResponse], error)
 	GetRelationship(context.Context, *connect.Request[v1.GetRelationshipRequest]) (*connect.Response[v1.GetRelationshipResponse], error)
+	// Mutuals — users who follow the caller AND who the caller follows
+	// back. Used by the @-mention autocomplete in comments + as the
+	// valid-target set for personal matchup "user as item" entries.
+	// Server-side INTERSECT keeps the client from having to fetch two
+	// pages and dedupe. Optional `query` narrows by username prefix /
+	// substring for autocomplete typing.
+	ListMutuals(context.Context, *connect.Request[v1.ListMutualsRequest]) (*connect.Response[v1.ListMutualsResponse], error)
 	// Block / unblock. Block is BIDIRECTIONAL: blocked user disappears
 	// from every read surface (feeds, comments, activity, profiles)
 	// AND the blocker disappears from the blocked user's surfaces too.
@@ -235,6 +244,12 @@ func NewUserServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(userServiceMethods.ByName("GetRelationship")),
 			connect.WithClientOptions(opts...),
 		),
+		listMutuals: connect.NewClient[v1.ListMutualsRequest, v1.ListMutualsResponse](
+			httpClient,
+			baseURL+UserServiceListMutualsProcedure,
+			connect.WithSchema(userServiceMethods.ByName("ListMutuals")),
+			connect.WithClientOptions(opts...),
+		),
 		blockUser: connect.NewClient[v1.BlockUserRequest, v1.BlockUserResponse](
 			httpClient,
 			baseURL+UserServiceBlockUserProcedure,
@@ -292,6 +307,7 @@ type userServiceClient struct {
 	followUser                    *connect.Client[v1.FollowUserRequest, v1.FollowUserResponse]
 	unfollowUser                  *connect.Client[v1.UnfollowUserRequest, v1.UnfollowUserResponse]
 	getRelationship               *connect.Client[v1.GetRelationshipRequest, v1.GetRelationshipResponse]
+	listMutuals                   *connect.Client[v1.ListMutualsRequest, v1.ListMutualsResponse]
 	blockUser                     *connect.Client[v1.BlockUserRequest, v1.BlockUserResponse]
 	unblockUser                   *connect.Client[v1.UnblockUserRequest, v1.UnblockUserResponse]
 	listBlocks                    *connect.Client[v1.ListBlocksRequest, v1.ListBlocksResponse]
@@ -380,6 +396,11 @@ func (c *userServiceClient) GetRelationship(ctx context.Context, req *connect.Re
 	return c.getRelationship.CallUnary(ctx, req)
 }
 
+// ListMutuals calls user.v1.UserService.ListMutuals.
+func (c *userServiceClient) ListMutuals(ctx context.Context, req *connect.Request[v1.ListMutualsRequest]) (*connect.Response[v1.ListMutualsResponse], error) {
+	return c.listMutuals.CallUnary(ctx, req)
+}
+
 // BlockUser calls user.v1.UserService.BlockUser.
 func (c *userServiceClient) BlockUser(ctx context.Context, req *connect.Request[v1.BlockUserRequest]) (*connect.Response[v1.BlockUserResponse], error) {
 	return c.blockUser.CallUnary(ctx, req)
@@ -433,6 +454,13 @@ type UserServiceHandler interface {
 	FollowUser(context.Context, *connect.Request[v1.FollowUserRequest]) (*connect.Response[v1.FollowUserResponse], error)
 	UnfollowUser(context.Context, *connect.Request[v1.UnfollowUserRequest]) (*connect.Response[v1.UnfollowUserResponse], error)
 	GetRelationship(context.Context, *connect.Request[v1.GetRelationshipRequest]) (*connect.Response[v1.GetRelationshipResponse], error)
+	// Mutuals — users who follow the caller AND who the caller follows
+	// back. Used by the @-mention autocomplete in comments + as the
+	// valid-target set for personal matchup "user as item" entries.
+	// Server-side INTERSECT keeps the client from having to fetch two
+	// pages and dedupe. Optional `query` narrows by username prefix /
+	// substring for autocomplete typing.
+	ListMutuals(context.Context, *connect.Request[v1.ListMutualsRequest]) (*connect.Response[v1.ListMutualsResponse], error)
 	// Block / unblock. Block is BIDIRECTIONAL: blocked user disappears
 	// from every read surface (feeds, comments, activity, profiles)
 	// AND the blocker disappears from the blocked user's surfaces too.
@@ -552,6 +580,12 @@ func NewUserServiceHandler(svc UserServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(userServiceMethods.ByName("GetRelationship")),
 		connect.WithHandlerOptions(opts...),
 	)
+	userServiceListMutualsHandler := connect.NewUnaryHandler(
+		UserServiceListMutualsProcedure,
+		svc.ListMutuals,
+		connect.WithSchema(userServiceMethods.ByName("ListMutuals")),
+		connect.WithHandlerOptions(opts...),
+	)
 	userServiceBlockUserHandler := connect.NewUnaryHandler(
 		UserServiceBlockUserProcedure,
 		svc.BlockUser,
@@ -622,6 +656,8 @@ func NewUserServiceHandler(svc UserServiceHandler, opts ...connect.HandlerOption
 			userServiceUnfollowUserHandler.ServeHTTP(w, r)
 		case UserServiceGetRelationshipProcedure:
 			userServiceGetRelationshipHandler.ServeHTTP(w, r)
+		case UserServiceListMutualsProcedure:
+			userServiceListMutualsHandler.ServeHTTP(w, r)
 		case UserServiceBlockUserProcedure:
 			userServiceBlockUserHandler.ServeHTTP(w, r)
 		case UserServiceUnblockUserProcedure:
@@ -705,6 +741,10 @@ func (UnimplementedUserServiceHandler) UnfollowUser(context.Context, *connect.Re
 
 func (UnimplementedUserServiceHandler) GetRelationship(context.Context, *connect.Request[v1.GetRelationshipRequest]) (*connect.Response[v1.GetRelationshipResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserService.GetRelationship is not implemented"))
+}
+
+func (UnimplementedUserServiceHandler) ListMutuals(context.Context, *connect.Request[v1.ListMutualsRequest]) (*connect.Response[v1.ListMutualsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("user.v1.UserService.ListMutuals is not implemented"))
 }
 
 func (UnimplementedUserServiceHandler) BlockUser(context.Context, *connect.Request[v1.BlockUserRequest]) (*connect.Response[v1.BlockUserResponse], error) {

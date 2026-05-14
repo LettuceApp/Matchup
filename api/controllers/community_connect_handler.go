@@ -10,6 +10,7 @@ import (
 	"time"
 
 	appdb "Matchup/db"
+	commonv1 "Matchup/gen/common/v1"
 	communityv1 "Matchup/gen/community/v1"
 	"Matchup/gen/community/v1/communityv1connect"
 	"Matchup/models"
@@ -1274,6 +1275,95 @@ func (h *CommunityHandler) GetCommunityFeed(ctx context.Context, req *connect.Re
 		}
 	}
 	return connect.NewResponse(resp), nil
+}
+
+// ListMentionableMembers returns non-banned community members whose
+// username matches the optional `query`. Used by the @-mention
+// autocomplete + the "add a member as matchup item" picker when the
+// content is community-scoped.
+//
+// Auth: any authed user can call. The response is the same regardless
+// of role (it's effectively a directory) — banned members are
+// filtered out so a banned user never surfaces as a mention target.
+// Pagination uses the lowercase username of the last row as the
+// cursor (alphabetical, stable).
+func (h *CommunityHandler) ListMentionableMembers(ctx context.Context, req *connect.Request[communityv1.ListMentionableMembersRequest]) (*connect.Response[communityv1.ListMentionableMembersResponse], error) {
+	if _, ok := httpctx.CurrentUserID(ctx); !ok {
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
+	}
+
+	c, err := resolveCommunityByIdentifier(dbForRead(ctx, h.DB, h.ReadDB), req.Msg.GetCommunityId())
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("community not found"))
+		}
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	limit := 50
+	if l := req.Msg.GetLimit(); l > 0 {
+		limit = int(l)
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	args := []interface{}{c.ID}
+	where := []string{
+		"cm.community_id = $1",
+		"cm.role <> 'banned'",
+		"u.deleted_at IS NULL",
+		"u.banned_at IS NULL",
+	}
+	if q := strings.TrimSpace(req.Msg.GetQuery()); q != "" {
+		args = append(args, "%"+strings.ToLower(q)+"%")
+		where = append(where, fmt.Sprintf("LOWER(u.username) LIKE $%d", len(args)))
+	}
+	if cursor := strings.TrimSpace(req.Msg.GetCursor()); cursor != "" {
+		args = append(args, strings.ToLower(cursor))
+		where = append(where, fmt.Sprintf("LOWER(u.username) > $%d", len(args)))
+	}
+	args = append(args, limit+1)
+
+	query := fmt.Sprintf(`
+		SELECT u.public_id, u.username, u.avatar_path
+		FROM community_memberships cm
+		JOIN users u ON u.id = cm.user_id
+		WHERE %s
+		ORDER BY LOWER(u.username) ASC
+		LIMIT $%d`,
+		strings.Join(where, " AND "),
+		len(args),
+	)
+
+	type row struct {
+		PublicID   string `db:"public_id"`
+		Username   string `db:"username"`
+		AvatarPath string `db:"avatar_path"`
+	}
+	var rows []row
+	if err := sqlx.SelectContext(ctx, dbForRead(ctx, h.DB, h.ReadDB), &rows, query, args...); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	var nextCursor string
+	if len(rows) > limit {
+		nextCursor = rows[limit-1].Username
+		rows = rows[:limit]
+	}
+
+	users := make([]*commonv1.UserSummaryResponse, 0, len(rows))
+	for _, r := range rows {
+		users = append(users, &commonv1.UserSummaryResponse{
+			Id:         r.PublicID,
+			Username:   r.Username,
+			AvatarPath: appdb.ProcessAvatarPath(r.AvatarPath),
+		})
+	}
+	return connect.NewResponse(&communityv1.ListMentionableMembersResponse{
+		Users:      users,
+		NextCursor: nextCursor,
+	}), nil
 }
 
 // ----------------------------------------------------------------------

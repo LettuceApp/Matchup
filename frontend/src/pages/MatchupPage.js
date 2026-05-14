@@ -7,6 +7,7 @@ import { useAnonVoteStatus } from "../hooks/useAnonVoteStatus";
 import { useAnonUpgradePrompt } from "../contexts/AnonUpgradeContext";
 import { track } from "../utils/analytics";
 import Comment from "../components/Comment";
+import MentionAutocomplete from "../components/MentionAutocomplete";
 import Button from "../components/Button";
 import ConfirmModal from "../components/ConfirmModal";
 import ShareButton from "../components/ShareButton";
@@ -73,6 +74,10 @@ const MatchupPage = () => {
   const [isLiked, setIsLiked] = useState(false);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
+  // Ref consumed by MentionAutocomplete so it can read the caret
+  // position + dispatch keyboard events without the parent threading
+  // every keystroke through.
+  const commentTextareaRef = useRef(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -1364,19 +1369,32 @@ const MatchupPage = () => {
               <label htmlFor="newComment" className="matchup-form-label">
                 Add a comment
               </label>
-              <textarea
-                id="newComment"
-                value={newComment}
-                onChange={(e) => {
-                  setNewComment(e.target.value);
-                  e.target.style.height = 'auto';
-                  e.target.style.height = e.target.scrollHeight + 'px';
-                }}
-                rows={1}
-                disabled={commentPending || !canComment}
-                className="matchup-textarea"
-                placeholder="Share your take…"
-              />
+              {/* The textarea wrapper has `position: relative` (see
+                  MatchupPage.css) so MentionAutocomplete's absolutely-
+                  positioned dropdown anchors against it instead of
+                  escaping to the page body. */}
+              <div className="matchup-comment-input">
+                <textarea
+                  id="newComment"
+                  ref={commentTextareaRef}
+                  value={newComment}
+                  onChange={(e) => {
+                    setNewComment(e.target.value);
+                    e.target.style.height = 'auto';
+                    e.target.style.height = e.target.scrollHeight + 'px';
+                  }}
+                  rows={1}
+                  disabled={commentPending || !canComment}
+                  className="matchup-textarea"
+                  placeholder="Share your take… (use @ to mention)"
+                />
+                <MentionAutocomplete
+                  value={newComment}
+                  onChange={(next) => setNewComment(next)}
+                  textareaRef={commentTextareaRef}
+                  communityId={matchup?.community_id}
+                />
+              </div>
               {commentError && <p className="matchup-inline-error">{commentError}</p>}
               <div className="matchup-form-actions">
                 <button

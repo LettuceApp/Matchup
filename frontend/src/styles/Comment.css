@@ -99,3 +99,18 @@
   background: var(--danger-bg);
   border-color: var(--danger-fg);
 }
+
+/* @-mentions inside a comment body. Inline link in the brand accent
+   color so it reads as "tappable" without being garish. Matches the
+   blue-link cue that Twitter / Slack use for in-body mentions. */
+.comment-card__mention {
+  color: var(--accent-secondary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.comment-card__mention:hover,
+.comment-card__mention:focus-visible {
+  text-decoration: underline;
+  outline: none;
+}

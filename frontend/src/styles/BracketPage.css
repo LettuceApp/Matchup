@@ -634,6 +634,13 @@
    — slate-900 text on a near-black backdrop in light mode, which
    meant typed comments were invisible. Mirrors the .matchup-textarea
    fix from the matchup detail page. */
+/* Wrapper around the bracket comment textarea + MentionAutocomplete.
+   See matchup-comment-input for the same recipe + rationale. */
+.bracket-comment-input {
+  position: relative;
+  width: 100%;
+}
+
 .bracket-textarea {
   min-height: 120px;
   border-radius: 18px;
@@ -643,6 +650,8 @@
   padding: 0.9rem 1rem;
   font-size: 0.95rem;
   resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .bracket-textarea::placeholder {

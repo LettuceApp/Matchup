@@ -2,6 +2,7 @@ syntax = "proto3";
 package community.v1;
 option go_package = "Matchup/gen/community/v1;communityv1";
 
+import "common/v1/common.proto";
 import "matchup/v1/matchup.proto";
 import "bracket/v1/bracket.proto";
 
@@ -62,6 +63,14 @@ service CommunityService {
   // community. Sorted by created_at DESC; paginate via cursor (the
   // last item's created_at).
   rpc GetCommunityFeed(GetCommunityFeedRequest) returns (GetCommunityFeedResponse);
+
+  // Members the caller can @-mention from within this community.
+  // Returns non-banned members, optionally filtered by a username
+  // `query` substring. Used by the @-mention autocomplete and by the
+  // "add a member as matchup item" picker when creating community-
+  // scoped content. Auth: any authed user can call; banned members
+  // are excluded from the result regardless of the caller's role.
+  rpc ListMentionableMembers(ListMentionableMembersRequest) returns (ListMentionableMembersResponse);
 }
 
 // CommunityData — full community object returned from most endpoints.
@@ -279,4 +288,20 @@ message GetCommunityFeedResponse {
   repeated matchup.v1.MatchupData matchups = 1;
   repeated bracket.v1.BracketData brackets = 2;
   string next_cursor = 3;
+}
+
+// ListMentionableMembers — non-banned members of a community whose
+// username matches the optional `query`. Mirrors ListMutualsRequest
+// shape so the frontend autocomplete component can swap between the
+// two RPC sources with the same response handler.
+message ListMentionableMembersRequest {
+  string community_id = 1;
+  optional int32 limit = 2;
+  optional string cursor = 3;
+  optional string query = 4;
+}
+
+message ListMentionableMembersResponse {
+  repeated common.v1.UserSummaryResponse users = 1;
+  string next_cursor = 2;
 }

@@ -438,6 +438,18 @@ export const getUserFollowers = (id, params = {}) =>
 export const getUserFollowing = (id, params = {}) =>
   rpc('user.v1.UserService', 'GetFollowing', { id, ...params });
 
+// ListMutuals — users who follow the caller AND who the caller
+// follows back. Backs the @-mention autocomplete (mutuals are the
+// default suggestion set outside a community context) + the future
+// "add a mutual as matchup item" picker. `query` narrows by username
+// substring as the user types past `@`.
+export const listMutuals = ({ query, limit, cursor } = {}) =>
+  rpc('user.v1.UserService', 'ListMutuals', {
+    ...(query !== undefined ? { query } : {}),
+    ...(limit !== undefined ? { limit } : {}),
+    ...(cursor !== undefined ? { cursor } : {}),
+  });
+
 // -----------------------------------------
 // BLOCKS + MUTES
 // -----------------------------------------
@@ -870,6 +882,18 @@ export const getCommunityFeed = (communityId, { limit = 20, cursor = '' } = {}) 
     community_id: communityId,
     limit,
     cursor,
+  });
+
+// ListMentionableMembers — non-banned members of a community whose
+// username matches the optional substring. Used by the MentionAutocomplete
+// component when the parent passes a community context (e.g. a
+// comment composer on a community-scoped matchup or bracket).
+export const listMentionableMembers = (communityId, { query, limit, cursor } = {}) =>
+  rpc('community.v1.CommunityService', 'ListMentionableMembers', {
+    community_id: communityId,
+    ...(query !== undefined ? { query } : {}),
+    ...(limit !== undefined ? { limit } : {}),
+    ...(cursor !== undefined ? { cursor } : {}),
   });
 
 // Member-management RPCs — owner gates UpdateMemberRole; mod+ gates

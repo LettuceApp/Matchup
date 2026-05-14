@@ -2,6 +2,8 @@ syntax = "proto3";
 package user.v1;
 option go_package = "Matchup/gen/user/v1;userv1";
 
+import "common/v1/common.proto";
+
 service UserService {
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
   rpc GetUser(GetUserRequest) returns (GetUserResponse);
@@ -26,6 +28,14 @@ service UserService {
   rpc FollowUser(FollowUserRequest) returns (FollowUserResponse);
   rpc UnfollowUser(UnfollowUserRequest) returns (UnfollowUserResponse);
   rpc GetRelationship(GetRelationshipRequest) returns (GetRelationshipResponse);
+
+  // Mutuals — users who follow the caller AND who the caller follows
+  // back. Used by the @-mention autocomplete in comments + as the
+  // valid-target set for personal matchup "user as item" entries.
+  // Server-side INTERSECT keeps the client from having to fetch two
+  // pages and dedupe. Optional `query` narrows by username prefix /
+  // substring for autocomplete typing.
+  rpc ListMutuals(ListMutualsRequest) returns (ListMutualsResponse);
 
   // Block / unblock. Block is BIDIRECTIONAL: blocked user disappears
   // from every read surface (feeds, comments, activity, profiles)
@@ -219,6 +229,29 @@ message UnfollowUserRequest {
 
 message GetRelationshipRequest {
   string id = 1;
+}
+
+// ListMutuals — every user who follows the caller AND who the caller
+// follows back. Used by the @-mention autocomplete component +
+// CreateMatchup's "add a mutual as an item" picker. `query` is an
+// optional case-insensitive substring filter applied to username so
+// typing `@al` narrows the dropdown to mutuals whose name contains
+// "al". Cursor is the username of the last row returned (mutuals are
+// ordered alphabetically — alphabetical pagination is stable and the
+// expected set is small enough that complex cursoring isn't worth
+// it).
+message ListMutualsRequest {
+  optional int32 limit = 1;
+  optional string cursor = 2;
+  optional string query = 3;
+}
+
+message ListMutualsResponse {
+  // Reuses UserSummaryResponse (id + username + avatar_path) — the
+  // autocomplete only needs identity + display image.
+  repeated common.v1.UserSummaryResponse users = 1;
+  // Empty when this is the last page.
+  string next_cursor = 2;
 }
 
 // ---- Response messages ----

@@ -5,6 +5,7 @@ import ConfirmModal from "../components/ConfirmModal";
 import Button from "../components/Button";
 import BracketView from "../components/BracketView";
 import Comment from "../components/Comment";
+import MentionAutocomplete from "../components/MentionAutocomplete";
 import ShareButton from "../components/ShareButton";
 import ReportModal from "../components/ReportModal";
 import SkeletonCard from "../components/SkeletonCard";
@@ -75,6 +76,8 @@ export default function BracketPage() {
   const [likePending, setLikePending] = useState(false);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
+  // Ref consumed by MentionAutocomplete — same pattern as MatchupPage.
+  const commentTextareaRef = useRef(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -778,14 +781,24 @@ export default function BracketPage() {
               <label htmlFor="newBracketComment" className="bracket-form-label">
                 Add a comment
               </label>
-              <textarea
-                id="newBracketComment"
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                rows={3}
-                disabled={commentPending}
-                className="bracket-textarea"
-              />
+              <div className="bracket-comment-input">
+                <textarea
+                  id="newBracketComment"
+                  ref={commentTextareaRef}
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  rows={3}
+                  disabled={commentPending}
+                  className="bracket-textarea"
+                  placeholder="Drop a take… (use @ to mention)"
+                />
+                <MentionAutocomplete
+                  value={newComment}
+                  onChange={(next) => setNewComment(next)}
+                  textareaRef={commentTextareaRef}
+                  communityId={bracket?.community_id}
+                />
+              </div>
               {commentError && (
                 <p className="bracket-inline-error">{commentError}</p>
               )}
