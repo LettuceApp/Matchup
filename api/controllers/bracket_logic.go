@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"time"
 
@@ -142,10 +143,63 @@ func stripSeedPrefix(label string) string {
 
 // generateFullBracket creates all matchup slots for a bracket.
 // Round 1 matchups get seed-labeled items; later rounds are empty placeholders.
-func generateFullBracket(db *sqlx.DB, bracket models.Bracket, entries []string) {
+// generateFullBracket creates the bracket's matchup skeleton — round 1
+// matchups carry items from the caller-supplied entries; later rounds
+// stay empty until prior rounds resolve.
+//
+// User-as-item: when an entry string matches `@<username>` (or `@me`,
+// which resolves to the creator), the resulting matchup_item gets
+// user_id set and the item label falls back to the resolved
+// @username. Entries that don't match the @-handle pattern stay as
+// plain text labels via formatSeedLabel. The author + the resolved
+// user info are surfaced on the bracket page the same way standalone
+// matchups handle them.
+//
+// Notifications: each unique resolved user (other than the creator)
+// gets a mentioned_as_item dispatch after the round-1 matchups land
+// — same kind + payload as the standalone matchup path so a viewer's
+// bell treats them uniformly.
+func generateFullBracket(ctx context.Context, db *sqlx.DB, bracket models.Bracket, entries []string) {
 	totalRounds := 0
 	for (1 << totalRounds) < bracket.Size {
 		totalRounds++
+	}
+
+	// Resolve all user-handle entries up front so we can build the
+	// round-1 items with their UserID + display fallback in one pass.
+	// Failures (handle didn't resolve, e.g. typo) degrade gracefully:
+	// the entry stays as a plain text label, no notification fires.
+	type resolvedEntry struct {
+		text   string  // display label (@username for resolved, raw text otherwise)
+		userID *uint   // non-nil when this entry is a user
+		user   *models.User
+	}
+	resolved := make([]resolvedEntry, len(entries))
+	for idx, raw := range entries {
+		clean := strings.TrimSpace(raw)
+		if m := mentionEntryRegex.FindStringSubmatch(clean); m != nil {
+			if u, err := resolveUserHandle(ctx, db, m[0], bracket.AuthorID); err == nil && u != nil {
+				uid := u.ID
+				resolved[idx] = resolvedEntry{
+					text:   "@" + u.Username,
+					userID: &uid,
+					user:   u,
+				}
+				continue
+			}
+		}
+		resolved[idx] = resolvedEntry{text: clean}
+	}
+
+	// Collect unique notification targets so the same user listed
+	// twice in entries only fires one push. Creator is excluded
+	// (they know they added themselves via @me).
+	notifyTargets := map[uint]string{} // user_id → username
+	for _, r := range resolved {
+		if r.userID == nil || *r.userID == 0 || *r.userID == bracket.AuthorID {
+			continue
+		}
+		notifyTargets[*r.userID] = r.user.Username
 	}
 
 	for round := 1; round <= totalRounds; round++ {
@@ -163,16 +217,16 @@ func generateFullBracket(db *sqlx.DB, bracket models.Bracket, entries []string) 
 			if round == 1 {
 				seedA := i + 1
 				seedB := bracket.Size - i
-				var nameA, nameB string
-				if seedA-1 < len(entries) {
-					nameA = entries[seedA-1]
+				var entryA, entryB resolvedEntry
+				if seedA-1 < len(resolved) {
+					entryA = resolved[seedA-1]
 				}
-				if seedB-1 < len(entries) {
-					nameB = entries[seedB-1]
+				if seedB-1 < len(resolved) {
+					entryB = resolved[seedB-1]
 				}
 				m.Items = []models.MatchupItem{
-					{Item: formatSeedLabel(seedA, nameA)},
-					{Item: formatSeedLabel(seedB, nameB)},
+					{Item: formatSeedLabel(seedA, entryA.text), UserID: entryA.userID},
+					{Item: formatSeedLabel(seedB, entryB.text), UserID: entryB.userID},
 				}
 			}
 			m.Prepare()
@@ -181,7 +235,41 @@ func generateFullBracket(db *sqlx.DB, bracket models.Bracket, entries []string) 
 			}
 		}
 	}
+
+	// Fire mentioned_as_item notifications once per unique user-
+	// contender. Best-effort — a failure doesn't roll back the
+	// bracket creation. Push copy mirrors the standalone matchup
+	// path so the recipient's tray reads consistently.
+	if len(notifyTargets) > 0 {
+		var author models.User
+		_ = sqlx.GetContext(ctx, db, &author, "SELECT * FROM users WHERE id = $1", bracket.AuthorID)
+		pushURL := fmt.Sprintf("%s/brackets/%s",
+			strings.TrimRight(mailerAppBaseURL(), "/"),
+			bracket.PublicID,
+		)
+		payload := map[string]any{
+			"bracket_id":      bracket.PublicID,
+			"bracket_title":   bracket.Title,
+			"author_username": author.Username,
+		}
+		for uid := range notifyTargets {
+			dispatchNotification(
+				ctx, db, uid,
+				kindMentionedAsItem, "bracket", bracket.ID,
+				payload,
+				"@"+author.Username+" added you to a bracket",
+				truncateForPush(bracket.Title, 140),
+				pushURL,
+			)
+		}
+	}
 }
+
+// mentionEntryRegex matches a bare `@<username>` entry — what a
+// creator types in a bracket contender row to reference a user.
+// Mirrors the frontend's `/^@([A-Za-z0-9_]+)$/` parser in
+// CreateMatchup so the wire contract stays consistent.
+var mentionEntryRegex = regexp.MustCompile(`^@[A-Za-z0-9_]+$`)
 
 // ---- cascade deletes ----
 

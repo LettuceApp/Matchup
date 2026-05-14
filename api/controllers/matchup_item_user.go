@@ -50,10 +50,15 @@ func resolveUserHandle(ctx context.Context, db sqlx.ExtContext, handle string, v
 	}
 
 	var u models.User
+	// public_id::text cast is load-bearing — without it, Postgres
+	// infers $1 as a UUID (matching the public_id column type), then
+	// the second clause `LOWER($1)` fails with "function lower(uuid)
+	// does not exist". Casting public_id to text keeps $1 as a plain
+	// string parameter, satisfying both equality + LOWER().
 	err := sqlx.GetContext(ctx, db, &u, `
 		SELECT *
 		FROM users
-		WHERE (public_id = $1 OR LOWER(username) = LOWER($1))
+		WHERE (public_id::text = $1 OR LOWER(username) = LOWER($1))
 		  AND deleted_at IS NULL
 		  AND banned_at IS NULL
 		LIMIT 1

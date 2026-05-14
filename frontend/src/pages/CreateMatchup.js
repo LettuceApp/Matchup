@@ -340,8 +340,16 @@ const CreateMatchup = () => {
   };
 
   const previewItems = filledItems.length > 0 ? filledItems : sanitizedItems;
+  // A row counts as "missing a name" only when BOTH the text label
+  // AND the resolved userHandle are empty. Previously the gate just
+  // checked the text — which tripped the "Contender name required"
+  // error on user-handle rows (those route `item.length === 0` but
+  // carry `userHandle`, so the server falls back to @username for
+  // the stored label).
   const showItemError = (index) =>
-    (attemptedSubmit || touchedItems[index]) && sanitizedItems[index].item.length === 0;
+    (attemptedSubmit || touchedItems[index]) &&
+    sanitizedItems[index].item.length === 0 &&
+    !sanitizedItems[index].userHandle;
 
   // Page wrapper is transparent so the body's themed gradient
   // (set in index.css from --bg-page-gradient) shows through. An

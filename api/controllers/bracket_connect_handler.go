@@ -603,7 +603,7 @@ func (h *BracketHandler) CreateBracket(ctx context.Context, req *connect.Request
 		}
 	}
 
-	generateFullBracket(h.DB, *newBracket, req.Msg.Entries)
+	generateFullBracket(ctx, h.DB, *newBracket, req.Msg.Entries)
 
 	resp := connect.NewResponse(&bracketv1.CreateBracketResponse{
 		Bracket: bracketToProto(h.DB, newBracket),
