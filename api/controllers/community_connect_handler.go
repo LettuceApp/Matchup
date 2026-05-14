@@ -143,8 +143,16 @@ func (h *CommunityHandler) communityToProto(ctx context.Context, c *models.Commu
 		Slug:          c.Slug,
 		Name:          c.Name,
 		Description:   c.Description,
-		AvatarPath:    c.AvatarPath,
-		BannerPath:    c.BannerPath,
+		// commitCommunityImage stores the raw S3 filename in the DB
+		// ("img-<uuid>.jpg") — running it through the appdb resolvers
+		// here lifts it to a full https://…/CommunityAvatars/… URL the
+		// frontend can render directly. Same recipe as ProcessAvatar /
+		// ProcessMatchupImage; without this step the <img src> on the
+		// community page tried to load the bare filename relative to
+		// the React origin and silently fell back to the gradient
+		// fallback (alt="" hid the broken-image icon).
+		AvatarPath:    appdb.ProcessCommunityAvatarPath(c.AvatarPath),
+		BannerPath:    appdb.ProcessCommunityBannerPath(c.BannerPath),
 		Tags:          []string(c.Tags),
 		Privacy:       c.Privacy,
 		OwnerId:       ownerPublicID,

@@ -135,6 +135,40 @@ func ProcessMatchupItemImagePathSized(path, size string) string {
 	return processImagePathSized(path, "MatchupItemImages/", size)
 }
 
+// ProcessCommunityAvatarPath converts a relative community-avatar path
+// (just a filename like "img-<uuid>.jpg" — what
+// commitCommunityImage stores) to a full S3 URL. Mirrors the user-
+// avatar / matchup-image resolution pattern so the proto carries a
+// ready-to-use src and the frontend doesn't need to know the S3
+// layout.
+//
+// Note the "CommunityAvatars/avatar/" prefix carries a redundant
+// "avatar" segment inherited from commitCommunityImage's basePrefix
+// handling (it trims the ".jpg" off "CommunityAvatars/avatar.jpg"
+// and treats the remainder as a directory). The redundancy is
+// harmless and changing the upload path would orphan every existing
+// uploaded avatar, so the resolver matches the on-disk layout
+// instead.
+func ProcessCommunityAvatarPath(path string) string {
+	return ProcessCommunityAvatarPathSized(path, "")
+}
+
+// ProcessCommunityAvatarPathSized is the size-aware variant.
+func ProcessCommunityAvatarPathSized(path, size string) string {
+	return processImagePathSized(path, "CommunityAvatars/avatar/", size)
+}
+
+// ProcessCommunityBannerPath — community-banner counterpart to
+// ProcessCommunityAvatarPath. Same redundant "/banner/" segment for
+// the same reason; see the avatar helper's comment.
+func ProcessCommunityBannerPath(path string) string {
+	return ProcessCommunityBannerPathSized(path, "")
+}
+
+func ProcessCommunityBannerPathSized(path, size string) string {
+	return processImagePathSized(path, "CommunityBanners/banner/", size)
+}
+
 // processImagePathSized is the shared implementation for both avatar and
 // matchup-image S3 URL construction. dirPrefix is the S3 key directory
 // ("UserProfilePics/" or "MatchupImages/"). We insert the "_<size>"
