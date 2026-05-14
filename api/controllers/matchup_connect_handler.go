@@ -541,7 +541,8 @@ func (h *MatchupHandler) CreateMatchup(ctx context.Context, req *connect.Request
 		// caller can fix the picker selection without retrying the
 		// whole save.
 		if handle := strings.TrimSpace(it.GetUserHandle()); handle != "" {
-			target, err := resolveUserHandle(ctx, h.DB, handle)
+			// Pass the creator's userID so "me" resolves to themselves.
+			target, err := resolveUserHandle(ctx, h.DB, handle, userID)
 			if err != nil {
 				return nil, connect.NewError(connect.CodeInvalidArgument, err)
 			}
@@ -556,7 +557,10 @@ func (h *MatchupHandler) CreateMatchup(ctx context.Context, req *connect.Request
 			if strings.TrimSpace(item.Item) == "" {
 				item.Item = "@" + target.Username
 			}
-			if !seenTargetID[target.ID] {
+			// Don't notify the creator about adding themselves — they
+			// know. Also dedupe so listing the same user twice as items
+			// fires only one notification.
+			if target.ID != userID && !seenTargetID[target.ID] {
 				seenTargetID[target.ID] = true
 				notifyTargets = append(notifyTargets, notifyTarget{
 					userID:   target.ID,

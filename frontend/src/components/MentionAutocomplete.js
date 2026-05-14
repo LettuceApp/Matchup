@@ -1,5 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { listMutuals, listMentionableMembers } from '../services/api';
+import {
+  listMutuals,
+  listMentionableMembers,
+  search as universalSearch,
+} from '../services/api';
 import { extractActiveMentionQuery, replaceActiveMention } from '../utils/mentions';
 import './MentionAutocomplete.css';
 
@@ -34,7 +38,21 @@ import './MentionAutocomplete.css';
 const DEBOUNCE_MS = 120;
 const MAX_RESULTS = 8;
 
-const MentionAutocomplete = ({ value, onChange, textareaRef, communityId }) => {
+// `source` selects the search backend:
+//   - 'mutuals' (default): listMutuals — only mutuals; the original
+//     comment-mention behaviour.
+//   - 'all': universal search — broader, returns any matching user
+//     once the query reaches 2 chars. Used by matchup item rows
+//     where the goal is maximum shareability ("put anyone in your
+//     matchup, not just mutuals").
+// When `communityId` is set it OVERRIDES source — community
+// composers always limit suggestions to the community's members
+// regardless of what the parent passes.
+//
+// `enableMe` (default true) prepends an "@me — yourself" row when
+// the query is empty or partial-prefix-matches "me". Backend
+// resolves the @me handle to the viewer's user record on submit.
+const MentionAutocomplete = ({ value, onChange, textareaRef, communityId, source = 'mutuals', enableMe = false }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -76,27 +94,56 @@ const MentionAutocomplete = ({ value, onChange, textareaRef, communityId }) => {
     };
   }, [textareaRef, recompute]);
 
-  // Debounced fetch — flips between mutuals and community members
-  // based on whether the parent passed a `communityId`.
+  // Debounced fetch. Source priority:
+  //   1. communityId set → community members (existing behaviour;
+  //      community composers always scope to the community)
+  //   2. source === 'all' → universal user search (requires q >= 2)
+  //   3. default → listMutuals (original behaviour)
+  // Results are augmented with an @me synthetic row when enableMe is
+  // on AND the user is typing nothing-or-"me-prefix" — appears before
+  // any fetched matches so the creator's self-mention is the first
+  // visible option.
   useEffect(() => {
     if (!open) return undefined;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       const mySeq = ++fetchSeqRef.current;
+
+      // Synthetic @me row. The id "__me__" is a sentinel the picker
+      // recognises on select — the actual username sent on the wire
+      // is "me", which the backend resolves to the viewer's user
+      // record via resolveUserHandle's "me" branch.
+      const meRow = enableMe && (!query || 'me'.startsWith(query.toLowerCase()))
+        ? { id: '__me__', username: 'me', avatar_path: '', _isMe: true }
+        : null;
+
       try {
-        const res = communityId
-          ? await listMentionableMembers(communityId, { query, limit: MAX_RESULTS })
-          : await listMutuals({ query, limit: MAX_RESULTS });
+        let fetched = [];
+        if (communityId) {
+          const res = await listMentionableMembers(communityId, { query, limit: MAX_RESULTS });
+          fetched = res?.data?.users || [];
+        } else if (source === 'all') {
+          // Universal search requires q >= 2. Below that we just show
+          // the @me row (if enabled) — no broad list yet.
+          if ((query || '').length >= 2) {
+            const res = await universalSearch({ query, only: 'user', limit: MAX_RESULTS });
+            fetched = res?.data?.users || [];
+          }
+        } else {
+          const res = await listMutuals({ query, limit: MAX_RESULTS });
+          fetched = res?.data?.users || [];
+        }
         if (mySeq !== fetchSeqRef.current) return; // stale
-        setResults(res?.data?.users || []);
+        const combined = meRow ? [meRow, ...fetched] : fetched;
+        setResults(combined);
       } catch (err) {
         if (mySeq !== fetchSeqRef.current) return;
         console.warn('Mention autocomplete fetch failed', err);
-        setResults([]);
+        setResults(meRow ? [meRow] : []);
       }
     }, DEBOUNCE_MS);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [open, query, communityId]);
+  }, [open, query, communityId, source, enableMe]);
 
   const handlePick = useCallback((username) => {
     const ta = textareaRef.current;
@@ -164,6 +211,9 @@ const MentionAutocomplete = ({ value, onChange, textareaRef, communityId }) => {
             </span>
           )}
           <span className="mention-autocomplete__username">@{u.username}</span>
+          {u._isMe && (
+            <span className="mention-autocomplete__hint">yourself</span>
+          )}
         </li>
       ))}
     </ul>

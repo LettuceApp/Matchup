@@ -7,6 +7,14 @@
  * (NavigationBar profile menu, CreateMenu dropdown): glass-ish
  * surface tinted toward the brand, soft shadow, rounded corners.
  */
+/* Wrapper for the MentionableInput component — gives the absolute-
+   positioned dropdown an anchoring container without forcing each
+   parent to add `position: relative`. */
+.mentionable-input {
+  position: relative;
+  width: 100%;
+}
+
 .mention-autocomplete {
   position: absolute;
   /* Anchor below the textarea by default; the parent's
@@ -73,4 +81,15 @@
 .mention-autocomplete__username {
   font-size: 0.92rem;
   font-weight: 600;
+}
+
+/* Subtle "yourself" tag on the synthetic @me row — keeps it
+   identifiable without forcing the user to read "@me" and guess. */
+.mention-autocomplete__hint {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
