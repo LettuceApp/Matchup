@@ -36,6 +36,7 @@ import FollowListModal from '../components/FollowListModal';
 import EmptyStateCard from '../components/EmptyStateCard';
 import ActivityFeed from '../components/ActivityFeed';
 import NotificationSettings from '../components/NotificationSettings';
+import { gradientForSlug } from '../utils/communityGradients';
 import BlockMuteMenu from '../components/BlockMuteMenu';
 import SkeletonCard from '../components/SkeletonCard';
 import { useAnonUpgradePrompt } from '../contexts/AnonUpgradeContext';
@@ -252,6 +253,21 @@ const UserProfile = () => {
     setActivityNextBefore(null);
     setActivityLoadingMore(false);
   }, [identifier]);
+
+  // Push the profile owner's chosen gradient up to :root as
+  // --page-accent-gradient so the global NavigationBar brand wordmark
+  // repaints with their theme while a viewer is on the profile.
+  // Cleanup removes the var on unmount or when navigating to a
+  // different profile / route — see the same pattern in
+  // CommunityPage.js.
+  useEffect(() => {
+    if (!user) return undefined;
+    const themeGradient = gradientForSlug(user.theme_gradient || '');
+    document.documentElement.style.setProperty('--page-accent-gradient', themeGradient);
+    return () => {
+      document.documentElement.style.removeProperty('--page-accent-gradient');
+    };
+  }, [user]);
 
   useEffect(() => {
     let isMounted = true;

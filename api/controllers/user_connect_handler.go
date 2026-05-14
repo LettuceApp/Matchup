@@ -194,6 +194,26 @@ func (h *UserHandler) UpdateUser(ctx context.Context, req *connect.Request[userv
 		newUser.Bio = formerUser.Bio
 	}
 
+	// Theme gradient is written via a separate small UPDATE because
+	// the legacy UpdateAUser model method only touches email/bio/
+	// password — extending its column list risked clobbering rows on
+	// partial-field updates. Validating against the shared allow-list
+	// keeps the user-side palette in lock-step with communities (see
+	// theme_gradient.go) and prevents arbitrary strings from flowing
+	// into the inline-style attribute on the rendered profile.
+	if req.Msg.ThemeGradient != nil {
+		g := strings.TrimSpace(*req.Msg.ThemeGradient)
+		if err := validateThemeGradient(g); err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+		if _, err := h.DB.ExecContext(ctx,
+			"UPDATE users SET theme_gradient = $1, updated_at = NOW() WHERE id = $2",
+			g, user.ID,
+		); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+	}
+
 	newUser.Prepare()
 	if errs := newUser.Validate("update"); len(errs) > 0 {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("%v", errs))

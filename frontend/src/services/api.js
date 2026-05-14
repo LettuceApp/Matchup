@@ -236,8 +236,21 @@ export const getUser = (id) =>
 export const getCurrentUser = () =>
   rpc('user.v1.UserService', 'GetCurrentUser', {});
 
-export const updateUser = (id, data) =>
-  rpc('user.v1.UserService', 'UpdateUser', { id, ...data });
+export const updateUser = (id, data = {}) => {
+  // Map camelCase keys callers naturally use to the proto's snake_case
+  // wire names. Earlier callers pass `bio` directly (already lower
+  // case — same wire name) so they continue to work; the explicit
+  // mapping is only relevant for the multi-word fields we've added
+  // since (theme_gradient today, more to come). Passing `undefined`
+  // values is filtered so the optional proto fields stay omitted
+  // rather than getting cleared to empty strings.
+  const payload = { id, ...data };
+  if (data.themeGradient !== undefined) {
+    payload.theme_gradient = data.themeGradient;
+    delete payload.themeGradient;
+  }
+  return rpc('user.v1.UserService', 'UpdateUser', payload);
+};
 
 export const updateUserPrivacy = (id, isPrivate) =>
   rpc('user.v1.UserService', 'UpdateUserPrivacy', { id, is_private: isPrivate });

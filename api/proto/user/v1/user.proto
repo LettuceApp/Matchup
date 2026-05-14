@@ -69,6 +69,12 @@ message UserProfile {
   // for the current user. Never false for other users in a response
   // payload — it's only meaningful on the viewer's own UserProfile.
   bool is_verified = 13;
+  // theme_gradient is a curated-palette slug picked by the user in
+  // AccountSettings ('stardust' / 'sunset' / etc.). Empty = use the
+  // default stardust palette. Resolved on the frontend against the
+  // same COMMUNITY_GRADIENTS palette communities use, so profile and
+  // community theming stay in lock-step.
+  string theme_gradient = 14;
 }
 
 // FollowListUser is a user with viewer relationship fields, used in follower/following lists.
@@ -119,6 +125,9 @@ message UpdateUserRequest {
   optional string current_password = 3;
   optional string new_password = 4;
   optional string bio = 5;
+  // Curated-palette gradient slug. Handler validates against the
+  // backend allow-list before writing.
+  optional string theme_gradient = 6;
 }
 
 message UpdateUserPrivacyRequest {

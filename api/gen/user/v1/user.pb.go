@@ -46,7 +46,13 @@ type UserProfile struct {
 	// the banner (+ blocks content-creation actions) when this is false
 	// for the current user. Never false for other users in a response
 	// payload — it's only meaningful on the viewer's own UserProfile.
-	IsVerified    bool `protobuf:"varint,13,opt,name=is_verified,json=isVerified,proto3" json:"is_verified,omitempty"`
+	IsVerified bool `protobuf:"varint,13,opt,name=is_verified,json=isVerified,proto3" json:"is_verified,omitempty"`
+	// theme_gradient is a curated-palette slug picked by the user in
+	// AccountSettings ('stardust' / 'sunset' / etc.). Empty = use the
+	// default stardust palette. Resolved on the frontend against the
+	// same COMMUNITY_GRADIENTS palette communities use, so profile and
+	// community theming stay in lock-step.
+	ThemeGradient string `protobuf:"bytes,14,opt,name=theme_gradient,json=themeGradient,proto3" json:"theme_gradient,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -170,6 +176,13 @@ func (x *UserProfile) GetIsVerified() bool {
 		return x.IsVerified
 	}
 	return false
+}
+
+func (x *UserProfile) GetThemeGradient() string {
+	if x != nil {
+		return x.ThemeGradient
+	}
+	return ""
 }
 
 // FollowListUser is a user with viewer relationship fields, used in follower/following lists.
@@ -552,8 +565,11 @@ type UpdateUserRequest struct {
 	CurrentPassword *string                `protobuf:"bytes,3,opt,name=current_password,json=currentPassword,proto3,oneof" json:"current_password,omitempty"`
 	NewPassword     *string                `protobuf:"bytes,4,opt,name=new_password,json=newPassword,proto3,oneof" json:"new_password,omitempty"`
 	Bio             *string                `protobuf:"bytes,5,opt,name=bio,proto3,oneof" json:"bio,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Curated-palette gradient slug. Handler validates against the
+	// backend allow-list before writing.
+	ThemeGradient *string `protobuf:"bytes,6,opt,name=theme_gradient,json=themeGradient,proto3,oneof" json:"theme_gradient,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateUserRequest) Reset() {
@@ -617,6 +633,13 @@ func (x *UpdateUserRequest) GetNewPassword() string {
 func (x *UpdateUserRequest) GetBio() string {
 	if x != nil && x.Bio != nil {
 		return *x.Bio
+	}
+	return ""
+}
+
+func (x *UpdateUserRequest) GetThemeGradient() string {
+	if x != nil && x.ThemeGradient != nil {
+		return *x.ThemeGradient
 	}
 	return ""
 }
@@ -2537,7 +2560,7 @@ var File_user_v1_user_proto protoreflect.FileDescriptor
 
 const file_user_v1_user_proto_rawDesc = "" +
 	"\n" +
-	"\x12user/v1/user.proto\x12\auser.v1\"\x99\x03\n" +
+	"\x12user/v1/user.proto\x12\auser.v1\"\xc0\x03\n" +
 	"\vUserProfile\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x14\n" +
@@ -2558,7 +2581,8 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\n" +
 	"is_deleted\x18\f \x01(\bR\tisDeleted\x12\x1f\n" +
 	"\vis_verified\x18\r \x01(\bR\n" +
-	"isVerifiedB\x06\n" +
+	"isVerified\x12%\n" +
+	"\x0etheme_gradient\x18\x0e \x01(\tR\rthemeGradientB\x06\n" +
 	"\x04_bio\"\xd1\x02\n" +
 	"\x0eFollowListUser\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
@@ -2587,17 +2611,19 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"\x11CreateUserRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
-	"\bpassword\x18\x03 \x01(\tR\bpassword\"\xe5\x01\n" +
+	"\bpassword\x18\x03 \x01(\tR\bpassword\"\xa4\x02\n" +
 	"\x11UpdateUserRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\x05email\x18\x02 \x01(\tH\x00R\x05email\x88\x01\x01\x12.\n" +
 	"\x10current_password\x18\x03 \x01(\tH\x01R\x0fcurrentPassword\x88\x01\x01\x12&\n" +
 	"\fnew_password\x18\x04 \x01(\tH\x02R\vnewPassword\x88\x01\x01\x12\x15\n" +
-	"\x03bio\x18\x05 \x01(\tH\x03R\x03bio\x88\x01\x01B\b\n" +
+	"\x03bio\x18\x05 \x01(\tH\x03R\x03bio\x88\x01\x01\x12*\n" +
+	"\x0etheme_gradient\x18\x06 \x01(\tH\x04R\rthemeGradient\x88\x01\x01B\b\n" +
 	"\x06_emailB\x13\n" +
 	"\x11_current_passwordB\x0f\n" +
 	"\r_new_passwordB\x06\n" +
-	"\x04_bio\"I\n" +
+	"\x04_bioB\x11\n" +
+	"\x0f_theme_gradient\"I\n" +
 	"\x18UpdateUserPrivacyRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +

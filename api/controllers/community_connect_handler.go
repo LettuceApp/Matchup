@@ -121,37 +121,11 @@ func roleAtLeast(have, min string) bool {
 	return rank[have] >= rank[min]
 }
 
-// allowedThemeGradients is the wire-side allow-list of curated
-// gradient slugs an owner can pick from in the settings page. The
-// raw CSS gradient values live in the frontend palette
-// (frontend/src/utils/communityGradients.js) — duplicating them
-// here would force a backend deploy every time we tweak a color.
-// What MUST stay in sync is the slug list: anything not in this
-// set is rejected at write-time so a malicious client can't store
-// arbitrary strings.
-//
-// Empty string is also valid and means "no theme chosen" — the
-// frontend falls back to its default palette.
-var allowedThemeGradients = map[string]struct{}{
-	"":         {}, // explicit "clear theme"
-	"stardust": {},
-	"sunset":   {},
-	"ocean":    {},
-	"mint":     {},
-	"amber":    {},
-	"magenta":  {},
-	"forest":   {},
-	"plum":     {},
-	"rose":     {},
-	"graphite": {},
-}
-
-func validateThemeGradient(slug string) error {
-	if _, ok := allowedThemeGradients[slug]; !ok {
-		return fmt.Errorf("unknown theme gradient %q", slug)
-	}
-	return nil
-}
+// The curated allow-list of theme_gradient slugs lives in
+// theme_gradient.go (shared with the user handler) — the community
+// handler used to define it locally, but profiles now pick from the
+// same palette, so duplicating risked drift. validateThemeGradient
+// is called inline below.
 
 // communityToProto serialises a community row for the wire. viewerRole
 // is computed against the caller's membership row (empty when anon or

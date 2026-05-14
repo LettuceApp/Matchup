@@ -155,3 +155,89 @@
   border-color: var(--border-strong);
   outline: none;
 }
+
+/* Theme picker — mirrors the swatch UI from CommunitySettings so the
+   two pages read as sibling controls (community theming + profile
+   theming). Each swatch renders its own gradient at full saturation
+   so the preview matches what the rendered page will use. */
+.account-settings__theme-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  margin-bottom: 0.8rem;
+  border: 3px solid var(--bg-page);
+  box-shadow: 0 8px 18px rgba(5, 10, 24, 0.45);
+}
+
+.account-settings__theme-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 0.6rem;
+  margin: 0.4rem 0;
+}
+
+.account-settings__swatch {
+  position: relative;
+  height: 56px;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+  font-family: inherit;
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+}
+
+.account-settings__swatch:hover:not(:disabled),
+.account-settings__swatch:focus-visible:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+  outline: none;
+}
+
+.account-settings__swatch:disabled {
+  cursor: progress;
+  opacity: 0.75;
+}
+
+.account-settings__swatch--active {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-primary-soft);
+}
+
+/* Selection-state checkmark — keeps active-state communicated by
+   shape, not color alone (a11y). */
+.account-settings__swatch--active::after {
+  content: '✓';
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.account-settings__swatch-label {
+  position: absolute;
+  left: 8px;
+  bottom: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.account-settings__theme-saved {
+  margin: 0.6rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}

@@ -74,6 +74,7 @@ func userToProto(user *models.User) *userv1.UserProfile {
 		UpdatedAt:      rfc3339(user.UpdatedAt),
 		Bio:            bio,
 		IsVerified:     user.EmailVerifiedAt != nil,
+		ThemeGradient:  user.ThemeGradient,
 	}
 }
 

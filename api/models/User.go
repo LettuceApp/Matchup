@@ -22,6 +22,11 @@ type User struct {
 	Email          string    `db:"email" json:"email"`
 	Password       string    `db:"password" json:"password"`
 	AvatarPath     string    `db:"avatar_path" json:"avatar_path"`
+	// ThemeGradient is a curated-palette slug picked by the user from
+	// AccountSettings ('stardust' / 'sunset' / etc.). Empty = no theme
+	// chosen → frontend falls back to the default stardust palette.
+	// Symmetric with Community.ThemeGradient (migration 028).
+	ThemeGradient string    `db:"theme_gradient" json:"theme_gradient"`
 	Bio            string    `db:"bio" json:"bio"`
 	IsAdmin        bool      `db:"is_admin" json:"is_admin"`
 	IsPrivate      bool      `db:"is_private" json:"is_private"`

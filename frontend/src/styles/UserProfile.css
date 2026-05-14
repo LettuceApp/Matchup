@@ -53,6 +53,26 @@
   overflow: visible;
 }
 
+/* Theme accent stripe along the hero's top edge — picks up the
+   --page-accent-gradient that UserProfile sets on :root from the
+   profile owner's theme_gradient. Falls back to the global stardust
+   recipe when the user hasn't picked anything, matching every other
+   theme-aware surface (community pages, brand wordmark, etc.).
+   The stripe is purely decorative (aria-hidden via ::before), and
+   matches the hero's border-radius so it doesn't square off the
+   rounded top corners. */
+.profile-hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: var(--page-accent-gradient, var(--gradient-stardust));
+  border-radius: 26px 26px 0 0;
+  pointer-events: none;
+}
+
 /* Decorative gradient overlay removed for parity with the home grid's
    plain card aesthetic. The hero is a flat surface now in both themes. */
 
