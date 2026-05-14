@@ -924,12 +924,18 @@ func (h *MatchupHandler) OverrideMatchupWinner(ctx context.Context, req *connect
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid winner item"))
 	}
 
-	matchup.WinnerItemID = &winnerItemID
-	matchup.Status = matchupStatusCompleted
-
-	if _, err := h.DB.ExecContext(ctx,
-		"UPDATE matchups SET winner_item_id = $1, status = $2, updated_at = $3 WHERE id = $4",
-		matchup.WinnerItemID, matchup.Status, time.Now(), matchup.ID); err != nil {
+	// Hydrate author for the win-notification push copy (best-effort).
+	if matchup.Author.ID == 0 {
+		_ = sqlx.GetContext(ctx, h.DB, &matchup.Author,
+			"SELECT * FROM users WHERE id = $1", matchup.AuthorID)
+	}
+	// Override-winner fires kindWonMatchup like CompleteMatchup —
+	// from the recipient's perspective both paths land the same
+	// "you won" notification. Admin overrides could be silenced by
+	// passing "" instead, but the override-winner endpoint is
+	// already gated to author + admin so a malicious-overide attack
+	// vector isn't a concern.
+	if err := stampMatchupWinner(ctx, h.DB, &matchup, winnerItemID, matchupStatusCompleted, kindWonMatchup); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	if matchup.BracketID != nil {
@@ -1020,12 +1026,18 @@ func (h *MatchupHandler) CompleteMatchup(ctx context.Context, req *connect.Reque
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
-	matchup.Status = matchupStatusCompleted
-	matchup.WinnerItemID = &winnerID
-
-	if _, err := h.DB.ExecContext(ctx,
-		"UPDATE matchups SET status = $1, winner_item_id = $2, updated_at = $3 WHERE id = $4",
-		matchup.Status, matchup.WinnerItemID, time.Now(), matchup.ID); err != nil {
+	// Hydrate the author for the win-notification push copy. Best-
+	// effort — the helper falls back to a generic title if Author is
+	// empty, so a SELECT failure here doesn't block the stamp.
+	if matchup.Author.ID == 0 {
+		_ = sqlx.GetContext(ctx, h.DB, &matchup.Author,
+			"SELECT * FROM users WHERE id = $1", matchup.AuthorID)
+	}
+	// Standalone matchups + bracket-leaf matchups both fire
+	// kindWonMatchup. The bracket round/final distinction only
+	// matters when bracket_logic.go auto-advances rounds — that path
+	// passes kindWonRound / kindWonBracket explicitly.
+	if err := stampMatchupWinner(ctx, h.DB, &matchup, winnerID, matchupStatusCompleted, kindWonMatchup); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	if matchup.BracketID != nil {

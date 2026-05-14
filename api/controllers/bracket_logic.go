@@ -301,14 +301,13 @@ func (s *Server) advanceBracketInternal(db *sqlx.DB, bracket *models.Bracket) (b
 				}
 				return false, err
 			}
-			if _, err := tx.ExecContext(ctx,
-				"UPDATE matchups SET winner_item_id = $1, status = $2, updated_at = $3 WHERE id = $4",
-				winnerID, matchupStatusCompleted, now, m.ID,
-			); err != nil {
+			// Round-advance: fires kindWonRound on user-backed winners.
+			// Items + author are pre-hydrated by the caller so the
+			// helper can find the winning item + push copy.
+			if err := stampMatchupWinner(ctx, tx, m, winnerID, matchupStatusCompleted, kindWonRound); err != nil {
 				return false, err
 			}
-			m.WinnerItemID = &winnerID
-			m.Status = matchupStatusCompleted
+			_ = now // helper stamps its own NOW(); kept symbolic.
 		}
 	}
 
@@ -331,12 +330,13 @@ func (s *Server) advanceBracketInternal(db *sqlx.DB, bracket *models.Bracket) (b
 			if err != nil {
 				return false, err
 			}
-			if _, err := tx.ExecContext(ctx,
-				"UPDATE matchups SET winner_item_id = $1, status = $2, updated_at = $3 WHERE id = $4",
-				winnerID, matchupStatusCompleted, now, m.ID,
-			); err != nil {
+			// Final round: fires kindWonBracket — distinct kind so the
+			// notification copy can read "🏆 You won the bracket"
+			// instead of the per-round "you won a round" flavor.
+			if err := stampMatchupWinner(ctx, tx, m, winnerID, matchupStatusCompleted, kindWonBracket); err != nil {
 				return false, err
 			}
+			_ = now
 		}
 		bracket.Status = "completed"
 		bracket.CompletedAt = &now

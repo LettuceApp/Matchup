@@ -32,6 +32,12 @@ type User struct {
 	IsPrivate      bool      `db:"is_private" json:"is_private"`
 	FollowersCount int64     `db:"followers_count" json:"followers_count"`
 	FollowingCount int64     `db:"following_count" json:"following_count"`
+	// WinsCount — global tally of matchups this user has won as a
+	// "user contender" (where matchup_items.user_id = this user and
+	// the matchup's winner_item_id resolved to that item). Bumped by
+	// stampMatchupWinner; surfaced as a stat tile on the profile.
+	// Migration 031.
+	WinsCount      int64     `db:"wins_count" json:"wins_count"`
 	// NotificationPrefs is a JSONB blob whose keys map to categories —
 	// `mention`, `engagement`, `milestone`, `prompt`, `social`,
 	// `email_digest`. See migrations 017 and 018 for defaults. Stored
