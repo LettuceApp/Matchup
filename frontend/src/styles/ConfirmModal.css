@@ -37,3 +37,21 @@
   gap: 0.75rem;
   justify-content: flex-end;
 }
+
+/* Title + message — theme-token driven so the modal stays legible
+   in both dark and light mode. The previous inline hardcoded
+   rgba(226,232,240,…) slate colors were dark-mode-only; on the
+   white light-mode surface the text was ghost-faint. */
+.confirm-modal__title {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.confirm-modal__message {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}

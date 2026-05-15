@@ -776,10 +776,17 @@ const MatchupPage = () => {
       return;
     }
     if (!readyEnabled) return;
-    const promptMessage = isReady ? "Undo ready?" : "Ready up and lock the winner?";
+    // Copy reworked: "Ready up" was tournament-speak for "I'm done,
+    // lock the winner" but owners read it as "I'm about to start" and
+    // hesitated. "End matchup" describes what the click actually does.
+    // The undo path keeps the same affordance for an owner who closed
+    // too early and wants to reopen voting.
+    const promptMessage = isReady
+      ? "Reopen this matchup for voting?"
+      : "End this matchup and lock the winner?";
     setConfirmModal({
       message: promptMessage,
-      confirmLabel: isReady ? 'Undo' : 'Ready up',
+      confirmLabel: isReady ? 'Undo matchup' : 'End matchup',
       danger: false,
       onConfirm: async () => {
         try {
@@ -979,6 +986,17 @@ const MatchupPage = () => {
                           </time>
                         </>
                       )}
+                      {/*
+                        Total-votes counter — sits in the byline next to
+                        timeAgo so the engagement signal is visible from
+                        the hero region without scrolling to the items.
+                        Always rendered (including "0 votes") so a brand-
+                        new matchup still communicates that voting exists.
+                      */}
+                      <span aria-hidden="true"> · </span>
+                      <span className="matchup-byline-votes">
+                        {totalVotes.toLocaleString()} {totalVotes === 1 ? 'vote' : 'votes'}
+                      </span>
                       {roundLabel && (
                         <>
                           <span aria-hidden="true"> · </span>
@@ -1292,7 +1310,9 @@ const MatchupPage = () => {
                   }
                   className={`matchup-owner-tray__button ${isReady ? "is-armed" : ""}`}
                 >
-                  {readyPending ? (isReady ? "Unlocking…" : "Locking…") : isReady ? "Undo Ready" : "Ready up"}
+                  {readyPending
+                    ? (isReady ? "Reopening…" : "Ending…")
+                    : isReady ? "Undo Matchup" : "End Matchup"}
                 </Button>
               )}
               {canOverrideWinner && items.length > 0 && (
