@@ -2,9 +2,21 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <!--
+      Favicons are served as both PNG and ICO. Modern browsers prefer
+      the typed PNG link (sharper at 32×32); legacy / Windows pinning
+      contexts use favicon.ico. Both blobs are pre-rendered by
+      api/cmd/render_default_og and ship from /public.
+    -->
+    <link rel="icon" type="image/png" sizes="32x32" href="%PUBLIC_URL%/favicon-32.png" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
+    <!--
+      theme-color matches the app shell's dark-navy backdrop so iOS
+      Safari + Android Chrome tint the status bar to the brand surface
+      instead of the OS default white.
+    -->
+    <meta name="theme-color" content="#0f172a" />
     <meta
       name="description"
       content="Matchup — vote, bracket, decide. Create and share head-to-head matchups with friends."
@@ -28,18 +40,28 @@
       Fallback OG / Twitter metadata for non-share pages. Per-content
       previews (matchup / bracket) are served by the Go API at
       /m/{short_id} and /b/{short_id} with content-specific tags.
+
+      og:image is the 1200×630 stardust-branded card rendered by
+      api/cmd/render_default_og — sized for `summary_large_image`
+      cards on X, iMessage, Slack, Discord, Facebook, LinkedIn.
+      Replacing the React-default logo512.png here is the whole
+      reason the SPA's home-page unfurl no longer shows the generic
+      blue atom.
     -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Matchup" />
     <meta property="og:title" content="Matchup — vote, bracket, decide." />
     <meta property="og:description" content="Create and share head-to-head matchups with friends." />
-    <meta property="og:image" content="%PUBLIC_URL%/logo512.png" />
+    <meta property="og:image" content="%PUBLIC_URL%/og-default.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Matchup — vote, bracket, decide." />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Matchup — vote, bracket, decide." />
     <meta name="twitter:description" content="Create and share head-to-head matchups with friends." />
-    <meta name="twitter:image" content="%PUBLIC_URL%/logo512.png" />
+    <meta name="twitter:image" content="%PUBLIC_URL%/og-default.png" />
 
-    <title>Matchup</title>
+    <title>Matchup — vote, bracket, decide.</title>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
