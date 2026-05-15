@@ -88,16 +88,16 @@
   --shadow-panel: 0 12px 28px rgba(0, 0, 0, 0.45);
 
   /* ----- Community-page light tokens -----
-     Independent of --bg-page / --text-primary etc. The community
-     page renders in a deliberate light-mode shell regardless of the
-     viewer's global theme so the picked --page-accent-gradient (which
-     dominates the banner + avatar + accent stripes) sits on a neutral
-     background instead of fighting the app-wide dark surface. These
-     tokens are always available; component CSS scopes them via
-     `body.community-light-mode` to limit the visual scope to the
-     community page surface. --c-accent / --c-accent-hover /
-     --c-accent-soft are set dynamically by CommunityPage's mount
-     effect from the picked gradient's mid + dark stops. */
+     Independent of --bg-page / --text-primary etc. These tokens are
+     used by the [data-theme="light"] .community-page* overrides in
+     CommunityPage.css when the viewer has light mode enabled — they
+     give the community page its neutral light surface so the picked
+     --page-accent-gradient (which dominates the banner + avatar)
+     sits on a calm backdrop instead of fighting the cards. In dark
+     mode the base .community-page rules apply and these tokens go
+     unused. --c-accent / --c-accent-hover / --c-accent-soft are set
+     dynamically by CommunityPage's mount effect from the picked
+     gradient's mid + dark stops. */
   --c-bg:             #f3f5fa;
   --c-bg-inset:       #e9ecf3;
   --c-surface:        #ffffff;

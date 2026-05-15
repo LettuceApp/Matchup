@@ -67,8 +67,8 @@ const CommunityPage = () => {
     loadCommunity();
   }, [loadCommunity]);
 
-  // Push the community's chosen gradient up to :root + flip on the
-  // community-light-mode body class. Three things land here:
+  // Push the community's chosen gradient up to :root. Two surfaces
+  // consume these vars:
   //   1. --page-accent-gradient — the full CSS gradient used by the
   //      banner, avatar background, NavigationBar brand wordmark, and
   //      feed-card accents.
@@ -76,13 +76,17 @@ const CommunityPage = () => {
   //      siblings extracted from the gradient's mid + dark stops.
   //      Buttons, owner @-links, and other single-color UI consume
   //      these instead of trying to flatten a gradient at render time.
-  //   3. body.community-light-mode — toggles the deliberate light shell
-  //      on the community page. The brief from browser-Claude pinned
-  //      the page to a neutral light surface regardless of the
-  //      viewer's app-wide theme; this is the scope hook.
   //
-  // Cleanup removes everything on unmount so navigating to /home /
-  // /users/* etc. restores the global dark theme + stardust brand.
+  // We used to also flip a `body.community-light-mode` class here to
+  // force a light shell over the whole community route. That made
+  // the community page ignore the user's app-wide theme — switching
+  // dark mode on had no effect on /c/<slug>. The class push (and the
+  // CSS overrides keyed to it) are gone now; the page follows the
+  // global theme like every other route.
+  //
+  // Cleanup removes the gradient + accent vars on unmount so
+  // navigating to /home / /users/* etc. restores the default brand
+  // gradient.
   useEffect(() => {
     if (!community) return undefined;
     const slug = community.theme_gradient || '';
@@ -97,13 +101,11 @@ const CommunityPage = () => {
       '--c-accent-soft',
       `color-mix(in srgb, ${accent} 16%, transparent)`,
     );
-    document.body.classList.add('community-light-mode');
     return () => {
       root.style.removeProperty('--page-accent-gradient');
       root.style.removeProperty('--c-accent');
       root.style.removeProperty('--c-accent-hover');
       root.style.removeProperty('--c-accent-soft');
-      document.body.classList.remove('community-light-mode');
     };
   }, [community]);
 
