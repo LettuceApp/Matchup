@@ -58,9 +58,31 @@ const MatchupItem = ({
 
   const handleVote = async () => {
     if (votingDisabled) return;
+    // Guardrail for the silent-fail case: if the item's public_id is
+    // somehow missing (broken DB row, stale render after a delete,
+    // user-as-item where the user got pruned), the RPC will hit a 404
+    // path that surfaces nothing useful to the user. Reject early with
+    // a clear message — better than a click that appears to do nothing.
+    if (!item?.id) {
+      console.warn('handleVote: item has no id, refusing', item);
+      alert("This option can't be voted on — try refreshing the page.");
+      return;
+    }
     try {
       setVotePending(true);
-      await incrementMatchupItemVotes(item.id);
+      const res = await incrementMatchupItemVotes(item.id);
+      // Log the full response shape — helps diagnose "I clicked but
+      // nothing changed" reports (the AlreadyVoted branch returns the
+      // same vote count, which looks identical to a no-op). Scoped
+      // behind a label so it's grep-friendly in the console.
+      const payload = res?.data?.response ?? res?.data ?? {};
+      const alreadyVoted = Boolean(payload?.already_voted ?? payload?.alreadyVoted);
+      console.debug('[vote]', {
+        item_id: item.id,
+        item_label: item.item ?? item.name,
+        already_voted: alreadyVoted,
+        server_votes: payload?.item?.votes ?? payload?.item?.Votes ?? null,
+      });
       // Deliberately NOT calling setVotes() from the response. The
       // optimistic local bump was the cause of the "both items show
       // 100% after re-voting" bug: the response contains only the
@@ -77,6 +99,7 @@ const MatchupItem = ({
         matchup_id: item.matchup_id ?? item.matchupId,
         item_id: item.id,
         is_bracket: Boolean(isBracketMatchup),
+        already_voted: alreadyVoted,
       });
       if (typeof onVote === 'function') {
         await onVote();

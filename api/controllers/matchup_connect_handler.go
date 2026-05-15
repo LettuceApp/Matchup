@@ -53,15 +53,25 @@ func (h *MatchupHandler) ListMatchups(ctx context.Context, req *connect.Request[
 	isAdmin := httpctx.IsAdminRequest(ctx)
 	offset := (page - 1) * limit
 
+	// Home feed used to exclude 'completed' — finished matchups
+	// dropped off the feed the moment they ended, which hid the very
+	// receipts users came back to look at ("who won?" / "see the
+	// final tally"). Keep them in. 'draft' stays excluded because
+	// drafts are author-private; 'archived' (future status) would
+	// also be excluded. Order stays created_at DESC so a creator's
+	// just-shipped matchup still anchors the top of the feed
+	// regardless of how its lifecycle resolves.
+	const homeStatusFilter = "status IN ('active', 'published', 'completed')"
+
 	var total int64
 	if err := sqlx.GetContext(ctx, db, &total,
-		"SELECT COUNT(*) FROM matchups WHERE status IN ('active', 'published')"); err != nil {
+		"SELECT COUNT(*) FROM matchups WHERE "+homeStatusFilter); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
 	var matchups []models.Matchup
 	if err := sqlx.SelectContext(ctx, db, &matchups,
-		"SELECT * FROM matchups WHERE status IN ('active', 'published') ORDER BY created_at DESC LIMIT $1 OFFSET $2", limit, offset); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		"SELECT * FROM matchups WHERE "+homeStatusFilter+" ORDER BY created_at DESC LIMIT $1 OFFSET $2", limit, offset); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
