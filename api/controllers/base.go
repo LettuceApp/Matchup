@@ -261,7 +261,18 @@ func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName stri
 	// `/m/{shortID}` etc. aren't swallowed by a catch-all. These serve
 	// plain HTML + PNG, not JSON — distinct from everything else on
 	// the router.
-	share.NewHandler(server.DB, server.ReadDB).Mount(r)
+	//
+	// The SPA crawler middleware runs alongside Mount: it intercepts
+	// known long SPA paths (/users/{u}/matchup/{id}, /brackets/{id},
+	// /users/{u}, /c/{slug}) when the request is from a link-preview
+	// crawler and serves rich OG HTML inline. Humans and non-matching
+	// paths pass through untouched. Installed as middleware via
+	// r.Use() so it gets first crack at every request — including the
+	// ones that would otherwise hit the FRONTEND_PROXY fallback to
+	// the SPA below.
+	shareHandler := share.NewHandler(server.DB, server.ReadDB)
+	r.Use(shareHandler.SPACrawlerMiddleware)
+	shareHandler.Mount(r)
 
 	// Share attribution beacon. Frontend sends one POST per landing
 	// with a `?ref=<channel>` query; we increment a Prometheus counter
