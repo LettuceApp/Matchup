@@ -233,6 +233,19 @@ func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName stri
 	// 500 status rather than corrupting the counters.
 	r.Use(middlewares.MetricsMiddleware())
 
+	// Share / SPA-crawler infrastructure. Constructed up here so its
+	// middleware can install before any routes — chi panics if r.Use()
+	// runs after any route has been registered. The same handler gets
+	// re-used below to mount the explicit /m/{short} + /b/{short}
+	// short-URL routes.
+	shareHandler := share.NewHandler(server.DB, server.ReadDB)
+
+	// Intercepts crawler GETs to long SPA URLs (/users/{u}/matchup/{id},
+	// /brackets/{id}, /users/{u}, /c/{slug}) and serves rich OG HTML
+	// inline. Humans pass through to the SPA. Non-GET / non-crawler
+	// requests pass through untouched.
+	r.Use(shareHandler.SPACrawlerMiddleware)
+
 	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -260,18 +273,9 @@ func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName stri
 	// Share / preview routes — MUST be mounted before Connect RPC so
 	// `/m/{shortID}` etc. aren't swallowed by a catch-all. These serve
 	// plain HTML + PNG, not JSON — distinct from everything else on
-	// the router.
-	//
-	// The SPA crawler middleware runs alongside Mount: it intercepts
-	// known long SPA paths (/users/{u}/matchup/{id}, /brackets/{id},
-	// /users/{u}, /c/{slug}) when the request is from a link-preview
-	// crawler and serves rich OG HTML inline. Humans and non-matching
-	// paths pass through untouched. Installed as middleware via
-	// r.Use() so it gets first crack at every request — including the
-	// ones that would otherwise hit the FRONTEND_PROXY fallback to
-	// the SPA below.
-	shareHandler := share.NewHandler(server.DB, server.ReadDB)
-	r.Use(shareHandler.SPACrawlerMiddleware)
+	// the router. The handler itself + its SPACrawlerMiddleware were
+	// set up above (the middleware had to land before any route was
+	// registered).
 	shareHandler.Mount(r)
 
 	// Share attribution beacon. Frontend sends one POST per landing
