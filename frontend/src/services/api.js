@@ -236,8 +236,21 @@ export const getUser = (id) =>
 export const getCurrentUser = () =>
   rpc('user.v1.UserService', 'GetCurrentUser', {});
 
-export const updateUser = (id, data) =>
-  rpc('user.v1.UserService', 'UpdateUser', { id, ...data });
+export const updateUser = (id, data = {}) => {
+  // Map camelCase keys callers naturally use to the proto's snake_case
+  // wire names. Earlier callers pass `bio` directly (already lower
+  // case — same wire name) so they continue to work; the explicit
+  // mapping is only relevant for the multi-word fields we've added
+  // since (theme_gradient today, more to come). Passing `undefined`
+  // values is filtered so the optional proto fields stay omitted
+  // rather than getting cleared to empty strings.
+  const payload = { id, ...data };
+  if (data.themeGradient !== undefined) {
+    payload.theme_gradient = data.themeGradient;
+    delete payload.themeGradient;
+  }
+  return rpc('user.v1.UserService', 'UpdateUser', payload);
+};
 
 export const updateUserPrivacy = (id, isPrivate) =>
   rpc('user.v1.UserService', 'UpdateUserPrivacy', { id, is_private: isPrivate });
@@ -425,6 +438,18 @@ export const getUserFollowers = (id, params = {}) =>
 export const getUserFollowing = (id, params = {}) =>
   rpc('user.v1.UserService', 'GetFollowing', { id, ...params });
 
+// ListMutuals — users who follow the caller AND who the caller
+// follows back. Backs the @-mention autocomplete (mutuals are the
+// default suggestion set outside a community context) + the future
+// "add a mutual as matchup item" picker. `query` narrows by username
+// substring as the user types past `@`.
+export const listMutuals = ({ query, limit, cursor } = {}) =>
+  rpc('user.v1.UserService', 'ListMutuals', {
+    ...(query !== undefined ? { query } : {}),
+    ...(limit !== undefined ? { limit } : {}),
+    ...(cursor !== undefined ? { cursor } : {}),
+  });
+
 // -----------------------------------------
 // BLOCKS + MUTES
 // -----------------------------------------
@@ -482,9 +507,19 @@ export const createMatchup = async (userId, data = {}) => {
 
   const coverPromise = uploadMatchupCoverImage(imageFile);
   const itemsPromise = Promise.all(
-    (rawItems ?? []).map(async ({ imageFile: itemFile, ...itemRest }) => {
+    (rawItems ?? []).map(async ({ imageFile: itemFile, userHandle, ...itemRest }) => {
       const upload_key = await uploadMatchupItemImage(itemFile);
-      return { ...itemRest, ...(upload_key ? { upload_key } : {}) };
+      return {
+        ...itemRest,
+        ...(upload_key ? { upload_key } : {}),
+        // userHandle (camelCase from the React form) → proto's
+        // snake_case `user_handle`. When set, the backend resolves it
+        // to a user, validates the mutual/community-member rule, and
+        // writes user_id onto the item row. The text label stays as
+        // the visible caption; empty `item` falls back to @username
+        // server-side.
+        ...(userHandle ? { user_handle: userHandle } : {}),
+      };
     }),
   );
 
@@ -857,6 +892,26 @@ export const getCommunityFeed = (communityId, { limit = 20, cursor = '' } = {}) 
     community_id: communityId,
     limit,
     cursor,
+  });
+
+// ListMentionableMembers — non-banned members of a community whose
+// username matches the optional substring. Used by the MentionAutocomplete
+// component when the parent passes a community context (e.g. a
+// comment composer on a community-scoped matchup or bracket).
+export const listMentionableMembers = (communityId, { query, limit, cursor } = {}) =>
+  rpc('community.v1.CommunityService', 'ListMentionableMembers', {
+    community_id: communityId,
+    ...(query !== undefined ? { query } : {}),
+    ...(limit !== undefined ? { limit } : {}),
+    ...(cursor !== undefined ? { cursor } : {}),
+  });
+
+// GetCommunityChampions — top users in a community by per-community
+// wins. Powers the Champions tab. Public read; no auth required.
+export const getCommunityChampions = (communityId, { limit = 20 } = {}) =>
+  rpc('community.v1.CommunityService', 'GetCommunityChampions', {
+    community_id: communityId,
+    limit,
   });
 
 // Member-management RPCs — owner gates UpdateMemberRole; mod+ gates

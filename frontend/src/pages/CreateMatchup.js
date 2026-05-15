@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { FiChevronDown } from "react-icons/fi";
 import Button from "../components/Button";
 import ConfirmModal from "../components/ConfirmModal";
+import MentionableInput from "../components/MentionableInput";
 import { createMatchup, getCommunity } from "../services/api";
 import { track } from "../utils/analytics";
 import { SELECTABLE_CATEGORIES } from "../utils/categories";
@@ -53,6 +54,13 @@ const CreateMatchup = () => {
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  // Each item carries a free-form text label + an optional image. The
+  // label supports inline @-mention autocomplete (see MentionableInput).
+  // On submit we parse the label: a row whose ENTIRE value is
+  // `@<username>` (trailing whitespace allowed) is sent as a
+  // user-handle item; everything else is sent as plain text. This
+  // collapses the previous "mode toggle" UX into a single input that
+  // just-works: type "@bo" → suggestions appear → pick → submit.
   const [items, setItems] = useState([
     { item: "", imageFile: null, imagePreview: null },
     { item: "", imageFile: null, imagePreview: null },
@@ -119,7 +127,10 @@ const CreateMatchup = () => {
 
   const addItem = () => {
     if (items.length >= maxItems) return;
-    setItems((prev) => [...prev, { item: "", imageFile: null, imagePreview: null }]);
+    setItems((prev) => [
+      ...prev,
+      { item: "", imageFile: null, imagePreview: null },
+    ]);
     setTouchedItems((prev) => [...prev, false]);
   };
 
@@ -152,18 +163,41 @@ const CreateMatchup = () => {
   // Sanitize + validate. Preserves imageFile through to submission so
   // createMatchup() can upload each item's thumbnail in parallel with
   // the cover. The blob preview URLs (imagePreview) are local-only —
-  // not sent to the server.
+  // sanitize + detect user-handle items. The label string is the
+  // user's typed value; if it matches `@<username>` (with optional
+  // trailing whitespace) we route it as a user mention via
+  // `userHandle` and leave `item` empty so the server falls back to
+  // @username for display. Everything else stays as plain text.
+  // Special case: "@me" passes through unchanged — the backend
+  // resolveUserHandle resolves it to the viewer.
   const sanitizedItems = useMemo(
     () =>
-      items.map(({ item, imageFile }) => ({
-        item: (item ?? "").trim(),
-        imageFile: imageFile ?? null,
-      })),
+      items.map(({ item, imageFile }) => {
+        const trimmed = (item ?? "").trim();
+        const mentionMatch = /^@([A-Za-z0-9_]+)$/.exec(trimmed);
+        if (mentionMatch) {
+          return {
+            item: "",
+            imageFile: imageFile ?? null,
+            userHandle: mentionMatch[1],
+          };
+        }
+        return {
+          item: trimmed,
+          imageFile: imageFile ?? null,
+          userHandle: null,
+        };
+      }),
     [items]
   );
 
+  // An item counts as "filled" when EITHER it has a non-empty text
+  // label OR it references a user via userHandle. The latter wins
+  // even when the visible label is empty — the server falls back to
+  // @username as the stored label so the validation rule of "text
+  // label required" is implicitly satisfied.
   const filledItems = useMemo(
-    () => sanitizedItems.filter(({ item }) => item.length > 0),
+    () => sanitizedItems.filter(({ item, userHandle }) => item.length > 0 || userHandle),
     [sanitizedItems]
   );
 
@@ -306,8 +340,16 @@ const CreateMatchup = () => {
   };
 
   const previewItems = filledItems.length > 0 ? filledItems : sanitizedItems;
+  // A row counts as "missing a name" only when BOTH the text label
+  // AND the resolved userHandle are empty. Previously the gate just
+  // checked the text — which tripped the "Contender name required"
+  // error on user-handle rows (those route `item.length === 0` but
+  // carry `userHandle`, so the server falls back to @username for
+  // the stored label).
   const showItemError = (index) =>
-    (attemptedSubmit || touchedItems[index]) && sanitizedItems[index].item.length === 0;
+    (attemptedSubmit || touchedItems[index]) &&
+    sanitizedItems[index].item.length === 0 &&
+    !sanitizedItems[index].userHandle;
 
   // Page wrapper is transparent so the body's themed gradient
   // (set in index.css from --bg-page-gradient) shows through. An
@@ -412,21 +454,26 @@ const CreateMatchup = () => {
               <div className="flex flex-col gap-3">
                 {items.map((itm, index) => (
                   <div key={index} className="flex flex-col gap-2">
+                    {/* Contender input. Type `@` to open the user
+                        autocomplete — suggests mutuals first, then
+                        any matching user once 2+ chars are typed,
+                        plus an "@me" row that resolves to the
+                        creator. Inline-only — no separate "mode"
+                        toggle. */}
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <motion.input
-                        type="text"
+                      <MentionableInput
                         value={itm.item}
-                        onChange={(e) => handleItemChange(index, e.target.value)}
+                        onChange={(next) => handleItemChange(index, next)}
                         onBlur={() =>
                           setTouchedItems((prev) =>
                             prev.map((t, i) => (i === index ? true : t))
                           )
                         }
-                        placeholder={`Contender ${index + 1}`}
-                        className="flex-1 rounded-2xl border border-slate-300 dark:border-slate-600/70 bg-white dark:bg-slate-950/60 px-4 py-3 text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/15 dark:focus:ring-blue-400/60"
-                        whileFocus={{ scale: 1.01 }}
-                        transition={focusTransition}
-                        required
+                        placeholder={`Contender ${index + 1} — text or @username`}
+                        inputClassName="rounded-2xl border border-slate-300 dark:border-slate-600/70 bg-white dark:bg-slate-950/60 px-4 py-3 text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/15 dark:focus:ring-blue-400/60 w-full"
+                        communityId={community?.id || null}
+                        source="all"
+                        enableMe
                       />
                       {items.length > minItems && (
                         <Button
@@ -446,46 +493,46 @@ const CreateMatchup = () => {
 
                     {/* Per-item thumbnail picker (cycle 6c). Optional;
                         items without a thumbnail render the existing
-                        text-only contender card. The preview block
-                        only mounts after a file is picked, so an empty
-                        contender row stays compact. */}
-                    <div className="flex items-center gap-3">
-                      <label className="flex-1 cursor-pointer rounded-2xl border border-dashed border-slate-300 dark:border-slate-600/60 bg-slate-50 dark:bg-slate-950/40 px-3 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 transition hover:border-amber-300 dark:border-amber-400/60 hover:text-amber-200">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) handleItemImageChange(index, file);
-                            // Reset the input so picking the same file
-                            // twice still fires onChange.
-                            e.target.value = "";
-                          }}
-                        />
-                        {itm.imagePreview
-                          ? "Replace thumbnail"
-                          : "+ Add thumbnail (optional)"}
-                      </label>
-                      {itm.imagePreview && (
-                        <div className="relative h-12 w-12 overflow-hidden rounded-xl border border-slate-300 dark:border-slate-600/50">
-                          <img
-                            src={itm.imagePreview}
-                            alt={`${itm.item || "Contender"} thumbnail`}
-                            className="h-full w-full object-cover"
-                            decoding="async"
+                        text-only contender card. Hidden for user-handle
+                        items (the @username avatar takes the thumb
+                        slot server-side). */}
+                    {!/^@([A-Za-z0-9_]+)\s*$/.test(itm.item ?? '') && (
+                      <div className="flex items-center gap-3">
+                        <label className="flex-1 cursor-pointer rounded-2xl border border-dashed border-slate-300 dark:border-slate-600/60 bg-slate-50 dark:bg-slate-950/40 px-3 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 transition hover:border-amber-300 dark:border-amber-400/60 hover:text-amber-200">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleItemImageChange(index, file);
+                              e.target.value = "";
+                            }}
                           />
-                          <button
-                            type="button"
-                            aria-label="Remove thumbnail"
-                            onClick={() => handleItemImageRemove(index)}
-                            className="absolute inset-0 flex items-center justify-center bg-transparent text-xs font-semibold text-rose-200 opacity-0 transition hover:bg-slate-100 dark:hover:bg-slate-900/70 hover:opacity-100"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                          {itm.imagePreview
+                            ? "Replace thumbnail"
+                            : "+ Add thumbnail (optional)"}
+                        </label>
+                        {itm.imagePreview && (
+                          <div className="relative h-12 w-12 overflow-hidden rounded-xl border border-slate-300 dark:border-slate-600/50">
+                            <img
+                              src={itm.imagePreview}
+                              alt={`${itm.item || "Contender"} thumbnail`}
+                              className="h-full w-full object-cover"
+                              decoding="async"
+                            />
+                            <button
+                              type="button"
+                              aria-label="Remove thumbnail"
+                              onClick={() => handleItemImageRemove(index)}
+                              className="absolute inset-0 flex items-center justify-center bg-transparent text-xs font-semibold text-rose-200 opacity-0 transition hover:bg-slate-100 dark:hover:bg-slate-900/70 hover:opacity-100"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

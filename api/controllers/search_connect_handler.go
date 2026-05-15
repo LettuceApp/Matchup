@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	appdb "Matchup/db"
 	searchv1 "Matchup/gen/search/v1"
 	"Matchup/gen/search/v1/searchv1connect"
 	httpctx "Matchup/utils/httpctx"
@@ -284,8 +285,13 @@ func searchCommunities(ctx context.Context, db sqlx.ExtContext, pattern string, 
 			Slug:        r.Slug,
 			Name:        r.Name,
 			Description: r.Description,
-			AvatarPath:  r.AvatarPath,
-			BannerPath:  r.BannerPath,
+			// Resolve to full S3 URLs (same fix as communityToProto) so
+			// search-result cards can render the avatar / banner image
+			// directly. Bare DB filenames would 404 against the React
+			// origin and the cards would silently fall back to the
+			// gradient placeholder.
+			AvatarPath:  appdb.ProcessCommunityAvatarPath(r.AvatarPath),
+			BannerPath:  appdb.ProcessCommunityBannerPath(r.BannerPath),
 			MemberCount: r.MemberCount,
 			Tags:        []string(r.Tags),
 		})
@@ -343,7 +349,11 @@ func searchUsers(ctx context.Context, db sqlx.ExtContext, pattern string, limit 
 		out = append(out, &searchv1.SearchUser{
 			Id:             r.PublicID,
 			Username:       r.Username,
-			AvatarPath:     r.AvatarPath,
+			// User avatars share the same lift-raw-key-to-full-URL
+			// pattern as everywhere else. Without it the search-result
+			// "People" card would render the gradient fallback even
+			// when an avatar is uploaded.
+			AvatarPath:     appdb.ProcessAvatarPath(r.AvatarPath),
 			FollowersCount: r.FollowersCount,
 			Bio:            bio,
 		})

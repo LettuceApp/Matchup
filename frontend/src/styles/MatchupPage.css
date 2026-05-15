@@ -995,6 +995,15 @@
    Now uses --bg-input + --text-primary which resolve correctly in
    both themes. Focus shows an indigo glow ring for keyboard
    accessibility (WCAG 2.4.7). */
+/* Wrapper around the comment textarea + MentionAutocomplete dropdown.
+   Position: relative so the absolutely-positioned dropdown anchors
+   inside this box (instead of escaping to the closest positioned
+   ancestor, which on /matchup is the page itself). */
+.matchup-comment-input {
+  position: relative;
+  width: 100%;
+}
+
 .matchup-textarea {
   width: 100%;
   border-radius: 18px;

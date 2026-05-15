@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Button from './Button';
 import ReportModal from './ReportModal';
 import { deleteComment } from '../services/api';
+import { splitWithMentions } from '../utils/mentions';
 import '../styles/Comment.css';
 
 /*
@@ -71,7 +72,27 @@ const Comment = ({
         </span>
       </header>
 
-      <p className="comment-card__body">{decodeHtml(comment.body)}</p>
+      {/* Body rendering: decode any HTML entities the backend may have
+          encoded, then split on @-mentions and turn each one into a
+          clickable Link to that user's profile. The regex matches the
+          backend's mention parser exactly (api/controllers/mention_helpers.go)
+          so what we render here is the same set the server fired a
+          mention_received notification for. */}
+      <p className="comment-card__body">
+        {splitWithMentions(decodeHtml(comment.body)).map((part, i) =>
+          part.type === 'mention' ? (
+            <Link
+              key={i}
+              to={`/users/${part.username}`}
+              className="comment-card__mention"
+            >
+              @{part.username}
+            </Link>
+          ) : (
+            <React.Fragment key={i}>{part.value}</React.Fragment>
+          ),
+        )}
+      </p>
 
       <div className="comment-card__actions">
         {isOwner && (

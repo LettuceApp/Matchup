@@ -10,6 +10,7 @@ import (
 	"time"
 
 	appdb "Matchup/db"
+	commonv1 "Matchup/gen/common/v1"
 	communityv1 "Matchup/gen/community/v1"
 	"Matchup/gen/community/v1/communityv1connect"
 	"Matchup/models"
@@ -121,37 +122,11 @@ func roleAtLeast(have, min string) bool {
 	return rank[have] >= rank[min]
 }
 
-// allowedThemeGradients is the wire-side allow-list of curated
-// gradient slugs an owner can pick from in the settings page. The
-// raw CSS gradient values live in the frontend palette
-// (frontend/src/utils/communityGradients.js) — duplicating them
-// here would force a backend deploy every time we tweak a color.
-// What MUST stay in sync is the slug list: anything not in this
-// set is rejected at write-time so a malicious client can't store
-// arbitrary strings.
-//
-// Empty string is also valid and means "no theme chosen" — the
-// frontend falls back to its default palette.
-var allowedThemeGradients = map[string]struct{}{
-	"":         {}, // explicit "clear theme"
-	"stardust": {},
-	"sunset":   {},
-	"ocean":    {},
-	"mint":     {},
-	"amber":    {},
-	"magenta":  {},
-	"forest":   {},
-	"plum":     {},
-	"rose":     {},
-	"graphite": {},
-}
-
-func validateThemeGradient(slug string) error {
-	if _, ok := allowedThemeGradients[slug]; !ok {
-		return fmt.Errorf("unknown theme gradient %q", slug)
-	}
-	return nil
-}
+// The curated allow-list of theme_gradient slugs lives in
+// theme_gradient.go (shared with the user handler) — the community
+// handler used to define it locally, but profiles now pick from the
+// same palette, so duplicating risked drift. validateThemeGradient
+// is called inline below.
 
 // communityToProto serialises a community row for the wire. viewerRole
 // is computed against the caller's membership row (empty when anon or
@@ -169,8 +144,16 @@ func (h *CommunityHandler) communityToProto(ctx context.Context, c *models.Commu
 		Slug:          c.Slug,
 		Name:          c.Name,
 		Description:   c.Description,
-		AvatarPath:    c.AvatarPath,
-		BannerPath:    c.BannerPath,
+		// commitCommunityImage stores the raw S3 filename in the DB
+		// ("img-<uuid>.jpg") — running it through the appdb resolvers
+		// here lifts it to a full https://…/CommunityAvatars/… URL the
+		// frontend can render directly. Same recipe as ProcessAvatar /
+		// ProcessMatchupImage; without this step the <img src> on the
+		// community page tried to load the bare filename relative to
+		// the React origin and silently fell back to the gradient
+		// fallback (alt="" hid the broken-image icon).
+		AvatarPath:    appdb.ProcessCommunityAvatarPath(c.AvatarPath),
+		BannerPath:    appdb.ProcessCommunityBannerPath(c.BannerPath),
 		Tags:          []string(c.Tags),
 		Privacy:       c.Privacy,
 		OwnerId:       ownerPublicID,
@@ -225,19 +208,15 @@ func (h *CommunityHandler) CreateCommunity(ctx context.Context, req *connect.Req
 		return nil, connect.NewError(connect.CodeInvalidArgument,
 			errors.New("description must be 500 characters or fewer"))
 	}
-	// When the user provides a description it must be meaningful —
-	// at least 20 chars and not just an echo of the community name.
-	// Owners that don't have a good blurb yet can leave it blank;
-	// the frontend hides the About section entirely in that case.
-	if desc != "" {
-		if len(desc) < 20 {
-			return nil, connect.NewError(connect.CodeInvalidArgument,
-				errors.New("description should be at least 20 characters — leave blank if you don't have one yet"))
-		}
-		if strings.EqualFold(desc, name) {
-			return nil, connect.NewError(connect.CodeInvalidArgument,
-				errors.New("description shouldn't just repeat the community name — try a sentence or two"))
-		}
+	// Empty description stays valid — frontend hides the About section
+	// when blank. The previous 20-char minimum was scrapped because it
+	// blocked legitimate short blurbs (e.g. "a Patriots fan group")
+	// and didn't really catch low-quality content anyway. Only the
+	// name-echo guard remains: if the owner types the community name
+	// into the description field, ask them to write something else.
+	if desc != "" && strings.EqualFold(desc, name) {
+		return nil, connect.NewError(connect.CodeInvalidArgument,
+			errors.New("description shouldn't just repeat the community name — try a sentence or two"))
 	}
 
 	privacy := req.Msg.GetPrivacy()
@@ -364,8 +343,10 @@ func (h *CommunityHandler) UpdateCommunity(ctx context.Context, req *connect.Req
 			return nil, connect.NewError(connect.CodeInvalidArgument,
 				errors.New("description must be 500 characters or fewer"))
 		}
-		// Same length + name-echo rules as Create. Empty stays valid
-		// (clears the description).
+		// Mirrors the Create rule: empty is valid (clears the field),
+		// short descriptions are allowed, only the name-echo check
+		// remains. See CreateCommunity for the full rationale on
+		// dropping the 20-char minimum.
 		if desc != "" {
 			// Resolve the effective name — either the updated value
 			// in this request, or the existing community name.
@@ -374,10 +355,6 @@ func (h *CommunityHandler) UpdateCommunity(ctx context.Context, req *connect.Req
 				if n := strings.TrimSpace(*req.Msg.Name); n != "" {
 					effectiveName = n
 				}
-			}
-			if len(desc) < 20 {
-				return nil, connect.NewError(connect.CodeInvalidArgument,
-					errors.New("description should be at least 20 characters — leave blank if you don't have one yet"))
 			}
 			if strings.EqualFold(desc, effectiveName) {
 				return nil, connect.NewError(connect.CodeInvalidArgument,
@@ -1298,6 +1275,163 @@ func (h *CommunityHandler) GetCommunityFeed(ctx context.Context, req *connect.Re
 		}
 	}
 	return connect.NewResponse(resp), nil
+}
+
+// ListMentionableMembers returns non-banned community members whose
+// username matches the optional `query`. Used by the @-mention
+// autocomplete + the "add a member as matchup item" picker when the
+// content is community-scoped.
+//
+// Auth: any authed user can call. The response is the same regardless
+// of role (it's effectively a directory) — banned members are
+// filtered out so a banned user never surfaces as a mention target.
+// Pagination uses the lowercase username of the last row as the
+// cursor (alphabetical, stable).
+func (h *CommunityHandler) ListMentionableMembers(ctx context.Context, req *connect.Request[communityv1.ListMentionableMembersRequest]) (*connect.Response[communityv1.ListMentionableMembersResponse], error) {
+	if _, ok := httpctx.CurrentUserID(ctx); !ok {
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
+	}
+
+	c, err := resolveCommunityByIdentifier(dbForRead(ctx, h.DB, h.ReadDB), req.Msg.GetCommunityId())
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("community not found"))
+		}
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	limit := 50
+	if l := req.Msg.GetLimit(); l > 0 {
+		limit = int(l)
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	args := []interface{}{c.ID}
+	where := []string{
+		"cm.community_id = $1",
+		"cm.role <> 'banned'",
+		"u.deleted_at IS NULL",
+		"u.banned_at IS NULL",
+	}
+	if q := strings.TrimSpace(req.Msg.GetQuery()); q != "" {
+		args = append(args, "%"+strings.ToLower(q)+"%")
+		where = append(where, fmt.Sprintf("LOWER(u.username) LIKE $%d", len(args)))
+	}
+	if cursor := strings.TrimSpace(req.Msg.GetCursor()); cursor != "" {
+		args = append(args, strings.ToLower(cursor))
+		where = append(where, fmt.Sprintf("LOWER(u.username) > $%d", len(args)))
+	}
+	args = append(args, limit+1)
+
+	query := fmt.Sprintf(`
+		SELECT u.public_id, u.username, u.avatar_path
+		FROM community_memberships cm
+		JOIN users u ON u.id = cm.user_id
+		WHERE %s
+		ORDER BY LOWER(u.username) ASC
+		LIMIT $%d`,
+		strings.Join(where, " AND "),
+		len(args),
+	)
+
+	type row struct {
+		PublicID   string `db:"public_id"`
+		Username   string `db:"username"`
+		AvatarPath string `db:"avatar_path"`
+	}
+	var rows []row
+	if err := sqlx.SelectContext(ctx, dbForRead(ctx, h.DB, h.ReadDB), &rows, query, args...); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	var nextCursor string
+	if len(rows) > limit {
+		nextCursor = rows[limit-1].Username
+		rows = rows[:limit]
+	}
+
+	users := make([]*commonv1.UserSummaryResponse, 0, len(rows))
+	for _, r := range rows {
+		users = append(users, &commonv1.UserSummaryResponse{
+			Id:         r.PublicID,
+			Username:   r.Username,
+			AvatarPath: appdb.ProcessAvatarPath(r.AvatarPath),
+		})
+	}
+	return connect.NewResponse(&communityv1.ListMentionableMembersResponse{
+		Users:      users,
+		NextCursor: nextCursor,
+	}), nil
+}
+
+// GetCommunityChampions — top users in a community by per-community
+// wins. Reads community_member_wins (populated by stampMatchupWinner
+// when a user-backed matchup item wins inside this community).
+//
+// Public read: no auth required. The leaderboard is the community's
+// social signal — restricting it would defeat the discovery vector.
+// Banned + soft-deleted users are filtered out at the JOIN.
+//
+// Ordering: (wins_count DESC, last_won_at DESC). The leaderboard
+// index added by migration 031 covers this exact sort.
+func (h *CommunityHandler) GetCommunityChampions(ctx context.Context, req *connect.Request[communityv1.GetCommunityChampionsRequest]) (*connect.Response[communityv1.GetCommunityChampionsResponse], error) {
+	c, err := resolveCommunityByIdentifier(dbForRead(ctx, h.DB, h.ReadDB), req.Msg.GetCommunityId())
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("community not found"))
+		}
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	limit := 20
+	if l := req.Msg.GetLimit(); l > 0 {
+		limit = int(l)
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	type row struct {
+		PublicID   string    `db:"public_id"`
+		Username   string    `db:"username"`
+		AvatarPath string    `db:"avatar_path"`
+		WinsCount  int64     `db:"wins_count"`
+		LastWonAt  *time.Time `db:"last_won_at"`
+	}
+	var rows []row
+	err = sqlx.SelectContext(ctx, dbForRead(ctx, h.DB, h.ReadDB), &rows, `
+		SELECT u.public_id, u.username, u.avatar_path, w.wins_count, w.last_won_at
+		FROM community_member_wins w
+		JOIN users u ON u.id = w.user_id
+		WHERE w.community_id = $1
+		  AND u.deleted_at IS NULL
+		  AND u.banned_at IS NULL
+		ORDER BY w.wins_count DESC, w.last_won_at DESC NULLS LAST
+		LIMIT $2
+	`, c.ID, limit)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	out := make([]*communityv1.CommunityChampion, 0, len(rows))
+	for _, r := range rows {
+		lastWon := ""
+		if r.LastWonAt != nil {
+			lastWon = r.LastWonAt.UTC().Format(time.RFC3339)
+		}
+		out = append(out, &communityv1.CommunityChampion{
+			UserId:     r.PublicID,
+			Username:   r.Username,
+			AvatarPath: appdb.ProcessAvatarPath(r.AvatarPath),
+			WinsCount:  r.WinsCount,
+			LastWonAt:  lastWon,
+		})
+	}
+	return connect.NewResponse(&communityv1.GetCommunityChampionsResponse{
+		Champions: out,
+	}), nil
 }
 
 // ----------------------------------------------------------------------

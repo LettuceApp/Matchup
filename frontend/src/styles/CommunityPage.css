@@ -271,9 +271,16 @@
 }
 
 .community-page__btn--primary {
-  background: linear-gradient(135deg, var(--accent-primary-from), var(--accent-primary-to));
-  color: #1f2937;
-  box-shadow: 0 6px 18px var(--accent-primary-shadow);
+  /* Use the community's chosen gradient + accent so the primary
+     CTA matches the rest of the page's brand recipe instead of the
+     global warm-orange app theme. Falls back to the app's brand
+     gradient when no community theme has been pushed onto :root
+     yet (initial paint before the mount effect lands). */
+  background: var(--page-accent-gradient,
+    linear-gradient(135deg, var(--accent-primary-from), var(--accent-primary-to)));
+  color: #fff;
+  box-shadow: 0 6px 18px var(--c-accent-soft, var(--accent-primary-shadow));
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
 }
 
 .community-page__btn--primary:not(:disabled):hover {
@@ -407,10 +414,11 @@
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
 }
 
-/* Feed title — uppercase eyebrow tinted with the warm stardust
-   highlight color so it anchors the feed to the rest of the brand
-   recipe. Explicit no-decoration so any inherited accent-bar from
-   a prior design can't reappear here. */
+/* Feed title — uppercase eyebrow tinted with the community's chosen
+   accent color so it anchors the feed to whatever gradient the
+   community picked. Falls back to the warm stardust highlight when
+   --c-accent hasn't been pushed yet. Explicit no-decoration so any
+   inherited accent-bar from a prior design can't reappear here. */
 .community-page__feed-title {
   margin: 0 0 14px 0;
   padding: 0;
@@ -419,7 +427,7 @@
   font-weight: 700;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: #ffb37a;
+  color: var(--c-accent, #ffb37a);
 }
 
 .community-page__feed-title::before,
@@ -502,3 +510,177 @@
     flex-wrap: wrap;
   }
 }
+
+/* =================================================================
+   Community-page theme-aware overrides
+
+   The community page used to force a `community-light-mode` body
+   class regardless of the viewer's theme preference. That made the
+   global dark-mode toggle effectively no-op on /c/<slug>. We now
+   drop the body class entirely and rely on the app's theme system:
+   the base .community-page rules above carry the dark-mode look,
+   and the [data-theme="light"] overrides below take over when the
+   viewer has light mode active. Where these rules used to read
+   `body.community-light-mode .x`, they now read
+   `[data-theme="light"] .x` — same intent, but tied to the global
+   theme attribute the rest of the app uses (set in utils/theme.js).
+
+   Color sources are unchanged:
+     * --c-bg, --c-surface, --c-text*, --c-border* — neutral light
+       tokens defined in theme.css.
+     * --page-accent-gradient — the community's picked gradient.
+     * --c-accent / --c-accent-hover / --c-accent-soft — single-color
+       siblings of the gradient, set on :root by the CommunityPage
+       mount effect from the gradient's mid + dark stops.
+   ================================================================= */
+
+[data-theme="light"] .community-page {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  box-shadow:
+    0 1px 2px rgba(20, 28, 55, 0.06),
+    0 12px 32px rgba(20, 28, 55, 0.10);
+  color: var(--c-text);
+  /* Drop the dark-mode backdrop blur — the surface is opaque now. */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Banner stays as the picked gradient. The base rule already wires
+   the gradient via inline style; no override needed here. */
+
+/* Avatar — picked gradient stays; only the surrounding ring + shadow
+   change to suit the lighter card. */
+[data-theme="light"] .community-page__avatar {
+  background: var(--page-accent-gradient);
+  color: #fff;
+  font-weight: 800;
+  border: 4px solid var(--c-surface);
+  box-shadow: 0 10px 24px rgba(15, 20, 45, 0.28);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+/* Title + slug pill + members chip — dark text on the white card. */
+[data-theme="light"] .community-page__name {
+  color: var(--c-text);
+  font-weight: 700;
+}
+
+[data-theme="light"] .community-page__slug {
+  color: var(--c-text-secondary);
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-weight: 600;
+}
+
+[data-theme="light"] .community-page__meta {
+  color: var(--c-text-secondary);
+}
+
+[data-theme="light"] .community-page__meta strong {
+  color: var(--c-text);
+  font-weight: 700;
+}
+
+[data-theme="light"] .community-page__meta a,
+[data-theme="light"] .community-page__members-link {
+  color: var(--c-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+[data-theme="light"] .community-page__meta a:hover,
+[data-theme="light"] .community-page__members-link:hover {
+  text-decoration: underline;
+}
+
+/* ABOUT inset — a shade darker than the card body so the section
+   reads as a separate block without a hard divider. */
+[data-theme="light"] .community-page__about {
+  background: var(--c-bg-inset);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  margin: 0 28px 18px;
+  padding: 14px 18px;
+}
+
+[data-theme="light"] .community-page__about h2 {
+  color: var(--c-text-subtle);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 0 0 6px;
+}
+
+[data-theme="light"] .community-page__about p {
+  color: var(--c-text);
+  font-size: 14px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Buttons — primary uses the picked accent color, secondary stays a
+   neutral outlined pill. */
+[data-theme="light"] .community-page__btn--primary {
+  background: var(--c-accent);
+  color: #fff;
+  border: 1px solid var(--c-accent);
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-weight: 600;
+  box-shadow: 0 6px 18px var(--c-accent-soft);
+}
+
+[data-theme="light"] .community-page__btn--primary:hover,
+[data-theme="light"] .community-page__btn--primary:focus-visible {
+  background: var(--c-accent-hover);
+  border-color: var(--c-accent-hover);
+}
+
+[data-theme="light"] .community-page__btn:not(.community-page__btn--primary) {
+  background: var(--c-surface);
+  color: var(--c-text);
+  border: 1px solid var(--c-border-2);
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-weight: 600;
+}
+
+[data-theme="light"] .community-page__btn:not(.community-page__btn--primary):hover {
+  background: var(--c-surface-2);
+}
+
+/* Tags row — soft pill on the light surface. */
+[data-theme="light"] .community-page__tag {
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  color: var(--c-text-secondary);
+}
+
+/* Section dividers from create-row / feed — switch to a hairline
+   matching the new border token. */
+[data-theme="light"] .community-page__create-row,
+[data-theme="light"] .community-page__feed {
+  border-top: 1px solid var(--c-border);
+}
+
+/* Feed eyebrow inherits the community's chosen accent in light mode
+   too — keep it consistent across themes so the page reads as a
+   single themed surface rather than two color recipes. Empty state
+   still picks up the muted color so it doesn't compete with cards. */
+[data-theme="light"] .community-page__feed-title {
+  color: var(--c-accent);
+}
+
+[data-theme="light"] .community-page__feed-empty {
+  background: var(--c-bg-inset);
+  border: 1px solid var(--c-border);
+  color: var(--c-text-secondary);
+}
+
+/* Feed cards keep their existing styling — we leave the
+   .community-page__feed .home-card rules from above unchanged so the
+   feed surface still feels like a vertically-scrolling timeline.
+   Only the page chrome changes mode. */

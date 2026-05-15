@@ -236,7 +236,7 @@ func TestMatchupItemToProto(t *testing.T) {
 			Votes:     5,
 			ImagePath: "",
 		}
-		got := matchupItemToProto(item)
+		got := matchupItemToProto(nil, item)
 		if got.GetImageUrl() != "" {
 			t.Errorf("ImageUrl = %q, want empty", got.GetImageUrl())
 		}
@@ -249,7 +249,7 @@ func TestMatchupItemToProto(t *testing.T) {
 			Votes:     5,
 			ImagePath: "blade-runner.jpg",
 		}
-		got := matchupItemToProto(item)
+		got := matchupItemToProto(nil, item)
 		url := got.GetImageUrl()
 		// Should include the bucket, region, and the MatchupItemImages
 		// prefix that ProcessMatchupItemImagePath wires up.
@@ -266,7 +266,7 @@ func TestMatchupItemToProto(t *testing.T) {
 			Item:     "Option A",
 			Votes:    7,
 		}
-		got := matchupItemToProto(item)
+		got := matchupItemToProto(nil, item)
 		if got.GetId() != "abc-123" {
 			t.Errorf("Id = %q, want abc-123", got.GetId())
 		}

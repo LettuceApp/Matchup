@@ -11,6 +11,7 @@ import {
   FiUpload,
 } from "react-icons/fi";
 import Button from "../components/Button";
+import MentionableInput from "../components/MentionableInput";
 import { createBracket, getCommunity, updateBracket } from "../services/api";
 import { track } from "../utils/analytics";
 
@@ -796,12 +797,22 @@ const CreateBracketPage = () => {
                           <label className="text-xs font-semibold text-slate-700 dark:text-slate-200/70">
                             Seed {index + 1}
                           </label>
-                          <input
-                            type="text"
+                          {/*
+                            MentionableInput swaps in for a plain text input
+                            so typing `@` here pops a user picker. The backend
+                            (generateFullBracket) detects bare `@<username>`
+                            entries on save, resolves them, and stores
+                            matchup_items.user_id — same UX as CreateMatchup
+                            but threaded through the seed array.
+                          */}
+                          <MentionableInput
                             value={entries[index]}
-                            onChange={(e) => handleEntryChange(index, e.target.value)}
-                            className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/60 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none transition focus:border-indigo-500 dark:focus:border-indigo-300 dark:border-sky-400/70 focus:ring-2 focus:ring-indigo-500/15 dark:focus:ring-sky-400/20"
-                            placeholder={`Contender ${index + 1}`}
+                            onChange={(next) => handleEntryChange(index, next)}
+                            communityId={community?.id || undefined}
+                            source={community?.id ? 'mutuals' : 'all'}
+                            enableMe
+                            inputClassName="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/60 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none transition focus:border-indigo-500 dark:focus:border-indigo-300 dark:border-sky-400/70 focus:ring-2 focus:ring-indigo-500/15 dark:focus:ring-sky-400/20 w-full"
+                            placeholder={`Contender ${index + 1} (try @username)`}
                           />
                           {seedInputError(index) && (
                             <p className="text-xs text-rose-300">Contender name required.</p>
@@ -858,14 +869,22 @@ const CreateBracketPage = () => {
                                           <label className="text-xs font-semibold text-slate-700 dark:text-slate-200/70">
                                             Seed {seedIndex + 1}
                                           </label>
-                                          <input
-                                            type="text"
+                                          {/*
+                                            Same MentionableInput swap as the
+                                            small-bracket form above — keeps
+                                            the @-handle + @me UX consistent
+                                            for >16-seed brackets.
+                                          */}
+                                          <MentionableInput
                                             value={entries[seedIndex]}
-                                            onChange={(e) =>
-                                              handleEntryChange(seedIndex, e.target.value)
+                                            onChange={(next) =>
+                                              handleEntryChange(seedIndex, next)
                                             }
-                                            className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/60 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none transition focus:border-indigo-500 dark:focus:border-indigo-300 dark:border-sky-400/70 focus:ring-2 focus:ring-indigo-500/15 dark:focus:ring-sky-400/20"
-                                            placeholder={`Contender ${seedIndex + 1}`}
+                                            communityId={community?.id || undefined}
+                                            source={community?.id ? 'mutuals' : 'all'}
+                                            enableMe
+                                            inputClassName="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/60 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none transition focus:border-indigo-500 dark:focus:border-indigo-300 dark:border-sky-400/70 focus:ring-2 focus:ring-indigo-500/15 dark:focus:ring-sky-400/20 w-full"
+                                            placeholder={`Contender ${seedIndex + 1} (try @username)`}
                                           />
                                           {seedInputError(seedIndex) && (
                                             <p className="text-xs text-rose-300">

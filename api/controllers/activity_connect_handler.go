@@ -78,6 +78,13 @@ var kindCategory = map[string]string{
 	kindMatchupCompleted:    "social",
 	kindBracketCompleted:    "social",
 	kindFollowedUserPosted:  "social",
+	// Social-loop kinds introduced with user-as-item (matchup contender)
+	// + win tracking. All four ride the existing `social` preference
+	// so muting "social" silences them without a new pref toggle.
+	kindMentionedAsItem:     "social",
+	kindWonMatchup:          "social",
+	kindWonRound:            "social",
+	kindWonBracket:          "social",
 }
 
 // GetUserActivity returns the merged activity feed for the given user.

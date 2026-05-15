@@ -74,6 +74,8 @@ func userToProto(user *models.User) *userv1.UserProfile {
 		UpdatedAt:      rfc3339(user.UpdatedAt),
 		Bio:            bio,
 		IsVerified:     user.EmailVerifiedAt != nil,
+		ThemeGradient:  user.ThemeGradient,
+		WinsCount:      user.WinsCount,
 	}
 }
 
@@ -94,7 +96,7 @@ func followListUserToProto(dto FollowUserDTO) *userv1.FollowListUser {
 
 // ---- common protos ----
 
-func matchupItemToProto(item models.MatchupItem) *commonv1.MatchupItemResponse {
+func matchupItemToProto(db sqlx.ExtContext, item models.MatchupItem) *commonv1.MatchupItemResponse {
 	// Lift the relative DB path to a full S3 URL on the wire so
 	// frontends never deal with bucket/region details. Empty path
 	// stays empty — frontend uses that as the "no thumbnail" signal.
@@ -102,12 +104,39 @@ func matchupItemToProto(item models.MatchupItem) *commonv1.MatchupItemResponse {
 	if item.ImagePath != "" {
 		imageURL = appdb.ProcessMatchupItemImagePath(item.ImagePath)
 	}
-	return &commonv1.MatchupItemResponse{
+
+	resp := &commonv1.MatchupItemResponse{
 		Id:       item.PublicID,
 		Item:     item.Item,
 		Votes:    int32(item.Votes),
 		ImageUrl: imageURL,
 	}
+
+	// User-as-item ("contender") hydration. When user_id is set, look
+	// up the public_id + username + avatar so the frontend can render
+	// an avatar chip in place of the text label. Lookup is N=1 per
+	// matchup item (typically 2–8 items), so a per-item SELECT is
+	// fine — no batching needed at this scale. If the lookup fails
+	// (e.g. user was hard-deleted while the FK's ON DELETE SET NULL
+	// hadn't fired yet), we just leave the user_* fields empty and
+	// the frontend falls back to the plain text/image render.
+	if item.UserID != nil && *item.UserID != 0 {
+		var u struct {
+			PublicID   string `db:"public_id"`
+			Username   string `db:"username"`
+			AvatarPath string `db:"avatar_path"`
+		}
+		if err := sqlx.GetContext(context.Background(), db, &u,
+			"SELECT public_id, username, avatar_path FROM users WHERE id = $1",
+			*item.UserID,
+		); err == nil {
+			resp.UserId = u.PublicID
+			resp.UserUsername = u.Username
+			resp.UserAvatarPath = appdb.ProcessAvatarPath(u.AvatarPath)
+		}
+	}
+
+	return resp
 }
 
 func paginationToProto(page, limit int, total int64) *commonv1.Pagination {
@@ -128,7 +157,7 @@ func paginationToProto(page, limit int, total int64) *commonv1.Pagination {
 func matchupToProto(db sqlx.ExtContext, matchup *models.Matchup, comments []models.Comment) *matchupv1.MatchupData {
 	items := make([]*commonv1.MatchupItemResponse, len(matchup.Items))
 	for i, item := range matchup.Items {
-		items[i] = matchupItemToProto(item)
+		items[i] = matchupItemToProto(db, item)
 	}
 
 	commentProtos := make([]*matchupv1.CommentData, len(comments))
@@ -389,7 +418,7 @@ func bracketLikeToProto(like models.BracketLike, userPublicID, bracketPublicID s
 func adminMatchupToProto(db sqlx.ExtContext, matchup *models.Matchup) *adminv1.AdminMatchupData {
 	items := make([]*commonv1.MatchupItemResponse, len(matchup.Items))
 	for i, item := range matchup.Items {
-		items[i] = matchupItemToProto(item)
+		items[i] = matchupItemToProto(db, item)
 	}
 	authorID := resolveUserPublicID(db, &matchup.Author, matchup.AuthorID)
 	authorUsername := ""

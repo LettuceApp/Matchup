@@ -25,6 +25,15 @@ message MatchupItemResponse {
   // (which lifts the relative DB path to a CDN-style URL). Empty
   // strings are valid; the frontend falls back to a text-only card.
   string image_url = 4;
+  // user_id — populated when this item is a "user contender". The
+  // frontend renders the user's avatar + @username in place of the
+  // text label. Empty for plain text/image items. The user_username
+  // + user_avatar_path siblings are hydrated server-side so the
+  // feed render doesn't need an N+1 GetUser RPC per item.
+  string user_id = 5;
+  string user_username = 6;
+  // Resolved full S3 URL (already lifted via appdb.ProcessAvatarPath).
+  string user_avatar_path = 7;
 }
 
 // Pagination is included in paginated list responses.

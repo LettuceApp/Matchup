@@ -9,6 +9,7 @@ import (
 
 	"Matchup/cache"
 	appdb "Matchup/db"
+	commonv1 "Matchup/gen/common/v1"
 	userv1 "Matchup/gen/user/v1"
 	"Matchup/gen/user/v1/userv1connect"
 	"Matchup/models"
@@ -192,6 +193,26 @@ func (h *UserHandler) UpdateUser(ctx context.Context, req *connect.Request[userv
 		newUser.Bio = *req.Msg.Bio
 	} else {
 		newUser.Bio = formerUser.Bio
+	}
+
+	// Theme gradient is written via a separate small UPDATE because
+	// the legacy UpdateAUser model method only touches email/bio/
+	// password — extending its column list risked clobbering rows on
+	// partial-field updates. Validating against the shared allow-list
+	// keeps the user-side palette in lock-step with communities (see
+	// theme_gradient.go) and prevents arbitrary strings from flowing
+	// into the inline-style attribute on the rendered profile.
+	if req.Msg.ThemeGradient != nil {
+		g := strings.TrimSpace(*req.Msg.ThemeGradient)
+		if err := validateThemeGradient(g); err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+		if _, err := h.DB.ExecContext(ctx,
+			"UPDATE users SET theme_gradient = $1, updated_at = NOW() WHERE id = $2",
+			g, user.ID,
+		); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
 	}
 
 	newUser.Prepare()
@@ -685,4 +706,93 @@ func fetchFollowRowsStandalone(db *sqlx.DB, whereClause string, whereArgs []inte
 		return nil, err
 	}
 	return rows, nil
+}
+
+// ListMutuals returns users who follow the caller AND who the caller
+// follows back, ordered alphabetically by username for stable
+// autocomplete UX. Backs the @-mention autocomplete component + the
+// "add a mutual as a matchup item" picker.
+//
+// Filtering: an optional `query` substring narrows by username (case-
+// insensitive). Used as the user types past `@`.
+//
+// Pagination: cursor is the lowercase username of the last row
+// returned. Sets are typically small (~ dozens) so this stays simple
+// — first page is usually all the caller needs.
+//
+// Auth: required. Anon viewers have no mutuals.
+func (h *UserHandler) ListMutuals(ctx context.Context, req *connect.Request[userv1.ListMutualsRequest]) (*connect.Response[userv1.ListMutualsResponse], error) {
+	viewerID, ok := httpctx.CurrentUserID(ctx)
+	if !ok {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("unauthorized"))
+	}
+
+	limit := 50
+	if l := req.Msg.GetLimit(); l > 0 {
+		limit = int(l)
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	args := []interface{}{viewerID, viewerID}
+	where := []string{
+		"f1.follower_id = $1",                            // viewer follows them
+		"f2.followed_id = $2",                            // they follow viewer back
+		"u.id = f1.followed_id AND u.id = f2.follower_id",
+		"u.deleted_at IS NULL",
+		"u.banned_at IS NULL",
+	}
+	if q := strings.TrimSpace(req.Msg.GetQuery()); q != "" {
+		args = append(args, "%"+strings.ToLower(q)+"%")
+		where = append(where, fmt.Sprintf("LOWER(u.username) LIKE $%d", len(args)))
+	}
+	if c := strings.TrimSpace(req.Msg.GetCursor()); c != "" {
+		args = append(args, strings.ToLower(c))
+		where = append(where, fmt.Sprintf("LOWER(u.username) > $%d", len(args)))
+	}
+	args = append(args, limit+1) // +1 to detect "more pages"
+
+	query := fmt.Sprintf(`
+		SELECT u.public_id, u.username, u.avatar_path
+		FROM users u
+		JOIN follows f1 ON f1.followed_id = u.id
+		JOIN follows f2 ON f2.follower_id = u.id
+		WHERE %s
+		ORDER BY LOWER(u.username) ASC
+		LIMIT $%d`,
+		strings.Join(where, " AND "),
+		len(args),
+	)
+
+	type row struct {
+		PublicID   string `db:"public_id"`
+		Username   string `db:"username"`
+		AvatarPath string `db:"avatar_path"`
+	}
+	var rows []row
+	if err := sqlx.SelectContext(ctx, dbForRead(ctx, h.DB, h.ReadDB), &rows, query, args...); err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	// If we read limit+1 rows, more pages exist — drop the extra and
+	// emit its username as the next cursor.
+	var nextCursor string
+	if len(rows) > limit {
+		nextCursor = rows[limit-1].Username
+		rows = rows[:limit]
+	}
+
+	users := make([]*commonv1.UserSummaryResponse, 0, len(rows))
+	for _, r := range rows {
+		users = append(users, &commonv1.UserSummaryResponse{
+			Id:         r.PublicID,
+			Username:   r.Username,
+			AvatarPath: appdb.ProcessAvatarPath(r.AvatarPath),
+		})
+	}
+	return connect.NewResponse(&userv1.ListMutualsResponse{
+		Users:      users,
+		NextCursor: nextCursor,
+	}), nil
 }

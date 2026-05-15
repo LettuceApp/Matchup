@@ -62,6 +62,14 @@ type MatchupItem struct {
 	// item has no thumbnail. The proto mapper lifts this to a full URL
 	// via db.ProcessMatchupItemImagePath. Migration 026 added the column.
 	ImagePath string `db:"image_path" json:"image_path"`
+	// UserID — when non-nil, this item references a user (mutual on a
+	// standalone matchup, community member on a community matchup).
+	// The proto mapper hydrates Author.Username + Author.AvatarPath
+	// from this id so the frontend renders an avatar chip in place of
+	// (or alongside) the text label. Migration 030 added the column.
+	// ON DELETE SET NULL on the FK keeps the item alive if the
+	// referenced user deletes their account.
+	UserID *uint `db:"user_id" json:"user_id"`
 }
 
 // MatchupDetails holds the large `content` body, separated from `matchups`
@@ -185,8 +193,8 @@ func (m *Matchup) SaveMatchup(db sqlx.ExtContext) (*Matchup, error) {
 				m.Items[i].PublicID = appdb.GeneratePublicID()
 			}
 			q, a, err := appdb.Psql.Insert("matchup_items").
-				Columns("public_id", "matchup_id", "item", "votes", "image_path").
-				Values(m.Items[i].PublicID, m.Items[i].MatchupID, m.Items[i].Item, m.Items[i].Votes, m.Items[i].ImagePath).
+				Columns("public_id", "matchup_id", "item", "votes", "image_path", "user_id").
+				Values(m.Items[i].PublicID, m.Items[i].MatchupID, m.Items[i].Item, m.Items[i].Votes, m.Items[i].ImagePath, m.Items[i].UserID).
 				Suffix("RETURNING *").
 				ToSql()
 			if err != nil {

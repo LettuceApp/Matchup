@@ -507,6 +507,17 @@ func (h *MatchupHandler) CreateMatchup(ctx context.Context, req *connect.Request
 	// failing doesn't prevent the others, but the first failure short-
 	// circuits the request before any DB work happens.
 	itemBucket := bucketFromEnv()
+	// notifyTargets collects the internal IDs + display info of every
+	// user added as a "user contender". Populated during item iteration,
+	// drained after the matchup save succeeds so we don't fire a
+	// "you were added" notification for a matchup that failed to
+	// persist.
+	type notifyTarget struct {
+		userID   uint
+		username string
+	}
+	var notifyTargets []notifyTarget
+	seenTargetID := map[uint]bool{} // dedupe — same user listed twice → one notification
 	for idx, it := range req.Msg.Items {
 		item := models.MatchupItem{Item: it.Item}
 		if key := it.GetUploadKey(); key != "" {
@@ -522,6 +533,40 @@ func (h *MatchupHandler) CreateMatchup(ctx context.Context, req *connect.Request
 			}
 			item.ImagePath = filePath
 			DeleteUploadedObject(ctx, h.S3Client, itemBucket, key)
+		}
+		// User-as-item (matchup "contender"). When user_handle is set,
+		// resolve it to an internal user ID + check the social-loop
+		// rule for who can be added (mutual on standalone, member on
+		// community). Failures are surfaced as InvalidArgument so the
+		// caller can fix the picker selection without retrying the
+		// whole save.
+		if handle := strings.TrimSpace(it.GetUserHandle()); handle != "" {
+			// Pass the creator's userID so "me" resolves to themselves.
+			target, err := resolveUserHandle(ctx, h.DB, handle, userID)
+			if err != nil {
+				return nil, connect.NewError(connect.CodeInvalidArgument, err)
+			}
+			if err := validateMatchupItemUser(ctx, h.DB, userID, matchup.CommunityID, target.ID); err != nil {
+				return nil, connect.NewError(connect.CodeInvalidArgument, err)
+			}
+			tid := target.ID
+			item.UserID = &tid
+			// If the item label is empty, fall back to @username so the
+			// stored row always has a non-empty `item` for legacy
+			// callers that read the column directly.
+			if strings.TrimSpace(item.Item) == "" {
+				item.Item = "@" + target.Username
+			}
+			// Don't notify the creator about adding themselves — they
+			// know. Also dedupe so listing the same user twice as items
+			// fires only one notification.
+			if target.ID != userID && !seenTargetID[target.ID] {
+				seenTargetID[target.ID] = true
+				notifyTargets = append(notifyTargets, notifyTarget{
+					userID:   target.ID,
+					username: target.Username,
+				})
+			}
 		}
 		matchup.Items = append(matchup.Items, item)
 	}
@@ -661,6 +706,33 @@ func (h *MatchupHandler) CreateMatchup(ctx context.Context, req *connect.Request
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	matchupCreated.Author.ProcessAvatarPath()
+
+	// "You were added to a matchup as an item" notification fan-out.
+	// One push per unique user-contender, fired AFTER the matchup row
+	// is saved + author is loaded (so the push title can include
+	// @author). Per the plan: publish-immediately model — no approval
+	// gate on the recipient; if they want out, they block / report.
+	if len(notifyTargets) > 0 {
+		pushURL := fmt.Sprintf("%s/users/%s/matchup/%s",
+			strings.TrimRight(mailerAppBaseURL(), "/"),
+			matchupCreated.Author.Username, matchupCreated.PublicID,
+		)
+		payload := map[string]any{
+			"matchup_id":      matchupCreated.PublicID,
+			"matchup_title":   matchupCreated.Title,
+			"author_username": matchupCreated.Author.Username,
+		}
+		for _, t := range notifyTargets {
+			dispatchNotification(
+				ctx, h.DB, t.userID,
+				kindMentionedAsItem, "matchup", matchupCreated.ID,
+				payload,
+				"@"+matchupCreated.Author.Username+" added you to a matchup",
+				truncateForPush(matchupCreated.Title, 140),
+				pushURL,
+			)
+		}
+	}
 
 	comment := models.Comment{}
 	comments, err := comment.GetComments(h.DB, matchupCreated.ID)
@@ -852,12 +924,18 @@ func (h *MatchupHandler) OverrideMatchupWinner(ctx context.Context, req *connect
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("invalid winner item"))
 	}
 
-	matchup.WinnerItemID = &winnerItemID
-	matchup.Status = matchupStatusCompleted
-
-	if _, err := h.DB.ExecContext(ctx,
-		"UPDATE matchups SET winner_item_id = $1, status = $2, updated_at = $3 WHERE id = $4",
-		matchup.WinnerItemID, matchup.Status, time.Now(), matchup.ID); err != nil {
+	// Hydrate author for the win-notification push copy (best-effort).
+	if matchup.Author.ID == 0 {
+		_ = sqlx.GetContext(ctx, h.DB, &matchup.Author,
+			"SELECT * FROM users WHERE id = $1", matchup.AuthorID)
+	}
+	// Override-winner fires kindWonMatchup like CompleteMatchup —
+	// from the recipient's perspective both paths land the same
+	// "you won" notification. Admin overrides could be silenced by
+	// passing "" instead, but the override-winner endpoint is
+	// already gated to author + admin so a malicious-overide attack
+	// vector isn't a concern.
+	if err := stampMatchupWinner(ctx, h.DB, &matchup, winnerItemID, matchupStatusCompleted, kindWonMatchup); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	if matchup.BracketID != nil {
@@ -948,12 +1026,18 @@ func (h *MatchupHandler) CompleteMatchup(ctx context.Context, req *connect.Reque
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 
-	matchup.Status = matchupStatusCompleted
-	matchup.WinnerItemID = &winnerID
-
-	if _, err := h.DB.ExecContext(ctx,
-		"UPDATE matchups SET status = $1, winner_item_id = $2, updated_at = $3 WHERE id = $4",
-		matchup.Status, matchup.WinnerItemID, time.Now(), matchup.ID); err != nil {
+	// Hydrate the author for the win-notification push copy. Best-
+	// effort — the helper falls back to a generic title if Author is
+	// empty, so a SELECT failure here doesn't block the stamp.
+	if matchup.Author.ID == 0 {
+		_ = sqlx.GetContext(ctx, h.DB, &matchup.Author,
+			"SELECT * FROM users WHERE id = $1", matchup.AuthorID)
+	}
+	// Standalone matchups + bracket-leaf matchups both fire
+	// kindWonMatchup. The bracket round/final distinction only
+	// matters when bracket_logic.go auto-advances rounds — that path
+	// passes kindWonRound / kindWonBracket explicitly.
+	if err := stampMatchupWinner(ctx, h.DB, &matchup, winnerID, matchupStatusCompleted, kindWonMatchup); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	if matchup.BracketID != nil {

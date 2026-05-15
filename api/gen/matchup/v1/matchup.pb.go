@@ -770,7 +770,16 @@ type MatchupItemCreate struct {
 	// Optional S3 key returned by UploadService.PresignUpload(kind=
 	// "matchup_item"). When set, the item lands with a thumbnail; the
 	// server commits + resizes + stores image_path. Migration 026.
-	UploadKey     *string `protobuf:"bytes,2,opt,name=upload_key,json=uploadKey,proto3,oneof" json:"upload_key,omitempty"`
+	UploadKey *string `protobuf:"bytes,2,opt,name=upload_key,json=uploadKey,proto3,oneof" json:"upload_key,omitempty"`
+	// Optional @username (with or without the leading `@`) or user
+	// public_id. When set, the item references that user as a
+	// "contender". Server validates: standalone matchup → target must
+	// be a mutual of the creator; community matchup → target must be
+	// a non-banned member of the community. Rejects with
+	// InvalidArgument otherwise. The `item` text field can be empty
+	// when user_handle is set — the frontend renders @username as the
+	// label.
+	UserHandle    *string `protobuf:"bytes,3,opt,name=user_handle,json=userHandle,proto3,oneof" json:"user_handle,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -815,6 +824,13 @@ func (x *MatchupItemCreate) GetItem() string {
 func (x *MatchupItemCreate) GetUploadKey() string {
 	if x != nil && x.UploadKey != nil {
 		return *x.UploadKey
+	}
+	return ""
+}
+
+func (x *MatchupItemCreate) GetUserHandle() string {
+	if x != nil && x.UserHandle != nil {
+		return *x.UserHandle
 	}
 	return ""
 }
@@ -2597,12 +2613,15 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\x04page\x18\x02 \x01(\x05H\x00R\x04page\x88\x01\x01\x12\x19\n" +
 	"\x05limit\x18\x03 \x01(\x05H\x01R\x05limit\x88\x01\x01B\a\n" +
 	"\x05_pageB\b\n" +
-	"\x06_limit\"Z\n" +
+	"\x06_limit\"\x90\x01\n" +
 	"\x11MatchupItemCreate\x12\x12\n" +
 	"\x04item\x18\x01 \x01(\tR\x04item\x12\"\n" +
 	"\n" +
-	"upload_key\x18\x02 \x01(\tH\x00R\tuploadKey\x88\x01\x01B\r\n" +
-	"\v_upload_key\"\xf1\x04\n" +
+	"upload_key\x18\x02 \x01(\tH\x00R\tuploadKey\x88\x01\x01\x12$\n" +
+	"\vuser_handle\x18\x03 \x01(\tH\x01R\n" +
+	"userHandle\x88\x01\x01B\r\n" +
+	"\v_upload_keyB\x0e\n" +
+	"\f_user_handle\"\xf1\x04\n" +
 	"\x14CreateMatchupRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x1d\n" +

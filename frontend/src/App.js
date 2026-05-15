@@ -43,6 +43,7 @@ const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage'));
 const CreateCommunity = lazy(() => import('./pages/CreateCommunity'));
 const CommunityPage = lazy(() => import('./pages/CommunityPage'));
 const CommunityMembers = lazy(() => import('./pages/CommunityMembers'));
+const CommunityChampions = lazy(() => import('./pages/CommunityChampions'));
 const CommunitySettings = lazy(() => import('./pages/CommunitySettings'));
 const SearchResultsPage = lazy(() => import('./pages/SearchResultsPage'));
 
@@ -297,6 +298,14 @@ const AppRoutes = () => {
           element={
             <PageTransition>
               <CommunityMembers />
+            </PageTransition>
+          }
+        />
+        <Route
+          path="/c/:slug/champions"
+          element={
+            <PageTransition>
+              <CommunityChampions />
             </PageTransition>
           }
         />

@@ -93,6 +93,12 @@ const (
 	// CommunityServiceGetCommunityFeedProcedure is the fully-qualified name of the CommunityService's
 	// GetCommunityFeed RPC.
 	CommunityServiceGetCommunityFeedProcedure = "/community.v1.CommunityService/GetCommunityFeed"
+	// CommunityServiceListMentionableMembersProcedure is the fully-qualified name of the
+	// CommunityService's ListMentionableMembers RPC.
+	CommunityServiceListMentionableMembersProcedure = "/community.v1.CommunityService/ListMentionableMembers"
+	// CommunityServiceGetCommunityChampionsProcedure is the fully-qualified name of the
+	// CommunityService's GetCommunityChampions RPC.
+	CommunityServiceGetCommunityChampionsProcedure = "/community.v1.CommunityService/GetCommunityChampions"
 )
 
 // CommunityServiceClient is a client for the community.v1.CommunityService service.
@@ -129,6 +135,18 @@ type CommunityServiceClient interface {
 	// community. Sorted by created_at DESC; paginate via cursor (the
 	// last item's created_at).
 	GetCommunityFeed(context.Context, *connect.Request[v1.GetCommunityFeedRequest]) (*connect.Response[v1.GetCommunityFeedResponse], error)
+	// Members the caller can @-mention from within this community.
+	// Returns non-banned members, optionally filtered by a username
+	// `query` substring. Used by the @-mention autocomplete and by the
+	// "add a member as matchup item" picker when creating community-
+	// scoped content. Auth: any authed user can call; banned members
+	// are excluded from the result regardless of the caller's role.
+	ListMentionableMembers(context.Context, *connect.Request[v1.ListMentionableMembersRequest]) (*connect.Response[v1.ListMentionableMembersResponse], error)
+	// Top users in the community by wins (matchups won where their
+	// user-item carried the winning vote). Powers the Champions tab on
+	// the community page. Ordered by wins_count DESC, last_won_at DESC
+	// (recency tiebreak). Public read — anyone can see who's winning.
+	GetCommunityChampions(context.Context, *connect.Request[v1.GetCommunityChampionsRequest]) (*connect.Response[v1.GetCommunityChampionsResponse], error)
 }
 
 // NewCommunityServiceClient constructs a client for the community.v1.CommunityService service. By
@@ -262,31 +280,45 @@ func NewCommunityServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(communityServiceMethods.ByName("GetCommunityFeed")),
 			connect.WithClientOptions(opts...),
 		),
+		listMentionableMembers: connect.NewClient[v1.ListMentionableMembersRequest, v1.ListMentionableMembersResponse](
+			httpClient,
+			baseURL+CommunityServiceListMentionableMembersProcedure,
+			connect.WithSchema(communityServiceMethods.ByName("ListMentionableMembers")),
+			connect.WithClientOptions(opts...),
+		),
+		getCommunityChampions: connect.NewClient[v1.GetCommunityChampionsRequest, v1.GetCommunityChampionsResponse](
+			httpClient,
+			baseURL+CommunityServiceGetCommunityChampionsProcedure,
+			connect.WithSchema(communityServiceMethods.ByName("GetCommunityChampions")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // communityServiceClient implements CommunityServiceClient.
 type communityServiceClient struct {
-	createCommunity     *connect.Client[v1.CreateCommunityRequest, v1.CreateCommunityResponse]
-	getCommunity        *connect.Client[v1.GetCommunityRequest, v1.GetCommunityResponse]
-	getCommunityBySlug  *connect.Client[v1.GetCommunityBySlugRequest, v1.GetCommunityBySlugResponse]
-	updateCommunity     *connect.Client[v1.UpdateCommunityRequest, v1.UpdateCommunityResponse]
-	deleteCommunity     *connect.Client[v1.DeleteCommunityRequest, v1.DeleteCommunityResponse]
-	listCommunities     *connect.Client[v1.ListCommunitiesRequest, v1.ListCommunitiesResponse]
-	listMyCommunities   *connect.Client[v1.ListMyCommunitiesRequest, v1.ListMyCommunitiesResponse]
-	listUserCommunities *connect.Client[v1.ListUserCommunitiesRequest, v1.ListUserCommunitiesResponse]
-	checkSlugAvailable  *connect.Client[v1.CheckSlugAvailableRequest, v1.CheckSlugAvailableResponse]
-	joinCommunity       *connect.Client[v1.JoinCommunityRequest, v1.JoinCommunityResponse]
-	leaveCommunity      *connect.Client[v1.LeaveCommunityRequest, v1.LeaveCommunityResponse]
-	listMembers         *connect.Client[v1.ListMembersRequest, v1.ListMembersResponse]
-	getMyMembership     *connect.Client[v1.GetMyMembershipRequest, v1.GetMyMembershipResponse]
-	updateMemberRole    *connect.Client[v1.UpdateMemberRoleRequest, v1.UpdateMemberRoleResponse]
-	removeMember        *connect.Client[v1.RemoveMemberRequest, v1.RemoveMemberResponse]
-	banMember           *connect.Client[v1.BanMemberRequest, v1.BanMemberResponse]
-	unbanMember         *connect.Client[v1.UnbanMemberRequest, v1.UnbanMemberResponse]
-	listRules           *connect.Client[v1.ListRulesRequest, v1.ListRulesResponse]
-	setRules            *connect.Client[v1.SetRulesRequest, v1.SetRulesResponse]
-	getCommunityFeed    *connect.Client[v1.GetCommunityFeedRequest, v1.GetCommunityFeedResponse]
+	createCommunity        *connect.Client[v1.CreateCommunityRequest, v1.CreateCommunityResponse]
+	getCommunity           *connect.Client[v1.GetCommunityRequest, v1.GetCommunityResponse]
+	getCommunityBySlug     *connect.Client[v1.GetCommunityBySlugRequest, v1.GetCommunityBySlugResponse]
+	updateCommunity        *connect.Client[v1.UpdateCommunityRequest, v1.UpdateCommunityResponse]
+	deleteCommunity        *connect.Client[v1.DeleteCommunityRequest, v1.DeleteCommunityResponse]
+	listCommunities        *connect.Client[v1.ListCommunitiesRequest, v1.ListCommunitiesResponse]
+	listMyCommunities      *connect.Client[v1.ListMyCommunitiesRequest, v1.ListMyCommunitiesResponse]
+	listUserCommunities    *connect.Client[v1.ListUserCommunitiesRequest, v1.ListUserCommunitiesResponse]
+	checkSlugAvailable     *connect.Client[v1.CheckSlugAvailableRequest, v1.CheckSlugAvailableResponse]
+	joinCommunity          *connect.Client[v1.JoinCommunityRequest, v1.JoinCommunityResponse]
+	leaveCommunity         *connect.Client[v1.LeaveCommunityRequest, v1.LeaveCommunityResponse]
+	listMembers            *connect.Client[v1.ListMembersRequest, v1.ListMembersResponse]
+	getMyMembership        *connect.Client[v1.GetMyMembershipRequest, v1.GetMyMembershipResponse]
+	updateMemberRole       *connect.Client[v1.UpdateMemberRoleRequest, v1.UpdateMemberRoleResponse]
+	removeMember           *connect.Client[v1.RemoveMemberRequest, v1.RemoveMemberResponse]
+	banMember              *connect.Client[v1.BanMemberRequest, v1.BanMemberResponse]
+	unbanMember            *connect.Client[v1.UnbanMemberRequest, v1.UnbanMemberResponse]
+	listRules              *connect.Client[v1.ListRulesRequest, v1.ListRulesResponse]
+	setRules               *connect.Client[v1.SetRulesRequest, v1.SetRulesResponse]
+	getCommunityFeed       *connect.Client[v1.GetCommunityFeedRequest, v1.GetCommunityFeedResponse]
+	listMentionableMembers *connect.Client[v1.ListMentionableMembersRequest, v1.ListMentionableMembersResponse]
+	getCommunityChampions  *connect.Client[v1.GetCommunityChampionsRequest, v1.GetCommunityChampionsResponse]
 }
 
 // CreateCommunity calls community.v1.CommunityService.CreateCommunity.
@@ -389,6 +421,16 @@ func (c *communityServiceClient) GetCommunityFeed(ctx context.Context, req *conn
 	return c.getCommunityFeed.CallUnary(ctx, req)
 }
 
+// ListMentionableMembers calls community.v1.CommunityService.ListMentionableMembers.
+func (c *communityServiceClient) ListMentionableMembers(ctx context.Context, req *connect.Request[v1.ListMentionableMembersRequest]) (*connect.Response[v1.ListMentionableMembersResponse], error) {
+	return c.listMentionableMembers.CallUnary(ctx, req)
+}
+
+// GetCommunityChampions calls community.v1.CommunityService.GetCommunityChampions.
+func (c *communityServiceClient) GetCommunityChampions(ctx context.Context, req *connect.Request[v1.GetCommunityChampionsRequest]) (*connect.Response[v1.GetCommunityChampionsResponse], error) {
+	return c.getCommunityChampions.CallUnary(ctx, req)
+}
+
 // CommunityServiceHandler is an implementation of the community.v1.CommunityService service.
 type CommunityServiceHandler interface {
 	CreateCommunity(context.Context, *connect.Request[v1.CreateCommunityRequest]) (*connect.Response[v1.CreateCommunityResponse], error)
@@ -423,6 +465,18 @@ type CommunityServiceHandler interface {
 	// community. Sorted by created_at DESC; paginate via cursor (the
 	// last item's created_at).
 	GetCommunityFeed(context.Context, *connect.Request[v1.GetCommunityFeedRequest]) (*connect.Response[v1.GetCommunityFeedResponse], error)
+	// Members the caller can @-mention from within this community.
+	// Returns non-banned members, optionally filtered by a username
+	// `query` substring. Used by the @-mention autocomplete and by the
+	// "add a member as matchup item" picker when creating community-
+	// scoped content. Auth: any authed user can call; banned members
+	// are excluded from the result regardless of the caller's role.
+	ListMentionableMembers(context.Context, *connect.Request[v1.ListMentionableMembersRequest]) (*connect.Response[v1.ListMentionableMembersResponse], error)
+	// Top users in the community by wins (matchups won where their
+	// user-item carried the winning vote). Powers the Champions tab on
+	// the community page. Ordered by wins_count DESC, last_won_at DESC
+	// (recency tiebreak). Public read — anyone can see who's winning.
+	GetCommunityChampions(context.Context, *connect.Request[v1.GetCommunityChampionsRequest]) (*connect.Response[v1.GetCommunityChampionsResponse], error)
 }
 
 // NewCommunityServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -552,6 +606,18 @@ func NewCommunityServiceHandler(svc CommunityServiceHandler, opts ...connect.Han
 		connect.WithSchema(communityServiceMethods.ByName("GetCommunityFeed")),
 		connect.WithHandlerOptions(opts...),
 	)
+	communityServiceListMentionableMembersHandler := connect.NewUnaryHandler(
+		CommunityServiceListMentionableMembersProcedure,
+		svc.ListMentionableMembers,
+		connect.WithSchema(communityServiceMethods.ByName("ListMentionableMembers")),
+		connect.WithHandlerOptions(opts...),
+	)
+	communityServiceGetCommunityChampionsHandler := connect.NewUnaryHandler(
+		CommunityServiceGetCommunityChampionsProcedure,
+		svc.GetCommunityChampions,
+		connect.WithSchema(communityServiceMethods.ByName("GetCommunityChampions")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/community.v1.CommunityService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case CommunityServiceCreateCommunityProcedure:
@@ -594,6 +660,10 @@ func NewCommunityServiceHandler(svc CommunityServiceHandler, opts ...connect.Han
 			communityServiceSetRulesHandler.ServeHTTP(w, r)
 		case CommunityServiceGetCommunityFeedProcedure:
 			communityServiceGetCommunityFeedHandler.ServeHTTP(w, r)
+		case CommunityServiceListMentionableMembersProcedure:
+			communityServiceListMentionableMembersHandler.ServeHTTP(w, r)
+		case CommunityServiceGetCommunityChampionsProcedure:
+			communityServiceGetCommunityChampionsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -681,4 +751,12 @@ func (UnimplementedCommunityServiceHandler) SetRules(context.Context, *connect.R
 
 func (UnimplementedCommunityServiceHandler) GetCommunityFeed(context.Context, *connect.Request[v1.GetCommunityFeedRequest]) (*connect.Response[v1.GetCommunityFeedResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("community.v1.CommunityService.GetCommunityFeed is not implemented"))
+}
+
+func (UnimplementedCommunityServiceHandler) ListMentionableMembers(context.Context, *connect.Request[v1.ListMentionableMembersRequest]) (*connect.Response[v1.ListMentionableMembersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("community.v1.CommunityService.ListMentionableMembers is not implemented"))
+}
+
+func (UnimplementedCommunityServiceHandler) GetCommunityChampions(context.Context, *connect.Request[v1.GetCommunityChampionsRequest]) (*connect.Response[v1.GetCommunityChampionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("community.v1.CommunityService.GetCommunityChampions is not implemented"))
 }

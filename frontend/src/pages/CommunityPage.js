@@ -7,7 +7,11 @@ import {
   joinCommunity,
   leaveCommunity,
 } from '../services/api';
-import { gradientForSlug } from '../utils/communityGradients';
+import {
+  accentForSlug,
+  accentHoverForSlug,
+  gradientForSlug,
+} from '../utils/communityGradients';
 import '../styles/CommunityPage.css';
 
 /*
@@ -63,18 +67,45 @@ const CommunityPage = () => {
     loadCommunity();
   }, [loadCommunity]);
 
-  // Push the community's chosen gradient up to :root as
-  // --page-accent-gradient so global elements (currently the
-  // NavigationBar brand wordmark) repaint with the community's
-  // theme instead of the app's default stardust. Cleanup removes
-  // the var so navigating away from /c/* restores the global
-  // recipe — without this, the brand would stay tinted forever.
+  // Push the community's chosen gradient up to :root. Two surfaces
+  // consume these vars:
+  //   1. --page-accent-gradient — the full CSS gradient used by the
+  //      banner, avatar background, NavigationBar brand wordmark, and
+  //      feed-card accents.
+  //   2. --c-accent / --c-accent-hover / --c-accent-soft — solid color
+  //      siblings extracted from the gradient's mid + dark stops.
+  //      Buttons, owner @-links, and other single-color UI consume
+  //      these instead of trying to flatten a gradient at render time.
+  //
+  // We used to also flip a `body.community-light-mode` class here to
+  // force a light shell over the whole community route. That made
+  // the community page ignore the user's app-wide theme — switching
+  // dark mode on had no effect on /c/<slug>. The class push (and the
+  // CSS overrides keyed to it) are gone now; the page follows the
+  // global theme like every other route.
+  //
+  // Cleanup removes the gradient + accent vars on unmount so
+  // navigating to /home / /users/* etc. restores the default brand
+  // gradient.
   useEffect(() => {
     if (!community) return undefined;
-    const themeGradient = gradientForSlug(community.theme_gradient || '');
-    document.documentElement.style.setProperty('--page-accent-gradient', themeGradient);
+    const slug = community.theme_gradient || '';
+    const themeGradient = gradientForSlug(slug);
+    const accent = accentForSlug(slug);
+    const accentHover = accentHoverForSlug(slug);
+    const root = document.documentElement;
+    root.style.setProperty('--page-accent-gradient', themeGradient);
+    root.style.setProperty('--c-accent', accent);
+    root.style.setProperty('--c-accent-hover', accentHover);
+    root.style.setProperty(
+      '--c-accent-soft',
+      `color-mix(in srgb, ${accent} 16%, transparent)`,
+    );
     return () => {
-      document.documentElement.style.removeProperty('--page-accent-gradient');
+      root.style.removeProperty('--page-accent-gradient');
+      root.style.removeProperty('--c-accent');
+      root.style.removeProperty('--c-accent-hover');
+      root.style.removeProperty('--c-accent-soft');
     };
   }, [community]);
 
@@ -219,6 +250,8 @@ const CommunityPage = () => {
                 <strong>{community.member_count}</strong>{' '}
                 {community.member_count === 1 ? 'member' : 'members'}
               </Link>
+              {' · '}
+              <Link to={`/c/${slug}/champions`}>Champions</Link>
               {community.owner_username && (
                 <>
                   {' · '}Owner{' '}

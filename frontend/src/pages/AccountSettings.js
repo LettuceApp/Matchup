@@ -5,7 +5,13 @@ import {
   getCurrentUser,
   requestEmailVerification,
   signOutLocally,
+  updateUser,
 } from '../services/api';
+import {
+  COMMUNITY_GRADIENTS,
+  DEFAULT_GRADIENT_SLUG,
+  gradientForSlug,
+} from '../utils/communityGradients';
 import '../styles/AccountSettings.css';
 
 /*
@@ -40,18 +46,58 @@ const AccountSettings = () => {
   const [resendSentAt, setResendSentAt] = useState(null);
   const [resendError, setResendError] = useState(null);
 
+  // Theme picker state. `themeGradient` is the currently-selected
+  // slug (mirrors the viewer's stored value while idle, drifts on
+  // swatch clicks until save). Saved state flips back to the
+  // server-confirmed value after a successful write so a failed
+  // save doesn't silently lie about persistence.
+  const [themeGradient, setThemeGradient] = useState('');
+  const [themeSaving, setThemeSaving] = useState(false);
+  const [themeSavedAt, setThemeSavedAt] = useState(null);
+  const [themeError, setThemeError] = useState(null);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await getCurrentUser();
-        if (!cancelled) setViewer(res?.data?.user || null);
+        if (cancelled) return;
+        const u = res?.data?.user || null;
+        setViewer(u);
+        // Seed the picker with whatever the user picked last.
+        setThemeGradient(u?.theme_gradient || '');
       } catch {
         // Non-fatal: the verification section just won't render.
       }
     })();
     return () => { cancelled = true; };
   }, []);
+
+  const handleSaveTheme = async (slug) => {
+    if (!viewer || themeSaving) return;
+    // Optimistic-ish: reflect the click immediately so the active
+    // ring moves, but flag saving so the user can't spam-click.
+    setThemeGradient(slug);
+    setThemeSaving(true);
+    setThemeError(null);
+    try {
+      const res = await updateUser(viewer.id, { themeGradient: slug });
+      const updated = res?.data?.user;
+      if (updated) {
+        setViewer(updated);
+        setThemeGradient(updated.theme_gradient || '');
+      }
+      setThemeSavedAt(new Date());
+    } catch (err) {
+      // Roll back the picker state so it reflects what's actually
+      // persisted; the toast tells the user something went wrong.
+      setThemeGradient(viewer.theme_gradient || '');
+      const msg = err?.response?.data?.message || err?.message || 'Could not save theme.';
+      setThemeError(msg);
+    } finally {
+      setThemeSaving(false);
+    }
+  };
 
   const handleResendVerification = async () => {
     setResendBusy(true);
@@ -159,6 +205,66 @@ const AccountSettings = () => {
                     <p className="account-settings__error">{resendError}</p>
                   )}
                 </>
+              )}
+            </section>
+          )}
+
+          {viewer && (
+            <section className="account-settings__section">
+              <header>
+                <h2>Profile theme</h2>
+                <p>
+                  Pick a gradient — it tints the accent stripe on your
+                  profile, the soft halo behind your avatar, and the
+                  brand wordmark while viewers are on your page.
+                </p>
+              </header>
+
+              {/* Live preview chip — same component recipe as the
+                  community avatar fallback, with the user's chosen
+                  gradient applied inline. Falls through to the
+                  default stardust palette when nothing is picked, so
+                  the chip never goes blank. */}
+              <div
+                className="account-settings__theme-preview"
+                style={{ background: gradientForSlug(themeGradient || DEFAULT_GRADIENT_SLUG) }}
+                aria-hidden="true"
+              >
+                {(viewer.username || '?').charAt(0).toUpperCase()}
+              </div>
+
+              <div
+                className="account-settings__theme-swatches"
+                role="radiogroup"
+                aria-label="Profile theme"
+              >
+                {COMMUNITY_GRADIENTS.map((g) => {
+                  const isActive = themeGradient === g.id;
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={isActive}
+                      disabled={themeSaving}
+                      className={`account-settings__swatch${isActive ? ' account-settings__swatch--active' : ''}`}
+                      style={{ background: g.css }}
+                      title={g.name}
+                      onClick={() => handleSaveTheme(g.id)}
+                    >
+                      <span className="account-settings__swatch-label">{g.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {themeError && (
+                <p className="account-settings__error">{themeError}</p>
+              )}
+              {!themeError && themeSavedAt && (
+                <p className="account-settings__theme-saved" role="status">
+                  Saved.
+                </p>
               )}
             </section>
           )}
