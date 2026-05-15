@@ -10,6 +10,13 @@ export default function BracketView({
   matchups = [],
   bracket,
   champion,
+  // Optional refetch callback wired from the parent (BracketPage's
+  // loadBracket). Called after a successful vote so the displayed
+  // counts reconcile with the server's authoritative state — fixes
+  // the visual "you can vote unlimited times" bug where switching
+  // picks inflated the local total while the server's matchup_votes
+  // row simply moved between items.
+  onVoteSettled = null,
 }) {
   const [localMatchups, setLocalMatchups] = useState(matchups);
   const [votePendingId, setVotePendingId] = useState(null);
@@ -162,21 +169,69 @@ export default function BracketView({
       const res = await incrementMatchupItemVotes(itemId);
       const payload = res?.data?.response ?? res?.data ?? {};
       const updatedVotes = payload?.votes ?? payload?.Votes;
+      const alreadyVoted = Boolean(payload?.already_voted ?? payload?.alreadyVoted);
 
+      // Vote-switch bug fix: the server's matchup_votes table has a
+      // UNIQUE constraint on (user_id, matchup_public_id), so the
+      // backend correctly *moves* the existing row from item A to B
+      // when a user changes their pick — only A's vote count drops
+      // and B's rises. The frontend was only updating the clicked
+      // item's count, so item A kept its inflated local total and
+      // the matchup's displayed sum kept climbing on every switch.
+      // The "you can vote unlimited times" bug was purely visual;
+      // a page reload would have shown correct totals.
+      //
+      // Fix: when the matchup already had a viewer pick, decrement
+      // it by one alongside the increment to the new pick. We detect
+      // the previous pick by scanning the matchup's items for the
+      // one currently flagged as the viewer's vote (viewer_voted_for
+      // / viewer_pick_item_id, depending on which field the home /
+      // bracket RPC populates). The server-supplied new vote count
+      // for the clicked item is still authoritative when present.
       setLocalMatchups((prev) =>
         prev.map((matchup) => {
           if (matchup.id !== matchupId) return matchup;
+          // Identify the previous pick (if any) before mutating.
+          const previousItemId =
+            matchup.viewer_voted_for ||
+            matchup.viewerVotedFor ||
+            matchup.viewer_pick_item_id ||
+            null;
+          const isSwitch =
+            previousItemId && String(previousItemId) !== String(itemId);
+
           const updatedItems = (matchup.items || []).map((item) => {
-            if (item.id !== itemId) return item;
-            return {
-              ...item,
-              votes:
-                typeof updatedVotes === "number"
-                  ? updatedVotes
-                  : Number(item?.votes ?? 0) + 1,
-            };
+            if (item.id === itemId) {
+              return {
+                ...item,
+                votes:
+                  typeof updatedVotes === "number"
+                    ? updatedVotes
+                    : Number(item?.votes ?? 0) + (alreadyVoted ? 0 : 1),
+              };
+            }
+            if (isSwitch && String(item.id) === String(previousItemId)) {
+              // Decrement the previous pick. Clamp at zero so a
+              // transient stale state never produces negative votes
+              // — the next refetch will reconcile if the server's
+              // truth disagrees.
+              return {
+                ...item,
+                votes: Math.max(0, Number(item?.votes ?? 0) - 1),
+              };
+            }
+            return item;
           });
-          return { ...matchup, items: updatedItems };
+
+          return {
+            ...matchup,
+            items: updatedItems,
+            // Stamp the viewer's new pick so subsequent switches in
+            // this session decrement the right item.
+            viewer_voted_for: itemId,
+            viewerVotedFor: itemId,
+            viewer_pick_item_id: itemId,
+          };
         }),
       );
       // Funnel event — bracket votes are member-only by design (anon
@@ -188,6 +243,18 @@ export default function BracketView({
         item_id: itemId,
         is_bracket: true,
       });
+      // Reconcile with the server. The optimistic update above is
+      // a best-effort guess (we don't know the viewer's *previous*
+      // pick across page loads, only within this session), so a
+      // refetch closes the gap whenever the parent supplied one.
+      // Cheap — single Connect-RPC call — and the alternative is
+      // letting the previous vote count slowly inflate as the
+      // viewer changes their mind.
+      if (typeof onVoteSettled === 'function') {
+        try { await onVoteSettled(); } catch (e) {
+          console.warn('onVoteSettled failed', e);
+        }
+      }
     } catch (err) {
       // Server is the source of truth — if we somehow let an anon
       // through above (stale token detection), the server rejects

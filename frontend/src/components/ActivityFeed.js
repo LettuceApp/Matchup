@@ -84,6 +84,29 @@ const GROUP_RENDERERS = {
       <strong>{item.group_count} comments</strong> on <SubjectLink item={item} />.
     </>
   ),
+  // Followers and mentions both stack on the same subject within a
+  // 24-hour window — N people following you, or N people @-ing you in
+  // the same matchup. Counts were already computed by groupActivityItems;
+  // these renderers just surface them so the panel reads "5 new
+  // followers" instead of "Someone followed you" five times.
+  new_follower: ({ item }) => (
+    <>
+      <strong>{item.group_count} people</strong> followed you
+      {item.group_actor_usernames?.length > 0 && (
+        <span className="activity-item__muted">
+          {' — including '}
+          <ActorLink item={{ actor_username: item.group_actor_usernames[0] }} />
+        </span>
+      )}
+      .
+    </>
+  ),
+  mention_received: ({ item }) => (
+    <>
+      <strong>{item.group_count} people</strong> mentioned you in{' '}
+      <SubjectLink item={item} />.
+    </>
+  ),
 };
 
 // Each kind owns a render function for its verb phrase. Keeps the

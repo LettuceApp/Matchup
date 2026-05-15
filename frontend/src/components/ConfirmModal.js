@@ -13,12 +13,17 @@ const ConfirmModal = ({
 }) => (
   <div className="edit-profile-overlay" onClick={onCancel}>
     <div className="edit-profile-modal" onClick={(e) => e.stopPropagation()}>
-      {title && (
-        <h2 style={{ color: 'rgba(226,232,240,0.95)', fontSize: '1.1rem', margin: '0 0 0.5rem' }}>
-          {title}
-        </h2>
-      )}
-      <p style={{ color: 'rgba(226,232,240,0.85)', fontSize: '0.95rem', margin: 0 }}>{message}</p>
+      {/*
+        Title + message used to ship inline `rgba(226,232,240,…)` slate
+        colors, baked for dark-mode only. On light mode the modal
+        surface is white and slate-200 text vanished into it. Pulled
+        the colors out into the stylesheet (.confirm-modal__title /
+        .confirm-modal__message) so they consume the same
+        `--text-primary` / `--text-secondary` tokens every other
+        theme-aware surface uses — readable in both modes.
+      */}
+      {title && <h2 className="confirm-modal__title">{title}</h2>}
+      <p className="confirm-modal__message">{message}</p>
       <div className="edit-profile-actions">
         <Button className="profile-secondary-button" onClick={onCancel}>
           {cancelLabel}

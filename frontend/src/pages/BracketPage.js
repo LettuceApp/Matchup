@@ -746,6 +746,12 @@ export default function BracketPage() {
             matchups={matchups}
             bracket={bracket}
             champion={champion}
+            // Reconcile vote counts with the server after each vote
+            // — fixes the visual double-vote bug where switching
+            // picks inflated local totals without decrementing the
+            // previous item. `silent` keeps the refetch from
+            // toggling the page-level loading spinner.
+            onVoteSettled={() => loadBracket({ silent: true })}
           />
         </motion.section>
 

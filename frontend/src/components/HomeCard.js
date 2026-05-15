@@ -298,18 +298,21 @@ const HomeCard = ({ item, type, initialLiked = false, fallbackGradient = null })
         {contentText && (
           <p className="home-card__content">{contentText}</p>
         )}
-        {(votesCount > 0 || roundLabel) && (
-          <div className="home-card__meta">
-            {votesCount > 0 && (
-              <span className="home-card__meta-item">
-                {votesCount.toLocaleString()} {votesCount === 1 ? 'vote' : 'votes'}
-              </span>
-            )}
-            {roundLabel && (
-              <span className="home-card__meta-item">{roundLabel}</span>
-            )}
-          </div>
-        )}
+        {/*
+          Vote count is always shown — including "0 votes" — so the
+          card communicates engagement (or lack of it) on every
+          render. Previously the meta row hid until votes>0, which
+          left brand-new matchups with no signal that votes were
+          even a thing on the surface.
+        */}
+        <div className="home-card__meta">
+          <span className="home-card__meta-item">
+            {votesCount.toLocaleString()} {votesCount === 1 ? 'vote' : 'votes'}
+          </span>
+          {roundLabel && (
+            <span className="home-card__meta-item">{roundLabel}</span>
+          )}
+        </div>
         <div className="home-card__tags">
           {tags.map((tag) => (
             <span key={tag} className="home-card__tag">#{tag}</span>
