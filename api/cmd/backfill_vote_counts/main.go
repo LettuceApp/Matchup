@@ -141,7 +141,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("begin tx: %v", err)
 	}
-	stmt, err := tx.Prepare("UPDATE matchup_items SET votes = $1, updated_at = NOW() WHERE id = $2")
+	// matchup_items has no updated_at column (baseline schema: id,
+	// public_id, matchup_id, item, votes + later image_path/user_id).
+	stmt, err := tx.Prepare("UPDATE matchup_items SET votes = $1 WHERE id = $2")
 	if err != nil {
 		tx.Rollback()
 		log.Fatalf("prepare: %v", err)
