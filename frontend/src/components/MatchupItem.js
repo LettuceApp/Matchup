@@ -73,16 +73,33 @@ const MatchupItem = ({
       const res = await incrementMatchupItemVotes(item.id);
       // Log the full response shape — helps diagnose "I clicked but
       // nothing changed" reports (the AlreadyVoted branch returns the
-      // same vote count, which looks identical to a no-op). Scoped
-      // behind a label so it's grep-friendly in the console.
+      // same vote count, which looks identical to a no-op). Promoted
+      // from console.debug to console.log so users see it without
+      // having to enable Verbose log level. Scoped behind a label so
+      // it's grep-friendly in the console.
       const payload = res?.data?.response ?? res?.data ?? {};
       const alreadyVoted = Boolean(payload?.already_voted ?? payload?.alreadyVoted);
-      console.debug('[vote]', {
+      const serverVotes = payload?.item?.votes ?? payload?.item?.Votes ?? null;
+      console.log('[matchup-vote]', {
         item_id: item.id,
         item_label: item.item ?? item.name,
         already_voted: alreadyVoted,
-        server_votes: payload?.item?.votes ?? payload?.item?.Votes ?? null,
+        server_votes: serverVotes,
       });
+      // Special case: AlreadyVoted + server_votes === 0 is the
+      // signature of the data-drift bug (vote row exists in
+      // matchup_votes but the items.votes rollup is stuck at zero).
+      // Surface a clear warning so the user knows it's a known
+      // server-side reconciliation issue rather than a click that
+      // didn't register — and the admin can run
+      // `go run ./cmd/backfill_vote_counts --apply` to repair.
+      if (alreadyVoted && serverVotes === 0) {
+        console.warn(
+          '[matchup-vote] Drift detected: server reports already_voted=true with 0 votes. ' +
+          'matchup_items.votes is out of sync with matchup_votes for this row. ' +
+          'Run `cmd/backfill_vote_counts --apply` server-side to repair.',
+        );
+      }
       // Deliberately NOT calling setVotes() from the response. The
       // optimistic local bump was the cause of the "both items show
       // 100% after re-voting" bug: the response contains only the
