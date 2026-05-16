@@ -128,6 +128,21 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		return fmt.Errorf("register delete_expired_reset_tokens: %w", err)
 	}
 
+	// Nightly self-healing for matchup_items.votes drift. The vote
+	// handler bumps both matchup_votes (source of truth) and
+	// matchup_items.votes (the rollup column the UI reads), but
+	// historical writes during transient Redis outages or earlier
+	// code paths can leave the rollup out of sync — once that
+	// happens, every subsequent click on the same item hits the
+	// AlreadyVoted branch and shows the stale-zero count, looking
+	// like a "vote that won't register" to the user. This job runs
+	// the same reconciliation as api/cmd/backfill_vote_counts each
+	// night at 04:30 UTC: COUNT(matchup_votes) per item, repair any
+	// rows whose rollup disagrees. Idempotent on a clean DB.
+	if _, err := s.cron.AddFunc("30 4 * * *", s.jobReconcileVoteCounts); err != nil {
+		return fmt.Errorf("register reconcile_vote_counts: %w", err)
+	}
+
 	s.cron.Start()
 	defer s.cron.Stop()
 
@@ -584,6 +599,64 @@ func (s *Scheduler) jobCleanupOldVotesArchive() {
 	}
 	if n, err := result.RowsAffected(); err == nil && n > 0 {
 		s.logger.Printf("cleanup_old_votes_archive: deleted %d row(s)", n)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Workload: reconcile matchup_items.votes drift (daily 04:30)
+// ---------------------------------------------------------------------------
+
+// jobReconcileVoteCounts walks every matchup_items row, compares the
+// rollup column against COUNT(matchup_votes WHERE kind='pick'), and
+// rewrites the rollup when they disagree. The vote-write code path is
+// already correct — both tables get bumped on every successful vote —
+// but historical drift (Redis outages, old code paths, manual edits)
+// can leave items "stuck" at a stale zero. Once stuck, every click on
+// the same item by the same user hits the AlreadyVoted branch and
+// returns the wrong count forever; this nightly tick self-heals
+// before users see it.
+//
+// Idempotent: running this on a perfectly-clean DB UPDATEs zero rows.
+// Same SQL as api/cmd/backfill_vote_counts --apply, but as a scheduled
+// preventative measure rather than a one-off repair.
+func (s *Scheduler) jobReconcileVoteCounts() {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	// Single UPDATE that joins matchup_items to a COUNT-aggregated
+	// subquery on matchup_votes. The COALESCE makes items with zero
+	// pick rows still get compared (so a drifted N→0 case repairs
+	// too, not just 0→N). Excludes rows already in agreement with a
+	// WHERE clause so RowsAffected reports the actual repair count.
+	result, err := s.db.ExecContext(ctx, `
+		WITH true_counts AS (
+			SELECT mi.id AS item_id,
+			       COALESCE(v.cnt, 0)::int AS true_count
+			FROM matchup_items mi
+			LEFT JOIN (
+				SELECT matchup_item_public_id, COUNT(*) AS cnt
+				FROM matchup_votes
+				WHERE kind = 'pick' AND matchup_item_public_id IS NOT NULL
+				GROUP BY matchup_item_public_id
+			) v ON v.matchup_item_public_id = mi.public_id
+		)
+		UPDATE matchup_items mi
+		SET votes = tc.true_count,
+		    updated_at = NOW()
+		FROM true_counts tc
+		WHERE mi.id = tc.item_id
+		  AND mi.votes <> tc.true_count
+	`)
+	if err != nil {
+		s.logger.Printf("reconcile_vote_counts: %v", err)
+		return
+	}
+	if n, err := result.RowsAffected(); err == nil && n > 0 {
+		// Drift detected + repaired — log loudly so we notice if this
+		// number ever grows. On a healthy system it should trend to
+		// zero (the vote handler keeps the rollup in sync); a sudden
+		// spike signals a regression in the write path.
+		s.logger.Printf("reconcile_vote_counts: repaired %d drifted item(s)", n)
 	}
 }
 
