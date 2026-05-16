@@ -205,6 +205,17 @@
   font-size: 1rem;
 }
 
+/* Absolute vote count next to the percentage. Lower contrast +
+   weight than the percentage so the percentage stays primary;
+   tabular-nums keeps the row from jittering when digit counts
+   change ("9" → "10" → "99" → "100"). */
+.matchup-vote-score-count {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Score chip — warm accent ring marks the leading contender at a glance. */
 .matchup-vote-score-label {
   font-size: 0.65rem;

@@ -270,7 +270,17 @@ const MatchupItem = ({
 
       {showVoteBar && (
         <div className="matchup-vote-score">
+          {/*
+            Show the absolute vote count alongside the percentage so
+            users see "how many" not just "what share". Percentage
+            stays as the primary value (drives the bar width); count
+            sits next to it as a smaller secondary number. Pluralizes
+            so "1 vote" doesn't read as "1 votes".
+          */}
           <span className="matchup-vote-score-value">{votePercent}%</span>
+          <span className="matchup-vote-score-count">
+            {votes.toLocaleString()} {votes === 1 ? 'vote' : 'votes'}
+          </span>
           {isLeading && !hasWinner && (
             <span className="matchup-vote-score-label">Leading</span>
           )}
