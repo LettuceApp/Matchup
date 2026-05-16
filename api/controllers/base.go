@@ -283,6 +283,20 @@ func (server *Server) Initialize(DbUser, DbPassword, DbPort, DbHost, DbName stri
 	// and return 204. Fire-and-forget by design.
 	r.Post("/share/landed", ShareLandedHandler)
 
+	// Admin maintenance jobs — plain chi routes (not Connect-RPC)
+	// triggerable via curl + a bearer token. Used when shell access
+	// isn't available on the hosting platform. Each route is wrapped
+	// in TokenAuthMiddleware to enforce a valid JWT; the handler
+	// itself then gates on is_admin so non-admin signed-in users
+	// get a 403 instead of a hint that the endpoint exists.
+	//
+	// Route::With(...) scopes the middleware to ONLY this subtree —
+	// the global r.Use() stack stays auth-optional so anon traffic
+	// keeps flowing to /m/{short} and the SPA.
+	r.With(middlewares.TokenAuthMiddleware(server.DB)).Group(func(adminR chi.Router) {
+		adminR.Post("/admin/jobs/reconcile-vote-counts", ReconcileVoteCountsHandler(server.DB))
+	})
+
 	server.Router = r
 	initializeConnectRoutes(r, server.DB, server.ReadDB, server.S3Client)
 

@@ -616,42 +616,19 @@ func (s *Scheduler) jobCleanupOldVotesArchive() {
 // returns the wrong count forever; this nightly tick self-heals
 // before users see it.
 //
-// Idempotent: running this on a perfectly-clean DB UPDATEs zero rows.
-// Same SQL as api/cmd/backfill_vote_counts --apply, but as a scheduled
-// preventative measure rather than a one-off repair.
+// SQL lives in controllers.ReconcileVoteCounts — shared with the
+// one-shot cmd + the admin HTTP trigger so all three paths stay in
+// lockstep.
 func (s *Scheduler) jobReconcileVoteCounts() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	// Single UPDATE that joins matchup_items to a COUNT-aggregated
-	// subquery on matchup_votes. The COALESCE makes items with zero
-	// pick rows still get compared (so a drifted N→0 case repairs
-	// too, not just 0→N). Excludes rows already in agreement with a
-	// WHERE clause so RowsAffected reports the actual repair count.
-	result, err := s.db.ExecContext(ctx, `
-		WITH true_counts AS (
-			SELECT mi.id AS item_id,
-			       COALESCE(v.cnt, 0)::int AS true_count
-			FROM matchup_items mi
-			LEFT JOIN (
-				SELECT matchup_item_public_id, COUNT(*) AS cnt
-				FROM matchup_votes
-				WHERE kind = 'pick' AND matchup_item_public_id IS NOT NULL
-				GROUP BY matchup_item_public_id
-			) v ON v.matchup_item_public_id = mi.public_id
-		)
-		UPDATE matchup_items mi
-		SET votes = tc.true_count,
-		    updated_at = NOW()
-		FROM true_counts tc
-		WHERE mi.id = tc.item_id
-		  AND mi.votes <> tc.true_count
-	`)
+	n, err := controllers.ReconcileVoteCounts(ctx, s.db)
 	if err != nil {
 		s.logger.Printf("reconcile_vote_counts: %v", err)
 		return
 	}
-	if n, err := result.RowsAffected(); err == nil && n > 0 {
+	if n > 0 {
 		// Drift detected + repaired — log loudly so we notice if this
 		// number ever grows. On a healthy system it should trend to
 		// zero (the vote handler keeps the rollup in sync); a sudden
