@@ -326,7 +326,13 @@ func (h *HomeHandler) GetHomeSummary(ctx context.Context, req *connect.Request[h
 				log.Printf("home summary visibility error: %v", err)
 				continue
 			}
-			if !allowed || bracket.Status != "active" {
+			// Handler-level status filter — mirrors the MV's WHERE clause
+			// (migration 032). Active brackets are obviously included;
+			// completed brackets stay on the home feed so creators'
+			// "receipts" pages stay visible after the trophy lifts.
+			// Draft brackets (author-private) and any future statuses
+			// stay excluded.
+			if !allowed || (bracket.Status != "active" && bracket.Status != "completed") {
 				continue
 			}
 			dto := PopularBracketDTO{
