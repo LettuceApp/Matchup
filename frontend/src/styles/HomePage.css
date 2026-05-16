@@ -666,6 +666,18 @@
   color: var(--text-faint);
 }
 
+/* Badge stack — kind pill ("Matchup" / "Bracket") + optional
+   status pill ("Completed"). Container handles the right-aligned
+   margin so the badges can sit next to each other without each
+   one resetting alignment. */
+.home-card__badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .home-card__badge {
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
@@ -680,8 +692,17 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  margin-left: auto;
   flex-shrink: 0;
+}
+
+/* "Completed" badge — emerald accent so it reads as resolved /
+   final-state rather than just-another-pill. Sits to the LEFT of
+   the kind badge (DOM order: completed first), so the eye reads
+   "Completed · Matchup" — the resolution state qualifies the
+   content type rather than the other way around. */
+.home-card__badge--completed {
+  background: rgba(16, 185, 129, 0.92); /* emerald-500 */
+  color: #ecfdf5;
 }
 
 
@@ -761,6 +782,63 @@
 .home-card__breadcrumb svg {
   font-size: 0.85rem;
   flex-shrink: 0;
+}
+
+/* Per-item vote breakdown: "{labelA} {votesA} · vs · {votesB} {labelB}"
+   row. Surfaces both contender names + live counts so users see the
+   action rather than just a total tally. The two sides take 1fr each
+   so they balance regardless of label length; long labels get
+   ellipsized rather than wrapping. The "vs" sits in a fixed-width
+   divider so the layout doesn't shift when counts gain digits. */
+.home-card__score {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  margin-top: 0.4rem;
+  background: var(--bg-surface-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+}
+
+.home-card__score-side {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.home-card__score-side--right {
+  justify-content: flex-end;
+}
+
+.home-card__score-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  /* Keep long labels from breaking the row — single line with
+     ellipsis so "Take Care" + "Nothing Was the Same" both fit. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.home-card__score-votes {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--accent-primary);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.home-card__score-divider {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
 }
 
 /* Vote / round meta row. */
