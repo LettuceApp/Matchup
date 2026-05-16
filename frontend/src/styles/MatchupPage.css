@@ -198,6 +198,21 @@
   height: 80px;
   border-radius: 50%;
   overflow: hidden;
+  /* iOS Safari has a long-standing rendering bug where
+     `overflow: hidden` + `border-radius: 50%` doesn't reliably clip
+     child elements (especially images and transformed nodes) to the
+     rounded corners — you get a square corner of image poking out
+     of an otherwise-circular crop. Two belts-and-braces fixes:
+       1. clip-path: circle(50%) — a separate clipping mechanism iOS
+          honors even when overflow:hidden falls down.
+       2. isolation: isolate — promotes this box to its own stacking
+          context, which gives WebKit the right hint to actually
+          apply the clip to descendants.
+     Either alone usually works; both together is bulletproof and
+     costs nothing (clip-path falls back gracefully on unsupported
+     browsers since overflow:hidden still applies). */
+  clip-path: circle(50%);
+  isolation: isolate;
   border: 3px solid var(--accent-secondary-border-soft);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
   display: block;

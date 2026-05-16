@@ -148,6 +148,15 @@ const NotificationBell = () => {
   }, [isAuthed, userKey, fetchActivity]);
 
   // Outside-click + Escape close the dropdown. Only bound while open.
+  //
+  // pointerdown (not mousedown) because mobile-Safari sometimes
+  // dispatches synthesized mousedown events with `e.target` set to
+  // document.body during a tap — which made `contains(e.target)`
+  // return false, closed the panel, and unmounted the Link the user
+  // had just touched before the click event could land. Net effect:
+  // tapping any notification on mobile did nothing. pointerdown
+  // fires for both touch + mouse with a reliable target, fixing
+  // the gesture-eats-the-link bug.
   useEffect(() => {
     if (!open) return undefined;
     const onClickOutside = (e) => {
@@ -158,10 +167,10 @@ const NotificationBell = () => {
     const onKeyDown = (e) => {
       if (e.key === 'Escape') setOpen(false);
     };
-    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('pointerdown', onClickOutside);
     document.addEventListener('keydown', onKeyDown);
     return () => {
-      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('pointerdown', onClickOutside);
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [open]);

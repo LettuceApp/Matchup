@@ -23,6 +23,33 @@
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 
+/* Whole-row tap target on rows that have a navigable subject. Was
+   keyboard/screen-reader-only before; now visually + touch-target
+   discoverable so a thumb-tap anywhere on the row navigates. The
+   inline links inside the prose still capture their own taps
+   (rowOnClick in ActivityFeed.js bails out when e.target.closest
+   matches an <a> or <button>) — so users get the existing fine-
+   grained navigation when they aim precisely, and a generous
+   ~60px-tall fallback when they don't.
+
+   touch-action: manipulation tells iOS to skip its 300ms
+   double-tap-to-zoom heuristic on this surface and route the tap
+   straight to onClick, which fixes the "I tapped a notification
+   but nothing happened" report — the dropdown's overflow-y:auto
+   container otherwise made iOS treat a tap as scroll-start and
+   eat the click. */
+.activity-item--tappable {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.activity-item--tappable:hover,
+.activity-item--tappable:focus-visible {
+  background: var(--bg-surface);
+  border-color: var(--border-input);
+  outline: none;
+}
+
 .activity-item:hover {
   background: var(--bg-surface);
   border-color: var(--border-input);
@@ -143,6 +170,12 @@
   color: var(--accent-secondary);
   text-decoration: none;
   font-weight: 600;
+  /* Skip iOS's tap-delay heuristics so a finger tap on the inline
+     name reliably navigates instead of getting absorbed by the
+     panel's overflow-scroll. Pairs with the same property on
+     .activity-item--tappable above so both the row-level and the
+     inline tap surfaces respond instantly. */
+  touch-action: manipulation;
 }
 
 .activity-item__subject-link:hover,

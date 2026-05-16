@@ -133,6 +133,15 @@ const ProfilePic = ({ userId, editable = false, size = 80 }) => {
           height: sizePx,
           borderRadius: '50%',
           overflow: 'hidden',
+          // iOS Safari rendering bug: overflow:hidden alone doesn't
+          // always clip rounded children. clip-path enforces the
+          // circular crop via WebKit's own clipping pipeline.
+          // isolation establishes a stacking context so the clip
+          // applies cleanly to nested <img>. Without these two
+          // lines, retina avatars on iOS spilled past the circle
+          // outline (visible in user-reported screenshots).
+          clipPath: 'circle(50%)',
+          isolation: 'isolate',
           cursor: editable ? 'pointer' : 'default',
           background: '#f0f0f0',
           display: 'flex',

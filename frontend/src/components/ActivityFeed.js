@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   FiZap,
   FiAward,
@@ -341,6 +341,29 @@ const ActivityFeed = ({
   error = null,
   onRetry = null,
 }) => {
+  const navigate = useNavigate();
+
+  // Activity rows had tiny tap targets — only the inline `<Link>`
+  // spans inside the prose were clickable, and at mobile font sizes
+  // those were ~14px tall × the title width. iOS rejects taps that
+  // micro-twitch into surrounding non-clickable area. On top of
+  // that, the dropdown's `overflow-y: auto` made iOS sometimes
+  // interpret a tap-near-link as scroll-start and swallow the click
+  // entirely. Net effect: tapping a notification on mobile felt
+  // broken.
+  //
+  // rowOnClick promotes the entire <li> into a tap target sized to
+  // the row (~60px tall on mobile). Inline links still work — when
+  // a user taps directly on an <a> or <button>, the closest-check
+  // bails out and lets the inline element handle the navigation
+  // itself, preserving existing behaviour (e.g., distinguishing
+  // taps on the actor name vs the subject title).
+  const rowOnClick = (item) => (e) => {
+    if (e.target.closest('a, button')) return;
+    const path = subjectPath(item);
+    if (path) navigate(path);
+  };
+
   if (loading) {
     return <div className="activity-feed__state">Loading activity…</div>;
   }
@@ -385,10 +408,24 @@ const ActivityFeed = ({
         const Renderer =
           (grouped && GROUP_RENDERERS[item.kind]) || RENDERERS[item.kind];
         const unread = isNewer(item, lastSeenAt);
+        const tappable = Boolean(subjectPath(item));
         return (
           <li
             key={item.id}
-            className={`activity-item ${meta.className} ${unread ? 'is-unread' : ''}`}
+            className={`activity-item ${meta.className} ${unread ? 'is-unread' : ''} ${tappable ? 'activity-item--tappable' : ''}`}
+            onClick={tappable ? rowOnClick(item) : undefined}
+            role={tappable ? 'link' : undefined}
+            tabIndex={tappable ? 0 : undefined}
+            onKeyDown={
+              tappable
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      rowOnClick(item)(e);
+                    }
+                  }
+                : undefined
+            }
           >
             <span className="activity-item__icon" aria-hidden="true">
               <meta.Icon />
