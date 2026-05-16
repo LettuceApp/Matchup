@@ -202,6 +202,14 @@ func generateFullBracket(ctx context.Context, db *sqlx.DB, bracket models.Bracke
 		notifyTargets[*r.userID] = r.user.Username
 	}
 
+	// NCAA-style round-1 pairings — see ncaaSeedOrder below. The
+	// previous loop paired adjacent seeds (1v8, 2v7, 3v6, 4v5),
+	// which meant seeds 1 and 2 sat in the same half of the bracket
+	// and could meet in round 2 instead of the final. The canonical
+	// NCAA recursive scheme places top seeds at opposite ends so the
+	// strongest possible final is preserved.
+	seedOrder := ncaaSeedOrder(bracket.Size)
+
 	for round := 1; round <= totalRounds; round++ {
 		matchupsThisRound := bracket.Size / (1 << round)
 		for i := 0; i < matchupsThisRound; i++ {
@@ -215,8 +223,11 @@ func generateFullBracket(ctx context.Context, db *sqlx.DB, bracket models.Bracke
 				Status:    matchupStatusDraft,
 			}
 			if round == 1 {
-				seedA := i + 1
-				seedB := bracket.Size - i
+				// Pull the i-th pair (positions 2i, 2i+1) out of the
+				// canonical NCAA seed order. seedOrder is length
+				// bracket.Size; each adjacent pair sums to bracket.Size+1.
+				seedA := seedOrder[2*i]
+				seedB := seedOrder[2*i+1]
 				var entryA, entryB resolvedEntry
 				if seedA-1 < len(resolved) {
 					entryA = resolved[seedA-1]
@@ -270,6 +281,45 @@ func generateFullBracket(ctx context.Context, db *sqlx.DB, bracket models.Bracke
 // Mirrors the frontend's `/^@([A-Za-z0-9_]+)$/` parser in
 // CreateMatchup so the wire contract stays consistent.
 var mentionEntryRegex = regexp.MustCompile(`^@[A-Za-z0-9_]+$`)
+
+// ncaaSeedOrder returns the bracket display order for a tournament
+// of `n` seeds in the canonical NCAA recursive scheme — also known
+// as "slaughter pairing". Each adjacent pair in the output sums to
+// n+1 (i.e., seed s plays seed n+1-s in round 1), and the top two
+// seeds sit at opposite ends of the bracket so they can only meet
+// in the final.
+//
+// Examples:
+//
+//	n=4  → [1, 4, 2, 3]                    matchups: 1v4, 2v3
+//	n=8  → [1, 8, 4, 5, 2, 7, 3, 6]        matchups: 1v8, 4v5, 2v7, 3v6
+//	n=16 → [1, 16, 8, 9, 5, 12, 4, 13,
+//	        2, 15, 7, 10, 6, 11, 3, 14]
+//
+// The recursion: order(2n) is built from order(n) by replacing each
+// seed s with the pair (s, 2n+1-s). Bracket sizes in this app are
+// powers of two (4, 8, 16, 32, 64), so the recursion always
+// terminates cleanly at n=1.
+//
+// The old generateFullBracket loop paired adjacent seeds (1v8, 2v7,
+// 3v6, 4v5) which meant 1 and 2 sat in the same half of the
+// bracket and could meet in round 2 — the opposite of what users
+// expect from an NCAA-style tournament. Switching the round-1
+// pairing to consume this seed order preserves the bracket
+// invariant: seed K can only meet seed (K + N/2) for the first
+// time in the round corresponding to their distance in the
+// bracket tree.
+func ncaaSeedOrder(n int) []int {
+	if n <= 1 {
+		return []int{1}
+	}
+	half := ncaaSeedOrder(n / 2)
+	out := make([]int, 0, n)
+	for _, s := range half {
+		out = append(out, s, n+1-s)
+	}
+	return out
+}
 
 // ---- cascade deletes ----
 
