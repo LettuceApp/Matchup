@@ -138,6 +138,30 @@ const HomeCard = ({ item, type, initialLiked = false, fallbackGradient = null })
   const commentsCount = Array.isArray(item.comments) ? item.comments.length : (item.comments ?? 0);
   const votesCount = item.votes ?? 0;
 
+  // Status flag — feeds it through to the badge + caption affordances.
+  // Standalone matchups carry a "completed" status when their voting
+  // closes; brackets follow the same pattern. Used to surface a small
+  // "Completed" pill so the home feed reads as a mix of active +
+  // resolved content instead of a sea of identical cards.
+  const status = (item.status || '').toLowerCase();
+  const isCompleted = status === 'completed';
+
+  // Per-item vote breakdown — gives the home card more "things are
+  // happening" energy than a single "X votes" number. We pull the
+  // first two items (matchups have exactly two by design; brackets
+  // have N children so the top-level bracket card sums the kids
+  // and the per-item breakdown is N/A — gracefully renders nothing).
+  const matchupItems = type === 'matchup' && Array.isArray(item.items)
+    ? item.items.slice(0, 2)
+    : [];
+  const itemBreakdownPair = matchupItems.length === 2
+    ? matchupItems.map((it) => ({
+        label: it.item ?? it.name ?? '?',
+        votes: Number(it.votes ?? it.Votes ?? 0),
+        userUsername: it.user_username || it.userUsername || null,
+      }))
+    : null;
+
   // Interactive state for the action row. Initial liked-state arrives
   // as a prop (HomePage fetches the viewer's like list once on mount
   // and passes the relevant flag down). Optimistic + reversible —
@@ -279,9 +303,25 @@ const HomeCard = ({ item, type, initialLiked = false, fallbackGradient = null })
           <span className="home-card__username">{author}</span>
           {timeAgo && <span className="home-card__time">{timeAgo}</span>}
         </div>
-        <span className="home-card__badge">
-          {type === 'bracket' ? 'Bracket' : 'Matchup'}
-        </span>
+        {/*
+          Kind/status badge stack. The kind pill ("Matchup" or
+          "Bracket") still labels the row's content type; the
+          "Completed" pill rides alongside it when status === 'completed'
+          so a finished matchup reads as a resolved item rather than
+          one you should go vote on. Using a stack instead of replacing
+          the kind label keeps the visual taxonomy ("this is a matchup,
+          it's done") clear at a glance.
+        */}
+        <div className="home-card__badges">
+          {isCompleted && (
+            <span className="home-card__badge home-card__badge--completed">
+              Completed
+            </span>
+          )}
+          <span className="home-card__badge">
+            {type === 'bracket' ? 'Bracket' : 'Matchup'}
+          </span>
+        </div>
       </div>
 
       {/* Caption */}
@@ -298,6 +338,39 @@ const HomeCard = ({ item, type, initialLiked = false, fallbackGradient = null })
         {contentText && (
           <p className="home-card__content">{contentText}</p>
         )}
+        {/*
+          Per-item vote breakdown — two pills sandwiching a "vs" so
+          users see live action ("Take Care 5 · 3 NWTS") instead of
+          a flat total. Renders only for two-item matchup cards; bracket
+          cards roll up to a child-matchup count instead. Falls through
+          to the plain total below when items aren't on the wire (some
+          lighter feed shapes don't include them).
+        */}
+        {itemBreakdownPair ? (
+          <div className="home-card__score">
+            <span className="home-card__score-side">
+              <span className="home-card__score-label">
+                {itemBreakdownPair[0].userUsername
+                  ? `@${itemBreakdownPair[0].userUsername}`
+                  : itemBreakdownPair[0].label}
+              </span>
+              <span className="home-card__score-votes">
+                {itemBreakdownPair[0].votes.toLocaleString()}
+              </span>
+            </span>
+            <span className="home-card__score-divider" aria-hidden="true">vs</span>
+            <span className="home-card__score-side home-card__score-side--right">
+              <span className="home-card__score-votes">
+                {itemBreakdownPair[1].votes.toLocaleString()}
+              </span>
+              <span className="home-card__score-label">
+                {itemBreakdownPair[1].userUsername
+                  ? `@${itemBreakdownPair[1].userUsername}`
+                  : itemBreakdownPair[1].label}
+              </span>
+            </span>
+          </div>
+        ) : null}
         {/*
           Vote count is always shown — including "0 votes" — so the
           card communicates engagement (or lack of it) on every

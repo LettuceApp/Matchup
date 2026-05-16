@@ -56,12 +56,24 @@ func (h *MatchupHandler) ListMatchups(ctx context.Context, req *connect.Request[
 	// Home feed used to exclude 'completed' — finished matchups
 	// dropped off the feed the moment they ended, which hid the very
 	// receipts users came back to look at ("who won?" / "see the
-	// final tally"). Keep them in. 'draft' stays excluded because
-	// drafts are author-private; 'archived' (future status) would
-	// also be excluded. Order stays created_at DESC so a creator's
-	// just-shipped matchup still anchors the top of the feed
-	// regardless of how its lifecycle resolves.
-	const homeStatusFilter = "status IN ('active', 'published', 'completed')"
+	// final tally"). Standalone completed matchups now stay.
+	//
+	// Bracket-child matchups are the exception: a 16-bracket spawns
+	// ~30 child matchups across rounds, and after each round
+	// resolves those children would clog the home feed (the bracket
+	// parent card already represents the whole tournament). So we
+	// keep ACTIVE bracket children in the feed (live action signals
+	// what's happening NOW) but drop COMPLETED bracket children
+	// (the bracket parent card is enough). The composite predicate
+	// reads as: standalone matchups in any "shipped" status, OR
+	// bracket-child matchups that are still in flight.
+	//
+	// 'draft' stays excluded for both kinds — drafts are author-private.
+	const homeStatusFilter = `(
+		(bracket_id IS NULL AND status IN ('active', 'published', 'completed'))
+		OR
+		(bracket_id IS NOT NULL AND status IN ('active', 'published'))
+	)`
 
 	var total int64
 	if err := sqlx.GetContext(ctx, db, &total,
