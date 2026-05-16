@@ -239,7 +239,28 @@ const NotificationBell = () => {
       </button>
 
       {open && (
-        <div className="notification-bell__panel" role="dialog" aria-label="Recent activity">
+        <div
+          className="notification-bell__panel"
+          role="dialog"
+          aria-label="Recent activity"
+          // Auto-collapse when the user navigates away. ActivityFeed
+          // rows are tappable in two ways: the whole-row onClick that
+          // calls navigate(), and inline <Link>s inside the prose. We
+          // catch both with one panel-level handler that fires on
+          // bubble — if the click landed on (or inside) any anchor or
+          // tappable row, the user is leaving this view, so close the
+          // panel so they don't return to a stale dropdown later.
+          // Footer's "See all activity" link is handled this way too,
+          // which lets us drop the duplicate onClick on that <Link>.
+          onClick={(e) => {
+            if (
+              e.target.closest('a') ||
+              e.target.closest('.activity-item--tappable')
+            ) {
+              setOpen(false);
+            }
+          }}
+        >
           <header className="notification-bell__panel-header">
             <span>Activity</span>
             {loading && <span className="notification-bell__loading">refreshing…</span>}
@@ -256,10 +277,14 @@ const NotificationBell = () => {
           </div>
 
           <footer className="notification-bell__panel-footer">
+            {/*
+              No onClick={setOpen(false)} here — the panel-level
+              auto-collapse handler above closes the panel for any
+              click that lands on an anchor, this Link included.
+            */}
             <Link
               to={`/users/${userKey}?tab=activity`}
               className="notification-bell__see-all"
-              onClick={() => setOpen(false)}
             >
               See all activity →
             </Link>
