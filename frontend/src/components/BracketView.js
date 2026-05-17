@@ -392,13 +392,34 @@ export default function BracketView({
             </button>
           </div>
 
+          {/*
+            Outer .bracket-canvas is the SCROLL viewport — width
+            constrained to its parent (the bracket-section card),
+            overflow-x: auto so the natural-width bracket tree can
+            scroll horizontally when it doesn't fit. Inner wrapper
+            carries the natural canvas dimensions for the SVG +
+            columns to position against.
+
+            Previously the outer .bracket-canvas had minWidth set to
+            the full canvasWidth — that forced the canvas itself to
+            balloon past its parent on mobile, so the bracket
+            visibly spilled past the card's right edge instead of
+            scrolling within it. Moving the explicit width inward
+            keeps the scroll viewport at parent width and the
+            scrollable content at its natural width.
+          */}
           <div
             className="bracket-canvas"
-            style={{
-              height: roundLayouts.canvasHeight,
-              minWidth: roundLayouts.canvasWidth,
-            }}
+            style={{ height: roundLayouts.canvasHeight }}
           >
+            <div
+              className="bracket-canvas-inner"
+              style={{
+                width: roundLayouts.canvasWidth,
+                height: roundLayouts.canvasHeight,
+                position: 'relative',
+              }}
+            >
             <svg
               className="bracket-connectors"
               width={roundLayouts.canvasWidth}
@@ -528,6 +549,7 @@ export default function BracketView({
                 </div>
               );
             })}
+            </div>
           </div>
         </>
       )}
