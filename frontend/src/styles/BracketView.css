@@ -24,10 +24,28 @@
 }
 
 .bracket-canvas {
-  position: relative;
+  /* Outer scroll viewport. Width is whatever the parent gives us;
+     overflow-x:auto lets the natural-width bracket-canvas-inner
+     scroll horizontally when it doesn't fit (which is always on
+     mobile). The previous layout put position:relative + minWidth
+     on this element so the absolutely-positioned columns anchored
+     here AND the canvas was forced to its full content width —
+     that broke mobile because the canvas escaped its parent
+     instead of scrolling within it. Position context moved to
+     .bracket-canvas-inner below. */
   overflow-x: auto;
   overflow-y: hidden;
   padding-bottom: 1.5rem;
+  /* Smooth iOS momentum scrolling for the horizontal swipe gesture. */
+  -webkit-overflow-scrolling: touch;
+}
+
+.bracket-canvas-inner {
+  /* Natural-width content layer. position:relative is what
+     `.bracket-column` (absolute, with left:N) and the SVG
+     connectors (absolute, inset:0) anchor against. Width is set
+     inline from the JS-computed canvasWidth. */
+  position: relative;
 }
 
 .bracket-connectors {
