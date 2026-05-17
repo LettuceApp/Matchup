@@ -376,6 +376,17 @@ const MatchupPage = () => {
     matchup.author_id.length > 0 &&
     currentUser.id === matchup.author_id;
 
+  // Admin flag — read from localStorage (set by login() in api.js).
+  // Used ONLY to widen the audience panels (Voters / Likers) so an
+  // admin can audit engagement on any user's matchup. Does NOT
+  // unlock owner controls (End Matchup, Override winner, Delete) —
+  // those stay strictly isOwner per the "owner controls have no
+  // admin escape" rule.
+  const isAdmin =
+    typeof window !== 'undefined' &&
+    window.localStorage?.getItem?.('isAdmin') === 'true';
+  const canSeeAudience = isOwner || isAdmin;
+
   // Dev-only telemetry: when the viewer is identified but the matchup
   // response lacks an author_id, log it once per mount so the next QA
   // repro of the owner-leak bug surfaces a concrete network trace.
@@ -502,10 +513,16 @@ const MatchupPage = () => {
 
   // Whether any owner action is available on this matchup — drives
   // visibility of the whole owner tray so a plain viewer never sees it.
+  // `canSeeAudience` (owner OR admin) is included so an admin who's
+  // not the owner still gets the Voters / Likers buttons rendered;
+  // the tray label reads "Owner controls" today which is slightly
+  // misleading for the admin case, but accurate enough — the admin
+  // is functionally acting on the owner's behalf.
   const hasOwnerActions =
     canReadyUp ||
     canActivate ||
     canOverrideWinner ||
+    canSeeAudience ||
     (isOwner && !isBracketMatchup);
 
   // Title + description shown in the hero. For bracket matchups, use
@@ -1410,11 +1427,13 @@ const MatchupPage = () => {
                   </div>
                 </details>
               )}
-              {/* Audience panels — owner-only "who voted" + "who
-                  liked" listings. Server enforces the owner gate; the
-                  isOwner check here just hides the affordance from
-                  viewers who'd get a 403 anyway. */}
-              {isOwner && (
+              {/* Audience panels — "who voted" + "who liked"
+                  listings. Visible to the matchup owner AND any
+                  admin: owners use it as creator analytics; admins
+                  use it as a moderation/triage tool. Server enforces
+                  the same union via audience_handlers.go's `owner
+                  or admin` gate. */}
+              {canSeeAudience && (
                 <>
                   <Button
                     onClick={openVotersPanel}

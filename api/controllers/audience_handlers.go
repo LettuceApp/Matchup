@@ -1,19 +1,22 @@
 package controllers
 
-// audience_handlers.go implements the owner-only "audience" surface
-// — the panels on a matchup or bracket detail page that let the
-// creator see who voted and who liked their content. Three RPCs
-// land here, kept together because they share auth posture, query
-// shape, and proto-mapper helpers:
+// audience_handlers.go implements the "audience" surface — the
+// panels on a matchup or bracket detail page that let the creator
+// (or an admin) see who voted and who liked their content. Three
+// RPCs land here, sharing auth posture, query shape, and helpers:
 //
 //	MatchupService.GetMatchupVoters — voter list w/ pick + anon count
 //	MatchupService.GetMatchupLikers — liker username list
 //	BracketService.GetBracketLikers — bracket-level liker list
 //
-// Auth posture: strictly owner-only. Admins do NOT bypass — these
-// are author-experience controls, not moderation surfaces, and the
-// project's memory note explicitly forbids `|| isAdmin` escapes on
-// owner-gated public-page features.
+// Auth posture: owner OR admin. Owner gets to see their audience as
+// a creator-analytics surface; admin gets to see everyone's as an
+// operational tool (spot abusive engagement patterns, audit a
+// reported matchup's voters, etc.). The audience identities are
+// the kind of data an admin legitimately needs for moderation
+// triage, so the `|| isAdmin` escape applies here — distinct from
+// the owner-only `controls` (End Matchup, Override winner, Delete)
+// where admins explicitly do NOT bypass.
 
 import (
 	"context"
@@ -53,10 +56,8 @@ func (h *MatchupHandler) GetMatchupVoters(ctx context.Context, req *connect.Requ
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	if matchupRecord.AuthorID != userID {
-		// Strict owner-only — admins included. Voter identities are
-		// audience data, not moderation data.
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("owner only"))
+	if matchupRecord.AuthorID != userID && !httpctx.IsAdminRequest(ctx) {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("owner or admin only"))
 	}
 
 	// Named voters joined to users + the picked item's label. Order
@@ -149,8 +150,8 @@ func (h *MatchupHandler) GetMatchupLikers(ctx context.Context, req *connect.Requ
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	if matchupRecord.AuthorID != userID {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("owner only"))
+	if matchupRecord.AuthorID != userID && !httpctx.IsAdminRequest(ctx) {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("owner or admin only"))
 	}
 
 	likers, err := loadLikersForMatchup(ctx, h.DB, matchupRecord.ID)
@@ -178,8 +179,8 @@ func (h *BracketHandler) GetBracketLikers(ctx context.Context, req *connect.Requ
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	if bracketRecord.AuthorID != userID {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("owner only"))
+	if bracketRecord.AuthorID != userID && !httpctx.IsAdminRequest(ctx) {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("owner or admin only"))
 	}
 
 	likers, err := loadLikersForBracket(ctx, h.DB, bracketRecord.ID)

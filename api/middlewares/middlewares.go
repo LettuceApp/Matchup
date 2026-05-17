@@ -26,6 +26,11 @@ func ReadAfterWriteMiddleware() func(http.Handler) http.Handler {
 
 // SoftJWTMiddleware tries to extract a JWT and inject the user ID into context, but never rejects.
 // Used on public routes that want optional viewer context (e.g., for showing like/follow state).
+//
+// Does NOT populate isAdmin in context — that would cost a DB lookup
+// on every authed request. Routes that need admin awareness (e.g.
+// the audience panels on matchups + brackets that widen owner-only
+// to owner-or-admin) should use SoftJWTWithAdminMiddleware below.
 func SoftJWTMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -33,6 +38,42 @@ func SoftJWTMiddleware() func(http.Handler) http.Handler {
 				r = r.WithContext(httpctx.WithUserID(r.Context(), uid))
 			}
 			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// SoftJWTWithAdminMiddleware is SoftJWT plus a single SELECT of the
+// caller's is_admin flag, so handlers on the route group can reach
+// httpctx.IsAdminRequest(ctx) without each re-issuing the same
+// query. Used by matchup + bracket services where some endpoints
+// (the audience panels) need to widen their owner gate to include
+// admins.
+//
+// Anonymous requests are still free — the DB lookup only fires when
+// a valid token is present. Soft-JWT semantics preserved: a token
+// pointing at a deleted/banned/missing user yields the userID alone
+// with no admin flag (deleted_at IS NULL filter), same posture as
+// the strict middleware below.
+func SoftJWTWithAdminMiddleware(db *sqlx.DB) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			uid, err := auth.ExtractTokenID(r)
+			if err != nil || uid == 0 {
+				next.ServeHTTP(w, r)
+				return
+			}
+			ctx := httpctx.WithUserID(r.Context(), uid)
+			var isAdmin bool
+			// One indexed lookup — usually sub-ms. `deleted_at IS NULL`
+			// keeps a banned/self-deleted user from claiming admin
+			// privileges off a still-valid access token.
+			if err := db.GetContext(ctx, &isAdmin,
+				"SELECT is_admin FROM users WHERE id = $1 AND deleted_at IS NULL",
+				uid,
+			); err == nil {
+				ctx = httpctx.WithIsAdmin(ctx, isAdmin)
+			}
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
