@@ -453,7 +453,24 @@ func (h *BracketHandler) CreateBracket(ctx context.Context, req *connect.Request
 		bracket.Description = *req.Msg.Description
 	}
 
-	if len(req.Msg.Entries) > 0 && len(req.Msg.Entries) != int(req.Msg.Size) {
+	entries := req.Msg.Entries
+	if req.Msg.ItemPoolId != nil {
+		var internalID uint
+		err := sqlx.GetContext(ctx, h.DB, &internalID, "SELECT id FROM item_pools WHERE public_id = $1 OR short_id = $1 LIMIT 1", *req.Msg.ItemPoolId)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("item pool not found"))
+		}
+		var poolItems []models.ItemPoolItem
+		if err := sqlx.SelectContext(ctx, h.DB, &poolItems, "SELECT * FROM item_pool_items WHERE item_pool_id = $1 ORDER BY id ASC", internalID); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+		entries = []string{}
+		for _, it := range poolItems {
+			entries = append(entries, it.Item)
+		}
+	}
+
+	if len(entries) > 0 && len(entries) != int(req.Msg.Size) {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("entries must match bracket size"))
 	}
 
@@ -481,7 +498,7 @@ func (h *BracketHandler) CreateBracket(ctx context.Context, req *connect.Request
 		return nil, connect.NewError(connect.CodeInternal, errors.New("short_id generation exhausted"))
 	}
 
-	generateFullBracket(h.DB, *newBracket, req.Msg.Entries)
+	generateFullBracket(h.DB, *newBracket, entries)
 
 	resp := connect.NewResponse(&bracketv1.CreateBracketResponse{
 		Bracket: bracketToProto(h.DB, newBracket),

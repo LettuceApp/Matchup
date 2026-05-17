@@ -1,0 +1,91 @@
+syntax = "proto3";
+package itempool.v1;
+option go_package = "Matchup/gen/itempool/v1;itempoolv1";
+
+import "common/v1/common.proto";
+
+service ItemPoolService {
+  rpc CreateItemPool(CreateItemPoolRequest) returns (CreateItemPoolResponse);
+  rpc GetItemPool(GetItemPoolRequest) returns (GetItemPoolResponse);
+  rpc GetUserItemPools(GetUserItemPoolsRequest) returns (GetUserItemPoolsResponse);
+  rpc UpdateItemPool(UpdateItemPoolRequest) returns (UpdateItemPoolResponse);
+  rpc DeleteItemPool(DeleteItemPoolRequest) returns (DeleteItemPoolResponse);
+}
+
+message ItemPoolData {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  string author_id = 4;
+  int32 size = 5;
+  string visibility = 6;
+  string created_at = 7;
+  string updated_at = 8;
+  common.v1.UserSummaryResponse author = 9;
+  string short_id = 10;
+  repeated ItemPoolItemData items = 11;
+}
+
+message ItemPoolItemData {
+  string id = 1;
+  string item = 2;
+}
+
+// ---- Request Messages ----
+
+message ItemPoolItemCreate {
+  string item = 1;
+}
+
+message CreateItemPoolRequest {
+  string user_id = 1;
+  string title = 2;
+  optional string description = 3;
+  optional string visibility = 4;
+  repeated ItemPoolItemCreate items = 5;
+}
+
+message GetItemPoolRequest {
+  string id = 1;
+}
+
+message GetUserItemPoolsRequest {
+  string user_id = 1;
+  optional int32 page = 2;
+  optional int32 limit = 3;
+}
+
+message UpdateItemPoolRequest {
+  string id = 1;
+  optional string title = 2;
+  optional string description = 3;
+  optional string visibility = 4;
+  repeated ItemPoolItemCreate items = 5;
+}
+
+message DeleteItemPoolRequest {
+  string id = 1;
+}
+
+// ---- Response Messages ----
+
+message CreateItemPoolResponse {
+  ItemPoolData item_pool = 1;
+}
+
+message GetItemPoolResponse {
+  ItemPoolData item_pool = 1;
+}
+
+message GetUserItemPoolsResponse {
+  repeated ItemPoolData item_pools = 1;
+  common.v1.Pagination pagination = 2;
+}
+
+message UpdateItemPoolResponse {
+  ItemPoolData item_pool = 1;
+}
+
+message DeleteItemPoolResponse {
+  string message = 1;
+}

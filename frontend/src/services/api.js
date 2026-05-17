@@ -680,4 +680,22 @@ export const adminBanUser = (id, reason) =>
 export const adminUnbanUser = (id) =>
   rpc('admin.v1.AdminService', 'UnbanUser', { id });
 
+// -----------------------------------------
+// ITEM POOLS
+// -----------------------------------------
+export const createItemPool = (userId, data) =>
+  rpc('itempool.v1.ItemPoolService', 'CreateItemPool', { user_id: userId, ...data });
+
+export const getItemPool = (id) =>
+  rpc('itempool.v1.ItemPoolService', 'GetItemPool', { id });
+
+export const getUserItemPools = (userId, page = 1, limit = 10) =>
+  rpc('itempool.v1.ItemPoolService', 'GetUserItemPools', { user_id: userId, page, limit });
+
+export const updateItemPool = (id, data) =>
+  rpc('itempool.v1.ItemPoolService', 'UpdateItemPool', { id, ...data });
+
+export const deleteItemPool = (id) =>
+  rpc('itempool.v1.ItemPoolService', 'DeleteItemPool', { id });
+
 export default API;

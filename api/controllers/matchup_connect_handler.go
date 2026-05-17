@@ -429,8 +429,23 @@ func (h *MatchupHandler) CreateMatchup(ctx context.Context, req *connect.Request
 		matchup.Seed = &s
 	}
 
-	for _, it := range req.Msg.Items {
-		matchup.Items = append(matchup.Items, models.MatchupItem{Item: it.Item})
+	if req.Msg.ItemPoolId != nil {
+		var internalID uint
+		err := sqlx.GetContext(ctx, h.DB, &internalID, "SELECT id FROM item_pools WHERE public_id = $1 OR short_id = $1 LIMIT 1", *req.Msg.ItemPoolId)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeNotFound, errors.New("item pool not found"))
+		}
+		var poolItems []models.ItemPoolItem
+		if err := sqlx.SelectContext(ctx, h.DB, &poolItems, "SELECT * FROM item_pool_items WHERE item_pool_id = $1 ORDER BY id ASC", internalID); err != nil {
+			return nil, connect.NewError(connect.CodeInternal, err)
+		}
+		for _, it := range poolItems {
+			matchup.Items = append(matchup.Items, models.MatchupItem{Item: it.Item})
+		}
+	} else {
+		for _, it := range req.Msg.Items {
+			matchup.Items = append(matchup.Items, models.MatchupItem{Item: it.Item})
+		}
 	}
 
 	// Tags

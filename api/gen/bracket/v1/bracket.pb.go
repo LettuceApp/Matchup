@@ -642,6 +642,7 @@ type CreateBracketRequest struct {
 	Visibility           *string                `protobuf:"bytes,8,opt,name=visibility,proto3,oneof" json:"visibility,omitempty"`
 	Entries              []string               `protobuf:"bytes,9,rep,name=entries,proto3" json:"entries,omitempty"`
 	Tags                 []string               `protobuf:"bytes,10,rep,name=tags,proto3" json:"tags,omitempty"`
+	ItemPoolId           *string                `protobuf:"bytes,11,opt,name=item_pool_id,json=itemPoolId,proto3,oneof" json:"item_pool_id,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -744,6 +745,13 @@ func (x *CreateBracketRequest) GetTags() []string {
 		return x.Tags
 	}
 	return nil
+}
+
+func (x *CreateBracketRequest) GetItemPoolId() string {
+	if x != nil && x.ItemPoolId != nil {
+		return *x.ItemPoolId
+	}
+	return ""
 }
 
 type UpdateBracketRequest struct {
@@ -1800,7 +1808,7 @@ const file_bracket_v1_bracket_proto_rawDesc = "" +
 	"\x04page\x18\x02 \x01(\x05H\x00R\x04page\x88\x01\x01\x12\x19\n" +
 	"\x05limit\x18\x03 \x01(\x05H\x01R\x05limit\x88\x01\x01B\a\n" +
 	"\x05_pageB\b\n" +
-	"\x06_limit\"\xc6\x03\n" +
+	"\x06_limit\"\xfe\x03\n" +
 	"\x14CreateBracketRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12%\n" +
@@ -1814,12 +1822,15 @@ const file_bracket_v1_bracket_proto_rawDesc = "" +
 	"visibility\x88\x01\x01\x12\x18\n" +
 	"\aentries\x18\t \x03(\tR\aentries\x12\x12\n" +
 	"\x04tags\x18\n" +
-	" \x03(\tR\x04tagsB\x0e\n" +
+	" \x03(\tR\x04tags\x12%\n" +
+	"\fitem_pool_id\x18\v \x01(\tH\x05R\n" +
+	"itemPoolId\x88\x01\x01B\x0e\n" +
 	"\f_descriptionB\x0f\n" +
 	"\r_advance_modeB\x13\n" +
 	"\x11_duration_minutesB\x19\n" +
 	"\x17_round_duration_secondsB\r\n" +
-	"\v_visibility\"\xfe\x02\n" +
+	"\v_visibilityB\x0f\n" +
+	"\r_item_pool_id\"\xfe\x02\n" +
 	"\x14UpdateBracketRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\x05title\x18\x02 \x01(\tH\x00R\x05title\x88\x01\x01\x12%\n" +

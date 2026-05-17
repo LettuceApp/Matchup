@@ -103,6 +103,7 @@ message CreateBracketRequest {
   optional string visibility = 8;
   repeated string entries = 9;
   repeated string tags = 10;
+  optional string item_pool_id = 11;
 }
 
 message UpdateBracketRequest {

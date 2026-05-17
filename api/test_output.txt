@@ -1,0 +1,923 @@
+=== RUN   TestDeleteMyAccount_StampsDeletedAtAndWipesSessions
+    account_delete_integration_test.go:21: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestDeleteMyAccount_StampsDeletedAtAndWipesSessions (0.01s)
+=== RUN   TestDeleteMyAccount_RejectsWrongPassword
+    account_delete_integration_test.go:94: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestDeleteMyAccount_RejectsWrongPassword (0.00s)
+=== RUN   TestDeleteMyAccount_RejectsAnon
+    account_delete_integration_test.go:115: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestDeleteMyAccount_RejectsAnon (0.01s)
+=== RUN   TestLogin_RejectsDeletedUser
+    account_delete_integration_test.go:127: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestLogin_RejectsDeletedUser (0.00s)
+=== RUN   TestHardDeleteExpiredAccounts_SweepsPastRetention
+    account_delete_integration_test.go:151: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestHardDeleteExpiredAccounts_SweepsPastRetention (0.00s)
+=== RUN   TestGetUserActivity_EmptyForFreshUser
+    activity_connect_handler_integration_test.go:40: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_EmptyForFreshUser (0.00s)
+=== RUN   TestGetUserActivity_VoteCast
+    activity_connect_handler_integration_test.go:53: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_VoteCast (0.00s)
+=== RUN   TestGetUserActivity_VoteWinAndLoss
+    activity_connect_handler_integration_test.go:85: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_VoteWinAndLoss (0.00s)
+=== RUN   TestGetUserActivity_BracketProgress
+    activity_connect_handler_integration_test.go:146: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_BracketProgress (0.00s)
+=== RUN   TestGetUserActivity_LikeReceived
+    activity_connect_handler_integration_test.go:178: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_LikeReceived (0.00s)
+=== RUN   TestGetUserActivity_CommentReceived
+    activity_connect_handler_integration_test.go:219: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_CommentReceived (0.00s)
+=== RUN   TestGetUserActivity_MatchupVoteReceived
+    activity_connect_handler_integration_test.go:256: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_MatchupVoteReceived (0.00s)
+=== RUN   TestGetUserActivity_NewFollower
+    activity_connect_handler_integration_test.go:306: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_NewFollower (0.00s)
+=== RUN   TestGetUserActivity_MentionReceived
+    activity_connect_handler_integration_test.go:343: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_MentionReceived (0.00s)
+=== RUN   TestGetUserActivity_AuthoredCompleted
+    activity_connect_handler_integration_test.go:429: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_AuthoredCompleted (0.00s)
+=== RUN   TestGetUserActivity_Milestone
+    activity_connect_handler_integration_test.go:511: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_Milestone (0.00s)
+=== RUN   TestGetUserActivity_ClosingSoon
+    activity_connect_handler_integration_test.go:586: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_ClosingSoon (0.00s)
+=== RUN   TestGetUserActivity_ClosingSoonForVoters
+    activity_connect_handler_integration_test.go:650: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_ClosingSoonForVoters (0.00s)
+=== RUN   TestGetUserActivity_TieNeedsResolution
+    activity_connect_handler_integration_test.go:732: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_TieNeedsResolution (0.00s)
+=== RUN   TestGetUserActivity_RespectsNotificationPrefs
+    activity_connect_handler_integration_test.go:804: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_RespectsNotificationPrefs (0.00s)
+=== RUN   TestGetUserActivity_FollowedUserPosted
+    activity_connect_handler_integration_test.go:857: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_FollowedUserPosted (0.00s)
+=== RUN   TestMarkActivityRead_StampsUnreadRowsUpToCursor
+    activity_connect_handler_integration_test.go:955: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestMarkActivityRead_StampsUnreadRowsUpToCursor (0.00s)
+=== RUN   TestMarkActivityRead_DefaultCursorStampsAll
+    activity_connect_handler_integration_test.go:1021: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestMarkActivityRead_DefaultCursorStampsAll (0.00s)
+=== RUN   TestMarkActivityRead_RejectsAnon
+    activity_connect_handler_integration_test.go:1048: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestMarkActivityRead_RejectsAnon (0.00s)
+=== RUN   TestGetUserActivity_ExposesReadAt
+    activity_connect_handler_integration_test.go:1060: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_ExposesReadAt (0.00s)
+=== RUN   TestGetUserActivity_MergeAndSort
+    activity_connect_handler_integration_test.go:1107: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_MergeAndSort (0.00s)
+=== RUN   TestActivityEventsSSE_RejectsUnauthenticated
+--- PASS: TestActivityEventsSSE_RejectsUnauthenticated (0.00s)
+=== RUN   TestActivityEventsSSE_RedisNilHoldsUntilCtxDone
+--- PASS: TestActivityEventsSSE_RedisNilHoldsUntilCtxDone (0.03s)
+=== RUN   TestActivityEventsSSE_NoFlusher
+--- PASS: TestActivityEventsSSE_NoFlusher (0.00s)
+=== RUN   TestAdminListUsers_Success
+    admin_connect_handler_integration_test.go:14: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestAdminListUsers_Success (0.00s)
+=== RUN   TestAdminListUsers_NonAdmin
+    admin_connect_handler_integration_test.go:36: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestAdminListUsers_NonAdmin (0.00s)
+=== RUN   TestAdminDeleteUser_Success
+    admin_connect_handler_integration_test.go:68: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestAdminDeleteUser_Success (0.00s)
+=== RUN   TestAdminListMatchups_Success
+    admin_connect_handler_integration_test.go:87: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestAdminListMatchups_Success (0.00s)
+=== RUN   TestListReports_RequiresAdmin
+    admin_moderation_integration_test.go:25: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestListReports_RequiresAdmin (0.00s)
+=== RUN   TestListReports_ReturnsOpenByDefault
+    admin_moderation_integration_test.go:37: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestListReports_ReturnsOpenByDefault (0.00s)
+=== RUN   TestResolveReport_DismissClosesAndAudits
+    admin_moderation_integration_test.go:84: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestResolveReport_DismissClosesAndAudits (0.00s)
+=== RUN   TestResolveReport_RemoveContent_DeletesMatchup
+    admin_moderation_integration_test.go:132: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestResolveReport_RemoveContent_DeletesMatchup (0.00s)
+=== RUN   TestResolveReport_BanUser_StampsUserAndAudits
+    admin_moderation_integration_test.go:178: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestResolveReport_BanUser_StampsUserAndAudits (0.00s)
+=== RUN   TestResolveReport_DoubleResolveRejected
+    admin_moderation_integration_test.go:238: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestResolveReport_DoubleResolveRejected (0.00s)
+=== RUN   TestBanUser_DirectSoftDeletesAndRevokes
+    admin_moderation_integration_test.go:271: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestBanUser_DirectSoftDeletesAndRevokes (0.00s)
+=== RUN   TestUnbanUser_Reactivates
+    admin_moderation_integration_test.go:324: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestUnbanUser_Reactivates (0.00s)
+=== RUN   TestReportThenListShowsCreatedReport
+    admin_moderation_integration_test.go:368: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestReportThenListShowsCreatedReport (0.00s)
+=== RUN   TestVoteItem_AnonAllowsFirstThree
+    anon_vote_integration_test.go:43: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestVoteItem_AnonAllowsFirstThree (0.00s)
+=== RUN   TestVoteItem_AnonRejectsFourth
+    anon_vote_integration_test.go:71: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestVoteItem_AnonRejectsFourth (0.00s)
+=== RUN   TestVoteItem_AnonSwitchVoteDoesNotCount
+    anon_vote_integration_test.go:104: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestVoteItem_AnonSwitchVoteDoesNotCount (0.00s)
+=== RUN   TestVoteItem_AnonRejectsBracketMatchup
+    anon_vote_integration_test.go:166: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestVoteItem_AnonRejectsBracketMatchup (0.00s)
+=== RUN   TestVoteItem_AuthedUserNotCapped
+    anon_vote_integration_test.go:207: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestVoteItem_AuthedUserNotCapped (0.00s)
+=== RUN   TestGetAnonVoteStatus_ReturnsCount
+    anon_vote_integration_test.go:234: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetAnonVoteStatus_ReturnsCount (0.00s)
+=== RUN   TestGetAnonVoteStatus_EmptyIDReturnsZero
+    anon_vote_integration_test.go:270: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetAnonVoteStatus_EmptyIDReturnsZero (0.00s)
+=== RUN   TestHashFingerprint
+=== RUN   TestHashFingerprint/empty_string_returns_empty
+=== RUN   TestHashFingerprint/whitespace_only_returns_empty
+=== RUN   TestHashFingerprint/non-empty_input_returns_non-empty_hash
+=== RUN   TestHashFingerprint/same_input_produces_same_output
+--- PASS: TestHashFingerprint (0.00s)
+    --- PASS: TestHashFingerprint/empty_string_returns_empty (0.00s)
+    --- PASS: TestHashFingerprint/whitespace_only_returns_empty (0.00s)
+    --- PASS: TestHashFingerprint/non-empty_input_returns_non-empty_hash (0.00s)
+    --- PASS: TestHashFingerprint/same_input_produces_same_output (0.00s)
+=== RUN   TestIsLikelyUUID
+=== RUN   TestIsLikelyUUID/36-char_UUID_returns_true
+=== RUN   TestIsLikelyUUID/short_string_returns_false
+--- PASS: TestIsLikelyUUID (0.00s)
+    --- PASS: TestIsLikelyUUID/36-char_UUID_returns_true (0.00s)
+    --- PASS: TestIsLikelyUUID/short_string_returns_false (0.00s)
+=== RUN   TestLogin_Success
+    auth_connect_handler_integration_test.go:17: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestLogin_Success (0.00s)
+=== RUN   TestLogin_WrongPassword
+    auth_connect_handler_integration_test.go:42: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestLogin_WrongPassword (0.00s)
+=== RUN   TestLogin_UserNotFound
+    auth_connect_handler_integration_test.go:56: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestLogin_UserNotFound (0.00s)
+=== RUN   TestLogin_ByUsername
+    auth_connect_handler_integration_test.go:69: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestLogin_ByUsername (0.00s)
+=== RUN   TestResetPassword_MissingToken
+    auth_connect_handler_integration_test.go:88: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestResetPassword_MissingToken (0.00s)
+=== RUN   TestResetPassword_PasswordMismatch
+    auth_connect_handler_integration_test.go:100: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestResetPassword_PasswordMismatch (0.00s)
+=== RUN   TestResetPassword_ShortPassword
+    auth_connect_handler_integration_test.go:112: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestResetPassword_ShortPassword (0.00s)
+=== RUN   TestLogin_ReturnsRefreshToken
+    auth_connect_handler_integration_test.go:127: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestLogin_ReturnsRefreshToken (0.00s)
+=== RUN   TestRefresh_HappyPath
+    auth_connect_handler_integration_test.go:159: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestRefresh_HappyPath (0.00s)
+=== RUN   TestRefresh_ReuseRevokesFamily
+    auth_connect_handler_integration_test.go:196: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestRefresh_ReuseRevokesFamily (0.00s)
+=== RUN   TestRefresh_InvalidToken
+    auth_connect_handler_integration_test.go:233: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestRefresh_InvalidToken (0.00s)
+=== RUN   TestLogout_RevokesSpecificRow
+    auth_connect_handler_integration_test.go:247: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestLogout_RevokesSpecificRow (0.00s)
+=== RUN   TestLogout_RejectsAnon
+    auth_connect_handler_integration_test.go:285: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestLogout_RejectsAnon (0.00s)
+=== RUN   TestLogoutAll_RevokesEveryRow
+    auth_connect_handler_integration_test.go:297: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestLogoutAll_RevokesEveryRow (0.00s)
+=== RUN   TestAccessToken_HasExp
+--- PASS: TestAccessToken_HasExp (0.00s)
+=== RUN   TestSplitCSV
+=== RUN   TestSplitCSV/empty_string
+=== RUN   TestSplitCSV/single_value
+=== RUN   TestSplitCSV/multiple_values_with_spaces
+=== RUN   TestSplitCSV/trims_whitespace_and_drops_empty_parts
+--- PASS: TestSplitCSV (0.00s)
+    --- PASS: TestSplitCSV/empty_string (0.00s)
+    --- PASS: TestSplitCSV/single_value (0.00s)
+    --- PASS: TestSplitCSV/multiple_values_with_spaces (0.00s)
+    --- PASS: TestSplitCSV/trims_whitespace_and_drops_empty_parts (0.00s)
+=== RUN   TestVoteDeltaKey
+=== RUN   TestVoteDeltaKey/typical_id
+=== RUN   TestVoteDeltaKey/zero_id
+--- PASS: TestVoteDeltaKey (0.00s)
+    --- PASS: TestVoteDeltaKey/typical_id (0.00s)
+    --- PASS: TestVoteDeltaKey/zero_id (0.00s)
+=== RUN   TestVoteDeltaKeyPrefix
+--- PASS: TestVoteDeltaKeyPrefix (0.00s)
+=== RUN   TestBlockUser_SeversFollowBothWaysAndCountsBothDirections
+    block_mute_integration_test.go:21: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestBlockUser_SeversFollowBothWaysAndCountsBothDirections (0.00s)
+=== RUN   TestBlockUser_Idempotent
+    block_mute_integration_test.go:88: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestBlockUser_Idempotent (0.00s)
+=== RUN   TestBlockUser_RejectsSelfBlock
+    block_mute_integration_test.go:108: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestBlockUser_RejectsSelfBlock (0.00s)
+=== RUN   TestBlockUser_DeletesExistingMute
+    block_mute_integration_test.go:120: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestBlockUser_DeletesExistingMute (0.00s)
+=== RUN   TestUnblockUser_RemovesRow
+    block_mute_integration_test.go:148: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestUnblockUser_RemovesRow (0.00s)
+=== RUN   TestMuteUser_OneWayInsertAndIdempotent
+    block_mute_integration_test.go:175: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestMuteUser_OneWayInsertAndIdempotent (0.00s)
+=== RUN   TestListBlocks_ReturnsPaginatedUsers
+    block_mute_integration_test.go:219: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestListBlocks_ReturnsPaginatedUsers (0.00s)
+=== RUN   TestGetUserActivity_FiltersBlockedUserItems
+    block_mute_integration_test.go:255: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_FiltersBlockedUserItems (0.00s)
+=== RUN   TestGetUserActivity_FiltersMutedUserItems
+    block_mute_integration_test.go:319: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserActivity_FiltersMutedUserItems (0.00s)
+=== RUN   TestGetUser_BlockedEitherDirectionReturns404
+    block_mute_integration_test.go:365: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUser_BlockedEitherDirectionReturns404 (0.00s)
+=== RUN   TestGetUser_AnonCanSeePublicProfile
+    block_mute_integration_test.go:398: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUser_AnonCanSeePublicProfile (0.00s)
+=== RUN   TestGetUser_AnonRejectedFromPrivateProfile
+    block_mute_integration_test.go:417: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUser_AnonRejectedFromPrivateProfile (0.00s)
+=== RUN   TestGetUser_AuthedCanSeePrivateProfile
+    block_mute_integration_test.go:435: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUser_AuthedCanSeePrivateProfile (0.00s)
+=== RUN   TestCreateBracket_Success
+    bracket_connect_handler_integration_test.go:16: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestCreateBracket_Success (0.00s)
+=== RUN   TestCreateBracket_Unauthenticated
+    bracket_connect_handler_integration_test.go:46: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestCreateBracket_Unauthenticated (0.00s)
+=== RUN   TestGetBracket_Success
+    bracket_connect_handler_integration_test.go:59: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetBracket_Success (0.00s)
+=== RUN   TestGetBracket_NotFound
+    bracket_connect_handler_integration_test.go:79: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetBracket_NotFound (0.00s)
+=== RUN   TestUpdateBracket_Success_OwnerOnly
+    bracket_connect_handler_integration_test.go:89: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestUpdateBracket_Success_OwnerOnly (0.00s)
+=== RUN   TestUpdateBracket_NotOwner_Forbidden
+    bracket_connect_handler_integration_test.go:108: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestUpdateBracket_NotOwner_Forbidden (0.00s)
+=== RUN   TestDeleteBracket_Success_OwnerOnly
+    bracket_connect_handler_integration_test.go:123: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestDeleteBracket_Success_OwnerOnly (0.00s)
+=== RUN   TestDeleteBracket_NotOwner_Forbidden
+    bracket_connect_handler_integration_test.go:138: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestDeleteBracket_NotOwner_Forbidden (0.00s)
+=== RUN   TestGetPopularBrackets_ExcludesNonActive
+    bracket_connect_handler_integration_test.go:154: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetPopularBrackets_ExcludesNonActive (0.00s)
+=== RUN   TestGetPopularBrackets_IncludesAuthorUsernameAndCreatedAt
+    bracket_connect_handler_integration_test.go:189: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetPopularBrackets_IncludesAuthorUsernameAndCreatedAt (0.00s)
+=== RUN   TestGetUserBrackets_ReturnsOwnerBrackets
+    bracket_connect_handler_integration_test.go:226: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUserBrackets_ReturnsOwnerBrackets (0.00s)
+=== RUN   TestGetBracketSummary_IncludesBracketAndMatchups
+    bracket_connect_handler_integration_test.go:247: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetBracketSummary_IncludesBracketAndMatchups (0.00s)
+=== RUN   TestFormatSeedLabel
+=== RUN   TestFormatSeedLabel/basic_label
+=== RUN   TestFormatSeedLabel/empty_name_omits_dash
+=== RUN   TestFormatSeedLabel/strips_old_seed_prefix
+--- PASS: TestFormatSeedLabel (0.00s)
+    --- PASS: TestFormatSeedLabel/basic_label (0.00s)
+    --- PASS: TestFormatSeedLabel/empty_name_omits_dash (0.00s)
+    --- PASS: TestFormatSeedLabel/strips_old_seed_prefix (0.00s)
+=== RUN   TestStripSeedPrefix
+=== RUN   TestStripSeedPrefix/removes_seed_prefix
+=== RUN   TestStripSeedPrefix/no_prefix_unchanged
+=== RUN   TestStripSeedPrefix/empty_string
+=== RUN   TestStripSeedPrefix/seed_number_only_no_name
+--- PASS: TestStripSeedPrefix (0.00s)
+    --- PASS: TestStripSeedPrefix/removes_seed_prefix (0.00s)
+    --- PASS: TestStripSeedPrefix/no_prefix_unchanged (0.00s)
+    --- PASS: TestStripSeedPrefix/empty_string (0.00s)
+    --- PASS: TestStripSeedPrefix/seed_number_only_no_name (0.00s)
+=== RUN   TestGroupMatchupsByRound
+=== RUN   TestGroupMatchupsByRound/empty_slice_returns_empty_map
+=== RUN   TestGroupMatchupsByRound/single_matchup_in_round_1
+=== RUN   TestGroupMatchupsByRound/multiple_rounds
+=== RUN   TestGroupMatchupsByRound/skips_matchups_with_nil_Round
+--- PASS: TestGroupMatchupsByRound (0.00s)
+    --- PASS: TestGroupMatchupsByRound/empty_slice_returns_empty_map (0.00s)
+    --- PASS: TestGroupMatchupsByRound/single_matchup_in_round_1 (0.00s)
+    --- PASS: TestGroupMatchupsByRound/multiple_rounds (0.00s)
+    --- PASS: TestGroupMatchupsByRound/skips_matchups_with_nil_Round (0.00s)
+=== RUN   TestSetBracketRoundWindow
+=== RUN   TestSetBracketRoundWindow/timer_mode_sets_times
+=== RUN   TestSetBracketRoundWindow/manual_mode_clears_times
+=== RUN   TestSetBracketRoundWindow/timer_with_negative_duration_uses_default
+--- PASS: TestSetBracketRoundWindow (0.00s)
+    --- PASS: TestSetBracketRoundWindow/timer_mode_sets_times (0.00s)
+    --- PASS: TestSetBracketRoundWindow/manual_mode_clears_times (0.00s)
+    --- PASS: TestSetBracketRoundWindow/timer_with_negative_duration_uses_default (0.00s)
+=== RUN   TestPtrUint
+=== RUN   TestPtrUint/returns_pointer_to_value
+--- PASS: TestPtrUint (0.00s)
+    --- PASS: TestPtrUint/returns_pointer_to_value (0.00s)
+=== RUN   TestPtrInt
+=== RUN   TestPtrInt/returns_pointer_to_value
+--- PASS: TestPtrInt (0.00s)
+    --- PASS: TestPtrInt/returns_pointer_to_value (0.00s)
+=== RUN   TestCreateComment_Success
+    comment_connect_handler_integration_test.go:15: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestCreateComment_Success (0.00s)
+=== RUN   TestCreateComment_Unauthenticated
+    comment_connect_handler_integration_test.go:38: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestCreateComment_Unauthenticated (0.00s)
+=== RUN   TestGetComments_Success
+    comment_connect_handler_integration_test.go:52: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetComments_Success (0.00s)
+=== RUN   TestDeleteComment_Success
+    comment_connect_handler_integration_test.go:73: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestDeleteComment_Success (0.00s)
+=== RUN   TestDeleteComment_Unauthorized
+    comment_connect_handler_integration_test.go:90: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestDeleteComment_Unauthorized (0.00s)
+=== RUN   TestSendEmailDigests_HappyPath
+    email_digest_integration_test.go:46: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestSendEmailDigests_HappyPath (0.00s)
+=== RUN   TestSendEmailDigests_SkipsMutedUsers
+    email_digest_integration_test.go:118: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestSendEmailDigests_SkipsMutedUsers (0.00s)
+=== RUN   TestSendEmailDigests_SkipsQuietWeeks
+    email_digest_integration_test.go:156: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestSendEmailDigests_SkipsQuietWeeks (0.00s)
+=== RUN   TestEmailUnsubscribeHandler_ValidTokenFlipsPref
+    email_digest_integration_test.go:177: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestEmailUnsubscribeHandler_ValidTokenFlipsPref (0.00s)
+=== RUN   TestEmailUnsubscribeHandler_BadToken
+    email_digest_integration_test.go:212: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestEmailUnsubscribeHandler_BadToken (0.00s)
+=== RUN   TestConfirmEmailVerification_StampsUser
+    email_verification_integration_test.go:28: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestConfirmEmailVerification_StampsUser (0.00s)
+=== RUN   TestConfirmEmailVerification_ExpiredTokenRejected
+    email_verification_integration_test.go:61: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestConfirmEmailVerification_ExpiredTokenRejected (0.00s)
+=== RUN   TestConfirmEmailVerification_SingleUse
+    email_verification_integration_test.go:92: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestConfirmEmailVerification_SingleUse (0.00s)
+=== RUN   TestRequestEmailVerification_NoOpForVerifiedUser
+    email_verification_integration_test.go:114: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestRequestEmailVerification_NoOpForVerifiedUser (0.00s)
+=== RUN   TestSoftGate_BlocksUnverifiedCreateMatchup
+    email_verification_integration_test.go:141: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestSoftGate_BlocksUnverifiedCreateMatchup (0.00s)
+=== RUN   TestSoftGate_AllowsVerifiedCreateMatchup
+    email_verification_integration_test.go:156: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestSoftGate_AllowsVerifiedCreateMatchup (0.00s)
+=== RUN   TestSoftGate_BlocksUnverifiedCreateBracket
+    email_verification_integration_test.go:182: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestSoftGate_BlocksUnverifiedCreateBracket (0.00s)
+=== RUN   TestSoftGate_AllowsOwnMatchupComment
+    email_verification_integration_test.go:201: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestSoftGate_AllowsOwnMatchupComment (0.00s)
+=== RUN   TestSoftGate_BlocksCommentingOnOthers
+    email_verification_integration_test.go:223: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestSoftGate_BlocksCommentingOnOthers (0.00s)
+=== RUN   TestParseLimit
+=== RUN   TestParseLimit/valid_number
+=== RUN   TestParseLimit/zero_defaults
+=== RUN   TestParseLimit/negative_defaults
+=== RUN   TestParseLimit/above_max_defaults
+=== RUN   TestParseLimit/non-numeric_defaults
+=== RUN   TestParseLimit/empty_defaults
+--- PASS: TestParseLimit (0.00s)
+    --- PASS: TestParseLimit/valid_number (0.00s)
+    --- PASS: TestParseLimit/zero_defaults (0.00s)
+    --- PASS: TestParseLimit/negative_defaults (0.00s)
+    --- PASS: TestParseLimit/above_max_defaults (0.00s)
+    --- PASS: TestParseLimit/non-numeric_defaults (0.00s)
+    --- PASS: TestParseLimit/empty_defaults (0.00s)
+=== RUN   TestFollowCursorRoundtrip
+=== RUN   TestFollowCursorRoundtrip/encode_then_decode_returns_same_values
+--- PASS: TestFollowCursorRoundtrip (0.00s)
+    --- PASS: TestFollowCursorRoundtrip/encode_then_decode_returns_same_values (0.00s)
+=== RUN   TestParseFollowCursorErrors
+=== RUN   TestParseFollowCursorErrors/invalid_base64_returns_error
+=== RUN   TestParseFollowCursorErrors/invalid_JSON_returns_error
+--- PASS: TestParseFollowCursorErrors (0.00s)
+    --- PASS: TestParseFollowCursorErrors/invalid_base64_returns_error (0.00s)
+    --- PASS: TestParseFollowCursorErrors/invalid_JSON_returns_error (0.00s)
+=== RUN   TestBuildFollowListResponse
+=== RUN   TestBuildFollowListResponse/truncates_when_rows_exceed_limit_and_returns_cursor
+=== RUN   TestBuildFollowListResponse/no_truncation_when_rows_within_limit_and_no_cursor
+--- PASS: TestBuildFollowListResponse (0.00s)
+    --- PASS: TestBuildFollowListResponse/truncates_when_rows_exceed_limit_and_returns_cursor (0.00s)
+    --- PASS: TestBuildFollowListResponse/no_truncation_when_rows_within_limit_and_no_cursor (0.00s)
+=== RUN   TestGetHomeSummary_EmptyDB
+    home_connect_handler_integration_test.go:15: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetHomeSummary_EmptyDB (0.00s)
+=== RUN   TestGetHomeSummary_PopularBrackets_IncludesNewActiveBracketWithoutEngagement
+    home_connect_handler_integration_test.go:49: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetHomeSummary_PopularBrackets_IncludesNewActiveBracketWithoutEngagement (0.00s)
+=== RUN   TestGetHomeSummary_PopularBrackets_ExcludesNonActiveBrackets
+    home_connect_handler_integration_test.go:90: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetHomeSummary_PopularBrackets_ExcludesNonActiveBrackets (0.00s)
+=== RUN   TestGetHomeSummary_TopCreator_SkipsViewer
+    home_connect_handler_integration_test.go:144: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetHomeSummary_TopCreator_SkipsViewer (0.00s)
+=== RUN   TestGetHomeSummary_NewThisWeek_ExcludesNonActiveMatchups
+    home_connect_handler_integration_test.go:169: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetHomeSummary_NewThisWeek_ExcludesNonActiveMatchups (0.00s)
+=== RUN   TestGetHomeSummary_NewThisWeek_SkipsBracketChildren
+    home_connect_handler_integration_test.go:201: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetHomeSummary_NewThisWeek_SkipsBracketChildren (0.00s)
+=== RUN   TestGetHomeSummary_PrivateUserContentHiddenFromStrangers
+    home_connect_handler_integration_test.go:236: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetHomeSummary_PrivateUserContentHiddenFromStrangers (0.00s)
+=== RUN   TestGetHomeSummary_AdminSeesPrivateContent
+    home_connect_handler_integration_test.go:265: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetHomeSummary_AdminSeesPrivateContent (0.00s)
+=== RUN   TestGetHomeSummary_RuntimeStatusChange_HidesBracket
+    home_connect_handler_integration_test.go:301: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetHomeSummary_RuntimeStatusChange_HidesBracket (0.00s)
+=== RUN   TestGetHomeSummary_BracketCreatedAtIsRFC3339
+    home_connect_handler_integration_test.go:332: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetHomeSummary_BracketCreatedAtIsRFC3339 (0.00s)
+=== RUN   TestGetHomeSummary_PopularMatchups_ExcludesOwnerEngagement
+    home_connect_handler_integration_test.go:376: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetHomeSummary_PopularMatchups_ExcludesOwnerEngagement (0.00s)
+=== RUN   TestGetHomeSummary_PopularBrackets_ExcludesOwnerEngagement
+    home_connect_handler_integration_test.go:433: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetHomeSummary_PopularBrackets_ExcludesOwnerEngagement (0.00s)
+=== RUN   TestIsUUIDLike
+=== RUN   TestIsUUIDLike/valid_lowercase_UUID
+=== RUN   TestIsUUIDLike/valid_uppercase_UUID
+=== RUN   TestIsUUIDLike/short_string
+=== RUN   TestIsUUIDLike/36_chars_wrong_dash_positions
+=== RUN   TestIsUUIDLike/empty_string
+--- PASS: TestIsUUIDLike (0.00s)
+    --- PASS: TestIsUUIDLike/valid_lowercase_UUID (0.00s)
+    --- PASS: TestIsUUIDLike/valid_uppercase_UUID (0.00s)
+    --- PASS: TestIsUUIDLike/short_string (0.00s)
+    --- PASS: TestIsUUIDLike/36_chars_wrong_dash_positions (0.00s)
+    --- PASS: TestIsUUIDLike/empty_string (0.00s)
+=== RUN   TestBuildVariantKey
+=== RUN   TestBuildVariantKey/with_extension
+=== RUN   TestBuildVariantKey/without_extension
+=== RUN   TestBuildVariantKey/empty_suffix_for_full_size
+=== RUN   TestBuildVariantKey/dot_in_directory_name
+--- PASS: TestBuildVariantKey (0.00s)
+    --- PASS: TestBuildVariantKey/with_extension (0.00s)
+    --- PASS: TestBuildVariantKey/without_extension (0.00s)
+    --- PASS: TestBuildVariantKey/empty_suffix_for_full_size (0.00s)
+    --- PASS: TestBuildVariantKey/dot_in_directory_name (0.00s)
+=== RUN   TestItemPoolHandler_CreateAndGetItemPool
+    itempool_connect_handler_integration_test.go:12: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestItemPoolHandler_CreateAndGetItemPool (0.00s)
+=== RUN   TestLikeMatchup_Success
+    like_connect_handler_integration_test.go:15: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestLikeMatchup_Success (0.00s)
+=== RUN   TestLikeMatchup_Unauthenticated
+    like_connect_handler_integration_test.go:32: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestLikeMatchup_Unauthenticated (0.00s)
+=== RUN   TestUnlikeMatchup_Success
+    like_connect_handler_integration_test.go:45: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestUnlikeMatchup_Success (0.00s)
+=== RUN   TestGetLikes_Success
+    like_connect_handler_integration_test.go:71: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetLikes_Success (0.00s)
+=== RUN   TestCreateMatchup_Success
+    matchup_connect_handler_integration_test.go:17: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestCreateMatchup_Success (0.00s)
+=== RUN   TestCreateMatchup_Unauthenticated
+    matchup_connect_handler_integration_test.go:48: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestCreateMatchup_Unauthenticated (0.00s)
+=== RUN   TestGetMatchup_Success
+    matchup_connect_handler_integration_test.go:65: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetMatchup_Success (0.00s)
+=== RUN   TestGetMatchup_NotFound
+    matchup_connect_handler_integration_test.go:88: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetMatchup_NotFound (0.00s)
+=== RUN   TestListMatchups_Success
+    matchup_connect_handler_integration_test.go:98: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestListMatchups_Success (0.00s)
+=== RUN   TestListMatchups_Pagination
+    matchup_connect_handler_integration_test.go:124: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestListMatchups_Pagination (0.00s)
+=== RUN   TestDeleteMatchup_Success
+    matchup_connect_handler_integration_test.go:150: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestDeleteMatchup_Success (0.00s)
+=== RUN   TestDeleteMatchup_Unauthorized
+    matchup_connect_handler_integration_test.go:166: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestDeleteMatchup_Unauthorized (0.00s)
+=== RUN   TestListMatchups_ExcludesNonActiveStatuses
+    matchup_connect_handler_integration_test.go:183: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestListMatchups_ExcludesNonActiveStatuses (0.00s)
+=== RUN   TestListMatchups_PaginationTotalExcludesNonActive
+    matchup_connect_handler_integration_test.go:245: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestListMatchups_PaginationTotalExcludesNonActive (0.00s)
+=== RUN   TestNormalizeMatchupDurationSeconds
+=== RUN   TestNormalizeMatchupDurationSeconds/zero_becomes_default
+=== RUN   TestNormalizeMatchupDurationSeconds/negative_becomes_default
+=== RUN   TestNormalizeMatchupDurationSeconds/below_min_becomes_min
+=== RUN   TestNormalizeMatchupDurationSeconds/at_min_is_unchanged
+=== RUN   TestNormalizeMatchupDurationSeconds/above_max_becomes_max
+=== RUN   TestNormalizeMatchupDurationSeconds/at_max_is_unchanged
+=== RUN   TestNormalizeMatchupDurationSeconds/valid_passthrough
+--- PASS: TestNormalizeMatchupDurationSeconds (0.00s)
+    --- PASS: TestNormalizeMatchupDurationSeconds/zero_becomes_default (0.00s)
+    --- PASS: TestNormalizeMatchupDurationSeconds/negative_becomes_default (0.00s)
+    --- PASS: TestNormalizeMatchupDurationSeconds/below_min_becomes_min (0.00s)
+    --- PASS: TestNormalizeMatchupDurationSeconds/at_min_is_unchanged (0.00s)
+    --- PASS: TestNormalizeMatchupDurationSeconds/above_max_becomes_max (0.00s)
+    --- PASS: TestNormalizeMatchupDurationSeconds/at_max_is_unchanged (0.00s)
+    --- PASS: TestNormalizeMatchupDurationSeconds/valid_passthrough (0.00s)
+=== RUN   TestDetermineMatchupWinner
+=== RUN   TestDetermineMatchupWinner/no_items_returns_error
+=== RUN   TestDetermineMatchupWinner/explicit_winner_in_items_is_returned
+=== RUN   TestDetermineMatchupWinner/explicit_winner_not_in_items_returns_error
+=== RUN   TestDetermineMatchupWinner/clear_vote_leader_is_returned
+=== RUN   TestDetermineMatchupWinner/exact_two-way_tie_returns_error
+=== RUN   TestDetermineMatchupWinner/three-way_tie_returns_error
+--- PASS: TestDetermineMatchupWinner (0.00s)
+    --- PASS: TestDetermineMatchupWinner/no_items_returns_error (0.00s)
+    --- PASS: TestDetermineMatchupWinner/explicit_winner_in_items_is_returned (0.00s)
+    --- PASS: TestDetermineMatchupWinner/explicit_winner_not_in_items_returns_error (0.00s)
+    --- PASS: TestDetermineMatchupWinner/clear_vote_leader_is_returned (0.00s)
+    --- PASS: TestDetermineMatchupWinner/exact_two-way_tie_returns_error (0.00s)
+    --- PASS: TestDetermineMatchupWinner/three-way_tie_returns_error (0.00s)
+=== RUN   TestDetermineMatchupWinnerByVotes
+=== RUN   TestDetermineMatchupWinnerByVotes/no_items_returns_error
+=== RUN   TestDetermineMatchupWinnerByVotes/single_item_is_returned
+=== RUN   TestDetermineMatchupWinnerByVotes/clear_winner_by_votes
+=== RUN   TestDetermineMatchupWinnerByVotes/tie_returns_first_max_item_encountered
+--- PASS: TestDetermineMatchupWinnerByVotes (0.00s)
+    --- PASS: TestDetermineMatchupWinnerByVotes/no_items_returns_error (0.00s)
+    --- PASS: TestDetermineMatchupWinnerByVotes/single_item_is_returned (0.00s)
+    --- PASS: TestDetermineMatchupWinnerByVotes/clear_winner_by_votes (0.00s)
+    --- PASS: TestDetermineMatchupWinnerByVotes/tie_returns_first_max_item_encountered (0.00s)
+=== RUN   TestParseSeedValue
+=== RUN   TestParseSeedValue/Seed_1
+=== RUN   TestParseSeedValue/Seed_16
+=== RUN   TestParseSeedValue/1
+=== RUN   TestParseSeedValue/42nd
+=== RUN   TestParseSeedValue/#00
+=== RUN   TestParseSeedValue/abc
+=== RUN   TestParseSeedValue/Seedless
+--- PASS: TestParseSeedValue (0.00s)
+    --- PASS: TestParseSeedValue/Seed_1 (0.00s)
+    --- PASS: TestParseSeedValue/Seed_16 (0.00s)
+    --- PASS: TestParseSeedValue/1 (0.00s)
+    --- PASS: TestParseSeedValue/42nd (0.00s)
+    --- PASS: TestParseSeedValue/#00 (0.00s)
+    --- PASS: TestParseSeedValue/abc (0.00s)
+    --- PASS: TestParseSeedValue/Seedless (0.00s)
+=== RUN   TestDetermineMatchupWinnerByVotesOrSeed
+=== RUN   TestDetermineMatchupWinnerByVotesOrSeed/no_items_returns_error
+=== RUN   TestDetermineMatchupWinnerByVotesOrSeed/clear_vote_leader_is_returned
+=== RUN   TestDetermineMatchupWinnerByVotesOrSeed/tie_resolved_by_lower_seed_number
+=== RUN   TestDetermineMatchupWinnerByVotesOrSeed/tie_with_no_seed_labels_returns_error
+=== RUN   TestDetermineMatchupWinnerByVotesOrSeed/tie_with_one_seeded_item_uses_seeded_item
+--- PASS: TestDetermineMatchupWinnerByVotesOrSeed (0.00s)
+    --- PASS: TestDetermineMatchupWinnerByVotesOrSeed/no_items_returns_error (0.00s)
+    --- PASS: TestDetermineMatchupWinnerByVotesOrSeed/clear_vote_leader_is_returned (0.00s)
+    --- PASS: TestDetermineMatchupWinnerByVotesOrSeed/tie_resolved_by_lower_seed_number (0.00s)
+    --- PASS: TestDetermineMatchupWinnerByVotesOrSeed/tie_with_no_seed_labels_returns_error (0.00s)
+    --- PASS: TestDetermineMatchupWinnerByVotesOrSeed/tie_with_one_seeded_item_uses_seeded_item (0.00s)
+=== RUN   TestIsMatchupOpenStatus
+=== RUN   TestIsMatchupOpenStatus/active_is_open
+=== RUN   TestIsMatchupOpenStatus/published_is_open
+=== RUN   TestIsMatchupOpenStatus/draft_is_not_open
+=== RUN   TestIsMatchupOpenStatus/completed_is_not_open
+=== RUN   TestIsMatchupOpenStatus/empty_is_not_open
+--- PASS: TestIsMatchupOpenStatus (0.00s)
+    --- PASS: TestIsMatchupOpenStatus/active_is_open (0.00s)
+    --- PASS: TestIsMatchupOpenStatus/published_is_open (0.00s)
+    --- PASS: TestIsMatchupOpenStatus/draft_is_not_open (0.00s)
+    --- PASS: TestIsMatchupOpenStatus/completed_is_not_open (0.00s)
+    --- PASS: TestIsMatchupOpenStatus/empty_is_not_open (0.00s)
+=== RUN   TestExcludeUsersFragment_Empty
+--- PASS: TestExcludeUsersFragment_Empty (0.00s)
+=== RUN   TestExcludeUsersFragment_NumbersPlaceholdersFromStart
+--- PASS: TestExcludeUsersFragment_NumbersPlaceholdersFromStart (0.00s)
+=== RUN   TestExcludeUsersFragment_SingleUser
+--- PASS: TestExcludeUsersFragment_SingleUser (0.00s)
+=== RUN   TestRfc3339
+=== RUN   TestRfc3339/formats_UTC_correctly
+=== RUN   TestRfc3339/converts_non-UTC_to_UTC
+--- PASS: TestRfc3339 (0.00s)
+    --- PASS: TestRfc3339/formats_UTC_correctly (0.00s)
+    --- PASS: TestRfc3339/converts_non-UTC_to_UTC (0.00s)
+=== RUN   TestRfc3339Ptr
+=== RUN   TestRfc3339Ptr/nil_input_returns_nil
+=== RUN   TestRfc3339Ptr/non-nil_input_returns_formatted_string
+--- PASS: TestRfc3339Ptr (0.00s)
+    --- PASS: TestRfc3339Ptr/nil_input_returns_nil (0.00s)
+    --- PASS: TestRfc3339Ptr/non-nil_input_returns_formatted_string (0.00s)
+=== RUN   TestPopularMatchupToProto
+=== RUN   TestPopularMatchupToProto/copies_all_scalar_fields_including_author_username_and_created_at
+=== RUN   TestPopularMatchupToProto/nil_round_and_nil_bracket_pass_through_as_nil
+=== RUN   TestPopularMatchupToProto/returns_non-nil_struct_for_zero-value_DTO
+--- PASS: TestPopularMatchupToProto (0.00s)
+    --- PASS: TestPopularMatchupToProto/copies_all_scalar_fields_including_author_username_and_created_at (0.00s)
+    --- PASS: TestPopularMatchupToProto/nil_round_and_nil_bracket_pass_through_as_nil (0.00s)
+    --- PASS: TestPopularMatchupToProto/returns_non-nil_struct_for_zero-value_DTO (0.00s)
+=== RUN   TestPopularBracketToProto
+=== RUN   TestPopularBracketToProto/copies_all_scalar_fields_including_author_username_and_created_at
+=== RUN   TestPopularBracketToProto/returns_non-nil_struct_for_zero-value_DTO
+--- PASS: TestPopularBracketToProto (0.00s)
+    --- PASS: TestPopularBracketToProto/copies_all_scalar_fields_including_author_username_and_created_at (0.00s)
+    --- PASS: TestPopularBracketToProto/returns_non-nil_struct_for_zero-value_DTO (0.00s)
+=== RUN   TestSubscribePush_WebUpsertsRow
+    push_subscription_integration_test.go:31: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestSubscribePush_WebUpsertsRow (0.00s)
+=== RUN   TestSubscribePush_IOSStoresTokenWithoutWebKeys
+    push_subscription_integration_test.go:75: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestSubscribePush_IOSStoresTokenWithoutWebKeys (0.00s)
+=== RUN   TestSubscribePush_AndroidStoresToken
+    push_subscription_integration_test.go:108: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestSubscribePush_AndroidStoresToken (0.00s)
+=== RUN   TestSubscribePush_NativeWithKeysRejected
+    push_subscription_integration_test.go:134: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestSubscribePush_NativeWithKeysRejected (0.00s)
+=== RUN   TestSubscribePush_UnknownPlatformRejected
+    push_subscription_integration_test.go:153: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestSubscribePush_UnknownPlatformRejected (0.00s)
+=== RUN   TestSubscribePush_EmptyPlatformDefaultsToWeb
+    push_subscription_integration_test.go:171: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestSubscribePush_EmptyPlatformDefaultsToWeb (0.00s)
+=== RUN   TestSubscribePush_RejectsAnon
+    push_subscription_integration_test.go:199: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestSubscribePush_RejectsAnon (0.00s)
+=== RUN   TestSubscribePush_WebRequiresKeys
+    push_subscription_integration_test.go:211: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestSubscribePush_WebRequiresKeys (0.00s)
+=== RUN   TestUnsubscribePush_DeletesOwnRow
+    push_subscription_integration_test.go:228: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestUnsubscribePush_DeletesOwnRow (0.00s)
+=== RUN   TestUnsubscribePush_CannotDeleteOthers
+    push_subscription_integration_test.go:276: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestUnsubscribePush_CannotDeleteOthers (0.00s)
+=== RUN   TestGetPushConfig_ReturnsVapidKey
+    push_subscription_integration_test.go:310: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetPushConfig_ReturnsVapidKey (0.00s)
+=== RUN   TestGetPushConfig_RejectsAnon
+    push_subscription_integration_test.go:328: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetPushConfig_RejectsAnon (0.00s)
+=== RUN   TestDbForRead
+=== RUN   TestDbForRead/normal_context_returns_replica
+=== RUN   TestDbForRead/read-primary_context_returns_primary
+--- PASS: TestDbForRead (0.00s)
+    --- PASS: TestDbForRead/normal_context_returns_replica (0.00s)
+    --- PASS: TestDbForRead/read-primary_context_returns_primary (0.00s)
+=== RUN   TestSetReadPrimaryCookie
+=== RUN   TestSetReadPrimaryCookie/sets_correct_Set-Cookie_header
+--- PASS: TestSetReadPrimaryCookie (0.00s)
+    --- PASS: TestSetReadPrimaryCookie/sets_correct_Set-Cookie_header (0.00s)
+=== RUN   TestReportContent_HappyPath
+    report_integration_test.go:27: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestReportContent_HappyPath (0.00s)
+=== RUN   TestReportContent_OtherRequiresDetail
+    report_integration_test.go:86: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestReportContent_OtherRequiresDetail (0.00s)
+=== RUN   TestReportContent_RejectsSelfReport
+    report_integration_test.go:105: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestReportContent_RejectsSelfReport (0.00s)
+=== RUN   TestReportContent_UnknownReasonRejected
+    report_integration_test.go:121: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestReportContent_UnknownReasonRejected (0.00s)
+=== RUN   TestReportContent_RejectsAnon
+    report_integration_test.go:138: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestReportContent_RejectsAnon (0.00s)
+=== RUN   TestReportContent_SubjectNotFound
+    report_integration_test.go:151: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestReportContent_SubjectNotFound (0.00s)
+=== RUN   TestForgotPassword_UnknownEmailNeutralResponse
+    reset_password_integration_test.go:19: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestForgotPassword_UnknownEmailNeutralResponse (0.00s)
+=== RUN   TestForgotPassword_KnownEmailCreatesToken
+    reset_password_integration_test.go:46: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestForgotPassword_KnownEmailCreatesToken (0.00s)
+=== RUN   TestResetPassword_SuccessAndOneTimeUse
+    reset_password_integration_test.go:67: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestResetPassword_SuccessAndOneTimeUse (0.00s)
+=== RUN   TestResetPassword_TTLExpiry
+    reset_password_integration_test.go:111: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestResetPassword_TTLExpiry (0.00s)
+=== RUN   TestDeleteExpiredResetTokens_SweepsOldRows
+    reset_password_integration_test.go:143: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestDeleteExpiredResetTokens_SweepsOldRows (0.00s)
+=== RUN   TestPresignUpload_RejectsAnon
+    upload_presign_integration_test.go:38: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestPresignUpload_RejectsAnon (0.00s)
+=== RUN   TestPresignUpload_UnknownKindRejected
+    upload_presign_integration_test.go:49: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestPresignUpload_UnknownKindRejected (0.00s)
+=== RUN   TestPresignUpload_DisallowedContentTypeRejected
+    upload_presign_integration_test.go:61: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestPresignUpload_DisallowedContentTypeRejected (0.00s)
+=== RUN   TestValidateKeyOwnership_RejectsWrongUser
+--- PASS: TestValidateKeyOwnership_RejectsWrongUser (0.00s)
+=== RUN   TestValidateKeyOwnership_RejectsKindMismatch
+--- PASS: TestValidateKeyOwnership_RejectsKindMismatch (0.00s)
+=== RUN   TestValidateKeyOwnership_RejectsMalformedKey
+=== RUN   TestValidateKeyOwnership_RejectsMalformedKey/#00
+=== RUN   TestValidateKeyOwnership_RejectsMalformedKey/foo/bar/baz
+=== RUN   TestValidateKeyOwnership_RejectsMalformedKey/uploads/avatar/42/not-a-uuid.png
+=== RUN   TestValidateKeyOwnership_RejectsMalformedKey/uploads/avatar/notanumber/abc-123.bin
+=== RUN   TestValidateKeyOwnership_RejectsMalformedKey//uploads/avatar/42/abc-123.bin
+=== RUN   TestValidateKeyOwnership_RejectsMalformedKey/uploads/avatar/42/abc-123.bin/extra
+=== RUN   TestValidateKeyOwnership_RejectsMalformedKey/uploads/AVATAR/42/abc-123.bin
+--- PASS: TestValidateKeyOwnership_RejectsMalformedKey (0.00s)
+    --- PASS: TestValidateKeyOwnership_RejectsMalformedKey/#00 (0.00s)
+    --- PASS: TestValidateKeyOwnership_RejectsMalformedKey/foo/bar/baz (0.00s)
+    --- PASS: TestValidateKeyOwnership_RejectsMalformedKey/uploads/avatar/42/not-a-uuid.png (0.00s)
+    --- PASS: TestValidateKeyOwnership_RejectsMalformedKey/uploads/avatar/notanumber/abc-123.bin (0.00s)
+    --- PASS: TestValidateKeyOwnership_RejectsMalformedKey//uploads/avatar/42/abc-123.bin (0.00s)
+    --- PASS: TestValidateKeyOwnership_RejectsMalformedKey/uploads/avatar/42/abc-123.bin/extra (0.00s)
+    --- PASS: TestValidateKeyOwnership_RejectsMalformedKey/uploads/AVATAR/42/abc-123.bin (0.00s)
+=== RUN   TestCommitUploadedObject_RejectsBadKeyBeforeS3
+--- PASS: TestCommitUploadedObject_RejectsBadKeyBeforeS3 (0.00s)
+=== RUN   TestCreateUser_Success
+    user_connect_handler_integration_test.go:16: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestCreateUser_Success (0.00s)
+=== RUN   TestCreateUser_DuplicateEmail
+    user_connect_handler_integration_test.go:39: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestCreateUser_DuplicateEmail (0.00s)
+=== RUN   TestCreateUser_DuplicateUsername
+    user_connect_handler_integration_test.go:52: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestCreateUser_DuplicateUsername (0.00s)
+=== RUN   TestCreateUser_MissingPassword
+    user_connect_handler_integration_test.go:65: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestCreateUser_MissingPassword (0.00s)
+=== RUN   TestGetUser_Success
+    user_connect_handler_integration_test.go:77: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUser_Success (0.00s)
+=== RUN   TestGetUser_ByUsername
+    user_connect_handler_integration_test.go:93: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUser_ByUsername (0.00s)
+=== RUN   TestGetUser_NotFound
+    user_connect_handler_integration_test.go:109: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetUser_NotFound (0.00s)
+=== RUN   TestGetCurrentUser_Success
+    user_connect_handler_integration_test.go:119: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetCurrentUser_Success (0.00s)
+=== RUN   TestGetCurrentUser_Unauthenticated
+    user_connect_handler_integration_test.go:134: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestGetCurrentUser_Unauthenticated (0.00s)
+=== RUN   TestListUsers_Success
+    user_connect_handler_integration_test.go:142: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestListUsers_Success (0.00s)
+=== RUN   TestFollowUser_Success
+    user_connect_handler_integration_test.go:157: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestFollowUser_Success (0.00s)
+=== RUN   TestUnfollowUser_Success
+    user_connect_handler_integration_test.go:182: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestUnfollowUser_Success (0.00s)
+=== RUN   TestNormalizeVisibility
+=== RUN   TestNormalizeVisibility/mutuals_stays_mutuals
+=== RUN   TestNormalizeVisibility/public_stays_public
+=== RUN   TestNormalizeVisibility/unknown_defaults_to_public
+--- PASS: TestNormalizeVisibility (0.00s)
+    --- PASS: TestNormalizeVisibility/mutuals_stays_mutuals (0.00s)
+    --- PASS: TestNormalizeVisibility/public_stays_public (0.00s)
+    --- PASS: TestNormalizeVisibility/unknown_defaults_to_public (0.00s)
+=== RUN   TestVisibilityErrorMessage
+=== RUN   TestVisibilityErrorMessage/mutuals_reason_mentions_mutual
+=== RUN   TestVisibilityErrorMessage/followers_reason_mentions_followers
+--- PASS: TestVisibilityErrorMessage (0.00s)
+    --- PASS: TestVisibilityErrorMessage/mutuals_reason_mentions_mutual (0.00s)
+    --- PASS: TestVisibilityErrorMessage/followers_reason_mentions_followers (0.00s)
+=== RUN   TestVoteItem_Success
+    vote_connect_handler_integration_test.go:15: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestVoteItem_Success (0.00s)
+=== RUN   TestVoteItem_Unauthenticated
+    vote_connect_handler_integration_test.go:44: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestVoteItem_Unauthenticated (0.00s)
+=== RUN   TestVoteItem_MatchupNotFound
+    vote_connect_handler_integration_test.go:86: cannot connect to postgres for test setup: pq: role "cordelljenkins1914" does not exist (28000)
+--- FAIL: TestVoteItem_MatchupNotFound (0.00s)
+=== RUN   TestAASA_HappyPath
+--- PASS: TestAASA_HappyPath (0.00s)
+=== RUN   TestAASA_ClaimsExpectedPaths
+--- PASS: TestAASA_ClaimsExpectedPaths (0.00s)
+=== RUN   TestAASA_MissingEnvReturns404
+--- PASS: TestAASA_MissingEnvReturns404 (0.00s)
+=== RUN   TestAssetLinks_HappyPath
+--- PASS: TestAssetLinks_HappyPath (0.00s)
+=== RUN   TestAssetLinks_TolerantFingerprintParsing
+--- PASS: TestAssetLinks_TolerantFingerprintParsing (0.00s)
+=== RUN   TestAssetLinks_MissingEnvReturns404
+--- PASS: TestAssetLinks_MissingEnvReturns404 (0.00s)
+=== RUN   TestAssetLinks_EmptyFingerprintsReturn404
+--- PASS: TestAssetLinks_EmptyFingerprintsReturn404 (0.00s)
+FAIL
+FAIL	Matchup/controllers	1.012s
+=== RUN   TestIsCrawler
+=== RUN   TestIsCrawler/twitterbot
+=== RUN   TestIsCrawler/facebookexternalhit
+=== RUN   TestIsCrawler/facebot
+=== RUN   TestIsCrawler/slackbot-linkexpanding
+=== RUN   TestIsCrawler/slackbot-generic
+=== RUN   TestIsCrawler/discordbot
+=== RUN   TestIsCrawler/telegrambot
+=== RUN   TestIsCrawler/whatsapp
+=== RUN   TestIsCrawler/linkedinbot
+=== RUN   TestIsCrawler/applebot
+=== RUN   TestIsCrawler/redditbot
+=== RUN   TestIsCrawler/uppercase_twitterbot
+=== RUN   TestIsCrawler/chrome
+=== RUN   TestIsCrawler/firefox
+=== RUN   TestIsCrawler/safari-iphone
+=== RUN   TestIsCrawler/empty_ua
+=== RUN   TestIsCrawler/random_string
+--- PASS: TestIsCrawler (0.00s)
+    --- PASS: TestIsCrawler/twitterbot (0.00s)
+    --- PASS: TestIsCrawler/facebookexternalhit (0.00s)
+    --- PASS: TestIsCrawler/facebot (0.00s)
+    --- PASS: TestIsCrawler/slackbot-linkexpanding (0.00s)
+    --- PASS: TestIsCrawler/slackbot-generic (0.00s)
+    --- PASS: TestIsCrawler/discordbot (0.00s)
+    --- PASS: TestIsCrawler/telegrambot (0.00s)
+    --- PASS: TestIsCrawler/whatsapp (0.00s)
+    --- PASS: TestIsCrawler/linkedinbot (0.00s)
+    --- PASS: TestIsCrawler/applebot (0.00s)
+    --- PASS: TestIsCrawler/redditbot (0.00s)
+    --- PASS: TestIsCrawler/uppercase_twitterbot (0.00s)
+    --- PASS: TestIsCrawler/chrome (0.00s)
+    --- PASS: TestIsCrawler/firefox (0.00s)
+    --- PASS: TestIsCrawler/safari-iphone (0.00s)
+    --- PASS: TestIsCrawler/empty_ua (0.00s)
+    --- PASS: TestIsCrawler/random_string (0.00s)
+=== RUN   TestIsCrawler_MetaEscapeHatch
+--- PASS: TestIsCrawler_MetaEscapeHatch (0.00s)
+=== RUN   TestValidShortID
+=== RUN   TestValidShortID/all_lowercase
+=== RUN   TestValidShortID/all_uppercase
+=== RUN   TestValidShortID/all_digits
+=== RUN   TestValidShortID/mixed
+=== RUN   TestValidShortID/too_short
+=== RUN   TestValidShortID/too_long
+=== RUN   TestValidShortID/empty
+=== RUN   TestValidShortID/dash
+=== RUN   TestValidShortID/dot
+=== RUN   TestValidShortID/slash
+=== RUN   TestValidShortID/unicode
+=== RUN   TestValidShortID/sql_apostrophe
+--- PASS: TestValidShortID (0.00s)
+    --- PASS: TestValidShortID/all_lowercase (0.00s)
+    --- PASS: TestValidShortID/all_uppercase (0.00s)
+    --- PASS: TestValidShortID/all_digits (0.00s)
+    --- PASS: TestValidShortID/mixed (0.00s)
+    --- PASS: TestValidShortID/too_short (0.00s)
+    --- PASS: TestValidShortID/too_long (0.00s)
+    --- PASS: TestValidShortID/empty (0.00s)
+    --- PASS: TestValidShortID/dash (0.00s)
+    --- PASS: TestValidShortID/dot (0.00s)
+    --- PASS: TestValidShortID/slash (0.00s)
+    --- PASS: TestValidShortID/unicode (0.00s)
+    --- PASS: TestValidShortID/sql_apostrophe (0.00s)
+=== RUN   TestRenderOGHTML_Matchup_HasAllExpectedMetaTags
+--- PASS: TestRenderOGHTML_Matchup_HasAllExpectedMetaTags (0.00s)
+=== RUN   TestRenderOGHTML_Bracket_UsesBracketShortPath
+--- PASS: TestRenderOGHTML_Bracket_UsesBracketShortPath (0.00s)
+=== RUN   TestRenderOGHTML_EscapesUserInputTitle
+--- PASS: TestRenderOGHTML_EscapesUserInputTitle (0.00s)
+=== RUN   TestJSONEscape
+--- PASS: TestJSONEscape (0.00s)
+=== RUN   TestTruncateUnicode
+--- PASS: TestTruncateUnicode (0.00s)
+=== RUN   TestRender_Matchup_ShapeAndSize
+--- PASS: TestRender_Matchup_ShapeAndSize (0.77s)
+=== RUN   TestRender_Bracket_ShapeAndSize
+--- PASS: TestRender_Bracket_ShapeAndSize (0.71s)
+=== RUN   TestRender_EmptyTitleUsesFallback
+--- PASS: TestRender_EmptyTitleUsesFallback (0.52s)
+=== RUN   TestRender_LongTitleAutoFits
+--- PASS: TestRender_LongTitleAutoFits (0.54s)
+=== RUN   TestGradientFor_Stable
+--- PASS: TestGradientFor_Stable (0.00s)
+=== RUN   TestTruncate
+--- PASS: TestTruncate (0.00s)
+=== RUN   TestTokenBucket_AllowsUpToBurstThenRefills
+--- PASS: TestTokenBucket_AllowsUpToBurstThenRefills (0.00s)
+=== RUN   TestRateLimiter_PerShortIDIsolation
+--- PASS: TestRateLimiter_PerShortIDIsolation (0.00s)
+=== RUN   TestRateLimiter_GlobalRejectReason
+--- PASS: TestRateLimiter_GlobalRejectReason (0.00s)
+PASS
+ok  	Matchup/controllers/share	4.689s
+FAIL

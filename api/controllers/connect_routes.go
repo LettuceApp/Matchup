@@ -11,6 +11,7 @@ import (
 	"Matchup/gen/bracket/v1/bracketv1connect"
 	"Matchup/gen/comment/v1/commentv1connect"
 	"Matchup/gen/home/v1/homev1connect"
+	"Matchup/gen/itempool/v1/itempoolv1connect"
 	"Matchup/gen/like/v1/likev1connect"
 	"Matchup/gen/matchup/v1/matchupv1connect"
 	"Matchup/gen/user/v1/userv1connect"
@@ -53,6 +54,7 @@ func initializeConnectRoutes(r chi.Router, db, readDB *sqlx.DB, s3Client *s3.Cli
 	matchupHandler := &MatchupHandler{DB: db, ReadDB: readDB, S3Client: s3Client}
 	matchupItemHandler := &MatchupItemHandler{DB: db, ReadDB: readDB}
 	bracketHandler := &BracketHandler{DB: db, ReadDB: readDB}
+	itemPoolHandler := &ItemPoolHandler{DB: db, ReadDB: readDB}
 	commentHandler := &CommentHandler{DB: db, ReadDB: readDB}
 	likeHandler := &LikeHandler{DB: db, ReadDB: readDB}
 	homeHandler := &HomeHandler{DB: db, ReadDB: readDB}
@@ -99,6 +101,9 @@ func initializeConnectRoutes(r chi.Router, db, readDB *sqlx.DB, s3Client *s3.Cli
 		r.Mount(path, h)
 
 		path, h = bracketv1connect.NewBracketServiceHandler(bracketHandler, snakeCodec)
+		r.Mount(path, h)
+
+		path, h = itempoolv1connect.NewItemPoolServiceHandler(itemPoolHandler, snakeCodec)
 		r.Mount(path, h)
 
 		r.Get("/brackets/{bracketID}/events", bracketHandler.BracketEventsSSE)
