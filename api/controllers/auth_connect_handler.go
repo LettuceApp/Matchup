@@ -45,11 +45,29 @@ func (h *AuthHandler) Login(ctx context.Context, req *connect.Request[authv1.Log
 	if lookupErr != nil {
 		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("incorrect email or password"))
 	}
+	// Empty/short password column is a corruption signal — bcrypt
+	// errors out with "hashedSecret too short" instead of a clean
+	// mismatch, which the old code path bubbled up as a 500. We saw
+	// this in the wild on the admin account: the password column was
+	// somehow wiped, and every Logout → Login attempt afterwards hit
+	// the bcrypt error and crashed with 500 instead of returning a
+	// normal 401. Treat ANY non-mismatch bcrypt error the same as a
+	// regular wrong-password (don't leak the corrupted-row signal to
+	// the caller), but log loudly so ops can find the affected
+	// account and reset it via the forgot-password flow. Going
+	// forward, migration 033's CHECK constraint prevents the
+	// corruption in the first place — this branch is the
+	// belt-and-suspenders backstop.
 	if err := security.VerifyPassword(user.Password, req.Msg.Password); err != nil {
 		if err == bcrypt.ErrMismatchedHashAndPassword {
 			return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("incorrect email or password"))
 		}
-		return nil, connect.NewError(connect.CodeInternal, err)
+		// bcrypt.ErrHashTooShort, ErrHashVersionTooNew, etc. — the
+		// hash itself is malformed. Log the user_id (NOT the email,
+		// which leaks account existence to log scrapers) so an admin
+		// can investigate.
+		log.Printf("auth: corrupted password hash for user_id=%d: %v", user.ID, err)
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("incorrect email or password"))
 	}
 
 	token, err := auth.CreateToken(user.ID)
