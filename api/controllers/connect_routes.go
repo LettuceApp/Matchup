@@ -94,7 +94,12 @@ func initializeConnectRoutes(r chi.Router, db, readDB *sqlx.DB, s3Client *s3.Cli
 
 	// ---------- Mixed auth routes (auth optional — handlers check internally) ----------
 	r.Group(func(r chi.Router) {
-		r.Use(middlewares.SoftJWTMiddleware())
+		// SoftJWTWithAdmin (not plain SoftJWT) so the audience handlers
+		// on the matchup + bracket services can check
+		// httpctx.IsAdminRequest(ctx) to widen their owner gate.
+		// Anonymous traffic still skips the DB lookup; only authed
+		// requests pay one indexed SELECT to load is_admin.
+		r.Use(middlewares.SoftJWTWithAdminMiddleware(db))
 
 		path, h := matchupv1connect.NewMatchupServiceHandler(matchupHandler, snakeCodec)
 		r.Mount(path, h)

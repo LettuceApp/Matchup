@@ -392,6 +392,14 @@ export default function BracketPage() {
 
   const canEdit = isOwner || currentUser?.is_admin === true;
 
+  // Audience panel access — owners see their own audience as
+  // creator analytics; admins see it on any bracket as a moderation
+  // tool. Server enforces the same union via
+  // audience_handlers.go's owner-or-admin gate. Kept as a separate
+  // boolean from `canEdit` so future product changes can move them
+  // independently without grep-and-replace.
+  const canSeeAudience = isOwner || currentUser?.is_admin === true;
+
   /* ------------------------------------------------------------------ */
   /* ACTIONS */
   /* ------------------------------------------------------------------ */
@@ -728,12 +736,11 @@ export default function BracketPage() {
               can't use). */}
           {canEdit && (
             <div className="bracket-action-bar__owner">
-              {/* Likers panel — strict owner-only (not canEdit, which
-                  includes admins) per the "owner controls never
-                  bypass to admin" rule. The Connect-RPC server is
-                  the backstop; this gate just hides the affordance
-                  from admins who'd get a 403 anyway. */}
-              {isOwner && (
+              {/* Likers panel — owner OR admin. Audience identities
+                  are legitimate moderation-triage data, so the
+                  admin escape applies here (distinct from the
+                  owner-only edit controls below). */}
+              {canSeeAudience && (
                 <button
                   type="button"
                   onClick={openLikersPanel}
