@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	userv1 "Matchup/gen/user/v1"
@@ -61,7 +62,12 @@ func (h *UserHandler) DeleteMyAccount(ctx context.Context, req *connect.Request[
 		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
 			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("password incorrect"))
 		}
-		return nil, connect.NewError(connect.CodeInternal, err)
+		// Corrupted hash (e.g. ErrHashTooShort) — same posture as the
+		// Login handler: log loudly, surface a clean 401 instead of a
+		// 500. The user needs to reset via forgot-password before
+		// they can delete the account.
+		log.Printf("delete-account: corrupted password hash for user_id=%d: %v", uid, err)
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("password incorrect"))
 	}
 
 	// Reason is optional; nil means NULL in the column.
