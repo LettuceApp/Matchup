@@ -42,12 +42,35 @@ const LoginPage = () => {
         // Falls back to /home when the user came here directly.
         navigate(from, { replace: true });
       } else {
-        console.error('Token or User ID is missing in response');
-        setError('Login failed. Please try again.');
+        // Server returned 200 but the response is missing the access
+        // token or user id — should never happen on a healthy backend,
+        // but surfacing the actual payload shape helps diagnose if it
+        // does (e.g. a proto-mapping regression silently strips fields).
+        console.error('Login response missing token/id:', payload);
+        setError('Login response missing fields. Open DevTools console for details.');
       }
     } catch (err) {
-      console.error('Login error:', err.response ? err.response.data : err.message);
-      setError('Login failed. Please check your credentials and try again.');
+      // Surface the SPECIFIC server message instead of the generic
+      // "check your credentials" line. Connect-RPC's error body shape
+      // is { code, message }; axios puts it on err.response.data. If
+      // the call failed at the network layer (no response), fall back
+      // to err.message. Logging the full error object too so DevTools
+      // has the stack + raw response when the user reports a bug.
+      console.error('[login]', err);
+      const serverMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        '';
+      const code = err?.response?.data?.code;
+      const status = err?.response?.status;
+      if (serverMsg) {
+        setError(`Login failed: ${serverMsg}${code ? ` (${code})` : ''}`);
+      } else if (status) {
+        setError(`Login failed (HTTP ${status}). Try again or check DevTools.`);
+      } else {
+        setError('Login failed. Check your network connection and try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }
