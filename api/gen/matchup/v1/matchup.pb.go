@@ -2513,6 +2513,258 @@ func (x *GetAnonVoteStatusResponse) GetMax() int32 {
 	return 0
 }
 
+// MatchupVoter — one entry in the owner-visible "who voted" list.
+// `user` is the voter's public identity (id, username, avatar). The
+// picked_item_label is the verbatim text label of whichever item
+// they currently have selected (vote-switching is supported, so
+// this is the LATEST pick, not a historical record). Anon voters
+// are NOT represented here — they're collapsed into anon_count on
+// the response below, per the "anons as one entity" design.
+type MatchupVoter struct {
+	state           protoimpl.MessageState  `protogen:"open.v1"`
+	User            *v1.UserSummaryResponse `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	PickedItemLabel string                  `protobuf:"bytes,2,opt,name=picked_item_label,json=pickedItemLabel,proto3" json:"picked_item_label,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *MatchupVoter) Reset() {
+	*x = MatchupVoter{}
+	mi := &file_matchup_v1_matchup_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MatchupVoter) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MatchupVoter) ProtoMessage() {}
+
+func (x *MatchupVoter) ProtoReflect() protoreflect.Message {
+	mi := &file_matchup_v1_matchup_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MatchupVoter.ProtoReflect.Descriptor instead.
+func (*MatchupVoter) Descriptor() ([]byte, []int) {
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *MatchupVoter) GetUser() *v1.UserSummaryResponse {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+func (x *MatchupVoter) GetPickedItemLabel() string {
+	if x != nil {
+		return x.PickedItemLabel
+	}
+	return ""
+}
+
+type GetMatchupVotersRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Matchup public_id (UUID), same identifier shape the rest of the
+	// matchup endpoints accept.
+	MatchupId     string `protobuf:"bytes,1,opt,name=matchup_id,json=matchupId,proto3" json:"matchup_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetMatchupVotersRequest) Reset() {
+	*x = GetMatchupVotersRequest{}
+	mi := &file_matchup_v1_matchup_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMatchupVotersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMatchupVotersRequest) ProtoMessage() {}
+
+func (x *GetMatchupVotersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_matchup_v1_matchup_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMatchupVotersRequest.ProtoReflect.Descriptor instead.
+func (*GetMatchupVotersRequest) Descriptor() ([]byte, []int) {
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *GetMatchupVotersRequest) GetMatchupId() string {
+	if x != nil {
+		return x.MatchupId
+	}
+	return ""
+}
+
+type GetMatchupVotersResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Named voters in descending vote recency. Order helps owners spot
+	// the most recently engaged users at the top of the panel.
+	Voters []*MatchupVoter `protobuf:"bytes,1,rep,name=voters,proto3" json:"voters,omitempty"`
+	// Count of anonymous voters on this matchup. Rendered as a single
+	// grouped row in the UI ("X anonymous voters") rather than N
+	// identical silhouette entries.
+	AnonCount     int32 `protobuf:"varint,2,opt,name=anon_count,json=anonCount,proto3" json:"anon_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetMatchupVotersResponse) Reset() {
+	*x = GetMatchupVotersResponse{}
+	mi := &file_matchup_v1_matchup_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMatchupVotersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMatchupVotersResponse) ProtoMessage() {}
+
+func (x *GetMatchupVotersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_matchup_v1_matchup_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMatchupVotersResponse.ProtoReflect.Descriptor instead.
+func (*GetMatchupVotersResponse) Descriptor() ([]byte, []int) {
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *GetMatchupVotersResponse) GetVoters() []*MatchupVoter {
+	if x != nil {
+		return x.Voters
+	}
+	return nil
+}
+
+func (x *GetMatchupVotersResponse) GetAnonCount() int32 {
+	if x != nil {
+		return x.AnonCount
+	}
+	return 0
+}
+
+type GetMatchupLikersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MatchupId     string                 `protobuf:"bytes,1,opt,name=matchup_id,json=matchupId,proto3" json:"matchup_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetMatchupLikersRequest) Reset() {
+	*x = GetMatchupLikersRequest{}
+	mi := &file_matchup_v1_matchup_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMatchupLikersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMatchupLikersRequest) ProtoMessage() {}
+
+func (x *GetMatchupLikersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_matchup_v1_matchup_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMatchupLikersRequest.ProtoReflect.Descriptor instead.
+func (*GetMatchupLikersRequest) Descriptor() ([]byte, []int) {
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *GetMatchupLikersRequest) GetMatchupId() string {
+	if x != nil {
+		return x.MatchupId
+	}
+	return ""
+}
+
+type GetMatchupLikersResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Named likers in descending like recency. Same order semantics
+	// as the voters list.
+	Likers        []*v1.UserSummaryResponse `protobuf:"bytes,1,rep,name=likers,proto3" json:"likers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetMatchupLikersResponse) Reset() {
+	*x = GetMatchupLikersResponse{}
+	mi := &file_matchup_v1_matchup_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMatchupLikersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMatchupLikersResponse) ProtoMessage() {}
+
+func (x *GetMatchupLikersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_matchup_v1_matchup_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMatchupLikersResponse.ProtoReflect.Descriptor instead.
+func (*GetMatchupLikersResponse) Descriptor() ([]byte, []int) {
+	return file_matchup_v1_matchup_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *GetMatchupLikersResponse) GetLikers() []*v1.UserSummaryResponse {
+	if x != nil {
+		return x.Likers
+	}
+	return nil
+}
+
 var File_matchup_v1_matchup_proto protoreflect.FileDescriptor
 
 const file_matchup_v1_matchup_proto_rawDesc = "" +
@@ -2747,7 +2999,22 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\aanon_id\x18\x01 \x01(\tR\x06anonId\"A\n" +
 	"\x19GetAnonVoteStatusResponse\x12\x12\n" +
 	"\x04used\x18\x01 \x01(\x05R\x04used\x12\x10\n" +
-	"\x03max\x18\x02 \x01(\x05R\x03max2\xf2\a\n" +
+	"\x03max\x18\x02 \x01(\x05R\x03max\"n\n" +
+	"\fMatchupVoter\x122\n" +
+	"\x04user\x18\x01 \x01(\v2\x1e.common.v1.UserSummaryResponseR\x04user\x12*\n" +
+	"\x11picked_item_label\x18\x02 \x01(\tR\x0fpickedItemLabel\"8\n" +
+	"\x17GetMatchupVotersRequest\x12\x1d\n" +
+	"\n" +
+	"matchup_id\x18\x01 \x01(\tR\tmatchupId\"k\n" +
+	"\x18GetMatchupVotersResponse\x120\n" +
+	"\x06voters\x18\x01 \x03(\v2\x18.matchup.v1.MatchupVoterR\x06voters\x12\x1d\n" +
+	"\n" +
+	"anon_count\x18\x02 \x01(\x05R\tanonCount\"8\n" +
+	"\x17GetMatchupLikersRequest\x12\x1d\n" +
+	"\n" +
+	"matchup_id\x18\x01 \x01(\tR\tmatchupId\"R\n" +
+	"\x18GetMatchupLikersResponse\x126\n" +
+	"\x06likers\x18\x01 \x03(\v2\x1e.common.v1.UserSummaryResponseR\x06likers2\xb0\t\n" +
 	"\x0eMatchupService\x12Q\n" +
 	"\fListMatchups\x12\x1f.matchup.v1.ListMatchupsRequest\x1a .matchup.v1.ListMatchupsResponse\x12K\n" +
 	"\n" +
@@ -2760,7 +3027,9 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\x15OverrideMatchupWinner\x12(.matchup.v1.OverrideMatchupWinnerRequest\x1a).matchup.v1.OverrideMatchupWinnerResponse\x12Z\n" +
 	"\x0fCompleteMatchup\x12\".matchup.v1.CompleteMatchupRequest\x1a#.matchup.v1.CompleteMatchupResponse\x12W\n" +
 	"\x0eReadyUpMatchup\x12!.matchup.v1.ReadyUpMatchupRequest\x1a\".matchup.v1.ReadyUpMatchupResponse\x12Z\n" +
-	"\x0fActivateMatchup\x12\".matchup.v1.ActivateMatchupRequest\x1a#.matchup.v1.ActivateMatchupResponse2\xbe\x04\n" +
+	"\x0fActivateMatchup\x12\".matchup.v1.ActivateMatchupRequest\x1a#.matchup.v1.ActivateMatchupResponse\x12]\n" +
+	"\x10GetMatchupVoters\x12#.matchup.v1.GetMatchupVotersRequest\x1a$.matchup.v1.GetMatchupVotersResponse\x12]\n" +
+	"\x10GetMatchupLikers\x12#.matchup.v1.GetMatchupLikersRequest\x1a$.matchup.v1.GetMatchupLikersResponse2\xbe\x04\n" +
 	"\x12MatchupItemService\x12B\n" +
 	"\aAddItem\x12\x1a.matchup.v1.AddItemRequest\x1a\x1b.matchup.v1.AddItemResponse\x12K\n" +
 	"\n" +
@@ -2784,7 +3053,7 @@ func file_matchup_v1_matchup_proto_rawDescGZIP() []byte {
 	return file_matchup_v1_matchup_proto_rawDescData
 }
 
-var file_matchup_v1_matchup_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
+var file_matchup_v1_matchup_proto_msgTypes = make([]protoimpl.MessageInfo, 46)
 var file_matchup_v1_matchup_proto_goTypes = []any{
 	(*MatchupData)(nil),                   // 0: matchup.v1.MatchupData
 	(*CommentData)(nil),                   // 1: matchup.v1.CommentData
@@ -2827,70 +3096,82 @@ var file_matchup_v1_matchup_proto_goTypes = []any{
 	(*GetUserVotesResponse)(nil),          // 38: matchup.v1.GetUserVotesResponse
 	(*GetAnonVoteStatusRequest)(nil),      // 39: matchup.v1.GetAnonVoteStatusRequest
 	(*GetAnonVoteStatusResponse)(nil),     // 40: matchup.v1.GetAnonVoteStatusResponse
-	(*v1.UserSummaryResponse)(nil),        // 41: common.v1.UserSummaryResponse
-	(*v1.MatchupItemResponse)(nil),        // 42: common.v1.MatchupItemResponse
-	(*v1.Pagination)(nil),                 // 43: common.v1.Pagination
+	(*MatchupVoter)(nil),                  // 41: matchup.v1.MatchupVoter
+	(*GetMatchupVotersRequest)(nil),       // 42: matchup.v1.GetMatchupVotersRequest
+	(*GetMatchupVotersResponse)(nil),      // 43: matchup.v1.GetMatchupVotersResponse
+	(*GetMatchupLikersRequest)(nil),       // 44: matchup.v1.GetMatchupLikersRequest
+	(*GetMatchupLikersResponse)(nil),      // 45: matchup.v1.GetMatchupLikersResponse
+	(*v1.UserSummaryResponse)(nil),        // 46: common.v1.UserSummaryResponse
+	(*v1.MatchupItemResponse)(nil),        // 47: common.v1.MatchupItemResponse
+	(*v1.Pagination)(nil),                 // 48: common.v1.Pagination
 }
 var file_matchup_v1_matchup_proto_depIdxs = []int32{
-	41, // 0: matchup.v1.MatchupData.author:type_name -> common.v1.UserSummaryResponse
-	42, // 1: matchup.v1.MatchupData.items:type_name -> common.v1.MatchupItemResponse
+	46, // 0: matchup.v1.MatchupData.author:type_name -> common.v1.UserSummaryResponse
+	47, // 1: matchup.v1.MatchupData.items:type_name -> common.v1.MatchupItemResponse
 	1,  // 2: matchup.v1.MatchupData.comments:type_name -> matchup.v1.CommentData
 	8,  // 3: matchup.v1.CreateMatchupRequest.items:type_name -> matchup.v1.MatchupItemCreate
 	0,  // 4: matchup.v1.ListMatchupsResponse.matchups:type_name -> matchup.v1.MatchupData
-	43, // 5: matchup.v1.ListMatchupsResponse.pagination:type_name -> common.v1.Pagination
+	48, // 5: matchup.v1.ListMatchupsResponse.pagination:type_name -> common.v1.Pagination
 	0,  // 6: matchup.v1.GetMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
 	2,  // 7: matchup.v1.GetPopularMatchupsResponse.matchups:type_name -> matchup.v1.PopularMatchupData
 	0,  // 8: matchup.v1.GetUserMatchupsResponse.matchups:type_name -> matchup.v1.MatchupData
-	43, // 9: matchup.v1.GetUserMatchupsResponse.pagination:type_name -> common.v1.Pagination
+	48, // 9: matchup.v1.GetUserMatchupsResponse.pagination:type_name -> common.v1.Pagination
 	0,  // 10: matchup.v1.CreateMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
 	0,  // 11: matchup.v1.UpdateMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
 	0,  // 12: matchup.v1.ReadyUpMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
 	0,  // 13: matchup.v1.ActivateMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
-	42, // 14: matchup.v1.AddItemResponse.item:type_name -> common.v1.MatchupItemResponse
-	42, // 15: matchup.v1.UpdateItemResponse.item:type_name -> common.v1.MatchupItemResponse
-	42, // 16: matchup.v1.VoteItemResponse.item:type_name -> common.v1.MatchupItemResponse
+	47, // 14: matchup.v1.AddItemResponse.item:type_name -> common.v1.MatchupItemResponse
+	47, // 15: matchup.v1.UpdateItemResponse.item:type_name -> common.v1.MatchupItemResponse
+	47, // 16: matchup.v1.VoteItemResponse.item:type_name -> common.v1.MatchupItemResponse
 	3,  // 17: matchup.v1.GetUserVotesResponse.votes:type_name -> matchup.v1.MatchupVoteData
-	4,  // 18: matchup.v1.MatchupService.ListMatchups:input_type -> matchup.v1.ListMatchupsRequest
-	5,  // 19: matchup.v1.MatchupService.GetMatchup:input_type -> matchup.v1.GetMatchupRequest
-	6,  // 20: matchup.v1.MatchupService.GetPopularMatchups:input_type -> matchup.v1.GetPopularMatchupsRequest
-	7,  // 21: matchup.v1.MatchupService.GetUserMatchups:input_type -> matchup.v1.GetUserMatchupsRequest
-	9,  // 22: matchup.v1.MatchupService.CreateMatchup:input_type -> matchup.v1.CreateMatchupRequest
-	10, // 23: matchup.v1.MatchupService.UpdateMatchup:input_type -> matchup.v1.UpdateMatchupRequest
-	11, // 24: matchup.v1.MatchupService.DeleteMatchup:input_type -> matchup.v1.DeleteMatchupRequest
-	12, // 25: matchup.v1.MatchupService.OverrideMatchupWinner:input_type -> matchup.v1.OverrideMatchupWinnerRequest
-	13, // 26: matchup.v1.MatchupService.CompleteMatchup:input_type -> matchup.v1.CompleteMatchupRequest
-	14, // 27: matchup.v1.MatchupService.ReadyUpMatchup:input_type -> matchup.v1.ReadyUpMatchupRequest
-	15, // 28: matchup.v1.MatchupService.ActivateMatchup:input_type -> matchup.v1.ActivateMatchupRequest
-	16, // 29: matchup.v1.MatchupItemService.AddItem:input_type -> matchup.v1.AddItemRequest
-	17, // 30: matchup.v1.MatchupItemService.UpdateItem:input_type -> matchup.v1.UpdateItemRequest
-	18, // 31: matchup.v1.MatchupItemService.DeleteItem:input_type -> matchup.v1.DeleteItemRequest
-	19, // 32: matchup.v1.MatchupItemService.VoteItem:input_type -> matchup.v1.VoteItemRequest
-	20, // 33: matchup.v1.MatchupItemService.SkipMatchup:input_type -> matchup.v1.SkipMatchupRequest
-	21, // 34: matchup.v1.MatchupItemService.GetUserVotes:input_type -> matchup.v1.GetUserVotesRequest
-	39, // 35: matchup.v1.MatchupItemService.GetAnonVoteStatus:input_type -> matchup.v1.GetAnonVoteStatusRequest
-	22, // 36: matchup.v1.MatchupService.ListMatchups:output_type -> matchup.v1.ListMatchupsResponse
-	23, // 37: matchup.v1.MatchupService.GetMatchup:output_type -> matchup.v1.GetMatchupResponse
-	24, // 38: matchup.v1.MatchupService.GetPopularMatchups:output_type -> matchup.v1.GetPopularMatchupsResponse
-	25, // 39: matchup.v1.MatchupService.GetUserMatchups:output_type -> matchup.v1.GetUserMatchupsResponse
-	26, // 40: matchup.v1.MatchupService.CreateMatchup:output_type -> matchup.v1.CreateMatchupResponse
-	27, // 41: matchup.v1.MatchupService.UpdateMatchup:output_type -> matchup.v1.UpdateMatchupResponse
-	28, // 42: matchup.v1.MatchupService.DeleteMatchup:output_type -> matchup.v1.DeleteMatchupResponse
-	29, // 43: matchup.v1.MatchupService.OverrideMatchupWinner:output_type -> matchup.v1.OverrideMatchupWinnerResponse
-	30, // 44: matchup.v1.MatchupService.CompleteMatchup:output_type -> matchup.v1.CompleteMatchupResponse
-	31, // 45: matchup.v1.MatchupService.ReadyUpMatchup:output_type -> matchup.v1.ReadyUpMatchupResponse
-	32, // 46: matchup.v1.MatchupService.ActivateMatchup:output_type -> matchup.v1.ActivateMatchupResponse
-	33, // 47: matchup.v1.MatchupItemService.AddItem:output_type -> matchup.v1.AddItemResponse
-	34, // 48: matchup.v1.MatchupItemService.UpdateItem:output_type -> matchup.v1.UpdateItemResponse
-	35, // 49: matchup.v1.MatchupItemService.DeleteItem:output_type -> matchup.v1.DeleteItemResponse
-	36, // 50: matchup.v1.MatchupItemService.VoteItem:output_type -> matchup.v1.VoteItemResponse
-	37, // 51: matchup.v1.MatchupItemService.SkipMatchup:output_type -> matchup.v1.SkipMatchupResponse
-	38, // 52: matchup.v1.MatchupItemService.GetUserVotes:output_type -> matchup.v1.GetUserVotesResponse
-	40, // 53: matchup.v1.MatchupItemService.GetAnonVoteStatus:output_type -> matchup.v1.GetAnonVoteStatusResponse
-	36, // [36:54] is the sub-list for method output_type
-	18, // [18:36] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	46, // 18: matchup.v1.MatchupVoter.user:type_name -> common.v1.UserSummaryResponse
+	41, // 19: matchup.v1.GetMatchupVotersResponse.voters:type_name -> matchup.v1.MatchupVoter
+	46, // 20: matchup.v1.GetMatchupLikersResponse.likers:type_name -> common.v1.UserSummaryResponse
+	4,  // 21: matchup.v1.MatchupService.ListMatchups:input_type -> matchup.v1.ListMatchupsRequest
+	5,  // 22: matchup.v1.MatchupService.GetMatchup:input_type -> matchup.v1.GetMatchupRequest
+	6,  // 23: matchup.v1.MatchupService.GetPopularMatchups:input_type -> matchup.v1.GetPopularMatchupsRequest
+	7,  // 24: matchup.v1.MatchupService.GetUserMatchups:input_type -> matchup.v1.GetUserMatchupsRequest
+	9,  // 25: matchup.v1.MatchupService.CreateMatchup:input_type -> matchup.v1.CreateMatchupRequest
+	10, // 26: matchup.v1.MatchupService.UpdateMatchup:input_type -> matchup.v1.UpdateMatchupRequest
+	11, // 27: matchup.v1.MatchupService.DeleteMatchup:input_type -> matchup.v1.DeleteMatchupRequest
+	12, // 28: matchup.v1.MatchupService.OverrideMatchupWinner:input_type -> matchup.v1.OverrideMatchupWinnerRequest
+	13, // 29: matchup.v1.MatchupService.CompleteMatchup:input_type -> matchup.v1.CompleteMatchupRequest
+	14, // 30: matchup.v1.MatchupService.ReadyUpMatchup:input_type -> matchup.v1.ReadyUpMatchupRequest
+	15, // 31: matchup.v1.MatchupService.ActivateMatchup:input_type -> matchup.v1.ActivateMatchupRequest
+	42, // 32: matchup.v1.MatchupService.GetMatchupVoters:input_type -> matchup.v1.GetMatchupVotersRequest
+	44, // 33: matchup.v1.MatchupService.GetMatchupLikers:input_type -> matchup.v1.GetMatchupLikersRequest
+	16, // 34: matchup.v1.MatchupItemService.AddItem:input_type -> matchup.v1.AddItemRequest
+	17, // 35: matchup.v1.MatchupItemService.UpdateItem:input_type -> matchup.v1.UpdateItemRequest
+	18, // 36: matchup.v1.MatchupItemService.DeleteItem:input_type -> matchup.v1.DeleteItemRequest
+	19, // 37: matchup.v1.MatchupItemService.VoteItem:input_type -> matchup.v1.VoteItemRequest
+	20, // 38: matchup.v1.MatchupItemService.SkipMatchup:input_type -> matchup.v1.SkipMatchupRequest
+	21, // 39: matchup.v1.MatchupItemService.GetUserVotes:input_type -> matchup.v1.GetUserVotesRequest
+	39, // 40: matchup.v1.MatchupItemService.GetAnonVoteStatus:input_type -> matchup.v1.GetAnonVoteStatusRequest
+	22, // 41: matchup.v1.MatchupService.ListMatchups:output_type -> matchup.v1.ListMatchupsResponse
+	23, // 42: matchup.v1.MatchupService.GetMatchup:output_type -> matchup.v1.GetMatchupResponse
+	24, // 43: matchup.v1.MatchupService.GetPopularMatchups:output_type -> matchup.v1.GetPopularMatchupsResponse
+	25, // 44: matchup.v1.MatchupService.GetUserMatchups:output_type -> matchup.v1.GetUserMatchupsResponse
+	26, // 45: matchup.v1.MatchupService.CreateMatchup:output_type -> matchup.v1.CreateMatchupResponse
+	27, // 46: matchup.v1.MatchupService.UpdateMatchup:output_type -> matchup.v1.UpdateMatchupResponse
+	28, // 47: matchup.v1.MatchupService.DeleteMatchup:output_type -> matchup.v1.DeleteMatchupResponse
+	29, // 48: matchup.v1.MatchupService.OverrideMatchupWinner:output_type -> matchup.v1.OverrideMatchupWinnerResponse
+	30, // 49: matchup.v1.MatchupService.CompleteMatchup:output_type -> matchup.v1.CompleteMatchupResponse
+	31, // 50: matchup.v1.MatchupService.ReadyUpMatchup:output_type -> matchup.v1.ReadyUpMatchupResponse
+	32, // 51: matchup.v1.MatchupService.ActivateMatchup:output_type -> matchup.v1.ActivateMatchupResponse
+	43, // 52: matchup.v1.MatchupService.GetMatchupVoters:output_type -> matchup.v1.GetMatchupVotersResponse
+	45, // 53: matchup.v1.MatchupService.GetMatchupLikers:output_type -> matchup.v1.GetMatchupLikersResponse
+	33, // 54: matchup.v1.MatchupItemService.AddItem:output_type -> matchup.v1.AddItemResponse
+	34, // 55: matchup.v1.MatchupItemService.UpdateItem:output_type -> matchup.v1.UpdateItemResponse
+	35, // 56: matchup.v1.MatchupItemService.DeleteItem:output_type -> matchup.v1.DeleteItemResponse
+	36, // 57: matchup.v1.MatchupItemService.VoteItem:output_type -> matchup.v1.VoteItemResponse
+	37, // 58: matchup.v1.MatchupItemService.SkipMatchup:output_type -> matchup.v1.SkipMatchupResponse
+	38, // 59: matchup.v1.MatchupItemService.GetUserVotes:output_type -> matchup.v1.GetUserVotesResponse
+	40, // 60: matchup.v1.MatchupItemService.GetAnonVoteStatus:output_type -> matchup.v1.GetAnonVoteStatusResponse
+	41, // [41:61] is the sub-list for method output_type
+	21, // [21:41] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_matchup_v1_matchup_proto_init() }
@@ -2916,7 +3197,7 @@ func file_matchup_v1_matchup_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_matchup_v1_matchup_proto_rawDesc), len(file_matchup_v1_matchup_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   41,
+			NumMessages:   46,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

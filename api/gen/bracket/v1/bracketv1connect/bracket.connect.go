@@ -72,6 +72,9 @@ const (
 	// BracketServiceInternalAdvanceBracketProcedure is the fully-qualified name of the BracketService's
 	// InternalAdvanceBracket RPC.
 	BracketServiceInternalAdvanceBracketProcedure = "/bracket.v1.BracketService/InternalAdvanceBracket"
+	// BracketServiceGetBracketLikersProcedure is the fully-qualified name of the BracketService's
+	// GetBracketLikers RPC.
+	BracketServiceGetBracketLikersProcedure = "/bracket.v1.BracketService/GetBracketLikers"
 )
 
 // BracketServiceClient is a client for the bracket.v1.BracketService service.
@@ -89,6 +92,13 @@ type BracketServiceClient interface {
 	AdvanceBracket(context.Context, *connect.Request[v1.AdvanceBracketRequest]) (*connect.Response[v1.AdvanceBracketResponse], error)
 	ResolveTieAndAdvance(context.Context, *connect.Request[v1.ResolveTieAndAdvanceRequest]) (*connect.Response[v1.ResolveTieAndAdvanceResponse], error)
 	InternalAdvanceBracket(context.Context, *connect.Request[v1.InternalAdvanceBracketRequest]) (*connect.Response[v1.InternalAdvanceBracketResponse], error)
+	// Owner-only liker list, same posture as the matchup version. By
+	// explicit product decision we do NOT expose individual voters on
+	// brackets — the surface is huge (size × rounds × matchups) and
+	// creators care about cumulative engagement, not per-matchup
+	// identity. Bracket vote totals (cumulative + per child matchup)
+	// are exposed via existing total_votes fields below.
+	GetBracketLikers(context.Context, *connect.Request[v1.GetBracketLikersRequest]) (*connect.Response[v1.GetBracketLikersResponse], error)
 }
 
 // NewBracketServiceClient constructs a client for the bracket.v1.BracketService service. By
@@ -180,6 +190,12 @@ func NewBracketServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(bracketServiceMethods.ByName("InternalAdvanceBracket")),
 			connect.WithClientOptions(opts...),
 		),
+		getBracketLikers: connect.NewClient[v1.GetBracketLikersRequest, v1.GetBracketLikersResponse](
+			httpClient,
+			baseURL+BracketServiceGetBracketLikersProcedure,
+			connect.WithSchema(bracketServiceMethods.ByName("GetBracketLikers")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -198,6 +214,7 @@ type bracketServiceClient struct {
 	advanceBracket         *connect.Client[v1.AdvanceBracketRequest, v1.AdvanceBracketResponse]
 	resolveTieAndAdvance   *connect.Client[v1.ResolveTieAndAdvanceRequest, v1.ResolveTieAndAdvanceResponse]
 	internalAdvanceBracket *connect.Client[v1.InternalAdvanceBracketRequest, v1.InternalAdvanceBracketResponse]
+	getBracketLikers       *connect.Client[v1.GetBracketLikersRequest, v1.GetBracketLikersResponse]
 }
 
 // GetPopularBrackets calls bracket.v1.BracketService.GetPopularBrackets.
@@ -265,6 +282,11 @@ func (c *bracketServiceClient) InternalAdvanceBracket(ctx context.Context, req *
 	return c.internalAdvanceBracket.CallUnary(ctx, req)
 }
 
+// GetBracketLikers calls bracket.v1.BracketService.GetBracketLikers.
+func (c *bracketServiceClient) GetBracketLikers(ctx context.Context, req *connect.Request[v1.GetBracketLikersRequest]) (*connect.Response[v1.GetBracketLikersResponse], error) {
+	return c.getBracketLikers.CallUnary(ctx, req)
+}
+
 // BracketServiceHandler is an implementation of the bracket.v1.BracketService service.
 type BracketServiceHandler interface {
 	GetPopularBrackets(context.Context, *connect.Request[v1.GetPopularBracketsRequest]) (*connect.Response[v1.GetPopularBracketsResponse], error)
@@ -280,6 +302,13 @@ type BracketServiceHandler interface {
 	AdvanceBracket(context.Context, *connect.Request[v1.AdvanceBracketRequest]) (*connect.Response[v1.AdvanceBracketResponse], error)
 	ResolveTieAndAdvance(context.Context, *connect.Request[v1.ResolveTieAndAdvanceRequest]) (*connect.Response[v1.ResolveTieAndAdvanceResponse], error)
 	InternalAdvanceBracket(context.Context, *connect.Request[v1.InternalAdvanceBracketRequest]) (*connect.Response[v1.InternalAdvanceBracketResponse], error)
+	// Owner-only liker list, same posture as the matchup version. By
+	// explicit product decision we do NOT expose individual voters on
+	// brackets — the surface is huge (size × rounds × matchups) and
+	// creators care about cumulative engagement, not per-matchup
+	// identity. Bracket vote totals (cumulative + per child matchup)
+	// are exposed via existing total_votes fields below.
+	GetBracketLikers(context.Context, *connect.Request[v1.GetBracketLikersRequest]) (*connect.Response[v1.GetBracketLikersResponse], error)
 }
 
 // NewBracketServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -367,6 +396,12 @@ func NewBracketServiceHandler(svc BracketServiceHandler, opts ...connect.Handler
 		connect.WithSchema(bracketServiceMethods.ByName("InternalAdvanceBracket")),
 		connect.WithHandlerOptions(opts...),
 	)
+	bracketServiceGetBracketLikersHandler := connect.NewUnaryHandler(
+		BracketServiceGetBracketLikersProcedure,
+		svc.GetBracketLikers,
+		connect.WithSchema(bracketServiceMethods.ByName("GetBracketLikers")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/bracket.v1.BracketService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case BracketServiceGetPopularBracketsProcedure:
@@ -395,6 +430,8 @@ func NewBracketServiceHandler(svc BracketServiceHandler, opts ...connect.Handler
 			bracketServiceResolveTieAndAdvanceHandler.ServeHTTP(w, r)
 		case BracketServiceInternalAdvanceBracketProcedure:
 			bracketServiceInternalAdvanceBracketHandler.ServeHTTP(w, r)
+		case BracketServiceGetBracketLikersProcedure:
+			bracketServiceGetBracketLikersHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -454,4 +491,8 @@ func (UnimplementedBracketServiceHandler) ResolveTieAndAdvance(context.Context, 
 
 func (UnimplementedBracketServiceHandler) InternalAdvanceBracket(context.Context, *connect.Request[v1.InternalAdvanceBracketRequest]) (*connect.Response[v1.InternalAdvanceBracketResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bracket.v1.BracketService.InternalAdvanceBracket is not implemented"))
+}
+
+func (UnimplementedBracketServiceHandler) GetBracketLikers(context.Context, *connect.Request[v1.GetBracketLikersRequest]) (*connect.Response[v1.GetBracketLikersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("bracket.v1.BracketService.GetBracketLikers is not implemented"))
 }

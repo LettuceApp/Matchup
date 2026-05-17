@@ -16,6 +16,13 @@ service MatchupService {
   rpc CompleteMatchup(CompleteMatchupRequest) returns (CompleteMatchupResponse);
   rpc ReadyUpMatchup(ReadyUpMatchupRequest) returns (ReadyUpMatchupResponse);
   rpc ActivateMatchup(ActivateMatchupRequest) returns (ActivateMatchupResponse);
+
+  // Owner-only audience listings — surfaced as "who voted" + "who
+  // liked" panels on the matchup detail page. Both reject non-owner
+  // callers with PermissionDenied; admins do NOT bypass (per the
+  // "owner controls are owner-only" rule).
+  rpc GetMatchupVoters(GetMatchupVotersRequest) returns (GetMatchupVotersResponse);
+  rpc GetMatchupLikers(GetMatchupLikersRequest) returns (GetMatchupLikersResponse);
 }
 
 service MatchupItemService {
@@ -344,4 +351,40 @@ message GetAnonVoteStatusRequest {
 message GetAnonVoteStatusResponse {
   int32 used = 1;
   int32 max = 2;
+}
+
+// MatchupVoter — one entry in the owner-visible "who voted" list.
+// `user` is the voter's public identity (id, username, avatar). The
+// picked_item_label is the verbatim text label of whichever item
+// they currently have selected (vote-switching is supported, so
+// this is the LATEST pick, not a historical record). Anon voters
+// are NOT represented here — they're collapsed into anon_count on
+// the response below, per the "anons as one entity" design.
+message MatchupVoter {
+  common.v1.UserSummaryResponse user = 1;
+  string picked_item_label = 2;
+}
+
+message GetMatchupVotersRequest {
+  // Matchup public_id (UUID), same identifier shape the rest of the
+  // matchup endpoints accept.
+  string matchup_id = 1;
+}
+message GetMatchupVotersResponse {
+  // Named voters in descending vote recency. Order helps owners spot
+  // the most recently engaged users at the top of the panel.
+  repeated MatchupVoter voters = 1;
+  // Count of anonymous voters on this matchup. Rendered as a single
+  // grouped row in the UI ("X anonymous voters") rather than N
+  // identical silhouette entries.
+  int32 anon_count = 2;
+}
+
+message GetMatchupLikersRequest {
+  string matchup_id = 1;
+}
+message GetMatchupLikersResponse {
+  // Named likers in descending like recency. Same order semantics
+  // as the voters list.
+  repeated common.v1.UserSummaryResponse likers = 1;
 }

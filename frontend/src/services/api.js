@@ -554,6 +554,19 @@ export const activateMatchup = (matchupId) =>
 export const completeMatchup = (matchupId) =>
   rpc('matchup.v1.MatchupService', 'CompleteMatchup', { id: matchupId });
 
+// Owner-only audience listings. Server returns 403 to non-owners
+// (admins included — these are author-experience controls, not
+// moderation surfaces) so callers should hide the trigger entirely
+// for non-owners rather than wait for a server-side 403 toast.
+export const getMatchupVoters = (matchupId) =>
+  rpc('matchup.v1.MatchupService', 'GetMatchupVoters', { matchup_id: matchupId });
+
+export const getMatchupLikers = (matchupId) =>
+  rpc('matchup.v1.MatchupService', 'GetMatchupLikers', { matchup_id: matchupId });
+
+export const getBracketLikers = (bracketId) =>
+  rpc('bracket.v1.BracketService', 'GetBracketLikers', { bracket_id: bracketId });
+
 // -----------------------------------------
 // MATCHUP ITEMS
 // -----------------------------------------

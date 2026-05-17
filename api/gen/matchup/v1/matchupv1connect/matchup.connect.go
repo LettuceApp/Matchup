@@ -68,6 +68,12 @@ const (
 	// MatchupServiceActivateMatchupProcedure is the fully-qualified name of the MatchupService's
 	// ActivateMatchup RPC.
 	MatchupServiceActivateMatchupProcedure = "/matchup.v1.MatchupService/ActivateMatchup"
+	// MatchupServiceGetMatchupVotersProcedure is the fully-qualified name of the MatchupService's
+	// GetMatchupVoters RPC.
+	MatchupServiceGetMatchupVotersProcedure = "/matchup.v1.MatchupService/GetMatchupVoters"
+	// MatchupServiceGetMatchupLikersProcedure is the fully-qualified name of the MatchupService's
+	// GetMatchupLikers RPC.
+	MatchupServiceGetMatchupLikersProcedure = "/matchup.v1.MatchupService/GetMatchupLikers"
 	// MatchupItemServiceAddItemProcedure is the fully-qualified name of the MatchupItemService's
 	// AddItem RPC.
 	MatchupItemServiceAddItemProcedure = "/matchup.v1.MatchupItemService/AddItem"
@@ -104,6 +110,12 @@ type MatchupServiceClient interface {
 	CompleteMatchup(context.Context, *connect.Request[v1.CompleteMatchupRequest]) (*connect.Response[v1.CompleteMatchupResponse], error)
 	ReadyUpMatchup(context.Context, *connect.Request[v1.ReadyUpMatchupRequest]) (*connect.Response[v1.ReadyUpMatchupResponse], error)
 	ActivateMatchup(context.Context, *connect.Request[v1.ActivateMatchupRequest]) (*connect.Response[v1.ActivateMatchupResponse], error)
+	// Owner-only audience listings — surfaced as "who voted" + "who
+	// liked" panels on the matchup detail page. Both reject non-owner
+	// callers with PermissionDenied; admins do NOT bypass (per the
+	// "owner controls are owner-only" rule).
+	GetMatchupVoters(context.Context, *connect.Request[v1.GetMatchupVotersRequest]) (*connect.Response[v1.GetMatchupVotersResponse], error)
+	GetMatchupLikers(context.Context, *connect.Request[v1.GetMatchupLikersRequest]) (*connect.Response[v1.GetMatchupLikersResponse], error)
 }
 
 // NewMatchupServiceClient constructs a client for the matchup.v1.MatchupService service. By
@@ -183,6 +195,18 @@ func NewMatchupServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(matchupServiceMethods.ByName("ActivateMatchup")),
 			connect.WithClientOptions(opts...),
 		),
+		getMatchupVoters: connect.NewClient[v1.GetMatchupVotersRequest, v1.GetMatchupVotersResponse](
+			httpClient,
+			baseURL+MatchupServiceGetMatchupVotersProcedure,
+			connect.WithSchema(matchupServiceMethods.ByName("GetMatchupVoters")),
+			connect.WithClientOptions(opts...),
+		),
+		getMatchupLikers: connect.NewClient[v1.GetMatchupLikersRequest, v1.GetMatchupLikersResponse](
+			httpClient,
+			baseURL+MatchupServiceGetMatchupLikersProcedure,
+			connect.WithSchema(matchupServiceMethods.ByName("GetMatchupLikers")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -199,6 +223,8 @@ type matchupServiceClient struct {
 	completeMatchup       *connect.Client[v1.CompleteMatchupRequest, v1.CompleteMatchupResponse]
 	readyUpMatchup        *connect.Client[v1.ReadyUpMatchupRequest, v1.ReadyUpMatchupResponse]
 	activateMatchup       *connect.Client[v1.ActivateMatchupRequest, v1.ActivateMatchupResponse]
+	getMatchupVoters      *connect.Client[v1.GetMatchupVotersRequest, v1.GetMatchupVotersResponse]
+	getMatchupLikers      *connect.Client[v1.GetMatchupLikersRequest, v1.GetMatchupLikersResponse]
 }
 
 // ListMatchups calls matchup.v1.MatchupService.ListMatchups.
@@ -256,6 +282,16 @@ func (c *matchupServiceClient) ActivateMatchup(ctx context.Context, req *connect
 	return c.activateMatchup.CallUnary(ctx, req)
 }
 
+// GetMatchupVoters calls matchup.v1.MatchupService.GetMatchupVoters.
+func (c *matchupServiceClient) GetMatchupVoters(ctx context.Context, req *connect.Request[v1.GetMatchupVotersRequest]) (*connect.Response[v1.GetMatchupVotersResponse], error) {
+	return c.getMatchupVoters.CallUnary(ctx, req)
+}
+
+// GetMatchupLikers calls matchup.v1.MatchupService.GetMatchupLikers.
+func (c *matchupServiceClient) GetMatchupLikers(ctx context.Context, req *connect.Request[v1.GetMatchupLikersRequest]) (*connect.Response[v1.GetMatchupLikersResponse], error) {
+	return c.getMatchupLikers.CallUnary(ctx, req)
+}
+
 // MatchupServiceHandler is an implementation of the matchup.v1.MatchupService service.
 type MatchupServiceHandler interface {
 	ListMatchups(context.Context, *connect.Request[v1.ListMatchupsRequest]) (*connect.Response[v1.ListMatchupsResponse], error)
@@ -269,6 +305,12 @@ type MatchupServiceHandler interface {
 	CompleteMatchup(context.Context, *connect.Request[v1.CompleteMatchupRequest]) (*connect.Response[v1.CompleteMatchupResponse], error)
 	ReadyUpMatchup(context.Context, *connect.Request[v1.ReadyUpMatchupRequest]) (*connect.Response[v1.ReadyUpMatchupResponse], error)
 	ActivateMatchup(context.Context, *connect.Request[v1.ActivateMatchupRequest]) (*connect.Response[v1.ActivateMatchupResponse], error)
+	// Owner-only audience listings — surfaced as "who voted" + "who
+	// liked" panels on the matchup detail page. Both reject non-owner
+	// callers with PermissionDenied; admins do NOT bypass (per the
+	// "owner controls are owner-only" rule).
+	GetMatchupVoters(context.Context, *connect.Request[v1.GetMatchupVotersRequest]) (*connect.Response[v1.GetMatchupVotersResponse], error)
+	GetMatchupLikers(context.Context, *connect.Request[v1.GetMatchupLikersRequest]) (*connect.Response[v1.GetMatchupLikersResponse], error)
 }
 
 // NewMatchupServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -344,6 +386,18 @@ func NewMatchupServiceHandler(svc MatchupServiceHandler, opts ...connect.Handler
 		connect.WithSchema(matchupServiceMethods.ByName("ActivateMatchup")),
 		connect.WithHandlerOptions(opts...),
 	)
+	matchupServiceGetMatchupVotersHandler := connect.NewUnaryHandler(
+		MatchupServiceGetMatchupVotersProcedure,
+		svc.GetMatchupVoters,
+		connect.WithSchema(matchupServiceMethods.ByName("GetMatchupVoters")),
+		connect.WithHandlerOptions(opts...),
+	)
+	matchupServiceGetMatchupLikersHandler := connect.NewUnaryHandler(
+		MatchupServiceGetMatchupLikersProcedure,
+		svc.GetMatchupLikers,
+		connect.WithSchema(matchupServiceMethods.ByName("GetMatchupLikers")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/matchup.v1.MatchupService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case MatchupServiceListMatchupsProcedure:
@@ -368,6 +422,10 @@ func NewMatchupServiceHandler(svc MatchupServiceHandler, opts ...connect.Handler
 			matchupServiceReadyUpMatchupHandler.ServeHTTP(w, r)
 		case MatchupServiceActivateMatchupProcedure:
 			matchupServiceActivateMatchupHandler.ServeHTTP(w, r)
+		case MatchupServiceGetMatchupVotersProcedure:
+			matchupServiceGetMatchupVotersHandler.ServeHTTP(w, r)
+		case MatchupServiceGetMatchupLikersProcedure:
+			matchupServiceGetMatchupLikersHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -419,6 +477,14 @@ func (UnimplementedMatchupServiceHandler) ReadyUpMatchup(context.Context, *conne
 
 func (UnimplementedMatchupServiceHandler) ActivateMatchup(context.Context, *connect.Request[v1.ActivateMatchupRequest]) (*connect.Response[v1.ActivateMatchupResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("matchup.v1.MatchupService.ActivateMatchup is not implemented"))
+}
+
+func (UnimplementedMatchupServiceHandler) GetMatchupVoters(context.Context, *connect.Request[v1.GetMatchupVotersRequest]) (*connect.Response[v1.GetMatchupVotersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("matchup.v1.MatchupService.GetMatchupVoters is not implemented"))
+}
+
+func (UnimplementedMatchupServiceHandler) GetMatchupLikers(context.Context, *connect.Request[v1.GetMatchupLikersRequest]) (*connect.Response[v1.GetMatchupLikersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("matchup.v1.MatchupService.GetMatchupLikers is not implemented"))
 }
 
 // MatchupItemServiceClient is a client for the matchup.v1.MatchupItemService service.
