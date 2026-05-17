@@ -14,17 +14,29 @@
 -- accepts all three prefixes to stay forward-compatible if the
 -- bcrypt library bumps the version letter.
 --
--- The constraint is added in two steps:
---   1. ADD CONSTRAINT ... NOT VALID  — applies only to NEW
---      writes; existing rows are left alone. This makes the
---      migration succeed even if there are still rogue rows
---      lurking (none expected, but a goose migration that
---      fails halfway through is a worse outcome than letting
---      a stale row escape the validate step).
---   2. VALIDATE CONSTRAINT          — checks every existing
---      row. If this fails, the migration aborts with a clear
---      list of bad user IDs that an admin can repair via the
---      forgot-password email flow before re-running goose up.
+-- ADD CONSTRAINT ... NOT VALID:
+--   Applies to NEW writes only — existing rows are exempt. This
+--   lets the migration succeed even if some legacy row still has
+--   a non-bcrypt value sitting in its password column (which prod
+--   does: the first deploy of this migration tripped over exactly
+--   that case and blocked Render from rolling out the application-
+--   layer fix that handles those rows gracefully).
+--
+-- We deliberately do NOT run `VALIDATE CONSTRAINT` here. The earlier
+-- two-step version aborted the whole deploy on a single rogue row,
+-- which is the wrong trade — the application-layer guard
+-- (auth_connect_handler.go's Login) already turns a corrupted
+-- hash into a clean 401 + ops log line, so existing offenders are
+-- contained. Going forward, this constraint prevents new
+-- corruption from being persisted.
+--
+-- To find + clean up the existing offender(s) post-deploy:
+--   SELECT id, username, length(password)
+--     FROM users
+--    WHERE password !~ '^\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}$';
+-- Then either reset each via the forgot-password flow or run
+-- ALTER TABLE ... VALIDATE CONSTRAINT manually once the table is
+-- clean.
 
 ALTER TABLE public.users
   ADD CONSTRAINT users_password_bcrypt_shape
@@ -32,9 +44,6 @@ ALTER TABLE public.users
     password ~ '^\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}$'
   )
   NOT VALID;
-
-ALTER TABLE public.users
-  VALIDATE CONSTRAINT users_password_bcrypt_shape;
 
 -- +goose Down
 -- Drop the constraint without touching the data. The check is
