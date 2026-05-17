@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"hash/fnv"
+	"image"
 	"image/color"
 	"image/png"
 	"strings"
@@ -33,6 +34,15 @@ type ImageInput struct {
 	Likes      int64  // engagement line — sum across the item
 	Comments   int64  // engagement line — sum across the item
 	ShareURL   string // full https://... URL, kept for forward-compat (no QR in v2 card)
+	// BackgroundImage — when non-nil, drawn as the card's full-bleed
+	// background BEFORE the navy fill + accent stripe. Used for
+	// matchups that have an uploaded image (matchups.image_path);
+	// the existing card content overlays the image with a dark scrim
+	// so text + tiles stay legible. Nil falls back to the solid navy
+	// background, which is the original look. The handler is
+	// responsible for fetching + decoding the image; this struct
+	// keeps the renderer's signature decoupled from net I/O.
+	BackgroundImage image.Image
 }
 
 // Gradient palette — same visual identity as the home-feed cards so a
@@ -79,10 +89,27 @@ func gradientFor(title string) []color.RGBA {
 func Render(in ImageInput) ([]byte, error) {
 	dc := gg.NewContext(imgWidth, imgHeight)
 
-	// --- Background: solid dark navy, matches site shell. --------------
+	// --- Background: solid dark navy, matches site shell. Always
+	//     painted first so a partially-failed background-image draw
+	//     never leaves transparent pixels showing through.
 	dc.SetRGBA255(0x0f, 0x17, 0x2a, 255)
 	dc.DrawRectangle(0, 0, imgWidth, imgHeight)
 	dc.Fill()
+
+	// --- Optional uploaded matchup image as the full-bleed background.
+	//     Scaled object-fit-style to cover the canvas while preserving
+	//     aspect; a dark scrim over the top keeps the title + tiles
+	//     legible regardless of what the image looks like.
+	if in.BackgroundImage != nil {
+		drawCoverImage(dc, in.BackgroundImage)
+		// 65% navy scrim — readable text floor without losing the
+		// underlying image entirely. Tuned by eye against light +
+		// dark uploaded photos; lower alphas blew out the title on
+		// pale images, higher alphas effectively erased the image.
+		dc.SetRGBA255(0x0f, 0x17, 0x2a, 165)
+		dc.DrawRectangle(0, 0, imgWidth, imgHeight)
+		dc.Fill()
+	}
 
 	// --- Accent stripe: 10px bar at the top, using the matchup's
 	//     hash-derived gradient colors for color-identity continuity
@@ -137,6 +164,41 @@ func Render(in ImageInput) ([]byte, error) {
 // two colors, used as the accent stripe at the top of the card. Scans
 // vertical columns (one draw per pixel of width) because the bar is
 // narrow on the y-axis and long on the x.
+// drawCoverImage paints `img` onto the canvas with object-fit:cover
+// semantics — scaled uniformly to fill 1200×630 with cropping rather
+// than letterboxing. Used by Render() when ImageInput.BackgroundImage
+// is set. We compute the larger of the width-scale and height-scale,
+// then center the image on the canvas so the cropped pixels come off
+// the longer dimension equally on both sides.
+func drawCoverImage(dc *gg.Context, img image.Image) {
+	bounds := img.Bounds()
+	srcW := float64(bounds.Dx())
+	srcH := float64(bounds.Dy())
+	if srcW <= 0 || srcH <= 0 {
+		return
+	}
+	// object-fit: cover scale — whichever dimension needs MORE
+	// magnification to reach the canvas drives the scale, so the
+	// other dimension overflows (and gets cropped by the canvas).
+	scale := imgWidth / srcW
+	if heightScale := imgHeight / srcH; heightScale > scale {
+		scale = heightScale
+	}
+	scaledW := srcW * scale
+	scaledH := srcH * scale
+	dx := (imgWidth - scaledW) / 2
+	dy := (imgHeight - scaledH) / 2
+	// gg's ScaleAbout/Translate dance is the documented way to draw
+	// a scaled+positioned image. We isolate the transform in a
+	// Push/Pop so the surrounding draws (gradient stripe, text, etc.)
+	// keep the identity matrix.
+	dc.Push()
+	dc.Translate(dx, dy)
+	dc.Scale(scale, scale)
+	dc.DrawImage(img, 0, 0)
+	dc.Pop()
+}
+
 func drawHorizontalGradientBar(dc *gg.Context, x, y, w, h float64, left, right color.RGBA) {
 	for i := 0; i < int(w); i++ {
 		t := float64(i) / w

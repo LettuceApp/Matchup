@@ -12,10 +12,14 @@ const MAX_TAGS = 10;
 // keystroke. 350ms feels responsive without being chatty.
 const SLUG_CHECK_DEBOUNCE_MS = 350;
 
+// User-facing copy says "URL name" everywhere "slug" used to. The
+// internal identifier in code + DB stays `slug` because the field
+// name shows up in protos, indexes, and routing — renaming there
+// would be a much bigger surgery for the same UX outcome.
 const reasonToCopy = {
   invalid: 'Use 3–32 lowercase letters, numbers, or hyphens. No leading or trailing hyphen.',
-  reserved: 'That slug is reserved. Try another name.',
-  taken: 'That slug is already taken.',
+  reserved: 'That URL name is reserved. Try another one.',
+  taken: 'That URL name is already taken.',
 };
 
 /*
@@ -227,7 +231,7 @@ const CreateCommunity = () => {
           </label>
 
           <label className="community-create-field">
-            <span className="community-create-label">Slug</span>
+            <span className="community-create-label">URL name</span>
             <div className="community-create-slug-row">
               <span className="community-create-slug-prefix">/c/</span>
               <input

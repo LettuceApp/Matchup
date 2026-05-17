@@ -35,6 +35,7 @@ import Button from '../components/Button';
 import FollowListModal from '../components/FollowListModal';
 import EmptyStateCard from '../components/EmptyStateCard';
 import ActivityFeed from '../components/ActivityFeed';
+import VoteHistoryPanel from '../components/VoteHistoryPanel';
 import NotificationSettings from '../components/NotificationSettings';
 import { gradientForSlug } from '../utils/communityGradients';
 import BlockMuteMenu from '../components/BlockMuteMenu';
@@ -185,7 +186,10 @@ const UserProfile = () => {
   const [searchParams] = useSearchParams();
   const initialTab = (() => {
     const raw = searchParams.get('tab');
-    if (raw && ['matchups', 'brackets', 'communities', 'activity', 'likes'].includes(raw)) {
+    // 'votes' is the owner-only "matchups I voted on" surface.
+    // RequireOwner check happens at render time (non-owners get
+    // bumped to the default tab just like ?tab=activity).
+    if (raw && ['matchups', 'brackets', 'communities', 'activity', 'likes', 'votes'].includes(raw)) {
       return raw;
     }
     return 'matchups';
@@ -500,12 +504,13 @@ const UserProfile = () => {
     };
   }, [activeTab, user, identifier, activityLoaded, isViewer]);
 
-  // Redirect non-owners away from ?tab=activity. Someone pasting a
-  // shared URL on a friend's profile would otherwise land on a blank
-  // tab (its trigger is hidden but the Tabs.Root value would stick).
-  // Falls back to matchups, the default landing tab.
+  // Redirect non-owners away from owner-only tabs (?tab=activity,
+  // ?tab=votes). Someone pasting a shared URL on a friend's profile
+  // would otherwise land on a blank tab (the trigger is hidden but
+  // the Tabs.Root value would stick). Falls back to matchups, the
+  // default landing tab.
   useEffect(() => {
-    if (activeTab === 'activity' && !isViewer) {
+    if ((activeTab === 'activity' || activeTab === 'votes') && !isViewer) {
       setActiveTab('matchups');
     }
   }, [activeTab, isViewer]);
@@ -1135,14 +1140,19 @@ const UserProfile = () => {
                 <Tabs.Trigger value="communities" className="profile-tab">
                   Communities
                 </Tabs.Trigger>
-                {/* Activity is owner-only — strangers don't see what the
-                    profile owner has been doing. Mirrors the strict
-                    owner-only gating used elsewhere (matchup owner
-                    tray, etc). Backend RejectsCodePermissionDenied as
-                    the defensive backstop. */}
+                {/* Activity + Votes are owner-only — strangers don't see
+                    what the profile owner has been doing. Mirrors the
+                    strict owner-only gating used elsewhere (matchup
+                    owner tray, etc). Backend rejects with
+                    CodePermissionDenied as the defensive backstop. */}
                 {isViewer && (
                   <Tabs.Trigger value="activity" className="profile-tab">
                     Activity
+                  </Tabs.Trigger>
+                )}
+                {isViewer && (
+                  <Tabs.Trigger value="votes" className="profile-tab">
+                    Votes
                   </Tabs.Trigger>
                 )}
                 <Tabs.Trigger value="likes" className="profile-tab">
@@ -1405,6 +1415,25 @@ const UserProfile = () => {
                   )}
                 </div>
               </Tabs.Content>
+              )}
+
+              {/* Votes — owner-only "matchups I've voted on" list,
+                  backed by GetUserVotes. Replaces the dropped
+                  vote_cast activity-feed kind (which spammed the
+                  Activity tab with "You voted for X" rows). Reuses
+                  the existing isViewer gate just like Activity.
+
+                  user.id (public UUID) is the canonical identifier the
+                  RPC accepts; fall back to the URL `identifier` while
+                  the user record is still loading so the panel doesn't
+                  flash empty. */}
+              {isViewer && (
+                <Tabs.Content value="votes" className="profile-tab-panel">
+                  <VoteHistoryPanel
+                    userId={user?.id || identifier}
+                    navigate={navigate}
+                  />
+                </Tabs.Content>
               )}
 
               <Tabs.Content value="likes" className="profile-tab-panel">

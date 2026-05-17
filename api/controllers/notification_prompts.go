@@ -53,7 +53,9 @@ func ScanClosingMatchups(ctx context.Context, db *sqlx.DB) error {
 			COALESCE(payload->>'title', '') AS title,
 			payload->>'metric'              AS metric,
 			payload->>'threshold'           AS threshold,
-			payload->>'role'                AS role`)
+			payload->>'role'                AS role,
+			subject_type,
+			subject_id`)
 	if err != nil {
 		return fmt.Errorf("scan_closing_matchups (author pass): %w", err)
 	}
@@ -91,7 +93,9 @@ func ScanClosingMatchups(ctx context.Context, db *sqlx.DB) error {
 			COALESCE(payload->>'title', '') AS title,
 			payload->>'metric'              AS metric,
 			payload->>'threshold'           AS threshold,
-			payload->>'role'                AS role`)
+			payload->>'role'                AS role,
+			subject_type,
+			subject_id`)
 	if err != nil {
 		return fmt.Errorf("scan_closing_matchups (voter pass): %w", err)
 	}
@@ -139,7 +143,9 @@ func ScanTiesNeedingResolution(ctx context.Context, db *sqlx.DB) error {
 			COALESCE(payload->>'title', '') AS title,
 			payload->>'metric'              AS metric,
 			payload->>'threshold'           AS threshold,
-			payload->>'role'                AS role`)
+			payload->>'role'                AS role,
+			subject_type,
+			subject_id`)
 	if err != nil {
 		return fmt.Errorf("scan_ties_needing_resolution: %w", err)
 	}

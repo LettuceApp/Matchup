@@ -772,26 +772,103 @@ func (h *MatchupItemHandler) GetUserVotes(ctx context.Context, req *connect.Requ
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("user not found"))
 	}
-	// Filter to picks only — GetUserVotes powers the "matchups I voted
-	// on" UI, where skips would surface as "voted: nothing", which
-	// is confusing. Skip aggregates are exposed elsewhere via the
-	// per-matchup tally queries.
-	var votes []models.MatchupVote
-	if err := sqlx.SelectContext(ctx, db, &votes,
-		"SELECT * FROM matchup_votes WHERE user_id = $1 AND kind = 'pick'", user.ID,
-	); err != nil {
+
+	// Owner-only — voting history is private to the user. Without this
+	// gate, anyone could enumerate any user's voting record by their
+	// public username. Admins do NOT bypass: this is a personal
+	// receipts surface, not a moderation tool. The audience handlers
+	// have the admin escape for that.
+	viewerID, hasViewer := httpctx.CurrentUserID(ctx)
+	if !hasViewer {
+		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("unauthorized"))
+	}
+	if viewerID != user.ID {
+		return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("owner only"))
+	}
+
+	// Single enriched query — joins on matchups + matchup_items so the
+	// frontend can render a presentable list (title + picked item +
+	// link target) without N+1 fetches. Also pulls the matchup author's
+	// username so each row can deep-link to /users/{u}/matchup/{id},
+	// and the parent bracket info so bracket-child matchups can route
+	// to /brackets/{id} instead. Skips (kind='skip') are excluded —
+	// they surface as "voted: nothing" which reads as broken UX. Most
+	// recent first; no pagination in v1 (per-user vote counts are
+	// bounded by the anon cap + reasonable engagement levels).
+	type row struct {
+		PublicID       string         `db:"public_id"`
+		MatchupID      string         `db:"matchup_public_id"`
+		ItemID         sql.NullString `db:"matchup_item_public_id"`
+		CreatedAt      time.Time      `db:"created_at"`
+		MatchupTitle   sql.NullString `db:"matchup_title"`
+		ItemLabel      sql.NullString `db:"item_label"`
+		AuthorUsername sql.NullString `db:"author_username"`
+		BracketID      sql.NullString `db:"bracket_public_id"`
+		BracketTitle   sql.NullString `db:"bracket_title"`
+	}
+	var rows []row
+	if err := sqlx.SelectContext(ctx, db, &rows, `
+		SELECT
+			mv.public_id,
+			mv.matchup_public_id,
+			mv.matchup_item_public_id,
+			mv.created_at,
+			m.title AS matchup_title,
+			mi.item AS item_label,
+			u.username AS author_username,
+			b.public_id AS bracket_public_id,
+			b.title AS bracket_title
+		FROM matchup_votes mv
+		JOIN matchups m       ON m.public_id = mv.matchup_public_id
+		LEFT JOIN matchup_items mi ON mi.public_id = mv.matchup_item_public_id
+		LEFT JOIN users u     ON u.id = m.author_id
+		LEFT JOIN brackets b  ON b.id = m.bracket_id
+		WHERE mv.user_id = $1
+		  AND mv.kind = 'pick'
+		ORDER BY mv.created_at DESC
+	`, user.ID); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	protos := make([]*matchupv1.MatchupVoteData, len(votes))
-	for i, v := range votes {
+
+	protos := make([]*matchupv1.MatchupVoteData, len(rows))
+	for i, r := range rows {
 		p := user.PublicID
-		protos[i] = &matchupv1.MatchupVoteData{
-			Id:            v.PublicID,
-			UserId:        &p,
-			MatchupId:     v.MatchupPublicID,
-			MatchupItemId: v.PickedItemID(),
-			CreatedAt:     rfc3339(v.CreatedAt),
+		itemID := ""
+		if r.ItemID.Valid {
+			itemID = r.ItemID.String
 		}
+		entry := &matchupv1.MatchupVoteData{
+			Id:            r.PublicID,
+			UserId:        &p,
+			MatchupId:     r.MatchupID,
+			MatchupItemId: itemID,
+			CreatedAt:     rfc3339(r.CreatedAt),
+		}
+		// Optional display fields — only set when the join landed
+		// non-null. Frontend tolerates missing values gracefully
+		// (falls back to "matchup" placeholder, hides the bracket
+		// chip, etc.).
+		if r.MatchupTitle.Valid {
+			s := r.MatchupTitle.String
+			entry.MatchupTitle = &s
+		}
+		if r.ItemLabel.Valid {
+			s := r.ItemLabel.String
+			entry.ItemLabel = &s
+		}
+		if r.AuthorUsername.Valid {
+			s := r.AuthorUsername.String
+			entry.AuthorUsername = &s
+		}
+		if r.BracketID.Valid {
+			s := r.BracketID.String
+			entry.BracketId = &s
+		}
+		if r.BracketTitle.Valid {
+			s := r.BracketTitle.String
+			entry.BracketTitle = &s
+		}
+		protos[i] = entry
 	}
 	return connect.NewResponse(&matchupv1.GetUserVotesResponse{Votes: protos}), nil
 }
