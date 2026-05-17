@@ -5,12 +5,18 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/jpeg" // register JPEG decoder for image.Decode
+	_ "image/png"  // register PNG decoder for image.Decode
+	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
+	appdb "Matchup/db"
 	"Matchup/models"
 
 	"github.com/go-chi/chi/v5"
@@ -196,6 +202,20 @@ func (h *Handler) ogMatchupImage(w http.ResponseWriter, r *http.Request) {
 	if len(items) > 1 {
 		in.ItemB = items[1].Item
 		in.VotesB = int64(items[1].Votes)
+	}
+
+	// Fetch the matchup's uploaded image (if any) so the renderer can
+	// draw it as the card's background. Best-effort: network failures,
+	// decode errors, or a missing image_path all fall through to the
+	// original solid-navy background. Cache hits short-circuit this
+	// path entirely (see the early Get() above), so we only pay the
+	// fetch cost when actually re-rendering.
+	if m.ImagePath != "" {
+		if bg, err := fetchAndDecodeImage(r.Context(), appdb.ProcessMatchupImagePath(m.ImagePath)); err != nil {
+			log.Printf("share: matchup %s background image fetch failed: %v", shortID, err)
+		} else {
+			in.BackgroundImage = bg
+		}
 	}
 
 	png, err := Render(in)
@@ -511,5 +531,45 @@ func (h *Handler) writeObscuredPNG(w http.ResponseWriter, r *http.Request, kind 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Cache-Control", "public, max-age=60")
 	_, _ = w.Write(png)
+}
+
+// fetchAndDecodeImage GETs `url` and decodes the response body as
+// an image (PNG or JPEG via the blank-imported decoders at the top
+// of this file). Used by the matchup OG renderer to embed the
+// matchup's uploaded image as the card's background.
+//
+// Bounded by a 5s timeout — these are CDN-hosted S3 images on our
+// own bucket so they should be fast, but we don't want a hung
+// network connection to pin the render-on-cache-miss path for the
+// full request budget. 4MB body cap defends against an upstream
+// quirk (size header missing, infinite stream); real matchup
+// images are well under this.
+func fetchAndDecodeImage(ctx context.Context, url string) (image.Image, error) {
+	if url == "" {
+		return nil, errors.New("empty url")
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("fetch: status %d", resp.StatusCode)
+	}
+	// 4MB cap — comfortably above any reasonable cover image even
+	// before S3 resizing. io.LimitReader stops at the cap so a
+	// runaway stream doesn't OOM the renderer.
+	const maxBytes = 4 * 1024 * 1024
+	img, _, err := image.Decode(io.LimitReader(resp.Body, maxBytes))
+	if err != nil {
+		return nil, fmt.Errorf("decode: %w", err)
+	}
+	return img, nil
 }
 

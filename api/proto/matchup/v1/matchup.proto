@@ -114,6 +114,20 @@ message MatchupVoteData {
   string matchup_id = 3;
   string matchup_item_id = 4;
   string created_at = 5;
+  // Display fields populated by GetUserVotes (the "your vote history"
+  // surface on the profile page). Optional so other call sites that
+  // only need IDs aren't forced to scan the joined columns.
+  optional string matchup_title = 6;
+  optional string item_label = 7;
+  // Author username — needed by the frontend to build the canonical
+  // SPA link `/users/{username}/matchup/{id}` for each row. Empty
+  // when the matchup author is missing (soft-deleted, etc.).
+  optional string author_username = 8;
+  // Bracket linkage — when set, this matchup is a child round in a
+  // bracket. Frontend can route the row to `/brackets/{id}` instead
+  // of the matchup detail page for a more contextual landing.
+  optional string bracket_id = 9;
+  optional string bracket_title = 10;
 }
 
 // ---- Request messages ----

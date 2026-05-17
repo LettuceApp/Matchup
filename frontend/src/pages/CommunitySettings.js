@@ -206,7 +206,7 @@ const CommunitySettings = () => {
         </p>
         <h1 className="community-settings__title">Community settings</h1>
         <p className="community-settings__subtitle">
-          Only the owner can edit these fields. Slug and privacy are fixed in v1.
+          Only the owner can edit these fields. URL name and privacy are fixed in v1.
         </p>
       </header>
 

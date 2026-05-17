@@ -254,10 +254,13 @@ func (h *CommunityHandler) CreateCommunity(ctx context.Context, req *connect.Req
 		pq.Array(tags), privacy, uid,
 	).StructScan(&community)
 	if err != nil {
-		// Unique constraint on slug — friendlier error.
+		// Unique constraint on slug — friendlier error. User-facing
+		// copy calls it "URL name"; the DB column + identifier stay
+		// `slug` everywhere in code, but the error message is what
+		// the user sees so it matches the form label.
 		if pgErr, ok := err.(*pq.Error); ok && pgErr.Code == "23505" {
 			return nil, connect.NewError(connect.CodeAlreadyExists,
-				errors.New("slug is already taken"))
+				errors.New("URL name is already taken"))
 		}
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}

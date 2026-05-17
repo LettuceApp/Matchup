@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -31,6 +32,13 @@ type kindPushRow struct {
 	Metric    *string `db:"metric"`
 	Threshold *string `db:"threshold"`
 	Role      *string `db:"role"`
+	// subject_type + subject_id come from the notifications row itself,
+	// not from payload jsonb. publishKindNotifications uses them to
+	// build the per-notification deep-link URL embedded in the push
+	// payload (so a tap routes the user to the relevant content
+	// instead of dumping them on /home).
+	SubjectType string `db:"subject_type"`
+	SubjectID   int64  `db:"subject_id"`
 }
 
 // publishKindNotifications handles SSE + Web Push fanout for the
@@ -38,11 +46,17 @@ type kindPushRow struct {
 // bell refetches; rows whose kind is in the priority-push set also get
 // a native browser notification.
 //
-// URL strategy: we deliberately point every push at the home page
-// rather than a deep link. The scanners don't have the subject's
-// author_username handy without a second JOIN, and the home page's
-// bell surfaces the new row within a second of landing — good enough
-// for a "something happened" prompt.
+// URL strategy: each push carries a per-notification deep link
+// computed from subject_type + subject_id (plus a small JOIN to fetch
+// the matchup/bracket public_id + author username). Tapping the
+// system notification lands the user on the relevant detail page,
+// not /home. Was originally home-only because the scanners didn't
+// emit subject info on the row; now they do.
+//
+// Lookup cost: one indexed SELECT per push row. Scanners emit at
+// most a few rows per tick, so the N+1 is negligible. Callers that
+// emit larger batches should batch the lookup; we're well under the
+// threshold where that matters.
 func publishKindNotifications(ctx context.Context, db *sqlx.DB, rows []kindPushRow) {
 	home := strings.TrimRight(mailerAppBaseURL(), "/")
 	for _, r := range rows {
@@ -51,12 +65,64 @@ func publishKindNotifications(ctx context.Context, db *sqlx.DB, rows []kindPushR
 		if title == "" {
 			continue
 		}
+		url := home + deepLinkPathForKindRow(ctx, db, r)
 		_ = cache.PublishPushToUser(ctx, db, r.UserID, cache.PushPayload{
 			Title: title,
 			Body:  body,
-			URL:   home,
+			URL:   url,
 			Tag:   r.Kind,
 		})
+	}
+}
+
+// deepLinkPathForKindRow returns the SPA path a push notification
+// should route to. Returns "/home" (with a leading slash so the
+// caller can concatenate with the origin) when the subject can't be
+// resolved — better to land on /home than fail loudly when a push
+// tries to navigate.
+//
+// Matchup subjects → /users/{author}/matchup/{public_id}
+// Bracket subjects → /brackets/{public_id}
+// User subjects    → /users/{username}
+func deepLinkPathForKindRow(ctx context.Context, db *sqlx.DB, r kindPushRow) string {
+	switch r.SubjectType {
+	case "matchup":
+		var info struct {
+			PublicID       string         `db:"public_id"`
+			AuthorUsername sql.NullString `db:"author_username"`
+		}
+		if err := sqlx.GetContext(ctx, db, &info, `
+			SELECT m.public_id, u.username AS author_username
+			FROM matchups m
+			LEFT JOIN users u ON u.id = m.author_id
+			WHERE m.id = $1
+		`, r.SubjectID); err != nil || info.PublicID == "" {
+			return "/home"
+		}
+		if info.AuthorUsername.Valid && info.AuthorUsername.String != "" {
+			return "/users/" + info.AuthorUsername.String + "/matchup/" + info.PublicID
+		}
+		// Author missing (soft-deleted); fall back to the short-URL
+		// share handler which the SPA proxy will redirect through.
+		return "/home"
+	case "bracket":
+		var publicID string
+		if err := sqlx.GetContext(ctx, db, &publicID,
+			"SELECT public_id FROM brackets WHERE id = $1", r.SubjectID,
+		); err != nil || publicID == "" {
+			return "/home"
+		}
+		return "/brackets/" + publicID
+	case "user":
+		var username string
+		if err := sqlx.GetContext(ctx, db, &username,
+			"SELECT username FROM users WHERE id = $1 AND deleted_at IS NULL", r.SubjectID,
+		); err != nil || username == "" {
+			return "/home"
+		}
+		return "/users/" + username
+	default:
+		return "/home"
 	}
 }
 
@@ -159,7 +225,9 @@ func ScanMilestones(ctx context.Context, db *sqlx.DB) error {
 				COALESCE(payload->>'title', '') AS title,
 				payload->>'metric'              AS metric,
 				payload->>'threshold'           AS threshold,
-				payload->>'role'                AS role`, t)
+				payload->>'role'                AS role,
+				subject_type,
+				subject_id`, t)
 		if err != nil {
 			lastErr = fmt.Errorf("matchup_votes %d: %w", t, err)
 		}
@@ -190,7 +258,9 @@ func ScanMilestones(ctx context.Context, db *sqlx.DB) error {
 				COALESCE(payload->>'title', '') AS title,
 				payload->>'metric'              AS metric,
 				payload->>'threshold'           AS threshold,
-				payload->>'role'                AS role`, t)
+				payload->>'role'                AS role,
+				subject_type,
+				subject_id`, t)
 		if err != nil {
 			lastErr = fmt.Errorf("matchup_likes %d: %w", t, err)
 		}
@@ -221,7 +291,9 @@ func ScanMilestones(ctx context.Context, db *sqlx.DB) error {
 				COALESCE(payload->>'title', '') AS title,
 				payload->>'metric'              AS metric,
 				payload->>'threshold'           AS threshold,
-				payload->>'role'                AS role`, t)
+				payload->>'role'                AS role,
+				subject_type,
+				subject_id`, t)
 		if err != nil {
 			lastErr = fmt.Errorf("bracket_likes %d: %w", t, err)
 		}
@@ -254,7 +326,9 @@ func ScanMilestones(ctx context.Context, db *sqlx.DB) error {
 				COALESCE(payload->>'title', '') AS title,
 				payload->>'metric'              AS metric,
 				payload->>'threshold'           AS threshold,
-				payload->>'role'                AS role`, t)
+				payload->>'role'                AS role,
+				subject_type,
+				subject_id`, t)
 		if err != nil {
 			lastErr = fmt.Errorf("user_followers %d: %w", t, err)
 		}

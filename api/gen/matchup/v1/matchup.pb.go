@@ -503,6 +503,20 @@ type MatchupVoteData struct {
 	MatchupId     string                 `protobuf:"bytes,3,opt,name=matchup_id,json=matchupId,proto3" json:"matchup_id,omitempty"`
 	MatchupItemId string                 `protobuf:"bytes,4,opt,name=matchup_item_id,json=matchupItemId,proto3" json:"matchup_item_id,omitempty"`
 	CreatedAt     string                 `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// Display fields populated by GetUserVotes (the "your vote history"
+	// surface on the profile page). Optional so other call sites that
+	// only need IDs aren't forced to scan the joined columns.
+	MatchupTitle *string `protobuf:"bytes,6,opt,name=matchup_title,json=matchupTitle,proto3,oneof" json:"matchup_title,omitempty"`
+	ItemLabel    *string `protobuf:"bytes,7,opt,name=item_label,json=itemLabel,proto3,oneof" json:"item_label,omitempty"`
+	// Author username — needed by the frontend to build the canonical
+	// SPA link `/users/{username}/matchup/{id}` for each row. Empty
+	// when the matchup author is missing (soft-deleted, etc.).
+	AuthorUsername *string `protobuf:"bytes,8,opt,name=author_username,json=authorUsername,proto3,oneof" json:"author_username,omitempty"`
+	// Bracket linkage — when set, this matchup is a child round in a
+	// bracket. Frontend can route the row to `/brackets/{id}` instead
+	// of the matchup detail page for a more contextual landing.
+	BracketId     *string `protobuf:"bytes,9,opt,name=bracket_id,json=bracketId,proto3,oneof" json:"bracket_id,omitempty"`
+	BracketTitle  *string `protobuf:"bytes,10,opt,name=bracket_title,json=bracketTitle,proto3,oneof" json:"bracket_title,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -568,6 +582,41 @@ func (x *MatchupVoteData) GetMatchupItemId() string {
 func (x *MatchupVoteData) GetCreatedAt() string {
 	if x != nil {
 		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *MatchupVoteData) GetMatchupTitle() string {
+	if x != nil && x.MatchupTitle != nil {
+		return *x.MatchupTitle
+	}
+	return ""
+}
+
+func (x *MatchupVoteData) GetItemLabel() string {
+	if x != nil && x.ItemLabel != nil {
+		return *x.ItemLabel
+	}
+	return ""
+}
+
+func (x *MatchupVoteData) GetAuthorUsername() string {
+	if x != nil && x.AuthorUsername != nil {
+		return *x.AuthorUsername
+	}
+	return ""
+}
+
+func (x *MatchupVoteData) GetBracketId() string {
+	if x != nil && x.BracketId != nil {
+		return *x.BracketId
+	}
+	return ""
+}
+
+func (x *MatchupVoteData) GetBracketTitle() string {
+	if x != nil && x.BracketTitle != nil {
+		return *x.BracketTitle
 	}
 	return ""
 }
@@ -2841,7 +2890,7 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"\v_bracket_idB\x14\n" +
 	"\x12_bracket_author_idB\b\n" +
 	"\x06_roundB\x10\n" +
-	"\x0e_current_round\"\xb1\x01\n" +
+	"\x0e_current_round\"\xd1\x03\n" +
 	"\x0fMatchupVoteData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1c\n" +
 	"\auser_id\x18\x02 \x01(\tH\x00R\x06userId\x88\x01\x01\x12\x1d\n" +
@@ -2849,9 +2898,22 @@ const file_matchup_v1_matchup_proto_rawDesc = "" +
 	"matchup_id\x18\x03 \x01(\tR\tmatchupId\x12&\n" +
 	"\x0fmatchup_item_id\x18\x04 \x01(\tR\rmatchupItemId\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\x05 \x01(\tR\tcreatedAtB\n" +
+	"created_at\x18\x05 \x01(\tR\tcreatedAt\x12(\n" +
+	"\rmatchup_title\x18\x06 \x01(\tH\x01R\fmatchupTitle\x88\x01\x01\x12\"\n" +
 	"\n" +
-	"\b_user_id\"\\\n" +
+	"item_label\x18\a \x01(\tH\x02R\titemLabel\x88\x01\x01\x12,\n" +
+	"\x0fauthor_username\x18\b \x01(\tH\x03R\x0eauthorUsername\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"bracket_id\x18\t \x01(\tH\x04R\tbracketId\x88\x01\x01\x12(\n" +
+	"\rbracket_title\x18\n" +
+	" \x01(\tH\x05R\fbracketTitle\x88\x01\x01B\n" +
+	"\n" +
+	"\b_user_idB\x10\n" +
+	"\x0e_matchup_titleB\r\n" +
+	"\v_item_labelB\x12\n" +
+	"\x10_author_usernameB\r\n" +
+	"\v_bracket_idB\x10\n" +
+	"\x0e_bracket_title\"\\\n" +
 	"\x13ListMatchupsRequest\x12\x17\n" +
 	"\x04page\x18\x01 \x01(\x05H\x00R\x04page\x88\x01\x01\x12\x19\n" +
 	"\x05limit\x18\x02 \x01(\x05H\x01R\x05limit\x88\x01\x01B\a\n" +

@@ -166,9 +166,13 @@ func (h *ActivityHandler) GetUserActivity(ctx context.Context, req *connect.Requ
 	// re-JOINing `users` just to get our own row back.
 	viewerUsername := user.Username
 
-	collect("vote_cast", func() ([]*activityv1.ActivityItem, error) {
-		return loadVoteCastActivity(ctx, db, user.ID, before)
-	})
+	// vote_cast dropped from the activity feed: "you voted for X in
+	// Y" was the highest-volume self-action notification and was
+	// crowding out the receive-side signals owners actually act on
+	// (like, comment, mention). The user's own vote history is
+	// still queryable via UserProfile's "Votes" tab, which renders
+	// from the GetUserVotes RPC. loadVoteCastActivity() is left in
+	// place as a helper in case a future surface wants it back.
 	collect("vote_outcome", func() ([]*activityv1.ActivityItem, error) {
 		return loadVoteOutcomeActivity(ctx, db, user.ID, before)
 	})
