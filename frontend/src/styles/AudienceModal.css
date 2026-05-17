@@ -1,0 +1,186 @@
+/* AudienceModal — owner-only voters / likers panel. Uses theme
+   tokens throughout so it reads cleanly in both dark + light modes;
+   no hardcoded slate colors (we burned on that pattern with the
+   original ConfirmModal). */
+
+.audience-modal__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.audience-modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 460px;
+  max-height: min(80vh, 640px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-panel);
+}
+
+.audience-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.audience-modal__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.audience-modal__close {
+  background: transparent;
+  border: 0;
+  padding: 0.35rem;
+  border-radius: 999px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.audience-modal__close:hover,
+.audience-modal__close:focus-visible {
+  background: var(--bg-input);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.audience-modal__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 0.5rem 0.6rem 0.8rem;
+}
+
+.audience-modal__state {
+  margin: 0;
+  padding: 1.2rem 0.6rem;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.audience-modal__state--error {
+  color: var(--accent-primary);
+}
+
+.audience-modal__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.audience-modal__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.6rem;
+  border-radius: 10px;
+  transition: background 120ms ease;
+}
+
+.audience-modal__row:hover {
+  background: var(--bg-input);
+}
+
+.audience-modal__user {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-decoration: none;
+  color: var(--text-primary);
+  min-width: 0;
+  /* touch-action: manipulation skips iOS's 300ms tap delay so the
+     username row navigates instantly on mobile. */
+  touch-action: manipulation;
+}
+
+.audience-modal__avatar {
+  /* Same clip-path + isolation combo we use everywhere else to
+     work around iOS Safari's border-radius + overflow:hidden bug. */
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  clip-path: circle(50%);
+  isolation: isolate;
+  object-fit: cover;
+  background: var(--bg-input);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.audience-modal__avatar--fallback {
+  background: var(--accent-secondary-bg-soft);
+  color: var(--accent-secondary);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.audience-modal__avatar--anon {
+  background: var(--bg-input);
+  color: var(--text-muted);
+  font-size: 1.05rem;
+}
+
+.audience-modal__username {
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.audience-modal__pick {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: auto;
+}
+
+.audience-modal__pick strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.audience-modal__anon {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 0.6rem;
+  margin-top: 0.4rem;
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+@media (max-width: 500px) {
+  .audience-modal {
+    max-height: calc(100vh - 2rem);
+  }
+}

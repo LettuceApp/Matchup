@@ -23,6 +23,94 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type GetBracketLikersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BracketId     string                 `protobuf:"bytes,1,opt,name=bracket_id,json=bracketId,proto3" json:"bracket_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetBracketLikersRequest) Reset() {
+	*x = GetBracketLikersRequest{}
+	mi := &file_bracket_v1_bracket_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBracketLikersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBracketLikersRequest) ProtoMessage() {}
+
+func (x *GetBracketLikersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_bracket_v1_bracket_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBracketLikersRequest.ProtoReflect.Descriptor instead.
+func (*GetBracketLikersRequest) Descriptor() ([]byte, []int) {
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *GetBracketLikersRequest) GetBracketId() string {
+	if x != nil {
+		return x.BracketId
+	}
+	return ""
+}
+
+type GetBracketLikersResponse struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Likers        []*v1.UserSummaryResponse `protobuf:"bytes,1,rep,name=likers,proto3" json:"likers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetBracketLikersResponse) Reset() {
+	*x = GetBracketLikersResponse{}
+	mi := &file_bracket_v1_bracket_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetBracketLikersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetBracketLikersResponse) ProtoMessage() {}
+
+func (x *GetBracketLikersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_bracket_v1_bracket_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetBracketLikersResponse.ProtoReflect.Descriptor instead.
+func (*GetBracketLikersResponse) Descriptor() ([]byte, []int) {
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *GetBracketLikersResponse) GetLikers() []*v1.UserSummaryResponse {
+	if x != nil {
+		return x.Likers
+	}
+	return nil
+}
+
 // BracketData is the full bracket object.
 type BracketData struct {
 	state                protoimpl.MessageState  `protogen:"open.v1"`
@@ -47,14 +135,21 @@ type BracketData struct {
 	ShortId string `protobuf:"bytes,15,opt,name=short_id,json=shortId,proto3" json:"short_id,omitempty"`
 	// Community public_id when the bracket is community-scoped.
 	// Empty / absent for standalone brackets.
-	CommunityId   *string `protobuf:"bytes,16,opt,name=community_id,json=communityId,proto3,oneof" json:"community_id,omitempty"`
+	CommunityId *string `protobuf:"bytes,16,opt,name=community_id,json=communityId,proto3,oneof" json:"community_id,omitempty"`
+	// Running total of votes across every child matchup in this
+	// bracket — the cumulative engagement signal the bracket page
+	// surfaces alongside likes + comments. Populated server-side
+	// from SUM(matchup_items.votes) so the frontend doesn't have to
+	// re-aggregate. Per-child-matchup totals are still on each
+	// MatchupData.items[].votes.
+	TotalVotes    int64 `protobuf:"varint,17,opt,name=total_votes,json=totalVotes,proto3" json:"total_votes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BracketData) Reset() {
 	*x = BracketData{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[0]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66,7 +161,7 @@ func (x *BracketData) String() string {
 func (*BracketData) ProtoMessage() {}
 
 func (x *BracketData) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[0]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -79,7 +174,7 @@ func (x *BracketData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BracketData.ProtoReflect.Descriptor instead.
 func (*BracketData) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{0}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *BracketData) GetId() string {
@@ -194,6 +289,13 @@ func (x *BracketData) GetCommunityId() string {
 	return ""
 }
 
+func (x *BracketData) GetTotalVotes() int64 {
+	if x != nil {
+		return x.TotalVotes
+	}
+	return 0
+}
+
 // PopularBracketData is a lightweight bracket used in the popular feed.
 type PopularBracketData struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
@@ -219,7 +321,7 @@ type PopularBracketData struct {
 
 func (x *PopularBracketData) Reset() {
 	*x = PopularBracketData{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[1]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -231,7 +333,7 @@ func (x *PopularBracketData) String() string {
 func (*PopularBracketData) ProtoMessage() {}
 
 func (x *PopularBracketData) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[1]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -244,7 +346,7 @@ func (x *PopularBracketData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PopularBracketData.ProtoReflect.Descriptor instead.
 func (*PopularBracketData) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{1}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *PopularBracketData) GetId() string {
@@ -351,7 +453,7 @@ type BracketSummaryData struct {
 
 func (x *BracketSummaryData) Reset() {
 	*x = BracketSummaryData{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[2]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -363,7 +465,7 @@ func (x *BracketSummaryData) String() string {
 func (*BracketSummaryData) ProtoMessage() {}
 
 func (x *BracketSummaryData) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[2]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -376,7 +478,7 @@ func (x *BracketSummaryData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BracketSummaryData.ProtoReflect.Descriptor instead.
 func (*BracketSummaryData) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{2}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *BracketSummaryData) GetBracket() *BracketData {
@@ -415,7 +517,7 @@ type GetPopularBracketsRequest struct {
 
 func (x *GetPopularBracketsRequest) Reset() {
 	*x = GetPopularBracketsRequest{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[3]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -427,7 +529,7 @@ func (x *GetPopularBracketsRequest) String() string {
 func (*GetPopularBracketsRequest) ProtoMessage() {}
 
 func (x *GetPopularBracketsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[3]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -440,7 +542,7 @@ func (x *GetPopularBracketsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPopularBracketsRequest.ProtoReflect.Descriptor instead.
 func (*GetPopularBracketsRequest) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{3}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{5}
 }
 
 type GetBracketRequest struct {
@@ -452,7 +554,7 @@ type GetBracketRequest struct {
 
 func (x *GetBracketRequest) Reset() {
 	*x = GetBracketRequest{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[4]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -464,7 +566,7 @@ func (x *GetBracketRequest) String() string {
 func (*GetBracketRequest) ProtoMessage() {}
 
 func (x *GetBracketRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[4]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -477,7 +579,7 @@ func (x *GetBracketRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBracketRequest.ProtoReflect.Descriptor instead.
 func (*GetBracketRequest) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{4}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetBracketRequest) GetId() string {
@@ -496,7 +598,7 @@ type GetBracketSummaryRequest struct {
 
 func (x *GetBracketSummaryRequest) Reset() {
 	*x = GetBracketSummaryRequest{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[5]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -508,7 +610,7 @@ func (x *GetBracketSummaryRequest) String() string {
 func (*GetBracketSummaryRequest) ProtoMessage() {}
 
 func (x *GetBracketSummaryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[5]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -521,7 +623,7 @@ func (x *GetBracketSummaryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBracketSummaryRequest.ProtoReflect.Descriptor instead.
 func (*GetBracketSummaryRequest) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{5}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *GetBracketSummaryRequest) GetId() string {
@@ -542,7 +644,7 @@ type GetUserBracketsRequest struct {
 
 func (x *GetUserBracketsRequest) Reset() {
 	*x = GetUserBracketsRequest{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[6]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -554,7 +656,7 @@ func (x *GetUserBracketsRequest) String() string {
 func (*GetUserBracketsRequest) ProtoMessage() {}
 
 func (x *GetUserBracketsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[6]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -567,7 +669,7 @@ func (x *GetUserBracketsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserBracketsRequest.ProtoReflect.Descriptor instead.
 func (*GetUserBracketsRequest) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{6}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetUserBracketsRequest) GetUserId() string {
@@ -602,7 +704,7 @@ type GetBracketMatchupsRequest struct {
 
 func (x *GetBracketMatchupsRequest) Reset() {
 	*x = GetBracketMatchupsRequest{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[7]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -614,7 +716,7 @@ func (x *GetBracketMatchupsRequest) String() string {
 func (*GetBracketMatchupsRequest) ProtoMessage() {}
 
 func (x *GetBracketMatchupsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[7]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -627,7 +729,7 @@ func (x *GetBracketMatchupsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBracketMatchupsRequest.ProtoReflect.Descriptor instead.
 func (*GetBracketMatchupsRequest) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{7}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetBracketMatchupsRequest) GetId() string {
@@ -673,7 +775,7 @@ type CreateBracketRequest struct {
 
 func (x *CreateBracketRequest) Reset() {
 	*x = CreateBracketRequest{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[8]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -685,7 +787,7 @@ func (x *CreateBracketRequest) String() string {
 func (*CreateBracketRequest) ProtoMessage() {}
 
 func (x *CreateBracketRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[8]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -698,7 +800,7 @@ func (x *CreateBracketRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateBracketRequest.ProtoReflect.Descriptor instead.
 func (*CreateBracketRequest) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{8}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *CreateBracketRequest) GetUserId() string {
@@ -793,7 +895,7 @@ type UpdateBracketRequest struct {
 
 func (x *UpdateBracketRequest) Reset() {
 	*x = UpdateBracketRequest{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[9]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -805,7 +907,7 @@ func (x *UpdateBracketRequest) String() string {
 func (*UpdateBracketRequest) ProtoMessage() {}
 
 func (x *UpdateBracketRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[9]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -818,7 +920,7 @@ func (x *UpdateBracketRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateBracketRequest.ProtoReflect.Descriptor instead.
 func (*UpdateBracketRequest) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{9}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *UpdateBracketRequest) GetId() string {
@@ -879,7 +981,7 @@ type DeleteBracketRequest struct {
 
 func (x *DeleteBracketRequest) Reset() {
 	*x = DeleteBracketRequest{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[10]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -891,7 +993,7 @@ func (x *DeleteBracketRequest) String() string {
 func (*DeleteBracketRequest) ProtoMessage() {}
 
 func (x *DeleteBracketRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[10]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -904,7 +1006,7 @@ func (x *DeleteBracketRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteBracketRequest.ProtoReflect.Descriptor instead.
 func (*DeleteBracketRequest) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{10}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *DeleteBracketRequest) GetId() string {
@@ -926,7 +1028,7 @@ type AttachMatchupRequest struct {
 
 func (x *AttachMatchupRequest) Reset() {
 	*x = AttachMatchupRequest{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[11]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -938,7 +1040,7 @@ func (x *AttachMatchupRequest) String() string {
 func (*AttachMatchupRequest) ProtoMessage() {}
 
 func (x *AttachMatchupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[11]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -951,7 +1053,7 @@ func (x *AttachMatchupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttachMatchupRequest.ProtoReflect.Descriptor instead.
 func (*AttachMatchupRequest) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{11}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *AttachMatchupRequest) GetBracketId() string {
@@ -991,7 +1093,7 @@ type DetachMatchupRequest struct {
 
 func (x *DetachMatchupRequest) Reset() {
 	*x = DetachMatchupRequest{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[12]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1003,7 +1105,7 @@ func (x *DetachMatchupRequest) String() string {
 func (*DetachMatchupRequest) ProtoMessage() {}
 
 func (x *DetachMatchupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[12]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1016,7 +1118,7 @@ func (x *DetachMatchupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DetachMatchupRequest.ProtoReflect.Descriptor instead.
 func (*DetachMatchupRequest) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{12}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *DetachMatchupRequest) GetMatchupId() string {
@@ -1035,7 +1137,7 @@ type AdvanceBracketRequest struct {
 
 func (x *AdvanceBracketRequest) Reset() {
 	*x = AdvanceBracketRequest{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[13]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1047,7 +1149,7 @@ func (x *AdvanceBracketRequest) String() string {
 func (*AdvanceBracketRequest) ProtoMessage() {}
 
 func (x *AdvanceBracketRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[13]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1060,7 +1162,7 @@ func (x *AdvanceBracketRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdvanceBracketRequest.ProtoReflect.Descriptor instead.
 func (*AdvanceBracketRequest) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{13}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *AdvanceBracketRequest) GetId() string {
@@ -1080,7 +1182,7 @@ type ResolveTieAndAdvanceRequest struct {
 
 func (x *ResolveTieAndAdvanceRequest) Reset() {
 	*x = ResolveTieAndAdvanceRequest{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[14]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1092,7 +1194,7 @@ func (x *ResolveTieAndAdvanceRequest) String() string {
 func (*ResolveTieAndAdvanceRequest) ProtoMessage() {}
 
 func (x *ResolveTieAndAdvanceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[14]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1105,7 +1207,7 @@ func (x *ResolveTieAndAdvanceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveTieAndAdvanceRequest.ProtoReflect.Descriptor instead.
 func (*ResolveTieAndAdvanceRequest) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{14}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ResolveTieAndAdvanceRequest) GetMatchupId() string {
@@ -1131,7 +1233,7 @@ type InternalAdvanceBracketRequest struct {
 
 func (x *InternalAdvanceBracketRequest) Reset() {
 	*x = InternalAdvanceBracketRequest{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[15]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1143,7 +1245,7 @@ func (x *InternalAdvanceBracketRequest) String() string {
 func (*InternalAdvanceBracketRequest) ProtoMessage() {}
 
 func (x *InternalAdvanceBracketRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[15]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1156,7 +1258,7 @@ func (x *InternalAdvanceBracketRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InternalAdvanceBracketRequest.ProtoReflect.Descriptor instead.
 func (*InternalAdvanceBracketRequest) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{15}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *InternalAdvanceBracketRequest) GetId() string {
@@ -1175,7 +1277,7 @@ type GetPopularBracketsResponse struct {
 
 func (x *GetPopularBracketsResponse) Reset() {
 	*x = GetPopularBracketsResponse{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[16]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1187,7 +1289,7 @@ func (x *GetPopularBracketsResponse) String() string {
 func (*GetPopularBracketsResponse) ProtoMessage() {}
 
 func (x *GetPopularBracketsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[16]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1200,7 +1302,7 @@ func (x *GetPopularBracketsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPopularBracketsResponse.ProtoReflect.Descriptor instead.
 func (*GetPopularBracketsResponse) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{16}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *GetPopularBracketsResponse) GetBrackets() []*PopularBracketData {
@@ -1219,7 +1321,7 @@ type GetBracketResponse struct {
 
 func (x *GetBracketResponse) Reset() {
 	*x = GetBracketResponse{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[17]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1231,7 +1333,7 @@ func (x *GetBracketResponse) String() string {
 func (*GetBracketResponse) ProtoMessage() {}
 
 func (x *GetBracketResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[17]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1244,7 +1346,7 @@ func (x *GetBracketResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBracketResponse.ProtoReflect.Descriptor instead.
 func (*GetBracketResponse) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{17}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GetBracketResponse) GetBracket() *BracketData {
@@ -1263,7 +1365,7 @@ type GetBracketSummaryResponse struct {
 
 func (x *GetBracketSummaryResponse) Reset() {
 	*x = GetBracketSummaryResponse{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[18]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1275,7 +1377,7 @@ func (x *GetBracketSummaryResponse) String() string {
 func (*GetBracketSummaryResponse) ProtoMessage() {}
 
 func (x *GetBracketSummaryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[18]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1288,7 +1390,7 @@ func (x *GetBracketSummaryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBracketSummaryResponse.ProtoReflect.Descriptor instead.
 func (*GetBracketSummaryResponse) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{18}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *GetBracketSummaryResponse) GetSummary() *BracketSummaryData {
@@ -1308,7 +1410,7 @@ type GetUserBracketsResponse struct {
 
 func (x *GetUserBracketsResponse) Reset() {
 	*x = GetUserBracketsResponse{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[19]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1320,7 +1422,7 @@ func (x *GetUserBracketsResponse) String() string {
 func (*GetUserBracketsResponse) ProtoMessage() {}
 
 func (x *GetUserBracketsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[19]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1333,7 +1435,7 @@ func (x *GetUserBracketsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserBracketsResponse.ProtoReflect.Descriptor instead.
 func (*GetUserBracketsResponse) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{19}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *GetUserBracketsResponse) GetBrackets() []*BracketData {
@@ -1360,7 +1462,7 @@ type GetBracketMatchupsResponse struct {
 
 func (x *GetBracketMatchupsResponse) Reset() {
 	*x = GetBracketMatchupsResponse{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[20]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1372,7 +1474,7 @@ func (x *GetBracketMatchupsResponse) String() string {
 func (*GetBracketMatchupsResponse) ProtoMessage() {}
 
 func (x *GetBracketMatchupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[20]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1385,7 +1487,7 @@ func (x *GetBracketMatchupsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBracketMatchupsResponse.ProtoReflect.Descriptor instead.
 func (*GetBracketMatchupsResponse) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{20}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *GetBracketMatchupsResponse) GetMatchups() []*v11.MatchupData {
@@ -1411,7 +1513,7 @@ type CreateBracketResponse struct {
 
 func (x *CreateBracketResponse) Reset() {
 	*x = CreateBracketResponse{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[21]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1423,7 +1525,7 @@ func (x *CreateBracketResponse) String() string {
 func (*CreateBracketResponse) ProtoMessage() {}
 
 func (x *CreateBracketResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[21]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1436,7 +1538,7 @@ func (x *CreateBracketResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateBracketResponse.ProtoReflect.Descriptor instead.
 func (*CreateBracketResponse) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{21}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *CreateBracketResponse) GetBracket() *BracketData {
@@ -1455,7 +1557,7 @@ type UpdateBracketResponse struct {
 
 func (x *UpdateBracketResponse) Reset() {
 	*x = UpdateBracketResponse{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[22]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1467,7 +1569,7 @@ func (x *UpdateBracketResponse) String() string {
 func (*UpdateBracketResponse) ProtoMessage() {}
 
 func (x *UpdateBracketResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[22]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1480,7 +1582,7 @@ func (x *UpdateBracketResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateBracketResponse.ProtoReflect.Descriptor instead.
 func (*UpdateBracketResponse) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{22}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *UpdateBracketResponse) GetBracket() *BracketData {
@@ -1499,7 +1601,7 @@ type DeleteBracketResponse struct {
 
 func (x *DeleteBracketResponse) Reset() {
 	*x = DeleteBracketResponse{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[23]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1511,7 +1613,7 @@ func (x *DeleteBracketResponse) String() string {
 func (*DeleteBracketResponse) ProtoMessage() {}
 
 func (x *DeleteBracketResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[23]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1524,7 +1626,7 @@ func (x *DeleteBracketResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteBracketResponse.ProtoReflect.Descriptor instead.
 func (*DeleteBracketResponse) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{23}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *DeleteBracketResponse) GetMessage() string {
@@ -1543,7 +1645,7 @@ type AttachMatchupResponse struct {
 
 func (x *AttachMatchupResponse) Reset() {
 	*x = AttachMatchupResponse{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[24]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1555,7 +1657,7 @@ func (x *AttachMatchupResponse) String() string {
 func (*AttachMatchupResponse) ProtoMessage() {}
 
 func (x *AttachMatchupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[24]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1568,7 +1670,7 @@ func (x *AttachMatchupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttachMatchupResponse.ProtoReflect.Descriptor instead.
 func (*AttachMatchupResponse) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{24}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *AttachMatchupResponse) GetMatchup() *v11.MatchupData {
@@ -1587,7 +1689,7 @@ type DetachMatchupResponse struct {
 
 func (x *DetachMatchupResponse) Reset() {
 	*x = DetachMatchupResponse{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[25]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1599,7 +1701,7 @@ func (x *DetachMatchupResponse) String() string {
 func (*DetachMatchupResponse) ProtoMessage() {}
 
 func (x *DetachMatchupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[25]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1612,7 +1714,7 @@ func (x *DetachMatchupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DetachMatchupResponse.ProtoReflect.Descriptor instead.
 func (*DetachMatchupResponse) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{25}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *DetachMatchupResponse) GetMessage() string {
@@ -1632,7 +1734,7 @@ type AdvanceBracketResponse struct {
 
 func (x *AdvanceBracketResponse) Reset() {
 	*x = AdvanceBracketResponse{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[26]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1644,7 +1746,7 @@ func (x *AdvanceBracketResponse) String() string {
 func (*AdvanceBracketResponse) ProtoMessage() {}
 
 func (x *AdvanceBracketResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[26]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1657,7 +1759,7 @@ func (x *AdvanceBracketResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdvanceBracketResponse.ProtoReflect.Descriptor instead.
 func (*AdvanceBracketResponse) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{26}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *AdvanceBracketResponse) GetBracket() *BracketData {
@@ -1684,7 +1786,7 @@ type ResolveTieAndAdvanceResponse struct {
 
 func (x *ResolveTieAndAdvanceResponse) Reset() {
 	*x = ResolveTieAndAdvanceResponse{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[27]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1696,7 +1798,7 @@ func (x *ResolveTieAndAdvanceResponse) String() string {
 func (*ResolveTieAndAdvanceResponse) ProtoMessage() {}
 
 func (x *ResolveTieAndAdvanceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[27]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1709,7 +1811,7 @@ func (x *ResolveTieAndAdvanceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveTieAndAdvanceResponse.ProtoReflect.Descriptor instead.
 func (*ResolveTieAndAdvanceResponse) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{27}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *ResolveTieAndAdvanceResponse) GetBracket() *BracketData {
@@ -1735,7 +1837,7 @@ type InternalAdvanceBracketResponse struct {
 
 func (x *InternalAdvanceBracketResponse) Reset() {
 	*x = InternalAdvanceBracketResponse{}
-	mi := &file_bracket_v1_bracket_proto_msgTypes[28]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1747,7 +1849,7 @@ func (x *InternalAdvanceBracketResponse) String() string {
 func (*InternalAdvanceBracketResponse) ProtoMessage() {}
 
 func (x *InternalAdvanceBracketResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_bracket_v1_bracket_proto_msgTypes[28]
+	mi := &file_bracket_v1_bracket_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1760,7 +1862,7 @@ func (x *InternalAdvanceBracketResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InternalAdvanceBracketResponse.ProtoReflect.Descriptor instead.
 func (*InternalAdvanceBracketResponse) Descriptor() ([]byte, []int) {
-	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{28}
+	return file_bracket_v1_bracket_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *InternalAdvanceBracketResponse) GetMessage() string {
@@ -1775,7 +1877,12 @@ var File_bracket_v1_bracket_proto protoreflect.FileDescriptor
 const file_bracket_v1_bracket_proto_rawDesc = "" +
 	"\n" +
 	"\x18bracket/v1/bracket.proto\x12\n" +
-	"bracket.v1\x1a\x18matchup/v1/matchup.proto\x1a\x16common/v1/common.proto\"\xdc\x04\n" +
+	"bracket.v1\x1a\x18matchup/v1/matchup.proto\x1a\x16common/v1/common.proto\"8\n" +
+	"\x17GetBracketLikersRequest\x12\x1d\n" +
+	"\n" +
+	"bracket_id\x18\x01 \x01(\tR\tbracketId\"R\n" +
+	"\x18GetBracketLikersResponse\x126\n" +
+	"\x06likers\x18\x01 \x03(\v2\x1e.common.v1.UserSummaryResponseR\x06likers\"\xfd\x04\n" +
 	"\vBracketData\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12 \n" +
@@ -1794,7 +1901,9 @@ const file_bracket_v1_bracket_proto_rawDesc = "" +
 	"\x04tags\x18\r \x03(\tR\x04tags\x126\n" +
 	"\x06author\x18\x0e \x01(\v2\x1e.common.v1.UserSummaryResponseR\x06author\x12\x19\n" +
 	"\bshort_id\x18\x0f \x01(\tR\ashortId\x12&\n" +
-	"\fcommunity_id\x18\x10 \x01(\tH\x02R\vcommunityId\x88\x01\x01B\x13\n" +
+	"\fcommunity_id\x18\x10 \x01(\tH\x02R\vcommunityId\x88\x01\x01\x12\x1f\n" +
+	"\vtotal_votes\x18\x11 \x01(\x03R\n" +
+	"totalVotesB\x13\n" +
 	"\x11_round_started_atB\x10\n" +
 	"\x0e_round_ends_atB\x0f\n" +
 	"\r_community_id\"\x8d\x03\n" +
@@ -1925,7 +2034,8 @@ const file_bracket_v1_bracket_proto_rawDesc = "" +
 	"\abracket\x18\x01 \x01(\v2\x17.bracket.v1.BracketDataR\abracket\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\":\n" +
 	"\x1eInternalAdvanceBracketResponse\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage2\xc8\t\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage2\xa7\n" +
+	"\n" +
 	"\x0eBracketService\x12c\n" +
 	"\x12GetPopularBrackets\x12%.bracket.v1.GetPopularBracketsRequest\x1a&.bracket.v1.GetPopularBracketsResponse\x12K\n" +
 	"\n" +
@@ -1940,7 +2050,8 @@ const file_bracket_v1_bracket_proto_rawDesc = "" +
 	"\rDetachMatchup\x12 .bracket.v1.DetachMatchupRequest\x1a!.bracket.v1.DetachMatchupResponse\x12W\n" +
 	"\x0eAdvanceBracket\x12!.bracket.v1.AdvanceBracketRequest\x1a\".bracket.v1.AdvanceBracketResponse\x12i\n" +
 	"\x14ResolveTieAndAdvance\x12'.bracket.v1.ResolveTieAndAdvanceRequest\x1a(.bracket.v1.ResolveTieAndAdvanceResponse\x12o\n" +
-	"\x16InternalAdvanceBracket\x12).bracket.v1.InternalAdvanceBracketRequest\x1a*.bracket.v1.InternalAdvanceBracketResponseB\"Z Matchup/gen/bracket/v1;bracketv1b\x06proto3"
+	"\x16InternalAdvanceBracket\x12).bracket.v1.InternalAdvanceBracketRequest\x1a*.bracket.v1.InternalAdvanceBracketResponse\x12]\n" +
+	"\x10GetBracketLikers\x12#.bracket.v1.GetBracketLikersRequest\x1a$.bracket.v1.GetBracketLikersResponseB\"Z Matchup/gen/bracket/v1;bracketv1b\x06proto3"
 
 var (
 	file_bracket_v1_bracket_proto_rawDescOnce sync.Once
@@ -1954,88 +2065,93 @@ func file_bracket_v1_bracket_proto_rawDescGZIP() []byte {
 	return file_bracket_v1_bracket_proto_rawDescData
 }
 
-var file_bracket_v1_bracket_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
+var file_bracket_v1_bracket_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
 var file_bracket_v1_bracket_proto_goTypes = []any{
-	(*BracketData)(nil),                    // 0: bracket.v1.BracketData
-	(*PopularBracketData)(nil),             // 1: bracket.v1.PopularBracketData
-	(*BracketSummaryData)(nil),             // 2: bracket.v1.BracketSummaryData
-	(*GetPopularBracketsRequest)(nil),      // 3: bracket.v1.GetPopularBracketsRequest
-	(*GetBracketRequest)(nil),              // 4: bracket.v1.GetBracketRequest
-	(*GetBracketSummaryRequest)(nil),       // 5: bracket.v1.GetBracketSummaryRequest
-	(*GetUserBracketsRequest)(nil),         // 6: bracket.v1.GetUserBracketsRequest
-	(*GetBracketMatchupsRequest)(nil),      // 7: bracket.v1.GetBracketMatchupsRequest
-	(*CreateBracketRequest)(nil),           // 8: bracket.v1.CreateBracketRequest
-	(*UpdateBracketRequest)(nil),           // 9: bracket.v1.UpdateBracketRequest
-	(*DeleteBracketRequest)(nil),           // 10: bracket.v1.DeleteBracketRequest
-	(*AttachMatchupRequest)(nil),           // 11: bracket.v1.AttachMatchupRequest
-	(*DetachMatchupRequest)(nil),           // 12: bracket.v1.DetachMatchupRequest
-	(*AdvanceBracketRequest)(nil),          // 13: bracket.v1.AdvanceBracketRequest
-	(*ResolveTieAndAdvanceRequest)(nil),    // 14: bracket.v1.ResolveTieAndAdvanceRequest
-	(*InternalAdvanceBracketRequest)(nil),  // 15: bracket.v1.InternalAdvanceBracketRequest
-	(*GetPopularBracketsResponse)(nil),     // 16: bracket.v1.GetPopularBracketsResponse
-	(*GetBracketResponse)(nil),             // 17: bracket.v1.GetBracketResponse
-	(*GetBracketSummaryResponse)(nil),      // 18: bracket.v1.GetBracketSummaryResponse
-	(*GetUserBracketsResponse)(nil),        // 19: bracket.v1.GetUserBracketsResponse
-	(*GetBracketMatchupsResponse)(nil),     // 20: bracket.v1.GetBracketMatchupsResponse
-	(*CreateBracketResponse)(nil),          // 21: bracket.v1.CreateBracketResponse
-	(*UpdateBracketResponse)(nil),          // 22: bracket.v1.UpdateBracketResponse
-	(*DeleteBracketResponse)(nil),          // 23: bracket.v1.DeleteBracketResponse
-	(*AttachMatchupResponse)(nil),          // 24: bracket.v1.AttachMatchupResponse
-	(*DetachMatchupResponse)(nil),          // 25: bracket.v1.DetachMatchupResponse
-	(*AdvanceBracketResponse)(nil),         // 26: bracket.v1.AdvanceBracketResponse
-	(*ResolveTieAndAdvanceResponse)(nil),   // 27: bracket.v1.ResolveTieAndAdvanceResponse
-	(*InternalAdvanceBracketResponse)(nil), // 28: bracket.v1.InternalAdvanceBracketResponse
-	(*v1.UserSummaryResponse)(nil),         // 29: common.v1.UserSummaryResponse
-	(*v11.MatchupData)(nil),                // 30: matchup.v1.MatchupData
-	(*v1.Pagination)(nil),                  // 31: common.v1.Pagination
+	(*GetBracketLikersRequest)(nil),        // 0: bracket.v1.GetBracketLikersRequest
+	(*GetBracketLikersResponse)(nil),       // 1: bracket.v1.GetBracketLikersResponse
+	(*BracketData)(nil),                    // 2: bracket.v1.BracketData
+	(*PopularBracketData)(nil),             // 3: bracket.v1.PopularBracketData
+	(*BracketSummaryData)(nil),             // 4: bracket.v1.BracketSummaryData
+	(*GetPopularBracketsRequest)(nil),      // 5: bracket.v1.GetPopularBracketsRequest
+	(*GetBracketRequest)(nil),              // 6: bracket.v1.GetBracketRequest
+	(*GetBracketSummaryRequest)(nil),       // 7: bracket.v1.GetBracketSummaryRequest
+	(*GetUserBracketsRequest)(nil),         // 8: bracket.v1.GetUserBracketsRequest
+	(*GetBracketMatchupsRequest)(nil),      // 9: bracket.v1.GetBracketMatchupsRequest
+	(*CreateBracketRequest)(nil),           // 10: bracket.v1.CreateBracketRequest
+	(*UpdateBracketRequest)(nil),           // 11: bracket.v1.UpdateBracketRequest
+	(*DeleteBracketRequest)(nil),           // 12: bracket.v1.DeleteBracketRequest
+	(*AttachMatchupRequest)(nil),           // 13: bracket.v1.AttachMatchupRequest
+	(*DetachMatchupRequest)(nil),           // 14: bracket.v1.DetachMatchupRequest
+	(*AdvanceBracketRequest)(nil),          // 15: bracket.v1.AdvanceBracketRequest
+	(*ResolveTieAndAdvanceRequest)(nil),    // 16: bracket.v1.ResolveTieAndAdvanceRequest
+	(*InternalAdvanceBracketRequest)(nil),  // 17: bracket.v1.InternalAdvanceBracketRequest
+	(*GetPopularBracketsResponse)(nil),     // 18: bracket.v1.GetPopularBracketsResponse
+	(*GetBracketResponse)(nil),             // 19: bracket.v1.GetBracketResponse
+	(*GetBracketSummaryResponse)(nil),      // 20: bracket.v1.GetBracketSummaryResponse
+	(*GetUserBracketsResponse)(nil),        // 21: bracket.v1.GetUserBracketsResponse
+	(*GetBracketMatchupsResponse)(nil),     // 22: bracket.v1.GetBracketMatchupsResponse
+	(*CreateBracketResponse)(nil),          // 23: bracket.v1.CreateBracketResponse
+	(*UpdateBracketResponse)(nil),          // 24: bracket.v1.UpdateBracketResponse
+	(*DeleteBracketResponse)(nil),          // 25: bracket.v1.DeleteBracketResponse
+	(*AttachMatchupResponse)(nil),          // 26: bracket.v1.AttachMatchupResponse
+	(*DetachMatchupResponse)(nil),          // 27: bracket.v1.DetachMatchupResponse
+	(*AdvanceBracketResponse)(nil),         // 28: bracket.v1.AdvanceBracketResponse
+	(*ResolveTieAndAdvanceResponse)(nil),   // 29: bracket.v1.ResolveTieAndAdvanceResponse
+	(*InternalAdvanceBracketResponse)(nil), // 30: bracket.v1.InternalAdvanceBracketResponse
+	(*v1.UserSummaryResponse)(nil),         // 31: common.v1.UserSummaryResponse
+	(*v11.MatchupData)(nil),                // 32: matchup.v1.MatchupData
+	(*v1.Pagination)(nil),                  // 33: common.v1.Pagination
 }
 var file_bracket_v1_bracket_proto_depIdxs = []int32{
-	29, // 0: bracket.v1.BracketData.author:type_name -> common.v1.UserSummaryResponse
-	0,  // 1: bracket.v1.BracketSummaryData.bracket:type_name -> bracket.v1.BracketData
-	30, // 2: bracket.v1.BracketSummaryData.matchups:type_name -> matchup.v1.MatchupData
-	1,  // 3: bracket.v1.GetPopularBracketsResponse.brackets:type_name -> bracket.v1.PopularBracketData
-	0,  // 4: bracket.v1.GetBracketResponse.bracket:type_name -> bracket.v1.BracketData
-	2,  // 5: bracket.v1.GetBracketSummaryResponse.summary:type_name -> bracket.v1.BracketSummaryData
-	0,  // 6: bracket.v1.GetUserBracketsResponse.brackets:type_name -> bracket.v1.BracketData
-	31, // 7: bracket.v1.GetUserBracketsResponse.pagination:type_name -> common.v1.Pagination
-	30, // 8: bracket.v1.GetBracketMatchupsResponse.matchups:type_name -> matchup.v1.MatchupData
-	31, // 9: bracket.v1.GetBracketMatchupsResponse.pagination:type_name -> common.v1.Pagination
-	0,  // 10: bracket.v1.CreateBracketResponse.bracket:type_name -> bracket.v1.BracketData
-	0,  // 11: bracket.v1.UpdateBracketResponse.bracket:type_name -> bracket.v1.BracketData
-	30, // 12: bracket.v1.AttachMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
-	0,  // 13: bracket.v1.AdvanceBracketResponse.bracket:type_name -> bracket.v1.BracketData
-	0,  // 14: bracket.v1.ResolveTieAndAdvanceResponse.bracket:type_name -> bracket.v1.BracketData
-	3,  // 15: bracket.v1.BracketService.GetPopularBrackets:input_type -> bracket.v1.GetPopularBracketsRequest
-	4,  // 16: bracket.v1.BracketService.GetBracket:input_type -> bracket.v1.GetBracketRequest
-	5,  // 17: bracket.v1.BracketService.GetBracketSummary:input_type -> bracket.v1.GetBracketSummaryRequest
-	6,  // 18: bracket.v1.BracketService.GetUserBrackets:input_type -> bracket.v1.GetUserBracketsRequest
-	7,  // 19: bracket.v1.BracketService.GetBracketMatchups:input_type -> bracket.v1.GetBracketMatchupsRequest
-	8,  // 20: bracket.v1.BracketService.CreateBracket:input_type -> bracket.v1.CreateBracketRequest
-	9,  // 21: bracket.v1.BracketService.UpdateBracket:input_type -> bracket.v1.UpdateBracketRequest
-	10, // 22: bracket.v1.BracketService.DeleteBracket:input_type -> bracket.v1.DeleteBracketRequest
-	11, // 23: bracket.v1.BracketService.AttachMatchup:input_type -> bracket.v1.AttachMatchupRequest
-	12, // 24: bracket.v1.BracketService.DetachMatchup:input_type -> bracket.v1.DetachMatchupRequest
-	13, // 25: bracket.v1.BracketService.AdvanceBracket:input_type -> bracket.v1.AdvanceBracketRequest
-	14, // 26: bracket.v1.BracketService.ResolveTieAndAdvance:input_type -> bracket.v1.ResolveTieAndAdvanceRequest
-	15, // 27: bracket.v1.BracketService.InternalAdvanceBracket:input_type -> bracket.v1.InternalAdvanceBracketRequest
-	16, // 28: bracket.v1.BracketService.GetPopularBrackets:output_type -> bracket.v1.GetPopularBracketsResponse
-	17, // 29: bracket.v1.BracketService.GetBracket:output_type -> bracket.v1.GetBracketResponse
-	18, // 30: bracket.v1.BracketService.GetBracketSummary:output_type -> bracket.v1.GetBracketSummaryResponse
-	19, // 31: bracket.v1.BracketService.GetUserBrackets:output_type -> bracket.v1.GetUserBracketsResponse
-	20, // 32: bracket.v1.BracketService.GetBracketMatchups:output_type -> bracket.v1.GetBracketMatchupsResponse
-	21, // 33: bracket.v1.BracketService.CreateBracket:output_type -> bracket.v1.CreateBracketResponse
-	22, // 34: bracket.v1.BracketService.UpdateBracket:output_type -> bracket.v1.UpdateBracketResponse
-	23, // 35: bracket.v1.BracketService.DeleteBracket:output_type -> bracket.v1.DeleteBracketResponse
-	24, // 36: bracket.v1.BracketService.AttachMatchup:output_type -> bracket.v1.AttachMatchupResponse
-	25, // 37: bracket.v1.BracketService.DetachMatchup:output_type -> bracket.v1.DetachMatchupResponse
-	26, // 38: bracket.v1.BracketService.AdvanceBracket:output_type -> bracket.v1.AdvanceBracketResponse
-	27, // 39: bracket.v1.BracketService.ResolveTieAndAdvance:output_type -> bracket.v1.ResolveTieAndAdvanceResponse
-	28, // 40: bracket.v1.BracketService.InternalAdvanceBracket:output_type -> bracket.v1.InternalAdvanceBracketResponse
-	28, // [28:41] is the sub-list for method output_type
-	15, // [15:28] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	31, // 0: bracket.v1.GetBracketLikersResponse.likers:type_name -> common.v1.UserSummaryResponse
+	31, // 1: bracket.v1.BracketData.author:type_name -> common.v1.UserSummaryResponse
+	2,  // 2: bracket.v1.BracketSummaryData.bracket:type_name -> bracket.v1.BracketData
+	32, // 3: bracket.v1.BracketSummaryData.matchups:type_name -> matchup.v1.MatchupData
+	3,  // 4: bracket.v1.GetPopularBracketsResponse.brackets:type_name -> bracket.v1.PopularBracketData
+	2,  // 5: bracket.v1.GetBracketResponse.bracket:type_name -> bracket.v1.BracketData
+	4,  // 6: bracket.v1.GetBracketSummaryResponse.summary:type_name -> bracket.v1.BracketSummaryData
+	2,  // 7: bracket.v1.GetUserBracketsResponse.brackets:type_name -> bracket.v1.BracketData
+	33, // 8: bracket.v1.GetUserBracketsResponse.pagination:type_name -> common.v1.Pagination
+	32, // 9: bracket.v1.GetBracketMatchupsResponse.matchups:type_name -> matchup.v1.MatchupData
+	33, // 10: bracket.v1.GetBracketMatchupsResponse.pagination:type_name -> common.v1.Pagination
+	2,  // 11: bracket.v1.CreateBracketResponse.bracket:type_name -> bracket.v1.BracketData
+	2,  // 12: bracket.v1.UpdateBracketResponse.bracket:type_name -> bracket.v1.BracketData
+	32, // 13: bracket.v1.AttachMatchupResponse.matchup:type_name -> matchup.v1.MatchupData
+	2,  // 14: bracket.v1.AdvanceBracketResponse.bracket:type_name -> bracket.v1.BracketData
+	2,  // 15: bracket.v1.ResolveTieAndAdvanceResponse.bracket:type_name -> bracket.v1.BracketData
+	5,  // 16: bracket.v1.BracketService.GetPopularBrackets:input_type -> bracket.v1.GetPopularBracketsRequest
+	6,  // 17: bracket.v1.BracketService.GetBracket:input_type -> bracket.v1.GetBracketRequest
+	7,  // 18: bracket.v1.BracketService.GetBracketSummary:input_type -> bracket.v1.GetBracketSummaryRequest
+	8,  // 19: bracket.v1.BracketService.GetUserBrackets:input_type -> bracket.v1.GetUserBracketsRequest
+	9,  // 20: bracket.v1.BracketService.GetBracketMatchups:input_type -> bracket.v1.GetBracketMatchupsRequest
+	10, // 21: bracket.v1.BracketService.CreateBracket:input_type -> bracket.v1.CreateBracketRequest
+	11, // 22: bracket.v1.BracketService.UpdateBracket:input_type -> bracket.v1.UpdateBracketRequest
+	12, // 23: bracket.v1.BracketService.DeleteBracket:input_type -> bracket.v1.DeleteBracketRequest
+	13, // 24: bracket.v1.BracketService.AttachMatchup:input_type -> bracket.v1.AttachMatchupRequest
+	14, // 25: bracket.v1.BracketService.DetachMatchup:input_type -> bracket.v1.DetachMatchupRequest
+	15, // 26: bracket.v1.BracketService.AdvanceBracket:input_type -> bracket.v1.AdvanceBracketRequest
+	16, // 27: bracket.v1.BracketService.ResolveTieAndAdvance:input_type -> bracket.v1.ResolveTieAndAdvanceRequest
+	17, // 28: bracket.v1.BracketService.InternalAdvanceBracket:input_type -> bracket.v1.InternalAdvanceBracketRequest
+	0,  // 29: bracket.v1.BracketService.GetBracketLikers:input_type -> bracket.v1.GetBracketLikersRequest
+	18, // 30: bracket.v1.BracketService.GetPopularBrackets:output_type -> bracket.v1.GetPopularBracketsResponse
+	19, // 31: bracket.v1.BracketService.GetBracket:output_type -> bracket.v1.GetBracketResponse
+	20, // 32: bracket.v1.BracketService.GetBracketSummary:output_type -> bracket.v1.GetBracketSummaryResponse
+	21, // 33: bracket.v1.BracketService.GetUserBrackets:output_type -> bracket.v1.GetUserBracketsResponse
+	22, // 34: bracket.v1.BracketService.GetBracketMatchups:output_type -> bracket.v1.GetBracketMatchupsResponse
+	23, // 35: bracket.v1.BracketService.CreateBracket:output_type -> bracket.v1.CreateBracketResponse
+	24, // 36: bracket.v1.BracketService.UpdateBracket:output_type -> bracket.v1.UpdateBracketResponse
+	25, // 37: bracket.v1.BracketService.DeleteBracket:output_type -> bracket.v1.DeleteBracketResponse
+	26, // 38: bracket.v1.BracketService.AttachMatchup:output_type -> bracket.v1.AttachMatchupResponse
+	27, // 39: bracket.v1.BracketService.DetachMatchup:output_type -> bracket.v1.DetachMatchupResponse
+	28, // 40: bracket.v1.BracketService.AdvanceBracket:output_type -> bracket.v1.AdvanceBracketResponse
+	29, // 41: bracket.v1.BracketService.ResolveTieAndAdvance:output_type -> bracket.v1.ResolveTieAndAdvanceResponse
+	30, // 42: bracket.v1.BracketService.InternalAdvanceBracket:output_type -> bracket.v1.InternalAdvanceBracketResponse
+	1,  // 43: bracket.v1.BracketService.GetBracketLikers:output_type -> bracket.v1.GetBracketLikersResponse
+	30, // [30:44] is the sub-list for method output_type
+	16, // [16:30] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_bracket_v1_bracket_proto_init() }
@@ -2043,19 +2159,19 @@ func file_bracket_v1_bracket_proto_init() {
 	if File_bracket_v1_bracket_proto != nil {
 		return
 	}
-	file_bracket_v1_bracket_proto_msgTypes[0].OneofWrappers = []any{}
-	file_bracket_v1_bracket_proto_msgTypes[6].OneofWrappers = []any{}
-	file_bracket_v1_bracket_proto_msgTypes[7].OneofWrappers = []any{}
+	file_bracket_v1_bracket_proto_msgTypes[2].OneofWrappers = []any{}
 	file_bracket_v1_bracket_proto_msgTypes[8].OneofWrappers = []any{}
 	file_bracket_v1_bracket_proto_msgTypes[9].OneofWrappers = []any{}
+	file_bracket_v1_bracket_proto_msgTypes[10].OneofWrappers = []any{}
 	file_bracket_v1_bracket_proto_msgTypes[11].OneofWrappers = []any{}
+	file_bracket_v1_bracket_proto_msgTypes[13].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_bracket_v1_bracket_proto_rawDesc), len(file_bracket_v1_bracket_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   29,
+			NumMessages:   31,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import ConfirmModal from "../components/ConfirmModal";
+import AudienceModal from "../components/AudienceModal";
 import Button from "../components/Button";
 import BracketView from "../components/BracketView";
 import Comment from "../components/Comment";
@@ -24,6 +25,7 @@ import {
   deleteBracketComment,
   getCommunity,
   joinCommunity,
+  getBracketLikers,
 } from "../services/api";
 import "../styles/BracketPage.css";
 import "../styles/CommunityJoinCTA.css";
@@ -84,6 +86,34 @@ export default function BracketPage() {
   const [confirmModal, setConfirmModal] = useState(null);
   const [commentError, setCommentError] = useState(null);
   const [commentPending, setCommentPending] = useState(false);
+
+  // Owner-only audience panel (likers). No voters panel on brackets
+  // by product decision — see audience_handlers.go.
+  const [likersOpen, setLikersOpen] = useState(false);
+  const [likers, setLikers] = useState(null);
+  const [likersLoading, setLikersLoading] = useState(false);
+  const [likersError, setLikersError] = useState(null);
+
+  const openLikersPanel = async () => {
+    setLikersOpen(true);
+    setLikersError(null);
+    setLikersLoading(true);
+    try {
+      const res = await getBracketLikers(bracket.id);
+      const payload = res?.data?.response ?? res?.data ?? {};
+      const list = Array.isArray(payload.likers) ? payload.likers : [];
+      setLikers(list.map((u) => ({
+        id: u.id || '',
+        username: u.username || '',
+        avatar_path: u.avatar_path || '',
+      })));
+    } catch (err) {
+      console.error('getBracketLikers', err);
+      setLikersError('Could not load likers.');
+    } finally {
+      setLikersLoading(false);
+    }
+  };
 
   // Attribution on incoming shares (see hook).
   useShareTracking({ contentType: "bracket", shortID: bracket?.short_id });
@@ -613,6 +643,19 @@ export default function BracketPage() {
                       {bracket.current_round || 1}
                     </p>
                   </div>
+                  {/*
+                    Total votes — cumulative across every child matchup
+                    in the bracket. Server populates it on BracketData
+                    via SUM(matchup_items.votes). Always rendered (even
+                    at zero) so a brand-new bracket still signals that
+                    voting exists, matching the matchup-page pattern.
+                  */}
+                  <div className="bracket-meta-item">
+                    <span className="bracket-meta-label">Total votes</span>
+                    <p className="bracket-meta-value">
+                      {Number(bracket.total_votes ?? bracket.totalVotes ?? 0).toLocaleString()}
+                    </p>
+                  </div>
                 </div>
               </>
             );
@@ -685,6 +728,20 @@ export default function BracketPage() {
               can't use). */}
           {canEdit && (
             <div className="bracket-action-bar__owner">
+              {/* Likers panel — strict owner-only (not canEdit, which
+                  includes admins) per the "owner controls never
+                  bypass to admin" rule. The Connect-RPC server is
+                  the backstop; this gate just hides the affordance
+                  from admins who'd get a 403 anyway. */}
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={openLikersPanel}
+                  className="bracket-button bracket-button--ghost"
+                >
+                  Likers
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setDeleteModalOpen(true)}
@@ -831,6 +888,16 @@ export default function BracketPage() {
           onCancel={() => setConfirmModal(null)}
         />
       )}
+
+      <AudienceModal
+        open={likersOpen}
+        onClose={() => setLikersOpen(false)}
+        title="Likers"
+        loading={likersLoading && !likers}
+        error={likersError}
+        users={likers || []}
+        emptyLabel="No likes yet."
+      />
 
       {reportOpen && bracket?.public_id && (
         <ReportModal

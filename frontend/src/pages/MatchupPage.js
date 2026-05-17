@@ -10,6 +10,7 @@ import Comment from "../components/Comment";
 import MentionAutocomplete from "../components/MentionAutocomplete";
 import Button from "../components/Button";
 import ConfirmModal from "../components/ConfirmModal";
+import AudienceModal from "../components/AudienceModal";
 import ShareButton from "../components/ShareButton";
 import ReportModal from "../components/ReportModal";
 import SkeletonCard from "../components/SkeletonCard";
@@ -34,6 +35,8 @@ import {
   skipMatchup,
   getCommunity,
   joinCommunity,
+  getMatchupVoters,
+  getMatchupLikers,
 } from "../services/api";
 import "../styles/MatchupPage.css";
 import "../styles/CommunityJoinCTA.css";
@@ -100,6 +103,16 @@ const MatchupPage = () => {
   const [navPending, setNavPending] = useState(false);
   // Report flow — non-owners can flag a matchup for moderator review.
   const [reportOpen, setReportOpen] = useState(false);
+
+  // Audience panel state — voters + likers lists, owner-only. Each
+  // open() handler fires its own fetch; closing leaves the cached
+  // data in state so a re-open returns instantly while a fresh fetch
+  // refreshes in the background (similar pattern to NotificationBell).
+  const [audiencePanel, setAudiencePanel] = useState(null); // 'voters' | 'likers' | null
+  const [voters, setVoters] = useState(null);          // { users: [], anonCount: number }
+  const [likers, setLikers] = useState(null);          // [] of users
+  const [audienceLoading, setAudienceLoading] = useState(false);
+  const [audienceError, setAudienceError] = useState(null);
 
   // Fire the share-attribution beacon on landing. Runs once per mount
   // after short_id is known; safe when short_id is missing (no-op).
@@ -845,6 +858,59 @@ const MatchupPage = () => {
     });
   };
 
+  // Audience-panel openers. Each fetches its data lazily on first
+  // open (panel state flips first so the modal frame renders the
+  // loading state; the data lands when the RPC resolves). Subsequent
+  // opens hit cached state so the panel returns instantly while the
+  // background refresh repopulates. Owner-only — the trigger
+  // buttons are gated on isOwner upstream so this should never run
+  // for a non-owner; the server's 403 is the backstop.
+  const openVotersPanel = async () => {
+    setAudiencePanel('voters');
+    setAudienceError(null);
+    setAudienceLoading(true);
+    try {
+      const res = await getMatchupVoters(matchup.id);
+      const payload = res?.data?.response ?? res?.data ?? {};
+      const list = Array.isArray(payload.voters) ? payload.voters : [];
+      setVoters({
+        users: list.map((v) => ({
+          id: v.user?.id || '',
+          username: v.user?.username || '',
+          avatar_path: v.user?.avatar_path || '',
+          pickedItemLabel: v.picked_item_label || '',
+        })),
+        anonCount: Number(payload.anon_count || 0),
+      });
+    } catch (err) {
+      console.error('getMatchupVoters', err);
+      setAudienceError('Could not load voters.');
+    } finally {
+      setAudienceLoading(false);
+    }
+  };
+
+  const openLikersPanel = async () => {
+    setAudiencePanel('likers');
+    setAudienceError(null);
+    setAudienceLoading(true);
+    try {
+      const res = await getMatchupLikers(matchup.id);
+      const payload = res?.data?.response ?? res?.data ?? {};
+      const list = Array.isArray(payload.likers) ? payload.likers : [];
+      setLikers(list.map((u) => ({
+        id: u.id || '',
+        username: u.username || '',
+        avatar_path: u.avatar_path || '',
+      })));
+    } catch (err) {
+      console.error('getMatchupLikers', err);
+      setAudienceError('Could not load likers.');
+    } finally {
+      setAudienceLoading(false);
+    }
+  };
+
   /* ------------------------------------------------------------------ */
   /* RENDER */
   /* ------------------------------------------------------------------ */
@@ -1344,6 +1410,26 @@ const MatchupPage = () => {
                   </div>
                 </details>
               )}
+              {/* Audience panels — owner-only "who voted" + "who
+                  liked" listings. Server enforces the owner gate; the
+                  isOwner check here just hides the affordance from
+                  viewers who'd get a 403 anyway. */}
+              {isOwner && (
+                <>
+                  <Button
+                    onClick={openVotersPanel}
+                    className="matchup-owner-tray__button"
+                  >
+                    Voters
+                  </Button>
+                  <Button
+                    onClick={openLikersPanel}
+                    className="matchup-owner-tray__button"
+                  >
+                    Likers
+                  </Button>
+                </>
+              )}
               {isOwner && !isBracketMatchup && (
                 <Button
                   onClick={() => setDeleteModalOpen(true)}
@@ -1458,6 +1544,31 @@ const MatchupPage = () => {
           onCancel={() => setConfirmModal(null)}
         />
       )}
+
+      {/* Owner-only audience panels. Only one is open at a time —
+          state holds 'voters' | 'likers' | null. Data is cached
+          locally after the first fetch so re-opening returns
+          instantly; the server is the authority on freshness via
+          the next fetch. */}
+      <AudienceModal
+        open={audiencePanel === 'voters'}
+        onClose={() => setAudiencePanel(null)}
+        title="Voters"
+        loading={audienceLoading && !voters}
+        error={audienceError}
+        users={voters?.users || []}
+        anonCount={voters?.anonCount || 0}
+        emptyLabel="No votes yet."
+      />
+      <AudienceModal
+        open={audiencePanel === 'likers'}
+        onClose={() => setAudiencePanel(null)}
+        title="Likers"
+        loading={audienceLoading && !likers}
+        error={audienceError}
+        users={likers || []}
+        emptyLabel="No likes yet."
+      />
 
       {/* Twitter-style sticky bottom CTA — community-scoped matchups
           surface a Join button for non-members so the "preview vs

@@ -329,6 +329,21 @@ func bracketToProto(db sqlx.ExtContext, bracket *models.Bracket) *bracketv1.Brac
 		}
 	}
 
+	// Cumulative vote total across every child matchup. Computed
+	// from matchup_items rather than aggregating in-memory because
+	// the proto mapper doesn't have the items loaded — saves an N+1
+	// fan-out from the caller. Single COUNT-style aggregate; ~ms
+	// cost on a reasonably-sized bracket. Best-effort: a DB error
+	// just leaves total_votes at zero rather than failing the whole
+	// proto render.
+	var totalVotes int64
+	_ = sqlx.GetContext(context.Background(), db, &totalVotes, `
+		SELECT COALESCE(SUM(mi.votes), 0)::bigint
+		FROM matchup_items mi
+		JOIN matchups m ON m.id = mi.matchup_id
+		WHERE m.bracket_id = $1
+	`, bracket.ID)
+
 	return &bracketv1.BracketData{
 		Id:                   bracket.PublicID,
 		ShortId:              shortID,
@@ -346,6 +361,7 @@ func bracketToProto(db sqlx.ExtContext, bracket *models.Bracket) *bracketv1.Brac
 		LikesCount:           int32(bracket.LikesCount),
 		Tags:                 tags,
 		CommunityId:          communityID,
+		TotalVotes:           totalVotes,
 	}
 }
 

@@ -19,6 +19,21 @@ service BracketService {
   rpc AdvanceBracket(AdvanceBracketRequest) returns (AdvanceBracketResponse);
   rpc ResolveTieAndAdvance(ResolveTieAndAdvanceRequest) returns (ResolveTieAndAdvanceResponse);
   rpc InternalAdvanceBracket(InternalAdvanceBracketRequest) returns (InternalAdvanceBracketResponse);
+
+  // Owner-only liker list, same posture as the matchup version. By
+  // explicit product decision we do NOT expose individual voters on
+  // brackets — the surface is huge (size × rounds × matchups) and
+  // creators care about cumulative engagement, not per-matchup
+  // identity. Bracket vote totals (cumulative + per child matchup)
+  // are exposed via existing total_votes fields below.
+  rpc GetBracketLikers(GetBracketLikersRequest) returns (GetBracketLikersResponse);
+}
+
+message GetBracketLikersRequest {
+  string bracket_id = 1;
+}
+message GetBracketLikersResponse {
+  repeated common.v1.UserSummaryResponse likers = 1;
 }
 
 // BracketData is the full bracket object.
@@ -45,6 +60,13 @@ message BracketData {
   // Community public_id when the bracket is community-scoped.
   // Empty / absent for standalone brackets.
   optional string community_id = 16;
+  // Running total of votes across every child matchup in this
+  // bracket — the cumulative engagement signal the bracket page
+  // surfaces alongside likes + comments. Populated server-side
+  // from SUM(matchup_items.votes) so the frontend doesn't have to
+  // re-aggregate. Per-child-matchup totals are still on each
+  // MatchupData.items[].votes.
+  int64 total_votes = 17;
 }
 
 // PopularBracketData is a lightweight bracket used in the popular feed.
