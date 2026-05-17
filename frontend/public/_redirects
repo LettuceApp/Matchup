@@ -1,2 +1,83 @@
-/* /index.html 200
+# Render static-site rewrites — proxy API paths to the Go backend
+# service, then fall through to /index.html for SPA routes.
+#
+# Why this exists:
+#   The static site (this service) and the Go API are two separate
+#   Render services on different .onrender.com subdomains. Without
+#   these proxy rules, requests to API endpoints — including the
+#   `/m/<short>` share-link redirector and the `/og/m/<short>.png`
+#   matchup preview renderer — hit the static site and fall through
+#   to the SPA's catch-all, which serves the React index.html and
+#   then React Router's `path="*"` Navigate-to-home rule fires.
+#   Visible symptom: matchup share links unfurl with the marketing
+#   card and clicking them redirects to /home.
+#
+# Render evaluates rules top to bottom; the first match wins. So
+# every API-path rule has to land BEFORE the SPA fallback at the
+# bottom. The 200 status code is the rewrite (proxy) opcode —
+# the user's URL bar stays at matchup-uud5.onrender.com; only the
+# response body comes from the API service.
 
+# --- Short-URL share gateway (Go API: /m/{short} + /b/{short}) ---
+# These are the URLs the in-app ShareButton generates. The API
+# handler crawler-detects + serves OG HTML to crawlers and 302's
+# humans to the long SPA path.
+/m/*                                    https://matchup-vhl6.onrender.com/m/:splat                                    200
+/b/*                                    https://matchup-vhl6.onrender.com/b/:splat                                    200
+
+# --- Dynamic OG image renderers ---
+# `/og/m/<short>.png` and `/og/b/<short>.png` are the image URLs
+# embedded in the OG HTML's <meta og:image>. iMessage/Slack fetch
+# these directly; if the proxy is missing the unfurl falls back to
+# /og-default.png (the marketing card).
+/og/*                                   https://matchup-vhl6.onrender.com/og/:splat                                   200
+
+# --- Health + ops endpoints ---
+# /health is the only one a user might curl; /metrics + /share/landed
+# are internal. All return non-HTML.
+/health                                 https://matchup-vhl6.onrender.com/health                                      200
+/metrics                                https://matchup-vhl6.onrender.com/metrics                                     200
+/share/landed                           https://matchup-vhl6.onrender.com/share/landed                                200
+
+# --- Admin maintenance jobs ---
+# POST /admin/jobs/* — owner triggers reconciliation etc. via the
+# browser's DevTools console while signed in.
+/admin/jobs/*                           https://matchup-vhl6.onrender.com/admin/jobs/:splat                           200
+
+# --- Apple App Site Association + Android Asset Links ---
+# Both files have to live at the app's primary domain or the OS
+# claim-resolution fails. The Go handlers read the JSON template
+# from env, so the file content needs to come from the API.
+/.well-known/*                          https://matchup-vhl6.onrender.com/.well-known/:splat                          200
+
+# --- Server-Sent Event streams ---
+# Activity bell push: one persistent connection per signed-in user.
+# Bracket round-advance: live update during timer-driven brackets.
+# Both must reach the API for the SSE handler to run.
+/users/me/activity/events               https://matchup-vhl6.onrender.com/users/me/activity/events                    200
+/brackets/:id/events                    https://matchup-vhl6.onrender.com/brackets/:id/events                         200
+
+# --- ConnectRPC service paths ---
+# Every RPC the SPA makes lives at /<package>.v1.<Service>/<Method>.
+# Listed individually rather than via a catch-all so we don't
+# accidentally proxy SPA routes that happen to contain a dot.
+/auth.v1.*                              https://matchup-vhl6.onrender.com/auth.v1.:splat                              200
+/matchup.v1.*                           https://matchup-vhl6.onrender.com/matchup.v1.:splat                           200
+/bracket.v1.*                           https://matchup-vhl6.onrender.com/bracket.v1.:splat                           200
+/community.v1.*                         https://matchup-vhl6.onrender.com/community.v1.:splat                         200
+/activity.v1.*                          https://matchup-vhl6.onrender.com/activity.v1.:splat                          200
+/user.v1.*                              https://matchup-vhl6.onrender.com/user.v1.:splat                              200
+/home.v1.*                              https://matchup-vhl6.onrender.com/home.v1.:splat                              200
+/admin.v1.*                             https://matchup-vhl6.onrender.com/admin.v1.:splat                             200
+/search.v1.*                            https://matchup-vhl6.onrender.com/search.v1.:splat                            200
+/upload.v1.*                            https://matchup-vhl6.onrender.com/upload.v1.:splat                            200
+/comment.v1.*                           https://matchup-vhl6.onrender.com/comment.v1.:splat                           200
+/like.v1.*                              https://matchup-vhl6.onrender.com/like.v1.:splat                              200
+/report.v1.*                            https://matchup-vhl6.onrender.com/report.v1.:splat                            200
+
+# --- SPA fallback (must stay LAST) ---
+# Every other path is a React Router route; serve index.html and
+# let the SPA handle it client-side. Status 200 (not 302) so the
+# URL bar stays on the requested path; React Router reads it on
+# mount and renders the right component.
+/*                                      /index.html                                                                   200
